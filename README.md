@@ -1,0 +1,60 @@
+# fprime-DeepLearning-Sentinel
+
+A reusable F' (F Prime) flight component that lets a spacecraft analyse its own telemetry
+onboard.
+
+A small neural forecaster is trained on the ground from the mission's own pre-launch test data,
+exported as a plain file of numbers, and uplinked. In flight, deterministic C++ compares reality
+against the forecast every cycle. Sustained divergence - the early signature of a developing
+fault, visible long before any limit trips - is downlinked as a standard F' event with a named
+cause and a time-to-limit estimate.
+
+The detection method is JPL's published reference approach (telemanom); onboard feasibility was
+demonstrated in orbit by ESA's OPS-SAT. **The reusable F' packaging is this project's original
+contribution.**
+
+## Why
+
+Onboard fault protection today is per-channel limit checking. Hundman et al. (KDD 2018) found
+that **41% of real, expert-confirmed anomalies on SMAP and Curiosity were contextual**: every
+individual channel stayed inside its limits while the combination or the trajectory was wrong.
+No amount of limit tuning catches that class.
+
+## Status
+
+**Phase 1 - Python, pre-flight-code.** Proving the mathematics before any flight code is
+written. The current task is the evaluation harness: build the referee before the players.
+
+| Phase | Scope | Gate |
+|---|---|---|
+| **1 (current)** | Python - prove the mathematics | Numbers match/beat published results; evidence-based architecture selection |
+| 2 | C++ - the flight component | Tests green, flight-rule compliance clean |
+| 3 | C++ - integration + demo in the F' Ref deployment | Limit alarms silent while Sentinel warns early |
+| 4 | C++ - hardware envelope | Comfortable margins documented |
+
+## Permanent rules
+
+1. Model frozen in flight. Retraining is explicit and human-approved. No online learning, ever.
+2. Silent until validated.
+3. Warn-only. Commands nothing.
+4. Every warning explainable - named channels, named relationship breaks, time-to-limit.
+5. Deterministic onboard code - fixed memory, fixed compute per cycle.
+
+## Documentation
+
+[**Objective.md**](Objective.md) is the living objective document and the single source of truth
+for this project: the problem, the prior art, the architecture, the data strategy, the cold-start
+analysis, the roadmap and the open decisions. Other documents defer to it.
+
+[CHANGELOG.md](CHANGELOG.md) records the version history.
+
+## Data
+
+Datasets are never committed here. The primary evaluation set is **ESA-ADB** (~11.6 GB, CC BY 3.0
+IGO, Zenodo), with OPSSAT-AD and CATS as secondary sets and SMAP/MSL retained for legacy
+comparability only. Telemetry is staged to the project's Cloudflare R2 bucket as parquet with
+SHA-256 checksums and a provenance manifest. See Objective.md, section 9.
+
+## Licence
+
+Not yet selected. Intended for community release to the F' ecosystem.
