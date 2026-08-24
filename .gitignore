@@ -32,3 +32,9 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Ingest working area -- nothing here is ever committed
+scratch/
+.env
+*.zip
+*.pkl

@@ -10,8 +10,6 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ### Planned - Phase 1 work items, in order
 
-- Ingest ESA-ADB to R2 (parquet, SHA-256, manifest). Note: ~11.6 GB, roughly 40x the previous
-  data volume - size the ingest for it before the harness is written against it.
 - Build the evaluation harness (current task).
 - Reproduce the LSTM baseline.
 - Train and score GRU.
@@ -28,6 +26,53 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 | 4 | Target F' version pin | Early Phase 2 |
 | 5 | Harness base - build on TimeEval or standalone | Now |
 | 6 | R2 ingest sizing for 11.6 GB | Before the ingest |
+
+## [0.2.0] - 2026-08-24
+
+ESA-ADB ingested to Cloudflare R2. Phase 1 work item 2 complete; the evaluation
+harness (item 3) can now be built against a stable, manifest-addressed dataset.
+
+### Added
+
+- `src/sentinel_data/` - the ingest toolkit. `zenodo.py` (resumable source
+  download, MD5-verified), `esa_adb.py` (nested-zip reader), `transcode.py`
+  (parquet with a hard 90 MiB object ceiling and time-based sharding),
+  `r2.py` (client with per-HTTP-attempt operation accounting), `manifest.py`,
+  `docs_gen.py`, and a `spike / download / transcode / prepare / upload` CLI.
+- `scripts/roundtrip_check.py` - proves manifest -> key -> object -> DataFrame.
+- `docs/DATA.md` and `docs/manifest.snapshot.json` - regenerated from the
+  manifest on every ingest, so they cannot drift from the bucket.
+- `.env.example`, `requirements.txt`.
+
+### Data
+
+- 224 channels across 3 missions (76 / 100 / 48; 58 / 47 / 24 target),
+  ~2.30 billion points, 11.53 GB as zstd parquet in 234 objects.
+- 821 telecommand files merged to one object per mission. 681 of Mission1's 698
+  carry executions; the other 17 are declared but never executed.
+- Annotations in 4 objects, with `labels` pre-joined to `anomaly_types` so the
+  harness reads one object instead of two on every run.
+- 4 channels exceeded the 90 MiB ceiling and were split into time-ordered
+  shards, recorded in the manifest under `shards`.
+
+### Verified
+
+- Every object checked by size, ETag against the locally computed MD5, and a
+  SHA-256 carried in object metadata. The manifest is published only after all
+  234 objects verify, so its presence guarantees the dataset it describes.
+- 236 Class A and 238 Class B operations, 0.5% of the 50,000/month ceiling.
+- Nothing retained locally: source archives and parquet are deleted per mission
+  once verified, and the scratch directory is removed and asserted gone.
+
+### Decided
+
+- Timestamps stay nanosecond and values keep their native dtype. The dataset
+  documents its anonymisation as numerically lossless, so the archive does not
+  downcast. Some channels are categorical and are stored as strings.
+- Storage is 11.53 GB, about 1.5 GB beyond R2's 10 GB free tier (~$0.02/month).
+  The brief's "possibly inside the free tier" does not hold: the source pickles
+  are already deflate-compressed and float32 values resist zstd.
+- Source verification uses MD5. Zenodo publishes no SHA-256 for this record.
 
 ## [0.1.0] - 2026-08-24
 
@@ -55,5 +100,6 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases/tag/v0.1.0

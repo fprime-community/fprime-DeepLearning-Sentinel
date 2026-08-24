@@ -701,7 +701,7 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
 
 ```
   1. OK  Repository stood up, documentation-first
-  2. --  Ingest ESA-ADB > R2 (parquet, SHA-256, manifest)   !! ~11.6 GB, size for it
+  2. OK  Ingest ESA-ADB > R2 (parquet, SHA-256, manifest)   234 objects, 11.53 GB
   3. --  BUILD THE EVALUATION HARNESS                        <-- current task
   4. --  Reproduce the LSTM baseline
   5. --  Train + score GRU
