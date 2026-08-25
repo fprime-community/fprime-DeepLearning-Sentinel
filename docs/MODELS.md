@@ -172,7 +172,52 @@ whose data is not ESA-preprocessed will need it.
 
 ---
 
-## 4. Dependency note: torch vendors fsspec
+## 4. The pre-registration
+
+`docs/HARNESS.md` section 7 records a prediction that failed, and it is preserved
+there rather than tidied away because the audit trail is the asset. The same
+discipline applies here. **Written and committed before the first run against
+ESA-ADB**, so it cannot be quietly replaced by whatever happened.
+
+The floor is `rstd` on `m1-g8.9.10`: **event-wise F0.5 = 0.250**, from recall
+3/46 and precision 6/7.
+
+### PREDICTED
+
+| Metric | Prediction | Reasoning |
+|---|---|---|
+| **Event-wise F0.5 on `m1-g8.9.10`** | **Clears 0.250** | The dynamic threshold plus pruning buy recall without buying alarms, which is precisely what F0.5 rewards. On the fixture the same stack scored 0.370 against `mavg`'s 0.088 |
+| **Headline-cell (MVGS) recall** | **Above `rstd`'s 3/32** | The cross-channel class the method exists for. A multivariate forecaster should see events that a per-channel statistic cannot |
+| **Rare-event false alarms** | **Low, near `rstd`'s 1/48** | Rare nominal events are *in* the training data by Objective.md 6.2. This is a direct test of that claim, and the one number that decides adoption |
+| **`m1-ss5`** | **May lose to `mavg`'s 0.135** | The spiky regime suits a per-channel method. An applicability boundary, published rather than buried -- docs/HARNESS.md section 2 |
+| **`lstm-quantile` vs `lstm-telemanom`** | telemanom's dynamic threshold should **win** | Otherwise the paper's central contribution is not earning its place on this data |
+
+### Stop-and-report triggers
+
+1. **F0.5 on `m1-g8.9.10` below 0.250.** Report before touching GRU or TCN.
+   Failing to beat a two-line rolling standard deviation means either the
+   reproduction is wrong or something in the harness still is, and both are worth
+   finding before two more architectures are built on top.
+2. **`lstm-quantile` beating `lstm-telemanom` substantially.** That is a finding
+   about telemanom, not a reason to keep the better number quietly.
+3. **Rare-event false alarms above `mavg`'s 10/48.** A detector that alarms at one
+   commanded manoeuvre in five is muted within a week in orbit, whatever its
+   recall (Objective.md 11 rule 2).
+
+### What is deliberately not predicted
+
+Point recall. `m1-g8.9.10` carries eleven point anomalies, so recall over them
+takes twelve possible values and cannot separate two detectors. It is reported as
+a coverage check and is stamped UNDERPOWERED wherever it appears.
+
+### OBSERVED
+
+*Not yet run. This section is filled in after the run and beside the prediction
+above, never in place of it.*
+
+---
+
+## 5. Dependency note: torch vendors fsspec
 
 `torch==2.13.0` pulls in `fsspec` transitively, along with filelock, sympy,
 networkx, jinja2, typing_extensions and setuptools. fsspec expands glob patterns
