@@ -214,6 +214,51 @@ One deviation from the agreed tree: the scoring loop lives in `harness.py` rathe
 than inside `cli.py`, so that tests can call it directly and the CLI stays a
 composition root.
 
+## 5a. What "the harness is closed" means
+
+The harness is **closed to scope changes**. No new features, no model work
+bleeding into referee work, no metric added because a result would look better
+with it. That closure is what makes the architecture gate a table of numbers:
+LSTM, GRU and TCN are scored by code that stopped moving before any of them
+existed.
+
+**It is never closed to correctness fixes.** A referee that computes the wrong
+number is not a fixed reference point, it is a wrong one, and freezing it does
+not make its output true. The distinction is the whole of the rule:
+
+```
+  scope change      a new capability, a new metric, a new option        REFUSED
+  correctness fix   the existing contract, computed wrongly             REQUIRED
+```
+
+Two obligations come with a correctness fix, and neither is optional.
+
+**Escalate before making it.** The person who finds the defect is usually the
+person whose work it is blocking, which is exactly the position in which "fix it
+and move on" looks reasonable and reads, later, as editing the referee to suit
+the player. So it is reported, and someone else decides.
+
+**Anything that moves a published number gets both numbers recorded.** Not the
+corrected figure with the old one deleted -- both, side by side, with the defect
+and the fix described. Same discipline as section 7 below, and for the same
+reason: if the numbers land within noise, that is *evidence* the earlier results
+were not distorted, and you only have that evidence if you kept them. A reviewer
+who finds a correctness fix in the git history with only the corrected numbers
+visible has to wonder what else was quietly cleaned up.
+
+### The first case, recorded here
+
+`Bundle.subset` rebuilt its ground truth from the labels alone and never read
+`self.valid`, so the unobserved-timestep fold-in that `bundle.load` performs was
+lost on every subset. `m1-ss5` is scored as a subset of the twelve-channel load,
+so ~1,622 unobserved timesteps were counted as scorable nominal time -- the free
+specificity section 1 explicitly refuses for gaps and invalid segments.
+
+It survived because **the trivial baselines are NaN-tolerant by construction**
+(`nan_to_num`, `nanstd`), so nothing had ever asked the mask to be right. The
+first detector that could not tolerate a NaN found it immediately. Both sets of
+numbers are in `docs/RESULTS.md`.
+
 ## 6a. How channel sets are grouped, and why
 
 This is the defence against the most dangerous failure mode in the whole method:

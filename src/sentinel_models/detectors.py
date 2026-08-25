@@ -148,7 +148,7 @@ class ForecastDetector(Detector):
 
         Intersecting here is right on its own terms regardless of that: *usable*
         can only mean what the model is able to learn from, and a 1-D mask cannot
-        express which of C channels went missing. See docs/MODELS.md section 6.
+        express which of C channels went missing. See docs/MODELS.md section 5.
         """
         self._weights = self._fill = self.report = None
         values = np.asarray(values)

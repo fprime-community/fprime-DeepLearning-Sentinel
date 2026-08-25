@@ -217,7 +217,59 @@ above, never in place of it.*
 
 ---
 
-## 5. Dependency note: torch vendors fsspec
+## 5. What the LSTM found that the baselines could not
+
+The first gate run died seventy-five minutes in, at its last stage, because a
+sequence sampled from supposedly usable training data contained a NaN.
+
+The mask was wrong, and not in this package. `sentinel_eval.bundle.load` folds
+unobserved timesteps into `truth.unscorable`, and `splits.train_mask` removes
+them, so *usable* implies *observed*. `Bundle.subset` rebuilt its truth from
+`labels.truth` alone and never read `self.valid`, so that fold-in was lost --
+and `m1-ss5` is scored as a subset of the twelve-channel load. On the six group-8
+channels that is **1,622 unobserved timesteps inside an eleven-million-step
+training window, marked usable**.
+
+It surfaced on fold 2 rather than fold 0 because sampling is random: 59,771
+sequences drawn from eleven million steps will find 1,622 bad ones; 20,000 drawn
+from 3.7 million often will not.
+
+**The reason it had never surfaced at all is worth stating plainly.** The trivial
+baselines are NaN-tolerant *by construction* -- `nan_to_num`, `nanstd`, a rolling
+mean that simply skips what is missing. Not defensively, but because that is what
+those one-liners are. So in three work items nothing had ever asked the mask to
+be correct, and the defect sat in a referee that had 136 passing tests.
+
+A forecaster cannot be tolerant in that way. One NaN entering a recurrent state
+makes every state after it NaN, which is why the sampler checks rather than
+hopes. **The LSTM found a harness bug that the baselines were structurally
+incapable of finding** -- and it found it on the first run.
+
+That is an argument for having built both, and for the order they were built in.
+The baselines were scored first so the harness had been used in anger before any
+neural network depended on it (docs/RESULTS.md section 1), and that was right;
+but a detector that tolerates anything also validates nothing. The floor and the
+candidate test different properties of the referee, and a project that only ever
+ran one of them would still be carrying this.
+
+### The fix in this package stays after the harness is fixed
+
+`ForecastDetector.fit` intersects `usable` with what is actually finite. Once
+`Bundle.subset` reads `self.valid`, that intersection becomes redundant -- and it
+should remain anyway.
+
+It stands on its own terms: **usable can only mean what the model is able to
+learn from**, and a one-dimensional mask cannot express which of twelve channels
+went missing. The harness's mask answers "is this timestep scorable", which is a
+question about the timeline; a forecaster needs "can I read every input at this
+timestep", which is a question about the matrix. Those are different questions
+that happen to have the same answer when nothing is missing.
+
+Belt and braces on a failure that would otherwise be silent: a NaN in the
+recurrence does not raise, it propagates, and every score after it is NaN. The
+cost of keeping the check is one boolean AND per fit.
+
+## 6. Dependency note: torch vendors fsspec
 
 `torch==2.13.0` pulls in `fsspec` transitively, along with filelock, sympy,
 networkx, jinja2, typing_extensions and setuptools. fsspec expands glob patterns
