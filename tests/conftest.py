@@ -57,3 +57,24 @@ def split(loaded):
 @pytest.fixture
 def project_root():
     return ROOT
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _weights_go_nowhere_real(tmp_path_factory):
+    """No test may write into the real weight store.
+
+    Weights now persist under `runs/_weights` (docs/HARNESS.md, Rule 1 stated
+    precisely), keyed by content so a stale checkpoint cannot be found. That is
+    safe but it is not tidy: a test suite run would otherwise leave fits from
+    fixture-scale models in the same directory a real run reads, growing without
+    bound and confusing anyone who looks.
+
+    Session-scoped and autouse, so it holds for every test whether or not the
+    test knows the store exists.
+    """
+    from sentinel_models import detectors
+
+    original = detectors.WEIGHT_STORE
+    detectors.WEIGHT_STORE = tmp_path_factory.mktemp("weights")
+    yield
+    detectors.WEIGHT_STORE = original
