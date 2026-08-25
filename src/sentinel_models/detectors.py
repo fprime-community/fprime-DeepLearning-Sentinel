@@ -60,6 +60,13 @@ DEFAULT_CHUNK_STEPS = telemanom.ERROR_WINDOW_BATCH * telemanom.ERROR_WINDOW_COUN
 #: 10.8M-step training window does not sit in RAM beside the resident bundle.
 ERROR_CACHE_BYTES = 256 * 1024 * 1024
 
+#: How many fits to keep. `harness.evaluate` loops detectors outermost, so by the
+#: time a second detector reaches fold 0 the first has already worked through
+#: fold 2 -- a single-entry cache would have been evicted and every fold retrained.
+#: Weights are 358 KiB at the production configuration, so holding a run's worth
+#: is free and halves the only expensive part of a paired run.
+WEIGHT_CACHE_ENTRIES = 8
+
 _WEIGHTS: dict[tuple, tuple[Weights, dict]] = {}
 _ERRORS: dict[tuple, np.ndarray] = {}
 
@@ -140,7 +147,8 @@ class ForecastDetector(Detector):
             weights, report = train(values, usable, self.hyper, fold=context.fold)
             cached = (weights, report.as_dict())
             if self.reuse_weights:
-                _WEIGHTS.clear()          # one entry: the fold being worked on
+                while len(_WEIGHTS) >= WEIGHT_CACHE_ENTRIES:
+                    _WEIGHTS.pop(next(iter(_WEIGHTS)))      # oldest first
                 _WEIGHTS[key] = cached
 
         self._weights, self.report = cached

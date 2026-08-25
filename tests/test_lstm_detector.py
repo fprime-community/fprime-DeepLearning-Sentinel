@@ -197,3 +197,21 @@ def test_the_forecast_cannot_see_the_step_it_is_forecasting():
     detector._weights, detector._fill = detector._weights, detector._fill
     changed = detector.score(disturbed, None, _context(3))
     assert np.allclose(baseline[:4000], changed[:4000], atol=1e-6)
+
+
+def test_a_second_detector_reuses_every_fold_not_just_the_last():
+    """`harness.evaluate` loops detectors outermost.
+
+    So by the time the second detector reaches fold 0, the first has already
+    worked through fold 2. A single-entry cache would have been evicted and the
+    whole run would train twice -- which is the only expensive part of it.
+    """
+    values, usable = _data()
+    first, second = _tiny(), _tiny()
+    fitted = []
+    for fold in range(3):
+        first.fit(values[:3000], usable[:3000], _context(3, fold=fold))
+        fitted.append(first._weights)
+    for fold in range(3):
+        second.fit(values[:3000], usable[:3000], _context(3, fold=fold))
+        assert second._weights is fitted[fold], f"fold {fold} retrained"
