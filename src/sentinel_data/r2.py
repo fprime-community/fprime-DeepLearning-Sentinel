@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import boto3
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from .config import (
     LEDGER_KEY,
@@ -100,7 +101,13 @@ def _method_fallback(request) -> str:
             "DELETE": "DeleteObject", "POST": "CompleteMultipartUpload"}.get(method, method or "Unknown")
 
 
-def make_client(cfg: R2Config) -> tuple[object, OpCounter]:
+def make_client(cfg: R2Config, counter: OpCounter | None = None) -> tuple[object, OpCounter]:
+    """Build an R2 client whose every HTTP attempt is counted.
+
+    ``counter`` lets a caller supply a subclass -- sentinel_eval.ops.Budget adds
+    the tripwire and ceiling enforcement -- without duplicating the operation
+    classification tables above. Omitted, the behaviour is unchanged.
+    """
     session = boto3.session.Session()
     client = session.client(
         "s3",
@@ -111,7 +118,7 @@ def make_client(cfg: R2Config) -> tuple[object, OpCounter]:
         config=Config(retries={"max_attempts": 3, "mode": "standard"},
                       s3={"addressing_style": "path"}),
     )
-    counter = OpCounter()
+    counter = OpCounter() if counter is None else counter
 
     def _on_send(event_name=None, request=None, **_kw):
         if event_name:
@@ -189,10 +196,18 @@ def roll_and_add(ledger: dict, class_a: int, class_b: int) -> dict:
 
 
 def fetch_ledger(client, bucket: str) -> dict:
-    """Read the ledger, or start a fresh one. Costs one Class B op if present."""
+    """Read the ledger, or start a fresh one. Costs one Class B op if present.
+
+    Only a genuinely absent ledger starts a fresh one. Every other failure --
+    a network blip, a permissions change, a truncated write -- is raised.
+    Swallowing those would report a month's spend as zero, which is the one
+    error a hard ceiling cannot survive.
+    """
     try:
         return json.loads(get_bytes(client, bucket, LEDGER_KEY))
     except client.exceptions.NoSuchKey:
         return new_ledger()
-    except Exception:
-        return new_ledger()
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "NoSuchBucket"):
+            return new_ledger()
+        raise

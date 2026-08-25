@@ -418,11 +418,16 @@ engineers who actually flew these missions. Zenodo, CC BY 3.0 IGO.
 | Property | Value |
 |---|---|
 | Missions | 3 real ESA missions (anonymised) |
-| Scale | 224 channels, 821 control signals, 1430 annotated events |
-| Benchmark subset | 176 channels, ~1.55 billion data points, 17.5 mission-years |
+| Scale (our 3-mission ingest) | 224 channels, 821 control signals, 1430 annotated events: **157 anomalies**, **716 rare nominal events**, 401 communication gaps, 156 invalid segments |
+| Benchmark subset (2 missions) | 176 channels, ~1.55 billion data points, 17.5 mission-years, 844 annotated events of which **690** are rare nominal events |
 | Anomaly density | ~1.80% (Mission1), ~0.57% (Mission2) - realistic |
 | Taxonomy | 54 event classes by dimensionality / locality / length |
 | Size | ~11.6 GB |
+
+Note that **1430 counts every annotated event across all four categories**, not
+anomalies. Anomalies number **157 dataset-wide** - 51 on the group-8 channel set,
+46 on the Phase 1 primary set. Reading 1430 as an anomaly count overstates the
+evidence available by roughly nine to one.
 
 **Five reasons it is transformative for this project specifically:**
 
@@ -434,7 +439,9 @@ engineers who actually flew these missions. Zenodo, CC BY 3.0 IGO.
    the thesis.
 3. **Realistic density** - real spacecraft are almost always fine. A benchmark reflecting that
    punishes false alarms honestly.
-4. **690 labelled "rare nominal events"** - manoeuvres, resets, calibrations. See section 6.2. This is
+4. **690 labelled rare nominal events** in the 2-mission benchmark subset; **716** across our
+   full 3-mission ingest. Both figures are correct in their own scope - do not reconcile them by
+   changing one. Manoeuvres, resets, calibrations. See section 6.2. This is
    the single most valuable feature: it lets us measure and fix the exact behaviour (crying wolf
    at routine operations) that would otherwise kill adoption within a week of flight.
 5. **The top published baseline is our own method** - *Telemanom-ESA-Pruned*, a pruned variant of
@@ -562,6 +569,31 @@ most physical, most universal and most stable between bench and orbit (current->
 in vacuum; attitude dynamics do not). Fewer channels means far less data needed *and* the
 strongest relationships.
 
+**This is a per-instance limit, not a per-spacecraft one.** Sentinel is generic code loading a
+mission-specific model file, so an F' topology may instantiate it once per subsystem -
+`Sentinel(power)`, `Sentinel(thermal)`, `Sentinel(aocs)` - each with its own `model.bin` and its
+own channel set. Coverage scales by adding instances, not by widening one model. This keeps each
+model small enough to train on limited pre-launch data, restricts learned relationships to
+channels that are physically related, keeps the explanation layer tractable, and lets the
+data-sufficiency report enable or disable subsystems independently. It also avoids the failure
+mode of a single wide model: across many channels some pairs correlate by chance rather than
+physics, and a model that learns those raises false alarms when they break. Instances also fail
+and restart independently, where one wide model is a single point of failure.
+
+*(Phase 1 note. The Phase 1 evaluation set is `m1-g8.9.10`: 12 channels spanning **two**
+subsystems - group 8 is subsystem_5, groups 9 and 10 are subsystem_6. Spanning normalisation
+groups is permitted under the resolved policy in section 14.8: cross-group scale offsets are
+fixed, invertible and uninformative, and any model absorbs them; it is per-channel rescaling that
+destroys information. The set was chosen because it is the only one carrying both all 11 point
+anomalies and the real multi-hour extent of the headline-cell events. **Phase 1 stays
+single-instance** - the gate asks which architecture, not how many channels, and changing both at
+once makes the result unattributable. See docs/HARNESS.md.)*
+
+*(Scope note. Phase 1's channel selection is a benchmark artifact and does not describe how an
+adopting mission chooses. A mission has no labelled anomalies, so it selects on physics, on the
+data-sufficiency report from fix 1, and on criticality - never on measured detection performance,
+because there is none to measure. See docs/HARNESS.md, section 6b.)*
+
 **[x] 3. Train on simulator + flatsat together.**
 Nearly every mission builds a sim or digital twin, and F' has strong sim tooling.
 
@@ -641,8 +673,14 @@ work** while the design is revisited. **Nothing gets coded around.**
   +------------------------------------------------------------------+
   |  PHASE 1  <-- WE ARE HERE                          Python        |
   |  Prove the mathematics                                           |
-  |  GATE: numbers match/beat published results                      |
-  |        + evidence-based architecture selection                   |
+  |  GATE: match or beat a faithfully reproduced telemanom           |
+  |        baseline measured on this harness, plus evidence-based    |
+  |        architecture selection. External comparability to         |
+  |        published ESA-ADB numbers is out of scope for Phase 1.    |
+  |                                                                  |
+  |  Time-to-limit estimation is validated in Phase 3 on the F'      |
+  |  Ref deployment. ESA-ADB's anonymised timestamps make it         |
+  |  structurally impossible in Phase 1.                             |
   +------------------------------------------------------------------+
   |  PHASE 2                                            C++          |
   |  The flight component - FPP model, static-memory inference,      |
@@ -702,8 +740,8 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
 ```
   1. OK  Repository stood up, documentation-first
   2. OK  Ingest ESA-ADB > R2 (parquet, SHA-256, manifest)   234 objects, 11.53 GB
-  3. --  BUILD THE EVALUATION HARNESS                        <-- current task
-  4. --  Reproduce the LSTM baseline
+  3. OK  Evaluation harness built, baselines scored, floor recorded
+  4. --  Reproduce the LSTM baseline                         <-- current task
   5. --  Train + score GRU
   6. --  Train + score TCN
   7. --  Pass the architecture selection gate
@@ -721,6 +759,9 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
 | 4 | **Target F' version pin** | Early Phase 2 | Everything downstream depends on it |
 | 5 | **Harness base** - build on TimeEval or standalone | Now | TimeEval gives ESA-ADB-comparable metrics for free |
 | 6 | **R2 ingest sizing** for 11.6 GB | Before item 3 | 40x the previous data volume |
+| 7 | **Second independent scoring set** | Before item 7 | **Open.** No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
+| 8 | **Normalisation policy** | Was: before the loader | **RESOLVED - identity.** ESA min-max scaled within each channel group, so amplitude ratios between related channels survive. Cross-group spanning is acceptable: those offsets are fixed, invertible and uninformative, and a model absorbs them. Per-channel rescaling is refused, because it erases the ratios and no model can recover them. Enforced at a chokepoint and by `tests/test_no_per_channel_scaler.py` |
+| 9 | **SatNOGS as subsystem-prior corpus** | Post-gate | Open. Feeds section 10.2 fix 5 - a generic power-subsystem base model that each mission fine-tunes on its own small dataset |
 
 ---
 

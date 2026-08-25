@@ -10,8 +10,7 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ### Planned - Phase 1 work items, in order
 
-- Build the evaluation harness (current task).
-- Reproduce the LSTM baseline.
+- Reproduce the LSTM baseline (current task).
 - Train and score GRU.
 - Train and score TCN.
 - Pass the architecture selection gate.
@@ -26,6 +25,59 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 | 4 | Target F' version pin | Early Phase 2 |
 | 5 | Harness base - build on TimeEval or standalone | Now |
 | 6 | R2 ingest sizing for 11.6 GB | Before the ingest |
+| 7 | Second independent scoring set | Before item 7 |
+| 9 | SatNOGS as subsystem-prior corpus | Post-gate |
+
+Decision 8, normalisation policy, is **resolved**: identity. See Objective.md 14.
+
+## [0.3.0] - 2026-08-25
+
+The evaluation harness. Phase 1 work item 3 complete: the referee exists, it has
+been checked against its own extremes, and the trivial baselines are scored.
+
+### Added
+
+- `src/sentinel_eval/` - the harness. `catalog` (manifest-only key resolution,
+  typed dataclasses), `read` (streaming, checksum-verified, sharded-first),
+  `labels` (events, taxonomy, the four categories), `grid` (zero-order hold with
+  a staleness guard), `splits` (forward chaining, contamination reporting),
+  `bundle` (fetch once, hold in memory, subset without re-reading), `metrics/`
+  (event-wise F0.5, VUS-PR, false alarms, quarantined diagnostics), `harness`,
+  `scorecard`, `tasks`, `ops`, `synthetic` and a CLI.
+- `src/sentinel_models/` - the players. Trivial baselines plus the registry that
+  work items 4-6 extend. The harness never imports a model; `tests/test_layering.py`
+  enforces the direction.
+- `src/sentinel_export/` - Phase 2 placeholder for the `model.bin` writer.
+- `scripts/check_no_list.py` - the source-level LIST/glob ban, which the brief
+  believed already existed. It did not.
+- `docs/HARNESS.md`, `docs/RESULTS.md`.
+- 136 tests, all offline against a generated fixture at zero R2 operations.
+
+### Fixed
+
+- `r2.fetch_ledger` caught bare `Exception` and returned a fresh ledger, so a
+  transient failure reported the month's spend as zero. Only a genuinely absent
+  ledger now starts fresh.
+- The operations tripwire (1,000 per run) and monthly ceiling (50,000) were
+  constants with no enforcement anywhere. Both now raise, at the point of
+  spending, through the existing per-HTTP-attempt hook.
+- The ops ledger was written with `new_ledger()`, erasing the month's history on
+  every run. It is now read-modify-write.
+
+### Decided
+
+- **Normalisation is identity** (Objective.md 14.8). Cross-group spanning is
+  acceptable; per-channel rescaling is refused because it erases the amplitude
+  ratios ESA preserved within each group.
+- **The gate number is event-wise F0.5**, never bare recall. Recall alone is
+  satisfiable by carpet-bombing, which is how the trivial baseline first appeared
+  to score 29/31.
+- **`m1-g8.9.10` is the primary recall set**, promoted post-hoc on footprint
+  evidence; `m1-ss5` is demoted, retained, and reported alongside it in every
+  result. Partial runs are barred from RESULTS.md.
+- **Standalone metrics, not TimeEval** (Objective.md 14.5): TimeEval requires
+  Python <3.13 against this project's 3.14, pins `dask==2022.12.1` and needs
+  Docker.
 
 ## [0.2.0] - 2026-08-24
 
@@ -100,6 +152,7 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases/tag/v0.1.0
