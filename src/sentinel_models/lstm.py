@@ -89,6 +89,12 @@ class Hyper:
     def sequences_per_epoch(self, usable_steps: int) -> int:
         return max(self.batch_size, int(round(usable_steps / self.sequence_budget_divisor)))
 
+    def as_dict_key(self) -> tuple:
+        """Hashable identity, so a cache cannot serve weights fitted differently."""
+        return tuple(sorted(
+            (k, tuple(v) if isinstance(v, list) else v) for k, v in self.as_dict().items()
+        ))
+
     def as_dict(self) -> dict:
         return {
             "window": self.window, "hidden": list(self.hidden), "dropout": self.dropout,

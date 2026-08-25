@@ -35,8 +35,56 @@ claim of faithfulness that cannot be audited is worth nothing.
 | 3 | 35 epochs over a channel's whole training set (~2-8k steps) | Up to 35 epochs, sequence budget **scaled to the fold**, one sequence per 180 usable steps | Folds hold 3.6M to 10.8M usable steps. See section 3 -- a fixed budget would destroy the data-sufficiency curve |
 | 4 | Random 20% validation split | **Chronological last 20%** of usable steps | `docs/HARNESS.md` section 3 is unconditional: never fit on data that follows what is scored, and early stopping is a fitting decision |
 | 5 | Keras `EarlyStopping`, which stops but does not restore | **Restores the best-validating weights** | Strictly the better estimator. Recorded rather than assumed |
-| 6 | Error windows of h=2100 stepping by 70 (30x overlap) | **Non-overlapping** windows of h=2100, z-sweep vectorised across all of them | Stride 70 over a 3.68M-step fold is ~52,600 windows per channel per fold. Thresholds adapt every 2,100 steps rather than every 70 -- coarser, and if anything more conservative |
+| 6 | Error window centred on the errors it judges | **Trailing**: threshold chosen from the 2,100 errors *before* a 70-step segment, applied to that segment | See section 1.1. telemanom's windows extend forward, so a timestep is scored partly from errors that had not happened yet. `rstd`, the number we have to beat, is strictly trailing |
 | 7 | Inference over l_s=250 windows from a zero state | **Chunked-parallel streaming**, each chunk warmed by a 250-step zero-initialised prefix | Identical arithmetic. A warmed chunk sees exactly the history telemanom's own windowed inference sees |
+
+### 1.1 One deviation was withdrawn, and it would have been fatal
+
+The first version of the detection stack stepped the 2,100-error window forward a
+whole window at a time instead of telemanom's 70. It looked like an obvious
+economy: thirtyfold overlap is ~52,600 windows per channel per fold on a 3.68M-step
+ESA-ADB fold, against 1,753 without it. The ledger entry said *coarser, and if
+anything more conservative*.
+
+Measured, it was neither.
+
+```
+  injected anomaly     non-overlapping     overlapping
+  100 timesteps            detected         detected
+  500 timesteps            MISSED           detected
+  2,100 timesteps          MISSED           detected
+  8,828 timesteps          MISSED           detected
+```
+
+A threshold of the form `mu + z*sigma`, computed over the same errors it is
+judging, cannot see an anomaly that fills its own window: the anomaly raises both
+moments until it sits below its own threshold. `m1-g8.9.10`'s headline-cell events
+have a **median footprint of 1,951 timesteps and a 75th percentile of 8,828**
+(docs/HARNESS.md section 7). The economy would have blinded the detector to
+essentially the whole primary recall set -- and the result would have read as a
+weak model rather than a broken thresholder, which is exactly the failure this
+project's documents keep warning about.
+
+The measured cost of doing it properly was about 112 microseconds per window, or
+some sixteen minutes across a whole run, and the sweep skips the `z` values that
+cannot produce an exceedance -- free, since they have none by construction -- which
+brought it well under that. The estimate that justified the deviation was simply
+wrong.
+
+**What replaced it is not telemanom's window either, and that is deliberate.** The
+overlap is restored, but the reference window *trails*: each threshold is chosen
+from the 2,100 errors before a 70-step segment and applied to that segment alone.
+telemanom's windows extend forward, so a timestep there is scored partly from
+errors that had not happened yet. `sentinel_models.baselines` states this
+repository's position in as many words -- *a detector that peeks at future samples
+is not something that can fly, and the harness should not measure one that does* --
+and `rstd`, the number we have to beat, is strictly trailing.
+
+The mechanism that matters survives: the reference window at an onset is still
+mostly nominal, which is why long events remain visible. What it costs is a fixed
+70-step batching latency, measured and bounded by test, which **delays** detection
+rather than improving it, and which is how the flight component would have to run
+anyway.
 
 **Kept exactly:** `l_s = 250`, layers `[80, 80]`, dropout 0.3 after *each* LSTM,
 MSE loss, Adam at 1e-3, `l_p = 10` predictions aggregated by mean, `epochs = 35`,
