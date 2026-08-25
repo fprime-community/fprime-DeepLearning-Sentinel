@@ -135,9 +135,24 @@ class ForecastDetector(Detector):
         return self.hyper.window + self.config.error_window
 
     def fit(self, values, usable, context) -> None:
+        """Learn normality from the window the harness stripped of anomalies.
+
+        ``usable`` is intersected with what is actually observed. That should be
+        redundant -- `sentinel_eval.bundle.load` folds unobserved steps into
+        `truth.unscorable`, and `splits.train_mask` removes them -- but
+        `Bundle.subset` rebuilds its truth from the labels alone and never reads
+        `self.valid`, so a subset's mask marks gap timesteps usable. The trivial
+        baselines never noticed: they are NaN-tolerant by construction. A
+        forecaster is not, and a NaN entering the recurrence makes every
+        subsequent state NaN.
+
+        Intersecting here is right on its own terms regardless of that: *usable*
+        can only mean what the model is able to learn from, and a 1-D mask cannot
+        express which of C channels went missing. See docs/MODELS.md section 6.
+        """
         self._weights = self._fill = self.report = None
         values = np.asarray(values)
-        usable = np.asarray(usable, dtype=bool)
+        usable = np.asarray(usable, dtype=bool) & np.isfinite(values).all(axis=1)
 
         key = (self.hyper.as_dict_key(), context.channels, context.fold,
                context.window, values.shape, _sample_digest(values),

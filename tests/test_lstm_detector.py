@@ -215,3 +215,23 @@ def test_a_second_detector_reuses_every_fold_not_just_the_last():
     for fold in range(3):
         second.fit(values[:3000], usable[:3000], _context(3, fold=fold))
         assert second._weights is fitted[fold], f"fold {fold} retrained"
+
+
+def test_fitting_survives_a_usable_mask_that_disagrees_with_the_values():
+    """`Bundle.subset` rebuilds truth from labels alone and never reads `valid`.
+
+    So on a subset -- which is how `m1-ss5` is scored -- gap timesteps arrive
+    marked usable while the values there are NaN. The trivial baselines are
+    NaN-tolerant and never noticed; a forecaster is not, and one NaN entering the
+    recurrence makes every state after it NaN. This is the exact shape that
+    killed a 75-minute run at its last stage.
+    """
+    values, usable = _data()
+    values[1500:1600, 2] = np.nan          # unobserved, but still marked usable
+    assert usable[1500:1600].all()
+
+    detector = _tiny()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    scores = detector.score(values, np.isfinite(values), _context(3))
+    assert np.isfinite(detector._weights.head_w).all(), "NaN reached the weights"
+    assert not np.isnan(scores).any()
