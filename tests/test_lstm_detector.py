@@ -235,3 +235,47 @@ def test_fitting_survives_a_usable_mask_that_disagrees_with_the_values():
     scores = detector.score(values, np.isfinite(values), _context(3))
     assert np.isfinite(detector._weights.head_w).all(), "NaN reached the weights"
     assert not np.isnan(scores).any()
+
+
+def test_weights_persist_between_processes_and_are_keyed_by_content(tmp_path, monkeypatch):
+    """Rule 1 permits outputs under runs/; a stale checkpoint must be impossible.
+
+    The filename is the content digest -- hyperparameters, channel set, fold
+    window, and a strided sample of the data -- so weights fitted on anything
+    else cannot be found, and a cache hit is a cache hit on the same fit.
+    """
+    monkeypatch.setattr(D, "WEIGHT_STORE", tmp_path / "_weights")
+    values, usable = _data()
+
+    cold = _tiny()
+    cold.fit(values[:3000], usable[:3000], _context(3))
+    stored = list((tmp_path / "_weights").glob("*.npz"))
+    assert len(stored) == 1, "the fit did not persist"
+
+    D.clear_caches()                                   # forget the in-memory copy
+    warm = _tiny()
+    warm.fit(values[:3000], usable[:3000], _context(3))
+    assert np.array_equal(warm._weights.head_w, cold._weights.head_w)
+    assert len(list((tmp_path / "_weights").glob("*.npz"))) == 1, "refitted needlessly"
+
+    D.clear_caches()
+    other, _ = _data(seed=99)                          # different data, same shape
+    fresh = _tiny()
+    fresh.fit(other[:3000], usable[:3000], _context(3))
+    assert len(list((tmp_path / "_weights").glob("*.npz"))) == 2, "digest collided"
+
+
+def test_no_cache_refuses_persisted_weights(tmp_path, monkeypatch):
+    """--no-cache is what makes a published result reproducible from cold."""
+    monkeypatch.setattr(D, "WEIGHT_STORE", tmp_path / "_weights")
+    values, usable = _data()
+    _tiny().fit(values[:3000], usable[:3000], _context(3))
+    D.clear_caches()
+
+    D.set_caching(False)
+    try:
+        cold = _tiny()
+        cold.fit(values[:3000], usable[:3000], _context(3))
+        assert not D._WEIGHTS, "a --no-cache run populated the in-memory cache"
+    finally:
+        D.set_caching(True)

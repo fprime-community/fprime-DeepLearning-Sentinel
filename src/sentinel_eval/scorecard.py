@@ -27,6 +27,7 @@ from . import HARNESS_VERSION
 from .metrics.counts import Count
 from .metrics.eventwise import EventScore
 from .metrics.falsealarm import FalseAlarmScore
+from .metrics.leadtime import LeadTimeScore
 
 
 def git_commit() -> str:
@@ -49,9 +50,10 @@ class FoldResult:
     vus_detail: dict
     oracle_f_beta: float | None
     oracle_threshold: float | None
+    lead_time: LeadTimeScore | None = None
 
     def as_dict(self) -> dict:
-        return {
+        payload = {
             "fold": self.fold,
             "window": list(self.window),
             "threshold": self.threshold,
@@ -62,6 +64,11 @@ class FoldResult:
             "oracle_best_f0.5": self.oracle_f_beta,
             "oracle_threshold": self.oracle_threshold,
         }
+        # Absent rather than null, so a scorecard produced without lead time is
+        # byte-identical to one produced before the metric existed.
+        if self.lead_time is not None:
+            payload["lead_time"] = self.lead_time.as_dict()
+        return payload
 
 
 @dataclass
@@ -75,12 +82,16 @@ class Scorecard:
     pooled: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
+        def render(value):
+            if isinstance(value, (Count, LeadTimeScore)):
+                return value.as_dict()
+            return value
+
         return {
             "detector": self.detector,
             "params": self.detector_params,
             "fingerprint": self.fingerprint,
-            "pooled": {k: (v.as_dict() if isinstance(v, Count) else v)
-                       for k, v in self.pooled.items()},
+            "pooled": {k: render(v) for k, v in self.pooled.items()},
             "folds": [f.as_dict() for f in self.folds],
         }
 
@@ -232,6 +243,10 @@ class RunRecord:
                 out.append(f"      {name:<38} {count.render()}")
             for cell, count in sorted((pooled.get("recall_by_cell") or {}).items()):
                 out.append(f"        {cell:<36} {count.render()}")
+
+        lead = pooled.get("lead_time")
+        if isinstance(lead, LeadTimeScore):
+            out.extend(lead.render())
 
         if len(card.folds) > 1:
             out.append("    per fold:")

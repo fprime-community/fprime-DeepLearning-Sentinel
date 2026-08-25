@@ -115,6 +115,13 @@ def cmd_run(args) -> int:
     from sentinel_models import registry
     from .harness import evaluate
 
+    # Weights persist under runs/ between processes (docs/HARNESS.md, Rule 1
+    # stated precisely). Caching is for iteration; a published number is
+    # reproduced from cold, which is what this refuses the cache for.
+    registry.set_caching(not args.no_cache)
+    if args.no_cache:
+        print("  --no-cache: refitting from cold, persisted weights ignored")
+
     primary = tasks.get(args.task)
     if args.persistence is not None:
         primary = type(primary)(**{**vars(primary), "persistence": args.persistence})
@@ -241,6 +248,9 @@ def main(argv=None) -> int:
                         help="continue past the 1,000-operation per-run tripwire")
     parser.add_argument("--no-ledger", action="store_true",
                         help="do not write the ops ledger back (saves 1 Class A)")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="refit from cold, ignoring persisted weights. Required "
+                             "before any result enters docs/RESULTS.md")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("list-tasks")

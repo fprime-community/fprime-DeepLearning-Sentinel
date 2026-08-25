@@ -7,7 +7,8 @@ series before reading the next -- and every detector and every fold in that run
 then scores against the same resident arrays. Three detectors across three folds
 cost the same ten operations as one detector on one fold.
 
-Nothing is written to disk on the way. The Mac is a pipe, not a store.
+No telemetry is written to disk on the way. Outputs may persist under
+`runs/`; datasets never do. See docs/HARNESS.md, Rule 1 stated precisely.
 
 Values pass through :mod:`sentinel_eval.normalisation`, whose only policy is
 identity: ESA already min-max scaled within each channel group, and that is the

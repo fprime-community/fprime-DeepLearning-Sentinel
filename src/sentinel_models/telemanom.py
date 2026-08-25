@@ -354,21 +354,57 @@ def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
     return out
 
 
-def combine(smoothed: np.ndarray, config: Config) -> tuple[np.ndarray, np.ndarray]:
-    """Every channel scored, reduced to one series plus who was responsible.
+def top_ratios(smoothed: np.ndarray, config: Config, depth: int = 3
+               ) -> tuple[np.ndarray, np.ndarray]:
+    """The ``depth`` largest per-channel ratios at each timestep, and who was highest.
 
-    The reduction happens here rather than in the harness because
-    `sentinel_eval.detector.reduce_scores` would cast a ``(T, C)`` score to
-    float64 -- a gigabyte over an eleven-million-step window, allocated twice.
-    The attribution survives as one byte per step, because naming which channel
-    diverged is what Objective.md 7's explanation layer is built on.
+    Returns ``(top, who)`` with ``top`` shaped ``(depth, steps)`` sorted
+    descending down the first axis. ``top[k-1] >= 1`` exactly when at least ``k``
+    channels are simultaneously over their own thresholds, which is what makes a
+    single pass answer every value of ``k`` -- see :func:`combine`.
+
+    Computed channel by channel and inserted into a running top-``depth`` rather
+    than by materialising the full ``(steps, channels)`` ratio matrix, which over
+    an eleven-million-step window would be half a gigabyte.
     """
     steps, channels = smoothed.shape
-    best = np.full(steps, -np.inf, dtype=np.float32)
+    top = np.full((depth, steps), -np.inf, dtype=np.float32)
     who = np.zeros(steps, dtype=np.int8)
+
     for c in range(channels):
-        scored = channel_ratios(smoothed[:, c], config)
-        better = scored > best
-        best[better] = scored[better]
-        who[better] = c
-    return best, who
+        incoming = channel_ratios(smoothed[:, c], config)
+        who[incoming > top[0]] = c
+        for level in range(depth):
+            displaced = np.minimum(incoming, top[level])
+            np.maximum(top[level], incoming, out=top[level])
+            incoming = displaced
+    return top, who
+
+
+def combine(smoothed: np.ndarray, config: Config, k: int = 1
+            ) -> tuple[np.ndarray, np.ndarray]:
+    """Reduce every channel to one series, requiring ``k`` of them to agree.
+
+    ``k = 1`` is the maximum: **any one** channel over its threshold raises an
+    alarm. That is what this did originally, and on twelve channels it is twelve
+    independent chances to be wrong -- measured, 182 alarm ranges against 62 on
+    the six-channel subset, which is most of why the primary set scored worse
+    than its own subset.
+
+    **The argument for k > 1 is the project's own thesis.** Objective.md 2.4
+    defines the target class as one where every channel is individually legal
+    while the combination is wrong; a single channel deviating alone is, by that
+    definition, not the signal we claim to look for. Maximum-over-channels is a
+    per-channel detector wearing a multivariate coat.
+
+    Requiring ``k`` channels over threshold *simultaneously* is exactly the
+    ``k``-th largest ratio crossing 1.0, so the whole sweep comes from one
+    computation and no timestep is scored twice.
+
+    The attribution stays the strongest channel even when ``k > 1``. It is what
+    an operator would look at first, and Objective.md 7's explanation layer names
+    a break rather than counting one.
+    """
+    depth = max(1, int(k))
+    top, who = top_ratios(smoothed, config, depth=depth)
+    return top[depth - 1], who

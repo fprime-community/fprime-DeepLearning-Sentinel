@@ -56,3 +56,35 @@ def test_provenance_pins_the_dataset_revision(catalog):
     assert provenance["manifest_schema_version"] == "1.1"
     assert provenance["manifest_generated_utc"]
     assert provenance["license"]
+
+
+def test_the_held_back_sets_are_registered_and_unpaired(catalog):
+    """Nominated before tuning (docs/MODELS.md section 5); run once, at the end.
+
+    Neither is paired with anything: pairing exists so a demoted set cannot be
+    quietly dropped, and a held-back set has the opposite requirement -- it must
+    not be dragged into a run by accident.
+    """
+    from sentinel_eval import tasks
+
+    for held in ("m1-g3", "m2-ss1"):
+        task = tasks.get(held)
+        assert tasks.paired_with(held) == (held,), f"{held} would be run alongside others"
+        assert "HELD BACK" in task.headline or "HELD BACK" in task.note
+
+    g3 = tasks.get("m1-g3")
+    assert g3.selection.groups == (3,) and g3.selection.mission == "mission1"
+    assert g3.scores_recall
+
+
+def test_registering_the_held_back_set_left_the_others_alone(catalog):
+    """Additive only: the sets that already produced numbers are untouched."""
+    from sentinel_eval import tasks
+
+    primary = tasks.get("m1-g8.9.10")
+    assert primary.selection.groups == (8, 9, 10)
+    assert primary.split == "forward_chaining"
+    assert primary.split_kwargs == {"seed_fraction": 0.25, "folds": 3}
+    assert primary.persistence == 1
+    assert tasks.paired_with("m1-g8.9.10") == ("m1-g8.9.10", "m1-ss5")
+    assert tasks.get("m1-ss5").selection.subsystem == "subsystem_5"

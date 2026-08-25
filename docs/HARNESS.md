@@ -194,6 +194,34 @@ once and every detector and fold scores the resident arrays -- three detectors
 cost ten operations, not thirty. All development runs against a generated fixture
 that never touches R2.
 
+### Rule 1, stated precisely
+
+> **No telemetry, no parquet, no cached datasets on local disk. Model weights and
+> run artifacts under `runs/` are outputs, not data, and may persist. Gitignored,
+> never committed.**
+
+The earlier wording was "the Mac is a pipe, not a store", which is the right
+instinct and the wrong rule: it reads as forbidding a trained model to survive
+the process that produced it. Rule 1 exists to stop this machine becoming a data
+store. A 358 KiB file of learned parameters is not telemetry, is not parquet, and
+is not a cached dataset -- it is an output, the same category as the scorecards
+already written under `runs/`.
+
+The failure mode that would have mattered is a stale checkpoint being scored by
+accident. It is closed by construction rather than by care: the weight cache key
+is a content digest over the hyperparameters, the channel set, the fold window
+and a strided sample of the data itself, so weights fitted on anything else
+cannot match.
+
+**Any published result must still be reproducible from cold.** `--no-cache`
+refuses every cached weight and refits, and nothing enters `docs/RESULTS.md`
+until it has been verified that way. Cache for iteration; verify from scratch.
+
+`tests/test_no_local_persistence.py` widens the `runs/` exemption to cover
+weights and **tightens** the dataset ban at the same time: parquet, pickles and
+archives are now refused everywhere in the tree, `runs/` included, where before
+that directory was skipped entirely.
+
 Enforcement is at the point of spending: the per-run tripwire raises at 1,000 and
 a human may acknowledge it; the monthly ceiling raises at 50,000 and has no
 override. The ledger is read-modify-write, never reset.
@@ -245,6 +273,18 @@ reason: if the numbers land within noise, that is *evidence* the earlier results
 were not distorted, and you only have that evidence if you kept them. A reviewer
 who finds a correctness fix in the git history with only the corrected numbers
 visible has to wonder what else was quietly cleaned up.
+
+### The register of authorised additions
+
+A scope change that is authorised is still a scope change, so each one is
+recorded here with its date and its reason. An addition nobody can see is an
+addition nobody re-examines.
+
+| Date | Addition | Reason | Conditions met |
+|---|---|---|---|
+| 2026-08-25 | **Lead-time metric** -- timesteps between first attributable alarm and labelled event start | Objective.md 4's headline claim is early warning, and no metric had ever measured *how early*. It is also a genuine architecture discriminator where 46 events cannot separate LSTM, GRU and TCN on recall alone | Additive only; absent from a scorecard unless computed, so existing artifacts are byte-identical; tests carry hand-computed values |
+| 2026-08-25 | **`m1-g3` task** -- Mission1 group 3, 8 channels | A held-back recall set nominated before decision-layer tuning began. `m1-ss5` cannot serve: it is a strict subset of the primary carrying the same events | Additive only; no existing task definition changed |
+| 2026-08-25 | **`--no-cache` flag** | Weight persistence is now permitted for iteration, so a published result needs a way to be reproduced from cold | Additive only; default behaviour unchanged |
 
 ### The first case, recorded here
 

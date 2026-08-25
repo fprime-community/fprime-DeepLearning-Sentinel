@@ -16,8 +16,10 @@ Two rules hold everywhere in this package:
 1. **Every count is reported as k/n.** A recall of 0.36 over eleven events can
    take twelve values, and the difference between two detectors can be a single
    event. Denominators travel with their numerators, always.
-2. **Nothing persists on this machine.** Objects stream into memory and are
-   dropped when the process exits. The Mac is a pipe, not a store.
+2. **No dataset persists on this machine.** Telemetry streams into memory and
+   is dropped when the process exits. Outputs are different: scorecards and
+   trained weights live under `runs/`, gitignored. See docs/HARNESS.md,
+   Rule 1 stated precisely.
 """
 from __future__ import annotations
 

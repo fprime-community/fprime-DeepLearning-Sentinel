@@ -150,6 +150,24 @@ _register(Task(
 ))
 
 _register(Task(
+    id="m1-g3",
+    selection=Selection("mission1", groups=(3,)),
+    split="forward_chaining",
+    split_params=(("seed_fraction", 0.25), ("folds", 3)),
+    headline="HELD BACK -- recall. Run once, at the end, settings frozen",
+    note=("8 channels, Mission1 group 3. Nominated as a held-back recall set BEFORE "
+          "any decision-layer tuning began (docs/MODELS.md section 5), and untouched "
+          "since: no result has ever been computed on it. 14 headline-cell events, "
+          "median footprint 3,594 timesteps and ZERO sub-grid-cell events -- the "
+          "opposite of the group 8 problem that forced the primary set's promotion. "
+          "m1-ss5 cannot serve this purpose: it is a strict subset of m1-g8.9.10 "
+          "carrying the same events, already inspected in detail. Run once, with "
+          "settings already frozen. If the result disappoints we do not re-tune: "
+          "tuning against a held-back set converts it into another training set."),
+    limitation=SINGLE_SPACECRAFT,
+))
+
+_register(Task(
     id="m2-ss1",
     selection=Selection("mission2", subsystem="subsystem_1", groups=(5, 8, 9, 10)),
     split="chronological",
@@ -159,7 +177,10 @@ _register(Task(
     headline="GATE -- adoption number only",
     note=("An independent spacecraft, 12 channels, ~600 rare nominal events. Recall is "
           "DISABLED: this set dedupes to 18 anomalies with 1-3 test-side, which cannot "
-          "carry a comparison."),
+          "carry a comparison. Also HELD BACK by construction -- nothing has ever been "
+          "scored on it, so it is the clean test of whether decision-layer tuning "
+          "reduced false alarms or merely fitted the 48 rare events on m1-g8.9.10. "
+          "Run once, at the end, settings frozen. See docs/MODELS.md section 5."),
     limitation="Recall is not defined on this task by design; see note.",
 ))
 

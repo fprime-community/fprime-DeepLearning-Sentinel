@@ -43,6 +43,16 @@ BUILDERS = {
 }
 
 
+def set_caching(enabled: bool) -> None:
+    """Turn persisted weights off for a run that must be reproducible from cold.
+
+    Routed through the registry rather than reaching into `detectors` directly,
+    so the composition root keeps knowing exactly one module name.
+    """
+    from . import detectors
+    detectors.set_caching(enabled)
+
+
 def available() -> list[str]:
     return sorted(BUILDERS)
 

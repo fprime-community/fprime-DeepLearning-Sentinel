@@ -33,7 +33,7 @@ import numpy as np
 from .bundle import Bundle
 from .detector import Context, Detector, reduce_scores
 from .labels import ANOMALY, Event
-from .metrics import eventwise, falsealarm, vus
+from .metrics import eventwise, falsealarm, leadtime, vus
 from .metrics.counts import Count, f_beta
 from .metrics.ranges import Range, merge
 from .scorecard import FoldResult, RunRecord, Scorecard
@@ -171,10 +171,16 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     best, best_at = (_sweep_best_f_beta(scores, events, spans, scorable, beta)
                      if (sweep and task.scores_recall) else (None, None))
 
+    # How early, not just whether -- Objective.md 4's claim is early warning and
+    # nothing here had ever measured it. Additive: absent unless recall is scored,
+    # so a scorecard that never had it is unchanged.
+    lead = (leadtime.score(events, spans, predicted, scorable)
+            if task.scores_recall else None)
+
     return FoldResult(
         fold=fold.index, window=(test_lo, test_hi), threshold=threshold,
         events=event_score, false_alarms=alarms, vus_pr=volume, vus_detail=detail,
-        oracle_f_beta=best, oracle_threshold=best_at,
+        oracle_f_beta=best, oracle_threshold=best_at, lead_time=lead,
     )
 
 
@@ -221,6 +227,10 @@ def _pool(folds: list[FoldResult], task: Task, *, beta: float) -> dict:
         for cell, count in fold.events.by_cell.items():
             cells[cell] = cells.get(cell, Count(0, 0)) + count
     pooled["recall_by_cell"] = cells
+
+    leads = [f.lead_time for f in folds if f.lead_time is not None]
+    if leads:
+        pooled["lead_time"] = leadtime.pool(leads)
 
     volumes = [f.vus_pr for f in folds if f.vus_pr is not None]
     pooled["vus_pr"] = float(np.mean(volumes)) if volumes else None

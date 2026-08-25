@@ -217,7 +217,98 @@ above, never in place of it.*
 
 ---
 
-## 5. What the LSTM found that the baselines could not
+## 5. Held-back sets, nominated before any tuning began
+
+Items 1 and 2 of the decision-layer work -- the persistence filter and the
+k-of-n channel agreement -- tune a detector while looking at 46 anomalies that
+have now been examined repeatedly. That is exactly the condition under which
+tuning-to-the-test-set happens, and it happens without anyone intending it.
+
+So two sets are nominated **here, in writing, before the first tuning run**.
+Nominated afterwards they would prove nothing.
+
+| Set | Guards against | Why it is clean |
+|---|---|---|
+| **`m2-ss1`** | tuning the false-alarm rate to *these* 48 rare events | Independent spacecraft, ~600 rare nominal events, recall disabled by design, and **never scored by anything** -- held back by construction rather than by decision. It targets precisely the number items 1 and 2 are tuning |
+| **`m1-g3`** | tuning recall to *these* 46 anomalies | Mission1 group 3, 8 channels, 14 headline-cell events, median footprint 3,594 timesteps and **zero sub-grid-cell events** -- the opposite of the group 8 problem that forced the primary set's promotion. Untouched: no result has ever been computed on it |
+
+`m1-ss5` was considered and **rejected as a held-back set**. It is a strict
+subset of `m1-g8.9.10` and carries the same events, so freezing it would
+demonstrate nothing about generalisation; and it has already been inspected in
+detail. It stays a reported set, not a held-back one.
+
+### The condition that makes this worth anything
+
+**Both sets are run once, at the end, with every setting already frozen. If the
+result disappoints, we do not go back and re-tune.**
+
+Tuning against a held-back set converts it into another training set and
+destroys the only clean evidence the project has. There is no version of "we
+adjusted it slightly after seeing the held-back number" that preserves the
+guarantee.
+
+**A disappointing held-back result is the finding, not a problem to fix.** It
+would mean the tuning fitted 46 events rather than building a better detector --
+which is worth knowing, and worth publishing, and is the entire reason for
+nominating a set in advance. The trivial baseline already showed once how
+convincing a bad detector looks when nobody set the test up beforehand
+(docs/HARNESS.md section 7).
+
+---
+
+## 6. Two diagnostics considered and declined
+
+Recorded so the absence is a decision rather than an oversight. Both would have
+produced numbers; neither would have produced evidence.
+
+### Oracle threshold sweep -- declined
+
+The harness can report the best F0.5 any threshold could have reached
+(`harness._sweep_best_f_beta`, behind `--no-sweep`). It is tempting as a
+diagnostic: a high ceiling with a low honest score says the forecaster ranks well
+and the threshold is wrong.
+
+**It is fitting to the labels.** A real spacecraft chooses its operating point
+from training data before it has ever seen an anomaly (`Detector.threshold_from`,
+and Objective.md 6.1 -- there are no failure examples to tune against). A number
+obtained by trying two hundred thresholds and keeping the one the answers liked
+is not a number that mission could ever obtain, and it would sit in an artifact
+next to figures that are.
+
+The persistence sweep and the k-of-n sweep answer the same diagnostic question --
+*is the forecaster the problem, or the decision rule?* -- using only choices a
+mission could actually make in advance. So the ceiling is not worth the risk of
+being read as a result.
+
+### Forward-looking NDT variant -- declined
+
+**This reverses a proposal I made when the first results landed.** Having found
+that `lstm-quantile` beat `lstm-telemanom`, I suggested running published
+telemanom's forward-extending error window as a diagnostic, to establish how much
+of the gap my causal window was responsible for. That was the wrong instinct.
+
+Published telemanom's error window extends forward, so a rare nominal event
+inflates its own window's mean and variance, raises its own threshold, and
+suppresses its own alarm. Ours is strictly trailing, deliberately
+(`docs/MODELS.md` section 1.1). Running the non-causal variant would produce a
+number from a method **we would never fly** -- a spacecraft cannot see the future
+-- and the number's existence invites its misuse, because nothing about the digits
+records which configuration produced them.
+
+**The confound is therefore documented rather than measured**, and it is stated
+plainly here so that no comparison is made in ignorance of it:
+
+> Our rare-event false-alarm rate is **not directly comparable to published
+> telemanom figures.** The published method uses a forward-extending error window
+> that we deliberately do not, and that difference may account for some or all of
+> the gap. We have not measured how much, and will not.
+
+An unmeasured, clearly-stated confound is honest. A measured number from a method
+we would never fly is not worth having.
+
+---
+
+## 7. What the LSTM found that the baselines could not
 
 The first gate run died seventy-five minutes in, at its last stage, because a
 sequence sampled from supposedly usable training data contained a NaN.
@@ -269,7 +360,7 @@ Belt and braces on a failure that would otherwise be silent: a NaN in the
 recurrence does not raise, it propagates, and every score after it is NaN. The
 cost of keeping the check is one boolean AND per fit.
 
-## 6. Dependency note: torch vendors fsspec
+## 8. Dependency note: torch vendors fsspec
 
 `torch==2.13.0` pulls in `fsspec` transitively, along with filelock, sympy,
 networkx, jinja2, typing_extensions and setuptools. fsspec expands glob patterns
