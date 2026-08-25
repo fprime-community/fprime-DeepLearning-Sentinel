@@ -111,25 +111,46 @@ def main() -> int:
     results = {i: bench_fold(i, args.quick) for i in args.folds}
 
     # Extrapolate the whole paired run: three folds on twelve channels, then the
-    # same three folds on the six-channel subset.
-    fits = {i: r["fit"] for i, r in results.items()}
-    if 0 in fits and 2 in fits:
-        fits[1] = (fits[0] + fits[2]) / 2          # interpolated, and said so
-    total_fit = sum(fits.get(i, 0) for i in range(3))
+    # same three folds on the six-channel subset. The fits must be scaled by each
+    # fold's sequence budget -- that scaling is the entire point of the budget, so
+    # reusing one fold's time for all three would understate the run badly.
+    hyper = Hyper(sequence_budget_divisor=1800 if args.quick else 180)
+    usable = {i: hi - lo for i, (lo, hi) in enumerate(FOLDS)}
+    budgets = {i: hyper.sequences_per_epoch(n) for i, n in usable.items()}
+    per_sequence = np.mean([r["fit"] / (r["epochs"] * budgets[i])
+                            for i, r in results.items()])
+    epochs = int(np.mean([r["epochs"] for r in results.values()]))
+
+    fits = {i: (results[i]["fit"] if i in results
+                else per_sequence * epochs * budgets[i]) for i in range(3)}
     per_step = np.mean([r["per_step"] for r in results.values()])
     ndt = np.mean([r["ndt_per_step"] for r in results.values()])
     scored_steps = sum(hi - lo for lo, hi in FOLDS) + 3 * TEST
 
-    print("\n  PROJECTED, one invocation over both paired sets")
-    print(f"    12-channel set: fits {total_fit / 60:6.2f} min"
-          f"   scoring {(per_step + ndt) * scored_steps / 60:6.2f} min")
-    print(f"     6-channel set: fits {total_fit / 60 * 0.6:6.2f} min"
-          f"   scoring {(per_step + ndt) * scored_steps * 0.5 / 60:6.2f} min   (estimated at half)")
-    print(f"    lstm-quantile adds a second detection pass, weights and errors cached")
-    projected = (total_fit * 1.6 + (per_step + ndt) * scored_steps * 1.5) / 60
+    print(f"\n  PROJECTED, one invocation over both paired sets")
+    print(f"    per sequence {per_sequence * 1000:.2f} ms, early stop at ~{epochs} epochs")
+    for i in range(3):
+        measured = "measured" if i in results else "projected"
+        print(f"      fold {i}: {budgets[i]:>6,} sequences/epoch   "
+              f"fit {fits[i] / 60:6.2f} min   [{measured}]")
+    # The six-channel set is barely cheaper: cost per timestep is 320*(C+240)
+    # multiply-accumulates, so halving C moves it by about 2%.
+    narrow = 0.98
+    twelve_fit, six_fit = sum(fits.values()), sum(fits.values()) * narrow
+    scoring = (per_step + ndt) * scored_steps
+    print(f"    12-channel set: fits {twelve_fit / 60:6.2f} min"
+          f"   scoring {scoring / 60:6.2f} min")
+    print(f"     6-channel set: fits {six_fit / 60:6.2f} min"
+          f"   scoring {scoring * narrow / 60:6.2f} min")
+    print(f"    lstm-quantile reuses every fold's weights and skips the dynamic "
+          f"threshold: +{per_step * scored_steps * (1 + narrow) / 60:.1f} min")
+
+    projected = (twelve_fit + six_fit + scoring * (1 + narrow)
+                 + per_step * scored_steps * (1 + narrow)) / 60
     print(f"\n    TOTAL  ~{projected:.0f} min"
-          f"{'  (scale by ten for a full-budget run)' if args.quick else ''}")
-    print("    fold 1 fit is interpolated from folds 0 and 2, not measured")
+          f"{'  (a quick run understates the fit; scale by ten)' if args.quick else ''}")
+    print("    folds not benchmarked are projected from the measured "
+          "per-sequence cost and that fold's budget")
     return 0
 
 
