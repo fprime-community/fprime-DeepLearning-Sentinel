@@ -629,6 +629,10 @@ Battery/current/temperature physics does not care whose logo is on the bus. We t
 dataset. A CubeSat with days of data starts from something that already understands batteries.
 Standard transfer learning; directly rescues the university case.
 
+*This is **Level 2** of the tiered capability architecture - section 14.10, decision 10, where
+the open risk is recorded: ESA-ADB is anonymised, so we can build a generic model of telemetry
+dynamics but not a generic battery model, and whether that transfers is unproven.*
+
 ### 10.3 The honest claim
 
 > **Not:** "full anomaly detection from second one."
@@ -673,10 +677,16 @@ work** while the design is revisited. **Nothing gets coded around.**
   +------------------------------------------------------------------+
   |  PHASE 1  <-- WE ARE HERE                          Python        |
   |  Prove the mathematics                                           |
-  |  GATE: match or beat a faithfully reproduced telemanom           |
-  |        baseline measured on this harness, plus evidence-based    |
-  |        architecture selection. External comparability to         |
-  |        published ESA-ADB numbers is out of scope for Phase 1.    |
+  |  GATE: match or beat a telemanom baseline reproduced on this     |
+  |        harness, plus evidence-based architecture selection.      |
+  |        "Reproduced" is qualified: telemanom's detection method   |
+  |        - LSTM forecast, nonparametric dynamic thresholding,      |
+  |        pruning - with a MULTIVARIATE forecaster over the whole   |
+  |        channel set, not one univariate model per channel, which  |
+  |        cannot express the cross-channel structure this project   |
+  |        exists to detect. Every deviation is listed in            |
+  |        docs/MODELS.md. External comparability to published       |
+  |        ESA-ADB numbers is out of scope for Phase 1.              |
   |                                                                  |
   |  Time-to-limit estimation is validated in Phase 3 on the F'      |
   |  Ref deployment. ESA-ADB's anonymised timestamps make it         |
@@ -741,11 +751,24 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
   1. OK  Repository stood up, documentation-first
   2. OK  Ingest ESA-ADB > R2 (parquet, SHA-256, manifest)   234 objects, 11.53 GB
   3. OK  Evaluation harness built, baselines scored, floor recorded
-  4. --  Reproduce the LSTM baseline                         <-- current task
+  4. --  Reproduce telemanom's detection method with a       <-- current task
+         multivariate LSTM forecaster
   5. --  Train + score GRU
   6. --  Train + score TCN
-  7. --  Pass the architecture selection gate
+  7. --  Pass the architecture selection gate. Scores m2-ss1 as well,
+         across LSTM, GRU, TCN, rstd and mavg together, so the adoption
+         number on an independent spacecraft is a comparison and not a
+         lone figure
+  8. --  Post-gate: injected-fault sensitivity study
 ```
+
+**Item 8, recorded now so it is not lost.** Controlled drifts and decouplings injected into real
+ESA-ADB telemetry. **Not for headline numbers** - scoring on faults we designed only tests
+whether the detector finds what we thought of. It buys two things the 46 real events cannot: a
+**detection sensitivity curve** (how slow a drift can be before we lose it) and **lead-time
+measurement**, both of which discriminate between LSTM, GRU and TCN where the real events may not.
+It complements Phase 3's F' Ref fault injection (section 12) and CATS (section 9.3) rather than
+replacing either.
 
 ---
 
@@ -754,7 +777,7 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
 | # | Decision | Deadline | Why it matters |
 |---|---|---|---|
 | 1 | **Architecture selection** - LSTM vs GRU vs TCN | End of Phase 1 | Criteria in section 8 |
-| 2 | **Model-file format freeze** | **Before Phase 2 starts** | It is the contract between the Python toolkit and the C++ loader |
+| 2 | **Model-file format freeze** | **Before Phase 2 starts** | It is the contract between the Python toolkit and the C++ loader. The format implication is recorded in 14.10; empirical findings from the work item 4 weight extraction are in `docs/MODELS.md` |
 | 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Resolve against the pinned F' version |
 | 4 | **Target F' version pin** | Early Phase 2 | Everything downstream depends on it |
 | 5 | **Harness base** - build on TimeEval or standalone | Now | TimeEval gives ESA-ADB-comparable metrics for free |
@@ -762,6 +785,68 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
 | 7 | **Second independent scoring set** | Before item 7 | **Open.** No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
 | 8 | **Normalisation policy** | Was: before the loader | **RESOLVED - identity.** ESA min-max scaled within each channel group, so amplitude ratios between related channels survive. Cross-group spanning is acceptable: those offsets are fixed, invertible and uninformative, and a model absorbs them. Per-channel rescaling is refused, because it erases the ratios and no model can recover them. Enforced at a chokepoint and by `tests/test_no_per_channel_scaler.py` |
 | 9 | **SatNOGS as subsystem-prior corpus** | Post-gate | Open. Feeds section 10.2 fix 5 - a generic power-subsystem base model that each mission fine-tunes on its own small dataset |
+| 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN.** One C++ loader, one file format, three capability tiers. Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. Detail in 14.10 |
+
+### 14.10 Tiered capability architecture (decision 10, OPEN)
+
+The component ships as three tiers, all sharing **one C++ loader and one model file format**.
+
+```
+  Level 1   statistical cross-channel baseline, zero mission data
+  Level 2   small pretrained model, fine-tuned on limited data
+  Level 3   full mission-specific training
+```
+
+**Level 1 is mandatory, and it is not primarily about data availability.** It is the loader's
+safe failure mode. A corrupt file, a version mismatch, a failed CRC or a radiation bit-flip must
+degrade to Level 1 with an event and an active-tier telemetry channel - **never fail the
+topology**. That requirement holds regardless of how much data a mission has, which is why
+Level 1 is not optional for well-provisioned missions.
+
+**Level 2 is the intended shipped default once it exists.** A mission then gets a working
+detector out of the box and fine-tunes it, rather than training from scratch. It is section 10.2
+fix 5 - subsystem priors - made concrete. It **cannot be built before the Phase 1 architecture
+gate**: you cannot pretrain without knowing which architecture to pretrain.
+
+**(!) Open risk on Level 2, flagged for investigation.** ESA-ADB is anonymised - no channel
+names, no units - so we cannot identify which subsystem is power and which is thermal. We can
+therefore build a generic model of telemetry *dynamics*, but **not a generic battery model**.
+Whether generic dynamics transfer sufficiently is unproven and must be tested.
+
+Prior evidence is encouraging but not conclusive. Baireddy et al., *Spacecraft Time-Series
+Anomaly Detection Using Transfer Learning* (CVPR Workshops 2021, AI4Space; Purdue and Lockheed
+Martin Space) pretrained on unlabelled Mars Reconnaissance Orbiter telemetry and fine-tuned on
+SMAP/MSL at roughly half the training time, reporting:
+
+```
+                     recall   precision
+  transferred        0.774      0.765
+  trained from       0.835      0.794
+  scratch
+```
+
+**The often-quoted 0.769-vs-0.814 F1 pair is derived, not published.** The paper reports
+precision and recall; `F1 = 2PR/(P+R)` gives 0.769 transferred against 0.814 from scratch, so
+transfer retained about 94% of from-scratch F1. The arithmetic is shown here so nobody quotes
+those two numbers back as figures the paper printed.
+
+**Zero-shot detection is the weakest link.** Transfer learning works well for *forecasting*;
+anomaly *detection* specifically is less established. An inaccurate Level 2 is worse than no
+Level 2 at all - by section 11 rule 2, a detector that cries wolf gets ignored, and an ignored
+detector is worse than none. **Ship Level 2 only when measured.**
+
+**Format implication for decision 2**, which must freeze before Phase 2: a quantized,
+self-describing FlatBuffer, TFLite-Micro compatible. The header carries model type, version,
+channel count and ordering, window length, quantization parameters, a mandatory `baseline_only`
+flag, and a CRC over the weights. **Normalisation constants and detection thresholds are stored
+separately**, as small PrmDb-style parameters, and are never baked into the weights - so a
+mission can recalibrate in orbit without retraining.
+
+**Precedent, worth recording.** This mirrors NASA cFS, where apps ship default configuration
+tables so a mission has working behaviour on day one and overrides them later. F's own
+equivalents are PrmDb - a generic component loading a mission file - and the
+`FPRIME_ENABLE_TEXT_LOGGERS` pattern, a capability that can be compiled out. We are following an
+established framework pattern, not inventing one.
 
 ---
 

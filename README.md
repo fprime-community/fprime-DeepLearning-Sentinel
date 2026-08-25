@@ -26,11 +26,12 @@ No amount of limit tuning catches that class.
 written. The evaluation harness is built and the trivial baselines are scored -- the referee
 before the players. See [docs/HARNESS.md](docs/HARNESS.md) for what it measures and
 [docs/RESULTS.md](docs/RESULTS.md) for the floor the models must clear. The current task is
-reproducing the telemanom LSTM.
+reproducing telemanom's detection method with a multivariate LSTM forecaster - see
+[docs/MODELS.md](docs/MODELS.md).
 
 | Phase | Scope | Gate |
 |---|---|---|
-| **1 (current)** | Python - prove the mathematics | Match/beat a telemanom baseline reproduced on our own harness; evidence-based architecture selection. External comparability out of scope |
+| **1 (current)** | Python - prove the mathematics | Match/beat a telemanom baseline reproduced on our own harness - telemanom's detection method with a multivariate forecaster, not one univariate model per channel; every deviation listed in docs/MODELS.md. Plus evidence-based architecture selection. External comparability out of scope |
 | 2 | C++ - the flight component | Tests green, flight-rule compliance clean |
 | 3 | C++ - integration + demo in the F' Ref deployment | Limit alarms silent while Sentinel warns early |
 | 4 | C++ - hardware envelope | Comfortable margins documented |

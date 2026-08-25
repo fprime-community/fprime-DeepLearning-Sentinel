@@ -10,23 +10,29 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ### Planned - Phase 1 work items, in order
 
-- Reproduce the LSTM baseline (current task).
+- Reproduce telemanom's detection method with a multivariate LSTM forecaster (current task).
 - Train and score GRU.
 - Train and score TCN.
-- Pass the architecture selection gate.
+- Pass the architecture selection gate. Scores `m2-ss1` as well, across LSTM, GRU, TCN, `rstd`
+  and `mavg` together, so the adoption number on an independent spacecraft is a comparison
+  rather than a lone figure.
+- Post-gate: injected-fault sensitivity study - controlled drifts and decouplings injected into
+  real ESA-ADB telemetry, for a detection sensitivity curve and lead-time measurement. Never a
+  headline number; see Objective.md section 13.
 
 ### Open decisions
 
 | # | Decision | Deadline |
 |---|---|---|
 | 1 | Architecture selection - LSTM vs GRU vs TCN | End of Phase 1 |
-| 2 | Model-file format freeze | Before Phase 2 starts |
+| 2 | Model-file format freeze - quantized self-describing FlatBuffer, TFLite-Micro compatible; normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) | Before Phase 2 starts |
 | 3 | Channel-ingestion mechanism - telemetry-path tap vs direct port wiring | Early Phase 2 |
 | 4 | Target F' version pin | Early Phase 2 |
 | 5 | Harness base - build on TimeEval or standalone | Now |
 | 6 | R2 ingest sizing for 11.6 GB | Before the ingest |
 | 7 | Second independent scoring set | Before item 7 |
 | 9 | SatNOGS as subsystem-prior corpus | Post-gate |
+| 10 | Tiered capability architecture - Level 1 / 2 / 3, one loader, one file format. Level 1 is the loader's mandatory safe failure mode | Before Phase 2 |
 
 Decision 8, normalisation policy, is **resolved**: identity. See Objective.md 14.
 
