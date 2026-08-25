@@ -41,7 +41,12 @@ DEVICE = "cpu"
 #: Pinned so weights reproduce. CPU GEMM reduction order varies with the thread
 #: count, so an unpinned count silently makes a run irreproducible on the same
 #: machine. Recorded in the scorecard's provenance.
-THREADS = 8
+#:
+#: Four rather than all ten, measured. Apple silicon pairs fast performance cores
+#: with slow efficiency ones, and torch splits a GEMM evenly across whatever it is
+#: given, so the fast cores end up waiting on the slow ones: 127 GFLOP/s on four
+#: threads against 103 on ten, for this shape. More cores is slower here.
+THREADS = 4
 
 
 @dataclass(frozen=True)
