@@ -279,3 +279,43 @@ def test_no_cache_refuses_persisted_weights(tmp_path, monkeypatch):
         assert not D._WEIGHTS, "a --no-cache run populated the in-memory cache"
     finally:
         D.set_caching(True)
+
+
+def test_a_decision_layer_sweep_does_not_recompute_the_forecast():
+    """The grid changes nothing upstream of the channel reduction.
+
+    So sweeping agreement must read one cached computation. Checking the cache
+    after computing the errors -- which is what the first version did -- would
+    recompute the forecast and the smoothing for every point in the grid, the
+    expensive two thirds of the work, to answer a question about the cheap third.
+    """
+    values, usable = _data()
+    calls = {"n": 0}
+
+    detector = _tiny()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    original = detector._smoothed_errors
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    detector._smoothed_errors = counted
+    for k in (1, 2, 3):
+        detector.agreement = k
+        detector.score(values, None, _context(3))
+    assert calls["n"] == 1, f"forecast recomputed {calls['n']} times for one sweep"
+
+
+def test_agreement_requires_that_many_channels_to_be_over_threshold():
+    """k=1 is the maximum; k=3 needs all three of this fixture's channels."""
+    values, usable = _data()
+    values[4000:4300, 0] += 2.0                       # one channel alone
+    detector = _tiny()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+
+    fired = {}
+    for k in (1, 2, 3):
+        detector.agreement = k
+        fired[k] = int((detector.score(values, None, _context(3)) >= 1.0).sum())
+    assert fired[1] >= fired[2] >= fired[3], f"agreement did not tighten: {fired}"

@@ -270,13 +270,17 @@ class ForecastDetector(Detector):
         if self._weights is None:
             raise ReferenceError("score() before fit(); the harness always fits first")
         values = np.asarray(values)
-        smoothed = self._smoothed_errors(values, context)
 
         if self.mode == QUANTILE:
+            smoothed = self._smoothed_errors(values, context)
             combined = smoothed.max(axis=1)
             self.last_attribution = smoothed.argmax(axis=1).astype(np.int8)
         else:
-            top, self.last_attribution = self._tops(smoothed, context, values)
+            # The cache is consulted before the errors are computed, not after.
+            # Checking afterwards would recompute the forecast and the smoothing
+            # for every point of a decision-layer grid -- the expensive two thirds
+            # of the work, to answer a question about the cheap third.
+            top, self.last_attribution = self._tops(values, context)
             combined = top[self.agreement - 1]
 
         observed = np.isfinite(np.asarray(values, dtype=np.float32)).all(axis=1)
@@ -299,7 +303,7 @@ class ForecastDetector(Detector):
             return 1.0
         return super().threshold_from(train_scores)
 
-    def _tops(self, smoothed, context, values) -> tuple[np.ndarray, np.ndarray]:
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
         """The top-``MAX_AGREEMENT`` per-channel ratios, cached across the run.
 
         Keyed on everything upstream of the reduction and on nothing downstream,
@@ -312,7 +316,9 @@ class ForecastDetector(Detector):
         if cached is not None:
             return cached
 
+        smoothed = self._smoothed_errors(values, context)
         result = telemanom.top_ratios(smoothed, self.config, depth=MAX_AGREEMENT)
+        del smoothed
         cost = result[0].nbytes + result[1].nbytes
         held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
         while _TOPS and held + cost > TOPS_CACHE_BYTES:
