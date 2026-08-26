@@ -419,3 +419,55 @@ is done with it.
 Recorded as a decision rather than an experiment because the finding is
 structural: it says something about what a global threshold *is*, not about what
 this one scored.
+
+---
+
+## D14. The weight-cache key must be named and versioned, not positional
+
+**DATE** 2026-08-26 | **STATUS** open, implement after Layer 1 lands
+
+**CONTEXT.** Adding telecommands to the model meant the weight cache had to
+distinguish a fit that saw commands from one that did not -- otherwise a
+detector would be served weights trained on inputs it does not have. An element
+was appended to the key tuple, `None` when no commands were involved.
+
+Launching the Layer 1 ablation, the control arm -- which takes no commands, and
+whose new key element is therefore `None` -- **refitted all six folds anyway**.
+An eight-element tuple hashes differently from the seven-element one that banked
+the existing weights, `None` included. Every previously cached fit became
+unreachable at once. About 45 minutes, and it will happen again: work items 5 and
+6 add a GRU and a TCN, and both will want fields of their own.
+
+**ALTERNATIVES.** Leave it positional and accept a full refit whenever the key
+changes. Re-key immediately. Version the key.
+
+**EVIDENCE.** Correctness was never at risk: fits are seeded and deterministic, so
+the refits produced bit-identical weights. What was lost was only time -- but the
+distinction that matters is sharper than that:
+
+> **The content digest protects against serving *wrong* weights. It does not
+> protect against throwing away *right* ones.**
+
+Those are different guarantees and only the first was designed for. The store was
+built so that a stale checkpoint *cannot be found*; nothing in it ensures a valid
+checkpoint *remains* findable.
+
+**The deeper cause is worth separating from the incident.** A `None` moved the
+hash, which means **the key's shape is load-bearing, not just its values**. That
+is a fragile property in a way varying values are not: a value changing is the
+mechanism working as intended, while a shape changing invalidates entries for
+callers the change does not even apply to. A positional tuple makes every future
+field addition a silent, total cache invalidation, and gives no signal that it
+happened -- the run simply takes longer.
+
+**CONSEQUENCE.** The key becomes a **named, versioned structure** -- explicit
+fields plus a schema version -- so that adding an optional field with a null value
+leaves the hash unmoved, and a genuine incompatibility is declared by bumping the
+version rather than discovered by a slow run. Deferred until Layer 1 lands, and
+deliberately: re-keying now would orphan the twelve fits that run is banking and
+make Layers 2 to 5 pay the same cost a second time. Done afterwards it costs one
+refit.
+
+Recorded because the failure is invisible by construction. Nothing errors, nothing
+warns, and the only symptom is a run that takes longer than it should -- which is
+easy to attribute to the machine.
