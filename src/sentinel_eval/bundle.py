@@ -71,6 +71,15 @@ class Bundle:
         time windows would confound "which channels" with "which years". Sharing
         the grid means the pair differs in channels alone.
 
+        **The unobserved fold-in is redone here, not inherited.** :func:`load`
+        folds `~valid.all(axis=1)` into `unscorable` so that *usable* implies
+        *observed*; rebuilding the truth from the labels alone silently dropped
+        that, and `splits.train_mask` then marked gap timesteps usable on every
+        subset. It went unnoticed for three work items because the trivial
+        baselines are NaN-tolerant by construction and never asked the mask to be
+        right. It has to be recomputed rather than copied: which timesteps are
+        unobserved depends on which channels were selected.
+
         Zero R2 operations.
         """
         missing = [c for c in channel_ids if c not in self.channel_ids]
@@ -79,13 +88,19 @@ class Bundle:
                 f"cannot subset to {missing}: not in this bundle ({list(self.channel_ids)})"
             )
         columns = [self.channel_ids.index(c) for c in channel_ids]
+        valid = self.valid[:, columns]
+        truth = labels.truth(self.grid, self.mission, list(channel_ids))
+        unobserved = ~valid.all(axis=1)
+        truth = dataclasses.replace(
+            truth, unscorable=(truth.unscorable | unobserved) & ~truth.anomaly
+        )
         return Bundle(
             mission=self.mission,
             channels=tuple(self.channels[i] for i in columns),
             grid=self.grid,
             values=self.values[:, columns],
-            valid=self.valid[:, columns],
-            truth=labels.truth(self.grid, self.mission, list(channel_ids)),
+            valid=valid,
+            truth=truth,
             provenance={
                 **self.provenance,
                 "channels": list(channel_ids),
