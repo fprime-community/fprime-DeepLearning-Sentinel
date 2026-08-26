@@ -52,6 +52,16 @@ analysis, the roadmap and the open decisions. Other documents defer to it.
 
 [CHANGELOG.md](CHANGELOG.md) records the version history.
 
+| Document | What it holds |
+|---|---|
+| [docs/HARNESS.md](docs/HARNESS.md) | the referee: what is measured, on what, and the rules that govern changing it |
+| [docs/MODELS.md](docs/MODELS.md) | the players: the deviation ledger, the pre-registration, and what the reproduction is missing |
+| [docs/RESULTS.md](docs/RESULTS.md) | every number, with the corrections it has been through |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | why each decision was taken, what else was considered, what settled it |
+| [docs/RESEARCH.md](docs/RESEARCH.md) | the external evidence base, with thin evidence marked as thin |
+| [docs/NARRATIVE.md](docs/NARRATIVE.md) | what happened in order, errors included |
+| [docs/DATA.md](docs/DATA.md) | where the data is and how to read it |
+
 ## Data
 
 Datasets are never committed here. The primary evaluation set is **ESA-ADB** (~11.6 GB, CC BY 3.0

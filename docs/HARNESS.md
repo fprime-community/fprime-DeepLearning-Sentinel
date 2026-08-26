@@ -336,6 +336,23 @@ were not distorted, and you only have that evidence if you kept them. A reviewer
 who finds a correctness fix in the git history with only the corrected numbers
 visible has to wonder what else was quietly cleaned up.
 
+### The documentation that is not optional
+
+Three files carry reasoning that otherwise exists only in conversation, and each
+has a rule about *when* it is written, because documentation written later is
+documentation written wrong -- the alternatives get forgotten first, and they are
+the part that makes a decision auditable.
+
+| File | Holds | Updated |
+|---|---|---|
+| `docs/DECISIONS.md` | why, what else was considered, what evidence settled it | **in the same commit as the decision it records** |
+| `docs/RESEARCH.md` | external sources, with primary/secondary marked and thin evidence flagged | whenever external evidence changes a design choice |
+| `docs/NARRATIVE.md` | what happened in order, errors included | at each work-item boundary |
+
+Superseded entries in `DECISIONS.md` are marked superseded and **never deleted**.
+A decision that turned out wrong is more informative than one that was always
+right.
+
 ### The register of authorised additions
 
 A scope change that is authorised is still a scope change, so each one is
