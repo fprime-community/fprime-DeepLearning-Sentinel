@@ -200,7 +200,63 @@ sets are two regimes and the grid is not reconciled across them.
 Full grid, including every cell omitted above:
 `runs/m1-g8.9.10/_grid/2026-08-25T230914Z.json`.
 
-## 5. The correction: pre-fix and post-fix
+## 5. The quantile branch, closed on timeliness
+
+`lstm-quantile` held the best F0.5 in the project and the best false-alarm rate,
+and had never been swept across channel agreement. Before building four more
+layers on the dynamic-threshold branch, the question was whether **any** k
+restores positive lead time.
+
+**Twenty-four cells. None does.**
+
+| N | k | F0.5 | recall | precision | **lead med** | **lead p75** | rare-FA |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | 0.421 | 6/46 | 20/21 (0.952) | **-122** | -42 | 1/48 |
+| 1 | 3 | 0.420 | 6/46 | 17/18 (0.944) | **-100** | -36 | 1/48 |
+| 20 | 1 | 0.421 | 6/46 | 20/21 (0.952) | **-141** | -61 | 1/48 |
+| 60 | 3 | 0.420 | 6/46 | 16/17 (0.941) | **-160** | -94 | 1/48 |
+
+The best cell in the entire grid is **-100**. The 75th percentile is negative
+everywhere, so this is not a median concealing a healthy tail: three quarters of
+all catches, in every configuration, land after the event began.
+
+**k does almost nothing here.** F0.5 spans 0.397 to 0.421 across the whole grid,
+and recall is *identical* at 6/46 in all 24 cells -- as is headline-cell recall at
+6/32 and point recall at 0/11. Requiring more channels to agree cannot change a
+verdict when the detector fires 21 times in eleven million timesteps.
+
+**N makes it monotonically worse**, -122 to -181, the same shape the dynamic-threshold
+branch showed.
+
+### Why -- and the reason this closes the branch rather than losing to it
+
+The two thresholding rules differ in what they respond to, and that difference is
+definitional rather than incidental:
+
+| | responds to | fires on |
+|---|---|---|
+| **Nonparametric dynamic threshold** | error relative to the **local** recent error scale | the **onset** of divergence |
+| **Global quantile** | error relative to the **99.9th percentile of years of training scores** | the **magnitude** of divergence |
+
+A rising prediction error crosses a *local* threshold as soon as it departs from
+the recent norm. To cross a *global* one it must grow to an absolute size, and
+growing takes time. **That is why one warns early and the other warns late, and no
+amount of channel agreement or persistence changes it** -- both of those make a
+detector fire less, and this detector's problem is that it fires too late, not
+too often.
+
+The same mechanism explains the rest of the row: precision 20/21 and false alarms
+1/48 are excellent because the detector almost never fires, and recall 6/46 is the
+price. It is an accurate, quiet, late detector -- a good historian.
+
+**The branch is closed on structural grounds**, which is a cleaner result than
+losing on a number: it will not be reopened by better tuning, because tuning is
+not what is wrong with it. The programme continues on the dynamic threshold, which
+is the only branch that has ever produced a positive lead time.
+
+Full grid: `runs/m1-g8.9.10/_grid/2026-08-26T184418Z-quantile.json`.
+
+## 6. The correction: pre-fix and post-fix
 
 `Bundle.subset` rebuilt its ground truth from the labels alone and never read
 `self.valid`, so the unobserved fold-in `bundle.load` performs was lost on every
@@ -237,7 +293,7 @@ corrected numbers visible has to wonder what else was quietly cleaned up.
 
 Pre-fix artifacts remain under `runs/m1-g8.9.10/*/2026-08-25T*.json`.
 
-## 6. What these numbers say
+## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
 `lstm-telemanom` are the **same weights**, from the same cache, differing only in
@@ -256,7 +312,7 @@ against 0.269 on `m1-g8.9.10`, and prefers opposite values of k on each. Group 8
 renders these events as spikes; the primary set renders the same events at their
 real multi-hour extent.
 
-## 7. Provenance
+## 8. Provenance
 
 | | |
 |---|---|
@@ -281,7 +337,7 @@ model encoded command information alongside telemetry; we fed telemetry only.
 The rare-event false-alarm figures in particular are not comparable to published
 telemanom numbers. See `docs/MODELS.md`.
 
-## 8. Limitation -- applies to every row above
+## 9. Limitation -- applies to every row above
 
 **Recall rests on Mission1 alone.** ESA-ADB holds no second viable recall set:
 Mission2 deduplicates to 18 anomalies with 1-3 test-side, and Mission3 has 8

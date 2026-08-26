@@ -374,3 +374,48 @@ against. `--no-cache` refuses them and refits, and no result enters
 the dataset ban **tightened** in the same change: parquet, pickles and archives
 are now refused everywhere in the tree including `runs/`, which the previous test
 skipped wholesale.
+
+---
+
+## D13. The quantile-threshold branch is closed, on structural grounds
+
+**DATE** 2026-08-26 | **STATUS** resolved
+
+**CONTEXT.** `lstm-quantile` held the best event-wise F0.5 in the project (0.421)
+and the best rare-event false-alarm rate (1/48), on the *same weights* as
+`lstm-telemanom`. It had never been swept across channel agreement. Before
+building four further layers on the dynamic-threshold branch, it was worth
+establishing that the branch was the right one -- a grid that could only redirect
+what came after it.
+
+**ALTERNATIVES.** Proceed on the dynamic threshold without checking. Adopt the
+quantile branch on its F0.5 and adoption numbers. Carry both forward.
+
+**EVIDENCE.** Twenty-four cells, persistence 1/5/20/60 against agreement 1/2/3,
+both channel sets. **No cell achieves positive median lead time.** The best is
+-100 timesteps; the 75th percentile is negative in every cell, so three quarters
+of catches are late in every configuration. Recall is *identical* at 6/46 in all
+24 cells, as is headline-cell recall at 6/32 and point recall at 0/11 -- agreement
+cannot change a verdict when the detector fires 21 times in eleven million
+timesteps. Persistence makes it monotonically worse, -122 to -181.
+
+**The mechanism, which is why this closes rather than merely loses.** The two
+rules respond to different quantities. A nonparametric dynamic threshold measures
+error against the *local* recent error scale, so a rising error crosses it at the
+**onset** of divergence. A global quantile measures error against the 99.9th
+percentile of years of training scores, so the error must grow to an absolute
+**magnitude** before it crosses -- and growing takes time. Neither channel
+agreement nor persistence touches this: both make a detector fire *less*, and this
+detector's defect is firing *late*.
+
+**CONSEQUENCE.** The branch is closed and will not be reopened by better tuning,
+because tuning is not what is wrong with it. The programme continues on the
+dynamic threshold -- the only rule that has produced a positive lead time. The
+quantile variant is retained as a reported diagnostic, because the contrast
+between two decision rules over identical weights is the clearest evidence the
+project has that the residuals carry the signal and the thresholding decides what
+is done with it.
+
+Recorded as a decision rather than an experiment because the finding is
+structural: it says something about what a global threshold *is*, not about what
+this one scored.
