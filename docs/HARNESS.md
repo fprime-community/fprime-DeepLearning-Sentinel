@@ -68,6 +68,25 @@ and it is what decides whether a mission would fly this at all: a detector
 alarming at 81% of commanded manoeuvres is muted within a week in orbit, and a
 muted detector is worse than none (Objective.md 11, rule 2).
 
+### No number enters a document that was not read from an artifact
+
+**A standing rule.** If a value is not to hand, the cell is left empty and said to
+be empty. A plausible number is not a placeholder; it is a claim, and it is
+indistinguishable from a measured one once it is written down.
+
+The rule exists because it was broken. Filling the lead-time column of
+`docs/RESULTS.md`, two baseline figures were written from expectation rather than
+read from the run artifacts -- `rstd` as `+2` and `mavg` as `+18`. The measured
+values were `-1,512` and `0`. `rstd`'s was wrong by three orders of magnitude and
+in the opposite direction, and had it stood it would have concealed the single
+most consequential finding in that document: that the floor the whole work item
+was measured against is not an early-warning detector.
+
+It was caught by reading the artifacts, corrected before the commit, and reported
+rather than buried. That is the discipline working. But it happened *inside the
+document arguing that measurement beats assumption*, which is why the rule is
+written here rather than left as a lesson someone is assumed to have learnt.
+
 **Contextual anomaly** is operationalised as `Dimensionality == "Multivariate"`:
 an event manifesting across more than one channel at once. Objective.md 2.4
 defines it as every channel being individually legal while the combination is
@@ -197,11 +216,24 @@ erases the fact that one channel normally moves ten times more than its
 group-mate, and no model can recover it. Enforced by a chokepoint and by
 `tests/test_no_per_channel_scaler.py`.
 
-**VUS-PR buffer widths come from the 75th percentile, not the median.** Event
-footprints are extremely skewed -- on `m1-ss5` the median is 1 timestep while the
-mean is 2,909 and the maximum 81,717 -- so a median-derived sweep collapsed to
-`[0, 1]` and VUS silently stopped integrating any volume, becoming plain AUC-PR
-on that set and not on the other. The metric itself is sound: checked against
+**VUS-PR buffer widths come from the 75th percentile, not the median.**
+
+> **CLOSED, and no scored result was ever computed under the defect.** The
+> collapse was found and fixed during harness development, in commit `1f00a43`,
+> which is the same commit the first baseline run records as its own provenance --
+> so the fix predates every number this project has published. That run's
+> artifacts record the buffers it actually used: `[0, 2149, 4298, 6446, 8595]` on
+> `m1-g8.9.10` and `[0, 616, 1233, 1850, 2466]` on `m1-ss5`, neither degenerate.
+> Re-measuring `m1-ss5` after the `Bundle.subset` correction moved `rstd`'s VUS-PR
+> by 4e-6 relative, which is consistent with forty timesteps leaving the scorable
+> mask and inconsistent with a metric that had been degenerate. Recorded this
+> plainly because the paragraph below describes the defect in the past tense, and
+> a document that makes a closed issue look open costs somebody a day.
+
+Event footprints are extremely skewed -- on `m1-ss5` the median is 1 timestep
+while the mean is 2,909 and the maximum 81,717 -- so a median-derived sweep
+collapsed to `[0, 1]` and VUS silently stopped integrating any volume, becoming
+plain AUC-PR on that set and not on the other. The metric itself is sound: checked against
 detectors of graded quality it is monotone in signal quality and separates
 carpet-bombing (0.388) from silence (0.245) from sniping (1.000). Only the
 schedule was wrong, and `MIN_BUFFER_STEPS` now floors it so it cannot collapse

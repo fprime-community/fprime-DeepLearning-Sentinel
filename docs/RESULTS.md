@@ -23,6 +23,36 @@ rolling standard deviation. Work items 4, 5 and 6 must beat it.
   lstm-quantile   F0.5 0.421    headline-cell recall   6/32
 ```
 
+### (!) The floor was never a flight candidate, and only one detector survives
+
+Measuring lead time -- which nothing in this project did until work item 4 --
+changed which detectors are eligible at all:
+
+```
+  lstm-telemanom     +26 timesteps    the only detector that warns in advance
+  mavg                 0              fires at the event boundary
+  lstm-quantile     -122              alarms after the event began
+  rstd            -1,512              the floor
+```
+
+**`rstd` remains the F0.5 floor and is retained for comparability.** Every result
+in this repository is measured against 0.250 and that does not change. But over
+the three events it catches it alarms a median of **1,512 timesteps late**, so by
+the rule in `docs/HARNESS.md` section 1 it is **disqualified on timeliness and was
+never a candidate for the flight configuration**. That was unknowable before the
+metric existed, which is the point.
+
+`lstm-quantile` is disqualified on the same ground at -122, despite holding the
+best F0.5 and the best false-alarm rate in this document.
+
+**The consequence, stated plainly: `lstm-telemanom` is currently the only
+surviving candidate.** Everything from here is about fixing its false-alarm rate
+**without spending its 26-timestep head start.** That head start is the budget,
+it is small, and several of the mechanisms that buy precision buy it by waiting --
+the persistence sweep already moved lead time from +26 to -37 as N rose from 1 to
+60, for almost no gain in F0.5. Every layer from here reports its lead-time cost
+beside its precision gain.
+
 The cross-channel claim is what was actually tested. `m1-g8.9.10` carries 32
 `Multivariate/Global/Subsequence` events -- the taxonomy cell Objective.md 2.4's
 argument lives in -- and a per-channel statistic finds three of them. A
