@@ -47,13 +47,32 @@ agreement 1. Section 4 sweeps both.
 
 **GATE -- `m1-g8.9.10`** (12 channels, groups 8+9+10, the primary recall set)
 
-| Detector | **F0.5** | recall | precision | MVGS | contextual | point | **rare-event FA** | alarms/1k | VUS-PR |
-|---|---|---|---|---|---|---|---|---|---|
-| `lstm-quantile` | **0.421** | 6/46 (0.130) | 20/21 (0.952) | 6/32 (0.188) | 6/45 (0.133) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.259 |
-| `lstm-telemanom` | **0.269** | 37/46 (0.804) | 42/182 (0.231) | 28/32 (0.875) | 37/45 (0.822) | 9/11 (0.818) | **22/48 (0.458)** | 0.015 | 0.078 |
-| `rstd` | 0.250 | 3/46 (0.065) | 6/7 (0.857) | 3/32 (0.094) | 3/45 (0.067) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.030 |
-| `mavg` | 0.028 | 34/46 (0.739) | 452/19909 (0.023) | 25/32 (0.781) | 34/45 (0.756) | 9/11 (0.818) | **10/48 (0.208)** | 1.796 | 0.226 |
-| `quiet` | undefined | 0/46 (0.000) | -/0 | 0/32 (0.000) | 0/45 (0.000) | 0/11 (0.000) | **0/48 (0.000)** | 0.000 | 0.030 |
+| Detector | **F0.5** | **lead** | recall | precision | MVGS | contextual | point | **rare-event FA** | alarms/1k | VUS-PR |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `lstm-quantile` | **0.421** | **-122 (!)** | 6/46 (0.130) | 20/21 (0.952) | 6/32 (0.188) | 6/45 (0.133) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.259 |
+| `lstm-telemanom` | **0.269** | **+26** | 37/46 (0.804) | 42/182 (0.231) | 28/32 (0.875) | 37/45 (0.822) | 9/11 (0.818) | **22/48 (0.458)** | 0.015 | 0.078 |
+| `rstd` | 0.250 | **-1,512 (!)** | 3/46 (0.065) | 6/7 (0.857) | 3/32 (0.094) | 3/45 (0.067) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.030 |
+| `mavg` | 0.028 | 0 | 34/46 (0.739) | 452/19909 (0.023) | 25/32 (0.781) | 34/45 (0.756) | 9/11 (0.818) | **10/48 (0.208)** | 1.796 | 0.226 |
+| `quiet` | undefined | n/a | 0/46 (0.000) | -/0 | 0/32 (0.000) | 0/45 (0.000) | 0/11 (0.000) | **0/48 (0.000)** | 0.000 | 0.030 |
+
+**(!) Two detectors are disqualified by the lead-time rule** (`docs/HARNESS.md`
+section 1), and one of them is the floor.
+
+`lstm-quantile` holds the best F0.5 and the best false-alarm rate in the table and
+alarms a median of **122 timesteps after** the event began -- all six of its
+catches late.
+
+`rstd`, **the floor this whole work item was measured against**, is worse:
+a median of **1,512 timesteps late** over the three events it caught. It cleared
+F0.5 = 0.250 while being, in the terms Objective.md 2 sets out, not an
+early-warning detector at all. That does not retract the floor -- it was and
+remains the number to beat on F0.5 -- but it does mean the floor was never a
+candidate for flight, and nobody could have known that before the metric existed.
+
+`mavg` sits at exactly 0: it fires at the event boundary, neither early nor late,
+which is what a per-channel threshold on a spike does.
+
+**Only `lstm-telemanom` warns before the event**, at +26.
 
 **`m1-ss5`** (6 channels, group 8; demoted, point-anomaly coverage)
 
@@ -81,7 +100,10 @@ scaled, so no figure on this data may be expressed in hours.
 | Detector | median | p25 | p75 | detected late | credited alarm width |
 |---|---|---|---|---|---|
 | `lstm-telemanom` | **+26** | +16 | +46 | 5/37 | 204 |
+| `mavg` | 0 | - | - | 6/34 | - |
 | `lstm-quantile` | **-122** | -124 | -42 | **6/6** | 1,151 |
+| `rstd` | **-1,512** | - | - | 2/3 | - |
+| `quiet` | n/a | - | - | 0/0 | - |
 
 **This reverses a ranking, and it is the reason the metric was added.**
 `lstm-quantile` has the better F0.5 and by far the better false-alarm rate --

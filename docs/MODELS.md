@@ -243,7 +243,53 @@ above, never in place of it.*
 
 ---
 
-## 5. Held-back sets, nominated before any tuning began
+## 5. The metric set determines the conclusion
+
+**Lead time did not exist three runs ago. Its first application overturned which
+detector looked better.** That is worth recording on its own, because it is the
+clearest evidence this project has produced that a conclusion is a property of
+what was measured rather than of what is true.
+
+Before it existed, the ranking read:
+
+```
+  lstm-quantile    F0.5 0.421   rare-event FA  1/48     <- the better detector
+  lstm-telemanom   F0.5 0.269   rare-event FA 22/48
+```
+
+`lstm-quantile` wins the gate metric and wins the adoption metric. On the numbers
+available at the time there was no argument to be had. Then one measurement was
+added -- how many timesteps before the labelled event start the first attributable
+alarm fired -- and:
+
+```
+  lstm-quantile    median lead  -122 steps   ALL SIX catches late, alarms 5x wider
+  lstm-telemanom   median lead   +26 steps   5 of 37 late, alarms 204 wide
+```
+
+The detector that won on both headline numbers is **structurally late**. It is
+not detecting early and cheaply; it is detecting broadly and after the fact. For
+a component whose stated purpose (Objective.md 2) is warning *before* a limit
+trips and covering ground-contact gaps, that is a failure at the thing being
+built, and no F0.5 compensates for it.
+
+Nothing about the model changed. Nothing about the data changed. The conclusion
+changed because the measurement set changed, and it changed **one run after** the
+metric was added -- which is roughly the shortest possible interval between
+building an instrument and having it overturn something.
+
+The general lesson, and the reason it is recorded here rather than in a commit
+message: **a metric set that omits a property of interest will confidently rank
+detectors on the properties it does measure.** It will not report that something
+is missing. `docs/NARRATIVE.md` collects the other four instances of this in the
+project so far.
+
+Lead time is consequently promoted to a gate metric with a disqualifying rule --
+`docs/HARNESS.md` section 1.
+
+---
+
+## 6. Held-back sets, nominated before any tuning began
 
 Items 1 and 2 of the decision-layer work -- the persistence filter and the
 k-of-n channel agreement -- tune a detector while looking at 46 anomalies that
@@ -282,7 +328,7 @@ convincing a bad detector looks when nobody set the test up beforehand
 
 ---
 
-## 6. Two diagnostics considered and declined
+## 7. Two diagnostics considered and declined
 
 Recorded so the absence is a decision rather than an oversight. Both would have
 produced numbers; neither would have produced evidence.
@@ -334,7 +380,7 @@ we would never fly is not worth having.
 
 ---
 
-## 7. What the LSTM found that the baselines could not
+## 8. What the LSTM found that the baselines could not
 
 The first gate run died seventy-five minutes in, at its last stage, because a
 sequence sampled from supposedly usable training data contained a NaN.
@@ -386,7 +432,7 @@ Belt and braces on a failure that would otherwise be silent: a NaN in the
 recurrence does not raise, it propagates, and every score after it is NaN. The
 cost of keeping the check is one boolean AND per fit.
 
-## 8. Dependency note: torch vendors fsspec
+## 9. Dependency note: torch vendors fsspec
 
 `torch==2.13.0` pulls in `fsspec` transitively, along with filelock, sympy,
 networkx, jinja2, typing_extensions and setuptools. fsspec expands glob patterns

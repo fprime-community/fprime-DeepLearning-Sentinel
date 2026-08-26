@@ -20,6 +20,7 @@ the rate invites a reader to treat a one-event difference as a finding.
 |---|---|---|
 | **Event-wise F0.5** | From event-wise precision and recall, weighting precision twice | **GATE** |
 | **Rare-event false alarms** | Fraction of rare nominal events the detector alarmed on | **ADOPTION** |
+| **Lead time** | Timesteps between the first attributable alarm and the labelled event start | **GATE** |
 | Contextual / headline-cell / point recall | Recall over `Multivariate`, over `Multivariate/Global/Subsequence`, over `Length == Point` | components |
 | VUS-PR | Threshold-free, buffer-integrated | required |
 | Alarms per 1,000 nominal **timesteps** | Never per hour -- see section 4 | supporting |
@@ -31,6 +32,35 @@ carpet-bombing: the trivial baseline reached 29/31 headline-cell recall by firin
 and is worth nothing. So F0.5 leads every block, recall and precision appear
 beneath it as its components, and the per-cell recalls sit under a caption naming
 the precision they must be read against. `tests/test_gate_metric.py` enforces it.
+
+### Lead time is a gate metric, and a negative one disqualifies
+
+**A configuration whose median lead time is negative is not a candidate for the
+flight configuration, whatever its other numbers.** A rule, not a preference.
+
+Objective.md 2 states the purpose: detection happens *earlier*, and the
+capability works through ground-contact gaps. A detector that alarms 122
+timesteps after an event began is an accurate historian, not an early-warning
+system, and the component being built is not a historian.
+
+The rule exists because the numbers came close to hiding it. `lstm-quantile`
+holds the best event-wise F0.5 in the project **and** the best false-alarm rate --
+0.421 and 1/48 against `lstm-telemanom`'s 0.269 and 22/48 -- and every one of its
+six detections lands *after* the event started, on alarm ranges five times wider.
+On F0.5 and adoption alone it is the better detector. On what the component is
+for, it has failed.
+
+So lead time joins F0.5 and the rare-event rate as a headline number. It appears
+on every scorecard, in every `docs/RESULTS.md` row, and as a primary column in
+every sweep rather than a footnote. Work items 5 and 6 report it for the GRU and
+the TCN.
+
+**Several precision mechanisms buy their gains by waiting longer**, and waiting
+is the one thing this project cannot spend freely. The persistence sweep already
+showed the shape: lead time fell almost one timestep per unit of N, from +26 at
+N=1 to -37 at N=60, while F0.5 moved barely at all. Every layer from here reports
+its lead-time cost beside its precision gain, and a layer that buys precision
+with lateness justifies the trade rather than being scored on F0.5 alone.
 
 The **rare-event false-alarm rate** appears on every scorecard, every run,
 without exception. It is what actually condemned the baseline -- 39/48 (0.812) --
