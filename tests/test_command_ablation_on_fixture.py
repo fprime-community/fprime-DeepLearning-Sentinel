@@ -1,19 +1,27 @@
-"""Does the model actually use the commands? Answered offline, before the run.
+"""Do the commands reach the model and change its forecast? Answered offline.
 
-Layer 1's whole claim is that a forecaster told a command was issued can predict
-the response, and therefore stops alarming on it. That is a mechanism, and a
-mechanism can be checked on generated data where the commanded response is known
-by construction -- `sentinel_eval.synthetic` gives every priority-3 command a
-decaying signature in the telemetry it touches.
+**This tests wiring, not benefit, and the distinction cost a rewrite.** The first
+version asserted that supplying commands *reduced* prediction error at commanded
+timesteps -- which is a claim that commands **help**, not a claim that they are
+plumbed in. It passed while training was broken and flipped sign the moment
+training was fixed, which is exactly what a test measuring the wrong thing does.
 
-**If commands ON does not reduce prediction error at commanded timesteps here,
-the wiring is wrong**, and finding that out costs nothing. Finding it out on
-ESA-ADB costs ninety minutes of refitting and seventeen Class B.
+Whether commands help is what Layer 1 measures on ESA-ADB. Generated data cannot
+answer it: the fixture's commanded response is a decaying transient at
+semi-regular intervals, and a properly trained forecaster can learn to predict its
+continuation from its onset without ever being told a command fired. So the
+fixture says nothing about the real question, and asserting a direction on it
+would only invite tuning the fixture until the answer came out right -- which had
+already happened once.
 
-Deliberately a *mechanism* test, not a metric one. The direction of an F0.5 on
-generated data says nothing about ESA-ADB, and asserting one would invite tuning
-against the fixture. What is asserted is only that the input reaches the model
-and changes its forecast where it should.
+What generated data *can* settle is whether the input is connected: same weights,
+same telemetry, different commands, different forecast. That is deterministic,
+cannot flake, and is the thing worth knowing before ninety minutes of refitting.
+
+Recorded for the ablation's interpretation: **with proper training the fixture
+shows no benefit from commands** (-0.9 percentage points at commanded timesteps
+against elsewhere). Reported rather than hidden, and it predicts nothing about
+ESA-ADB, where the responses are real and the model is twenty times larger.
 """
 from __future__ import annotations
 
@@ -55,7 +63,11 @@ def commanded_bundle():
 
 @pytest.fixture(scope="module")
 def arms(commanded_bundle):
-    """Both arms, identical in everything but the command input."""
+    """Both arms, identical in everything but the command input.
+
+    Kept to *record* the fixture's commanded-vs-elsewhere differential, not to
+    assert a direction on it -- see the module docstring.
+    """
     D.clear_caches()
     train_hi = STEPS // 2
     context = Context(
@@ -90,44 +102,48 @@ def _commanded_mask(bundle) -> np.ndarray:
     return mask
 
 
-def test_the_commands_reach_the_model(arms):
-    errors, bundle = arms
-    from sentinel_models.lstm import Hyper  # noqa: F401
+def test_the_forecast_changes_when_the_commands_change(commanded_bundle):
+    """The wiring, proved directly: same weights, same telemetry, other commands.
+
+    If the command columns were dropped, mis-sliced, or zeroed anywhere between
+    `Bundle` and the forward pass, this forecast would not move. Nothing about
+    whether the model uses them *well* -- only that it reads them at all.
+    """
+    D.clear_caches()
+    train_hi = STEPS // 2
+    context = Context(
+        mission="missionX", channels=commanded_bundle.channel_ids,
+        groups=commanded_bundle.groups, period_seconds=30, fold=0,
+        window=(0, train_hi), commands=commanded_bundle.commands[:train_hi],
+        command_ids=commanded_bundle.command_ids)
+    usable = np.isfinite(commanded_bundle.values[:train_hi]).all(axis=1)
 
     detector = _detector(True)
-    assert detector.wants_commands
+    detector.fit(commanded_bundle.values[:train_hi], usable, context)
+
+    window = slice(0, 4000)
+    real = Context(**{**vars(context), "window": (0, 4000),
+                      "commands": commanded_bundle.commands[window]})
+    with_commands = detector._smoothed_errors(commanded_bundle.values[window], real)
+
+    D.clear_caches()
+    detector._impulses = None                      # keep the weights, drop the input
+    silent = Context(**{**vars(real),
+                        "commands": np.zeros_like(commanded_bundle.commands[window])})
+    detector._impulses = silent.commands
+    without = detector._smoothed_errors(commanded_bundle.values[window], silent)
+
+    assert not np.allclose(with_commands, without), (
+        "the forecast is identical with and without command activity, so the "
+        "command columns are not reaching the forward pass"
+    )
+    D.clear_caches()
+
+
+def test_the_control_arm_ignores_commands_entirely(commanded_bundle):
+    """The other half of the ablation: the control must see exactly what it always saw."""
     assert not _detector(False).wants_commands
-
-
-def test_knowing_a_command_fired_reduces_the_error_it_causes(arms):
-    """The mechanism. Commanded responses are what a blind forecaster cannot predict."""
-    errors, bundle = arms
-    commanded = _commanded_mask(bundle)
-    assert commanded.sum() > 200, "fixture produced too few commanded steps"
-
-    off = float(errors["off"][commanded].mean())
-    on = float(errors["on"][commanded].mean())
-    assert on < off, (
-        f"commands did not reduce error at commanded timesteps: {on:.5f} against "
-        f"{off:.5f}. The input is reaching the model but is not being used, or is "
-        f"misaligned against the telemetry it explains."
-    )
-
-
-def test_it_helps_more_at_commanded_steps_than_away_from_them(arms):
-    """Otherwise the model simply got better, and the commands proved nothing."""
-    errors, bundle = arms
-    commanded = _commanded_mask(bundle)
-    quiet = ~commanded
-
-    gain_commanded = 1.0 - float(errors["on"][commanded].mean()) / float(
-        errors["off"][commanded].mean())
-    gain_quiet = 1.0 - float(errors["on"][quiet].mean()) / float(
-        errors["off"][quiet].mean())
-    assert gain_commanded > gain_quiet, (
-        f"error fell by {gain_commanded:.1%} at commanded steps and {gain_quiet:.1%} "
-        f"elsewhere; the improvement is not attributable to the commands"
-    )
+    assert _detector(True).wants_commands
 
 
 def test_the_commanded_model_records_its_exogenous_width(arms, commanded_bundle):

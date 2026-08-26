@@ -51,6 +51,9 @@ class FoldResult:
     oracle_f_beta: float | None
     oracle_threshold: float | None
     lead_time: LeadTimeScore | None = None
+    #: What the detector recorded about fitting this fold -- epochs, best epoch,
+    #: validation trajectory. Absent for anything that does not train.
+    training: dict | None = None
 
     def as_dict(self) -> dict:
         payload = {
@@ -68,6 +71,8 @@ class FoldResult:
         # byte-identical to one produced before the metric existed.
         if self.lead_time is not None:
             payload["lead_time"] = self.lead_time.as_dict()
+        if self.training is not None:
+            payload["training"] = self.training
         return payload
 
 
@@ -247,6 +252,21 @@ class RunRecord:
         lead = pooled.get("lead_time")
         if isinstance(lead, LeadTimeScore):
             out.extend(lead.render())
+
+        if any(f.training for f in card.folds):
+            out.append("    TRAINING  epochs, and which one was kept")
+            for fold in card.folds:
+                report = fold.training or {}
+                if not report:
+                    continue
+                best = report.get("best_epoch", -1)
+                out.append(
+                    f"      fold {fold.fold}  {report.get('epochs_run', 0):>2} epochs"
+                    f"   best epoch {best:>2}"
+                    f"   validation MSE {report.get('best_validation_mse', float('nan')):.3e}"
+                    f"   {report.get('sequences_per_epoch', 0):>7,} seq/epoch"
+                    + ("   [KEPT THE FIRST EPOCH]" if best == 0 else "")
+                )
 
         if len(card.folds) > 1:
             out.append("    per fold:")

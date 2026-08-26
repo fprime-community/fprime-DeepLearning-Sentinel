@@ -67,7 +67,28 @@ class Hyper:
     batch_size: int = 70                 # published
     max_epochs: int = 35                 # published: epochs
     patience: int = 10                   # published
-    min_delta: float = 3e-4              # published
+
+    #: **NOT published, and the published value is why.** telemanom's `min_delta`
+    #: is 3e-4, applied as `current < best_loss - min_delta` -- an absolute
+    #: quantity in the units of the loss. Validation MSE on ESA-ADB is ~1e-4, so
+    #: after the first epoch the bar became `current < 1.7e-4 - 3e-4 = -1.3e-4`,
+    #: which is negative and which no mean-squared error can satisfy. No epoch
+    #: ever registered as an improvement, `best_epoch` stayed 0, `restore_best`
+    #: restored epoch 1, and patience fired at epoch 11 -- for every fit in the
+    #: project. Median 3.1x better weights discarded, worst case 8.8x.
+    #:
+    #: The replacement is a **fraction of the standing best**, not a smaller
+    #: constant: picking another absolute number by eye reproduces the failure
+    #: with different digits. A ratio has no units and cannot exceed the thing it
+    #: is compared against, whatever the data's scale.
+    #:
+    #: Deriving it from the first epochs was the alternative and is worse: it
+    #: would make the stopping rule depend on the noise of two or three samples
+    #: and reintroduce a quantity that can silently go wrong.
+    #:
+    #: See docs/DECISIONS.md -- *dimensionless constants transfer, absolute ones
+    #: in data units do not.*
+    min_improvement: float = 0.001       # an epoch must beat the best by 0.1%
     validation_fraction: float = 0.2     # published as a *random* split; ours is the
                                          # chronological tail -- HARNESS.md section 3
     learning_rate: float = 1e-3          # Keras Adam default, which telemanom took
@@ -106,7 +127,8 @@ class Hyper:
             "window": self.window, "hidden": list(self.hidden), "dropout": self.dropout,
             "n_predictions": self.n_predictions, "batch_size": self.batch_size,
             "max_epochs": self.max_epochs, "patience": self.patience,
-            "min_delta": self.min_delta, "validation_fraction": self.validation_fraction,
+            "min_improvement": self.min_improvement,
+            "validation_fraction": self.validation_fraction,
             "learning_rate": self.learning_rate, "seed": self.seed,
             "sequence_budget_divisor": self.sequence_budget_divisor,
             "max_validation_sequences": self.max_validation_sequences,
@@ -286,7 +308,7 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
         if log:
             log(f"      epoch {epoch + 1:>2}/{hyper.max_epochs}  validation MSE {current:.6f}")
 
-        if current < best_loss - hyper.min_delta:
+        if current < best_loss * (1.0 - hyper.min_improvement):
             best_loss, best_epoch, stale = current, epoch, 0
             if hyper.restore_best:
                 best_state = copy.deepcopy(model.state_dict())
@@ -299,9 +321,47 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     if hyper.restore_best and best_state is not None:
         model.load_state_dict(best_state)
     report.best_epoch, report.best_validation_mse = best_epoch, best_loss
+    _refuse_a_stopping_rule_that_rejects_everything(report, hyper)
 
     model.eval()
     return to_weights(model), report
+
+
+#: Epochs after which keeping the first one is a defect rather than a result. A
+#: model that genuinely peaks at epoch 1 and never improves across this many more
+#: is not a model anyone should ship either, so the tripwire is worth its rare
+#: false positive.
+SUSPICIOUS_AFTER_EPOCHS = 5
+
+
+def _refuse_a_stopping_rule_that_rejects_everything(report: "TrainingReport",
+                                                    hyper: Hyper) -> None:
+    """Fail if training kept its first epoch. Not a warning -- a failure.
+
+    This is the defect that disabled training for every model in the project, and
+    it announced itself in no way at all: no error, no warning, just a fit that
+    stopped at epoch 11 with `best_epoch = 0` and weights up to 8.8x worse than
+    ones it had already computed and thrown away.
+
+    A warning would not have been enough. Nothing was reading the training
+    reports, which is precisely why it survived three work items; a line of output
+    nobody looks at is indistinguishable from silence. So this raises, and the
+    message names the parameter to look at first.
+    """
+    if report.best_epoch != 0 or report.epochs_run <= SUSPICIOUS_AFTER_EPOCHS:
+        return
+    history = report.history
+    better = min(history) if history else float("nan")
+    raise ReferenceError(
+        f"training kept its FIRST epoch after running {report.epochs_run}: the "
+        f"stopping rule is rejecting every improvement.\n"
+        f"  best epoch 0 at {report.best_validation_mse:.3e}; best seen "
+        f"{better:.3e} ({report.best_validation_mse / better:.1f}x better, discarded)\n"
+        f"  Check `min_improvement` ({hyper.min_improvement}) first. It is a "
+        f"FRACTION of the standing best; an absolute value here -- telemanom's "
+        f"published min_delta=3e-4 against a ~1e-4 loss -- makes the bar negative "
+        f"and no epoch can ever clear it. See docs/DECISIONS.md."
+    )
 
 
 def _validate(model: TelemanomLSTM, validation, loss_fn, chunk: int = 256) -> float:

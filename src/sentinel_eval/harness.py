@@ -143,6 +143,13 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     usable = train_mask(fold, truth)[train_lo:train_hi]
     detector.fit(bundle.values[train_lo:train_hi], usable, context)
 
+    # Whatever the detector recorded about its own fit. Optional by design: the
+    # trivial baselines have nothing to say and their scorecards stay unchanged.
+    # It is here because the defect that disabled training for every model in the
+    # project announced itself only in this data -- eleven epochs with best_epoch
+    # zero, every time -- and nothing was reading it.
+    training = getattr(detector, "report", None)
+
     # -- a label-free operating point, from training scores ----------------
     train_raw = detector.score(bundle.values[train_lo:train_hi],
                                bundle.valid[train_lo:train_hi], context)
@@ -192,6 +199,7 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
         fold=fold.index, window=(test_lo, test_hi), threshold=threshold,
         events=event_score, false_alarms=alarms, vus_pr=volume, vus_detail=detail,
         oracle_f_beta=best, oracle_threshold=best_at, lead_time=lead,
+        training=training,
     )
 
 
