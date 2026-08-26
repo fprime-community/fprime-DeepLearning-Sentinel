@@ -340,12 +340,37 @@ Three mechanisms turn a raw error signal into an operator-grade warning:
 
 | Mechanism | What it does | Why |
 |---|---|---|
-| **Persistence filter** | Signal must survive N consecutive cycles | Suppresses blips; a single weird sample is ignored |
+| **Persistence filter** | Signal must survive N consecutive cycles | Suppresses blips; a single weird sample is ignored. **Measured as subsumed on the LSTM - see below. Retained.** |
 | **Trend projection** | Rolls forecast forward against dictionary limits | Turns "something's off" into "crosses RED_LO in ~4h" |
 | **Explanation layer** | Learned map of which channel pairs move together, including time-lagged | Names the break, so the warning is **auditable, not a score** |
 
 The explanation layer is what makes warnings actionable. An operator can pull up the two named
 channels and judge the claim in seconds. `anomaly: 0.87` is unactionable and gets ignored.
+
+### 7.1 The persistence filter is subsumed on the LSTM, and is kept anyway
+
+Measured on `m1-g8.9.10`, sweeping N over 1, 5, 20 and 60 against the k-of-n channel agreement:
+
+```
+      N       F0.5    alarm ranges   MVGS recall   lead time (median)
+      1      0.269         182          28/32           +26 steps
+      5      0.271         181          28/32           +22 steps
+     20      0.254         179          28/32           +10 steps
+     60      0.216         177          25/32           -32 steps
+```
+
+**N=5 removed one alarm range out of 182.** The reason is that telemanom's detection stack already
+widens every threshold exceedance by +/-99 timesteps (its `error_buffer`), so by the time a signal
+reaches the persistence filter there are no single-sample blips left to suppress. The mechanism
+this section describes is real; on this detector something upstream already performs it.
+
+Past N=20 the filter costs rather than buys: recall falls, and lead time falls roughly one
+timestep per unit of N, which is the filter working exactly as designed and is why early warning
+must be measured rather than assumed.
+
+**The mechanism is not removed.** It is architecture, not a tuning knob, and it may well be live
+again for the GRU and the TCN in work items 5 and 6 if their detection stacks carry no equivalent
+widening. What is recorded here is a measurement on one detector, not a repeal.
 
 ---
 

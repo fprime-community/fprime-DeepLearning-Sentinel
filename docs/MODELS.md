@@ -23,6 +23,32 @@ cross-channel structure, which is the project's entire claim (Objective.md 2.4),
 and items 5 and 6 have to differ from this by architecture alone or the gate
 compares data pipelines instead of architectures.
 
+### (!) These are telemanom-minus-commands, not telemanom
+
+**Correction, recorded before the ledger because it qualifies every number below.**
+
+Hundman et al. feed the LSTM two things: "prior telemetry values for a given channel **and
+encoded command information sent to the spacecraft**", where the module a command was issued to
+and whether it was sent or received are one-hot encoded into each timestep. Their Figure 3 shows
+that encoding letting the model predict a commanded event so that it is *not* flagged.
+
+We fed telemetry only. The 821 telecommand series ingested in work item 2 have never been wired
+in, and deviation 2 below recorded them as "a future item". **That was wrong: it is the missing
+third of the method.**
+
+The consequence is specific and it lands on the number that matters most. Our false alarms are on
+*rare nominal events* -- commanded manoeuvres, resets, calibrations -- and we withheld the one
+input that makes them predictable, then measured the detector's failure to predict them.
+
+> **22/48 is not telemanom's rare-event false-alarm rate. It is
+> telemanom-minus-commands.** Every comparison drawn in this repository against published
+> telemanom figures carries that caveat until the commands-on / commands-off ablation has been
+> run and reported.
+
+The ablation is the next piece of work. Until it exists, no figure here should be read as
+evidence about the published method's false-alarm behaviour -- only about ours without a third of
+its inputs.
+
 ### The deviation ledger
 
 Every departure from telemanom's published configuration, with its reason. A
@@ -31,7 +57,7 @@ claim of faithfulness that cannot be audited is worth nothing.
 | # | Published telemanom | Here | Why |
 |---|---|---|---|
 | 1 | One univariate LSTM per channel | **One multivariate LSTM over the channel set**, C in / C out | Objective.md 4.3: "given the recent history of all watched channels". **The largest deviation** -- the section 12 gate names it |
-| 2 | Telecommand signals as one-hot model inputs | **Absent** | `Bundle` hands a detector the channel matrix only. Adding exogenous inputs means changing the referee, which is closed. A future item |
+| 2 | Telecommand signals as one-hot model inputs | **Absent -- and this is a defect, not a deviation** | Originally recorded as "a future item" because `Bundle` hands a detector the channel matrix only. That reasoning was about our plumbing, not about the method: commands are a third of telemanom's input and their absence is what our worst number measures. Being corrected -- see the note above the ledger |
 | 3 | 35 epochs over a channel's whole training set (~2-8k steps) | Up to 35 epochs, sequence budget **scaled to the fold**, one sequence per 180 usable steps | Folds hold 3.6M to 10.8M usable steps. See section 3 -- a fixed budget would destroy the data-sufficiency curve |
 | 4 | Random 20% validation split | **Chronological last 20%** of usable steps | `docs/HARNESS.md` section 3 is unconditional: never fit on data that follows what is scored, and early stopping is a fitting decision |
 | 5 | Keras `EarlyStopping`, which stops but does not restore | **Restores the best-validating weights** | Strictly the better estimator. Recorded rather than assumed |
