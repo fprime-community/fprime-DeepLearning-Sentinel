@@ -272,9 +272,13 @@ class ForecastDetector(Detector):
         values = np.asarray(values)
 
         if self.mode == QUANTILE:
-            smoothed = self._smoothed_errors(values, context)
-            combined = smoothed.max(axis=1)
-            self.last_attribution = smoothed.argmax(axis=1).astype(np.int8)
+            # Through the cache, exactly as NDT mode is. Reducing straight from
+            # `_smoothed_errors` here would recompute the forecast and the
+            # smoothing for every point of a decision-layer grid, which is the
+            # cost the cache exists to avoid -- and quantile mode is the branch
+            # the next grid sweeps.
+            top, self.last_attribution = self._tops(values, context)
+            combined = top[self.agreement - 1]
         else:
             # The cache is consulted before the errors are computed, not after.
             # Checking afterwards would recompute the forecast and the smoothing
@@ -311,13 +315,16 @@ class ForecastDetector(Detector):
         turns a decision-layer grid from hours into one scoring pass.
         """
         key = (_weights_digest(self._weights), context.window, values.shape,
-               _sample_digest(values), _digest(sorted(self.config.as_dict().items())))
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               self.mode)          # ratios and raw errors are not interchangeable
         cached = _TOPS.get(key)
         if cached is not None:
             return cached
 
         smoothed = self._smoothed_errors(values, context)
-        result = telemanom.top_ratios(smoothed, self.config, depth=MAX_AGREEMENT)
+        result = (telemanom.top_columns(smoothed, depth=MAX_AGREEMENT)
+                  if self.mode == QUANTILE
+                  else telemanom.top_ratios(smoothed, self.config, depth=MAX_AGREEMENT))
         del smoothed
         cost = result[0].nbytes + result[1].nbytes
         held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())

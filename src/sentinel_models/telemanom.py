@@ -381,6 +381,34 @@ def top_ratios(smoothed: np.ndarray, config: Config, depth: int = 3
     return top, who
 
 
+def top_columns(matrix: np.ndarray, depth: int = 3) -> tuple[np.ndarray, np.ndarray]:
+    """The ``depth`` largest raw values at each timestep, and which column held the top.
+
+    :func:`top_ratios` does this over per-channel *ratios*, which is what the
+    dynamic threshold produces. Quantile-mode detectors threshold the smoothed
+    errors directly and need the same reduction over the raw columns, so the
+    insertion is factored out rather than duplicated.
+
+    ``np.partition`` would be the obvious one-liner and is refused: it copies its
+    input, which over an eleven-million-step window of twelve channels is 530 MB
+    allocated beside an 843 MB resident bundle. The running insertion holds
+    ``(depth, steps)`` instead -- 132 MB at depth 3 -- and answers every value of
+    ``k`` from one pass.
+    """
+    steps, columns = matrix.shape
+    top = np.full((depth, steps), -np.inf, dtype=np.float32)
+    who = np.zeros(steps, dtype=np.int8)
+
+    for c in range(columns):
+        incoming = np.asarray(matrix[:, c], dtype=np.float32)
+        who[incoming > top[0]] = c
+        for level in range(depth):
+            displaced = np.minimum(incoming, top[level])
+            np.maximum(top[level], incoming, out=top[level])
+            incoming = displaced
+    return top, who
+
+
 def combine(smoothed: np.ndarray, config: Config, k: int = 1
             ) -> tuple[np.ndarray, np.ndarray]:
     """Reduce every channel to one series, requiring ``k`` of them to agree.

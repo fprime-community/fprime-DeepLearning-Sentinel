@@ -319,3 +319,80 @@ def test_agreement_requires_that_many_channels_to_be_over_threshold():
         detector.agreement = k
         fired[k] = int((detector.score(values, None, _context(3)) >= 1.0).sum())
     assert fired[1] >= fired[2] >= fired[3], f"agreement did not tighten: {fired}"
+
+
+def test_a_quantile_sweep_does_not_recompute_the_forecast():
+    """Layer 0 sweeps quantile mode across k, and quantile mode used to miss the cache.
+
+    NDT mode reduces through `top_ratios` and was cached; quantile mode reduced
+    straight from the smoothed errors and was not. A 24-cell grid would have paid
+    the forecast and the smoothing on every cell -- the expensive two thirds, to
+    answer a question about the cheap third. Counted rather than assumed, because
+    the ordering is what breaks and an ordering is invisible in a result.
+    """
+    values, usable = _data()
+    calls = {"n": 0}
+
+    detector = D.TelemanomQuantile(
+        hyper=Hyper(window=40, hidden=(12, 12), n_predictions=3, batch_size=16,
+                    max_epochs=2, sequence_budget_divisor=8,
+                    max_validation_sequences=64),
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300)
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    original = detector._smoothed_errors
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    detector._smoothed_errors = counted
+    for k in (1, 2, 3):
+        detector.agreement = k
+        detector.score(values, None, _context(3))
+    assert calls["n"] == 1, f"forecast recomputed {calls['n']} times for one sweep"
+
+
+def test_the_two_reductions_do_not_share_a_cache_entry():
+    """Ratios and raw errors have the same shape and different meaning.
+
+    Both reduce `(T, C)` to `(depth, T)` over the same window, so a key that
+    omitted the mode would serve one detector the other's numbers -- silently,
+    and with entirely plausible values.
+    """
+    values, usable = _data()
+    shared = dict(
+        hyper=Hyper(window=40, hidden=(12, 12), n_predictions=3, batch_size=16,
+                    max_epochs=2, sequence_budget_divisor=8,
+                    max_validation_sequences=64),
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300)
+
+    ndt = D.ForecastDetector(**shared)
+    ndt.fit(values[:3000], usable[:3000], _context(3))
+    ndt_scores = ndt.score(values, None, _context(3))
+
+    quantile = D.TelemanomQuantile(**shared)
+    quantile.fit(values[:3000], usable[:3000], _context(3))
+    quantile_scores = quantile.score(values, None, _context(3))
+
+    assert not np.allclose(ndt_scores, quantile_scores), \
+        "quantile mode was served the dynamic threshold's ratios"
+
+
+def test_agreement_tightens_quantile_mode_too():
+    values, usable = _data()
+    values[4000:4300, 0] += 2.0
+    detector = D.TelemanomQuantile(
+        hyper=Hyper(window=40, hidden=(12, 12), n_predictions=3, batch_size=16,
+                    max_epochs=2, sequence_budget_divisor=8,
+                    max_validation_sequences=64),
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300)
+    detector.fit(values[:3000], usable[:3000], _context(3))
+
+    tops = {}
+    for k in (1, 2, 3):
+        detector.agreement = k
+        tops[k] = float(np.nanmax(detector.score(values, None, _context(3))))
+    assert tops[1] >= tops[2] >= tops[3], f"k did not tighten: {tops}"

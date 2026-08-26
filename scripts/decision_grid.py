@@ -86,11 +86,12 @@ def members(primary, catalog, labels, loaded):
     return out
 
 
-def cell(view, task, n, k) -> dict:
-    """One grid point. Weights and per-channel ratios come from the cache."""
+def cell(view, task, n, k, mode) -> dict:
+    """One grid point. Weights and per-channel reductions come from the cache."""
     task = type(task)(**{**vars(task), "persistence": n})
     split = splits.forward_chaining(len(view.grid), **task.split_kwargs)
-    detector = D.ForecastDetector(agreement=k)
+    build = D.TelemanomQuantile if mode == "quantile" else D.ForecastDetector
+    detector = build(agreement=k)
     pooled = harness.evaluate(view, split, [detector], task,
                               sweep=False).scorecards[0].pooled
 
@@ -134,6 +135,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--task", default="m1-g8.9.10")
+    parser.add_argument("--mode", choices=("ndt", "quantile"), default="ndt",
+                        help="which thresholding rule to sweep. quantile mode holds "
+                             "the best F0.5 and the best false-alarm rate in the "
+                             "project and is disqualified on lead time; the sweep "
+                             "asks whether any k restores it")
     parser.add_argument("--steps", type=int, default=60_000, help="synthetic fixture length")
     parser.add_argument("--no-cache", action="store_true",
                         help="refit from cold; required before publishing")
@@ -146,7 +152,7 @@ def main() -> int:
         print("  --no-cache: refitting from cold, persisted weights ignored")
 
     primary = tasks.get(args.task)
-    print(f"  DECISION GRID   {primary.id}   "
+    print(f"  DECISION GRID   {primary.id}   mode {args.mode}   "
           f"persistence {args.persistence} x agreement {args.agreement}")
     loaded, labels, catalog, client, budget, state = load(primary, args)
     print(loaded.describe())
@@ -157,7 +163,7 @@ def main() -> int:
         for k in args.agreement:
             for n in args.persistence:
                 print(f"    [{task.id}] N={n} k={k} ...", flush=True)
-                rows.append(cell(view, task, n, k))
+                rows.append(cell(view, task, n, k, args.mode))
         rows.sort(key=lambda r: (r["persistence"], r["agreement"]))
         results[task.id] = rows
         grids.append(render(task.id, rows))
@@ -166,6 +172,8 @@ def main() -> int:
     print("\n  Every cell is reported. No configuration is selected here: choosing one "
           "and\n  publishing only its numbers would hide the trade-off the grid exists "
           "to show.")
+    print("  A cell with a negative median lead time is NOT a candidate, whatever its "
+          "F0.5\n  -- docs/HARNESS.md section 1.")
 
     if budget is not None:
         cfg, ledger = state
@@ -176,9 +184,9 @@ def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     folder = C.PROJECT_ROOT / "runs" / primary.id / "_grid"
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{stamp}.json"
+    path = folder / f"{stamp}-{args.mode}.json"
     path.write_text(json.dumps({
-        "task": primary.id, "cold": args.no_cache,
+        "task": primary.id, "cold": args.no_cache, "mode": args.mode,
         "persistence": args.persistence, "agreement": args.agreement,
         "operations": budget.as_dict() if budget else None,
         "sets": {t: [{**r,
