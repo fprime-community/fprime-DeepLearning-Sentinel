@@ -52,14 +52,17 @@ def _open_source(task, args):
     return read.R2Source(client, cfg.bucket), client, budget, (cfg, ledger)
 
 
-def _load(task, args, log=print):
+def _load(task, args, log=print, telecommands: int | None = None):
     source, client, budget, ledger_state = _open_source(task, args)
     catalog = Catalog.load(source)
     labels = LabelSet.from_table(read.read_annotation(source, catalog, "labels"))
     channel_ids = task.selection.resolve(catalog)
     log(f"  resolved {len(channel_ids)} channels from the manifest: {channel_ids}")
+    if telecommands is not None:
+        log(f"  telecommands: priority {telecommands}, as exogenous model inputs")
     loaded = bundle_mod.load(source, catalog, labels, mission=task.mission,
-                             channel_ids=channel_ids, log=log if args.verbose else None)
+                             channel_ids=channel_ids, telecommands=telecommands,
+                             log=log if args.verbose else None)
     return loaded, labels, catalog, client, budget, ledger_state
 
 
@@ -140,11 +143,16 @@ def cmd_run(args) -> int:
     if partial:
         print("  --only: PARTIAL run, barred from docs/RESULTS.md")
 
-    # One load of the widest selection; the rest are column subsets of it.
-    loaded, labels, catalog, client, budget, state = _load(primary, args)
-    print(loaded.describe())
-
+    # Detectors first, deliberately: whether the load fetches telecommands is a
+    # property of what is being scored, and asking after the load would mean
+    # either a second read or a flag that can disagree with the detector.
     detectors = [registry.build(name) for name in args.detector]
+    wants = any(getattr(d, "wants_commands", False) for d in detectors)
+
+    # One load of the widest selection; the rest are column subsets of it.
+    loaded, labels, catalog, client, budget, state = _load(
+        primary, args, telecommands=args.telecommand_priority if wants else None)
+    print(loaded.describe())
     print(f"\n  scoring {len(detectors)} detector(s) x {len(members)} set(s) "
           f"against one loaded bundle")
 
@@ -248,6 +256,10 @@ def main(argv=None) -> int:
                         help="continue past the 1,000-operation per-run tripwire")
     parser.add_argument("--no-ledger", action="store_true",
                         help="do not write the ops ledger back (saves 1 Class A)")
+    parser.add_argument("--telecommand-priority", type=int, default=3,
+                        help="ESA's priority grade to supply as model inputs. 3 is "
+                             "what ESA feeds its own baselines; Mission1 holds 11 of "
+                             "them. Only fetched if a detector asks for commands")
     parser.add_argument("--no-cache", action="store_true",
                         help="refit from cold, ignoring persisted weights. Required "
                              "before any result enters docs/RESULTS.md")

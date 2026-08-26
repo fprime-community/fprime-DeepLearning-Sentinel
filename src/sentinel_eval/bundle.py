@@ -21,12 +21,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from . import normalisation
+from . import commands, normalisation
 from .catalog import Catalog, Channel
 from .errors import CoverageError, TaskError
 from .grid import Grid, difference, resample_zoh
 from .labels import LabelSet, Truth
-from .read import ObjectSource, read_channel
+from .read import ObjectSource, read_annotation, read_channel, read_telecommands
 
 
 @dataclass
@@ -40,6 +40,11 @@ class Bundle:
     valid: np.ndarray         # bool[T, C]
     truth: Truth
     provenance: dict
+    #: ``uint8[T, K]`` telecommand impulses, or None when the run did not ask.
+    #: Default None keeps every bundle, provenance entry and scorecard that
+    #: predates command conditioning byte-identical.
+    commands: np.ndarray | None = None
+    command_ids: tuple[str, ...] = ()
 
     @property
     def channel_ids(self) -> tuple[str, ...]:
@@ -101,6 +106,9 @@ class Bundle:
             values=self.values[:, columns],
             valid=valid,
             truth=truth,
+            commands=self.commands,          # a channel subset does not narrow
+            command_ids=self.command_ids,    # which commands the spacecraft got
+
             provenance={
                 **self.provenance,
                 "channels": list(channel_ids),
@@ -133,6 +141,7 @@ def load(
     end=None,
     period=None,
     max_hold=None,
+    telecommands: int | None = None,
     log=None,
 ) -> Bundle:
     """Read the selection once and put it on a shared grid.
@@ -175,6 +184,11 @@ def load(
 
     values = normalisation.apply(values)                  # identity, enforced
 
+    command_impulses, command_ids = None, ()
+    if telecommands:
+        command_impulses, command_ids = _load_commands(
+            source, catalog, mission, grid, telecommands, log=log)
+
     truth = labels.truth(grid, mission, list(channel_ids))
     unobserved = ~valid.all(axis=1)
     truth = dataclasses.replace(
@@ -201,8 +215,36 @@ def load(
             "normalisation": normalisation.IDENTITY,
             "differenced": sorted(to_difference),
             "unobserved_steps": int(unobserved.sum()),
+            **({"telecommands": list(command_ids)} if command_ids else {}),
         },
+        commands=command_impulses,
+        command_ids=command_ids,
     )
+
+
+def _load_commands(source, catalog, mission, grid, priority: int, log=None):
+    """Telecommand impulses on the grid, for the graded set that actually fires.
+
+    Two Class B: the 821-row description table carrying the priority grading, and
+    the mission's executions as a single object. See `sentinel_eval.commands`.
+    """
+    descriptions = read_annotation(source, catalog, "telecommands")
+    executions = read_telecommands(source, catalog.telecommand_series(mission))
+
+    chosen = commands.select(descriptions, mission, priority, set(executions.ids()))
+    graded = [str(r["Telecommand"]) for r in descriptions.to_pylist()
+              if str(r["mission"]) == mission and int(r["Priority"]) == priority]
+    dropped = sorted(set(graded) - set(chosen))
+    if log:
+        log(f"    telecommands  priority {priority}: {len(chosen)} of {len(graded)} "
+            f"modelled{f', dropped (never executed): {dropped}' if dropped else ''}")
+
+    impulses = commands.rasterise(executions.of(chosen), grid, chosen)
+    if log:
+        fired = impulses.sum(axis=0)
+        for name, n in zip(chosen, fired):
+            log(f"      {name:<18} {int(n):>8,} executions on the grid")
+    return impulses, tuple(chosen)
 
 
 def _grid_for(channels: list[Channel], start, end, period) -> Grid:

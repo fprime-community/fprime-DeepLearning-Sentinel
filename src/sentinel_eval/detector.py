@@ -47,9 +47,24 @@ class Context:
     fold: int
     window: tuple[int, int]
 
+    #: Telecommand impulses for exactly this window, ``uint8[T, K]``, or None when
+    #: the run did not ask for them. **Not a label.** A command is an input the
+    #: spacecraft itself has, known before it executes and available in flight;
+    #: telemanom feeds its model the same thing (docs/DECISIONS.md D6). The
+    #: promise this class makes -- no labels, ever -- is intact.
+    #:
+    #: Sliced identically to the values a detector is handed, so a detector may
+    #: index the two together without knowing which window it is in.
+    commands: np.ndarray | None = None
+    command_ids: tuple[str, ...] = ()
+
     @property
     def n_channels(self) -> int:
         return len(self.channels)
+
+    @property
+    def has_commands(self) -> bool:
+        return self.commands is not None and self.commands.shape[1] > 0
 
 
 class Detector(ABC):

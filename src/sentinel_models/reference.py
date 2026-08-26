@@ -101,16 +101,22 @@ class Weights:
     n_channels: int
     window: int
     n_predictions: int
+    #: Exogenous input columns -- telecommand features. The model reads
+    #: ``n_channels + n_exogenous`` and forecasts ``n_channels``: it is told what
+    #: was commanded, and asked only what the telemetry will do about it. A
+    #: `model.bin` has to carry this separately from the channel count for
+    #: exactly that reason (docs/DECISIONS.md D6).
+    n_exogenous: int = 0
 
     def __post_init__(self) -> None:
         if not self.layers:
             raise ReferenceError("a model with no layers cannot forecast")
         for layer in self.layers:
             layer.validate()
-        if self.layers[0].n_in != self.n_channels:
+        if self.layers[0].n_in != self.n_inputs:
             raise ReferenceError(
                 f"layer 0 takes {self.layers[0].n_in} inputs but the model declares "
-                f"{self.n_channels} channels"
+                f"{self.n_channels} channels + {self.n_exogenous} exogenous"
             )
         expected = self.n_predictions * self.n_channels
         if self.head_w.shape != (expected, self.layers[-1].hidden):
@@ -118,6 +124,10 @@ class Weights:
                 f"head is {self.head_w.shape}, expected "
                 f"{(expected, self.layers[-1].hidden)}"
             )
+
+    @property
+    def n_inputs(self) -> int:
+        return self.n_channels + self.n_exogenous
 
     @property
     def hidden(self) -> tuple[int, ...]:
@@ -135,7 +145,8 @@ class Weights:
         return self.n_parameters * 4
 
     def describe(self) -> str:
-        return (f"LSTM {self.n_channels}ch -> {list(self.hidden)} -> "
+        commanded = f"+{self.n_exogenous}cmd" if self.n_exogenous else ""
+        return (f"LSTM {self.n_channels}ch{commanded} -> {list(self.hidden)} -> "
                 f"{self.n_predictions}x{self.n_channels}   "
                 f"{self.n_parameters:,} parameters, {self.nbytes() / 1024:.1f} KiB float32")
 
@@ -217,9 +228,11 @@ def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
     x = np.ascontiguousarray(x, dtype=DTYPE)
     if x.ndim != 3:
         raise ReferenceError(f"input must be (batch, steps, channels), got {x.shape}")
-    if x.shape[2] != weights.n_channels:
+    if x.shape[2] != weights.n_inputs:
         raise ReferenceError(
-            f"input has {x.shape[2]} channels, the model was fitted on {weights.n_channels}"
+            f"input has {x.shape[2]} channels, the model was fitted on "
+            f"{weights.n_inputs} ({weights.n_channels} telemetry + "
+            f"{weights.n_exogenous} exogenous)"
         )
 
     state = zero_state(weights, x.shape[0]) if state is None else list(state)

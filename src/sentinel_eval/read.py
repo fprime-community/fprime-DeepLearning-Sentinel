@@ -102,6 +102,41 @@ def read_table(source: ObjectSource, obj: StoredObject, *, columns=None, verify:
     return table
 
 
+@dataclass(frozen=True)
+class Executions:
+    """When each telecommand fired, still on its own irregular grid.
+
+    Three columns rather than a :class:`Series`' two: many commands share one
+    object, so each execution carries the id it belongs to.
+    """
+
+    telecommand_id: np.ndarray   # str
+    t_anon: np.ndarray           # datetime64[ns], anonymised mission time
+    value: np.ndarray
+
+    def __len__(self) -> int:
+        return int(self.t_anon.shape[0])
+
+    def ids(self) -> list[str]:
+        return sorted(set(self.telecommand_id.tolist()))
+
+    def of(self, wanted) -> "Executions":
+        keep = np.isin(self.telecommand_id, list(wanted))
+        return Executions(self.telecommand_id[keep], self.t_anon[keep], self.value[keep])
+
+
+def read_telecommands(source: ObjectSource, obj: StoredObject, *, verify: bool = True
+                      ) -> Executions:
+    """A mission's telecommand executions. One object, one Class B."""
+    table = read_table(source, obj,
+                       columns=["telecommand_id", "timestamp", "value"], verify=verify)
+    return Executions(
+        telecommand_id=np.asarray(table.column("telecommand_id").to_pylist()),
+        t_anon=table.column("timestamp").to_numpy(zero_copy_only=False),
+        value=table.column("value").to_numpy(zero_copy_only=False),
+    )
+
+
 def read_channel(source: ObjectSource, channel: Channel, *, verify: bool = True) -> Series:
     """One channel, shards concatenated in time order, as a :class:`Series`.
 

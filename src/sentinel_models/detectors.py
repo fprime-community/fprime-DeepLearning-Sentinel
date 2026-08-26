@@ -43,7 +43,7 @@ from sentinel_eval.detector import Detector
 from . import reference, telemanom
 from .lstm import Hyper, train
 from .reference import LayerWeights, ReferenceError, Weights
-from .windows import aggregate_predictions
+from .windows import DEFAULT_DECAY_STEPS, aggregate_predictions, command_features
 
 #: How the score is turned into an alarm. ``ndt`` folds telemanom's moving
 #: threshold into the score so the harness's fixed cut reproduces it; ``quantile``
@@ -187,10 +187,17 @@ class ForecastDetector(Detector):
 
     name = "lstm-telemanom"
 
+    #: Whether this detector wants telecommands supplied. The composition root
+    #: reads it *before* loading, so the bundle knows whether to spend the two
+    #: Class B on fetching them. False here: `lstm-telemanom` is the control arm
+    #: of the ablation and must see exactly what it has always seen.
+    wants_commands = False
+
     def __init__(self, *, hyper: Hyper | None = None,
                  config: telemanom.Config | None = None, mode: str = NDT,
                  agreement: int = 1,
                  chunks: int = DEFAULT_CHUNKS, chunk_steps: int = DEFAULT_CHUNK_STEPS,
+                 decay_steps: int = DEFAULT_DECAY_STEPS,
                  reuse_weights: bool = True) -> None:
         if mode not in (NDT, QUANTILE):
             raise ReferenceError(f"unknown mode {mode!r}; expected {NDT!r} or {QUANTILE!r}")
@@ -205,11 +212,13 @@ class ForecastDetector(Detector):
         self.chunks = int(chunks)
         self.chunk_steps = int(chunk_steps)
         self.reuse_weights = reuse_weights
+        self.decay_steps = int(decay_steps)
         super().__init__(mode=mode, agreement=self.agreement,
                          **self.hyper.as_dict(), **self.config.as_dict())
 
         self._weights: Weights | None = None
         self._fill: np.ndarray | None = None
+        self._impulses: np.ndarray | None = None
         self.report: dict | None = None
         self.last_attribution: np.ndarray | None = None
 
@@ -244,14 +253,25 @@ class ForecastDetector(Detector):
         values = np.asarray(values)
         usable = np.asarray(usable, dtype=bool) & np.isfinite(values).all(axis=1)
 
+        impulses = context.commands if self.wants_commands else None
+        if self.wants_commands and impulses is None:
+            raise ReferenceError(
+                f"{self.name} needs telecommands and the bundle carries none. The "
+                f"composition root supplies them when a detector asks; a script "
+                f"calling the harness directly must pass telecommands= to "
+                f"bundle.load"
+            )
+
         key = (self.hyper.as_dict_key(), context.channels, context.fold,
                context.window, values.shape, _sample_digest(values),
-               _digest(usable[::997]))
+               _digest(usable[::997]),
+               None if impulses is None else _sample_digest(impulses))
         reuse = self.reuse_weights and caching()
         digest = _digest(key)
         cached = (_WEIGHTS.get(key) or _load_weights(digest)) if reuse else None
         if cached is None:
-            weights, report = train(values, usable, self.hyper, fold=context.fold)
+            weights, report = train(values, usable, self.hyper, fold=context.fold,
+                                    impulses=impulses)
             cached = (weights, report.as_dict())
             if reuse:
                 _save_weights(digest, *cached)
@@ -261,6 +281,7 @@ class ForecastDetector(Detector):
             _WEIGHTS[key] = cached
 
         self._weights, self.report = cached
+        self._impulses = impulses
         rows = values[usable] if usable.any() else values
         with np.errstate(invalid="ignore"):
             self._fill = np.nanmean(rows, axis=0).astype(np.float32)
@@ -270,6 +291,10 @@ class ForecastDetector(Detector):
         if self._weights is None:
             raise ReferenceError("score() before fit(); the harness always fits first")
         values = np.asarray(values)
+        if self.wants_commands:
+            # This window's commands, not the fit window's. The harness slices
+            # them exactly as it slices the values, warm-up included.
+            self._impulses = context.commands
 
         if self.mode == QUANTILE:
             # Through the cache, exactly as NDT mode is. Reducing straight from
@@ -387,6 +412,15 @@ class ForecastDetector(Detector):
             batch[i] = np.concatenate(pieces) if len(pieces) > 1 else take
             # Whatever the padding, absolute step `start` lands at index `window`.
 
+        if self._weights.n_exogenous:
+            # The same two features per command the model was fitted on, derived
+            # for exactly these chunks. Each chunk's window begins at
+            # `start - window`, which is where its first row came from above.
+            features = command_features(
+                self._impulses, np.asarray([s - window for s in starts]),
+                span, self.decay_steps)
+            batch = np.concatenate([batch, features], axis=2)
+
         predictions, _ = reference.forward(self._weights, batch)
         out = np.empty((hi - lo, filled.shape[1]), dtype=np.float32)
         for i, start in enumerate(starts):
@@ -435,6 +469,26 @@ class TelemanomQuantile(ForecastDetector):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(mode=QUANTILE, **kwargs)
+
+
+class TelemanomCommanded(ForecastDetector):
+    """The same detector, with telecommands as exogenous inputs. The other arm.
+
+    telemanom feeds its LSTM telemetry **and** encoded command information
+    (`docs/DECISIONS.md` D6); `lstm-telemanom` is what we built without that, and
+    this is the reproduction completed. The two differ in **that alone** --
+    identical architecture, hyperparameters, folds, seeds and detection stack --
+    which is what makes the pair an ablation rather than a comparison.
+
+    No ESA-ADB paper has published this ablation. The delta is the result,
+    whichever way it lands, and the magnitude is genuinely unknown: ESA's own
+    baselines got *worse* precision when telecommands were added, though they
+    cannot exploit them and this can. `docs/RESEARCH.md` marks that as the
+    thinnest and most consequential evidence in the project.
+    """
+
+    name = "lstm-commanded"
+    wants_commands = True
 
 
 class TelemanomSmoke(ForecastDetector):

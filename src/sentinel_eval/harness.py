@@ -123,10 +123,20 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     train_lo, train_hi = fold.train
     test_lo, test_hi = fold.test
 
+    def commands_for(lo: int, hi: int):
+        """Telecommands sliced exactly as the values are, or None.
+
+        Two different slices below -- the fit window, and the score window with
+        its warm-up prefix -- so this is derived from the same bounds rather than
+        carried on the context, where the two would drift apart silently.
+        """
+        return None if bundle.commands is None else bundle.commands[lo:hi]
+
     context = Context(
         mission=bundle.mission, channels=bundle.channel_ids, groups=bundle.groups,
         period_seconds=bundle.provenance["grid_period_seconds"], fold=fold.index,
         window=(train_lo, train_hi),
+        commands=commands_for(train_lo, train_hi), command_ids=bundle.command_ids,
     )
 
     # -- fit on nominal data only ------------------------------------------
@@ -142,7 +152,8 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     # -- score the fold, with warm-up history that is then discarded --------
     warmup = min(detector.warmup_steps, test_lo)
     window_lo = test_lo - warmup
-    scored = Context(**{**vars(context), "window": (test_lo, test_hi)})
+    scored = Context(**{**vars(context), "window": (test_lo, test_hi),
+                        "commands": commands_for(window_lo, test_hi)})
     raw = detector.score(bundle.values[window_lo:test_hi],
                          bundle.valid[window_lo:test_hi], scored)
     scores, _ = reduce_scores(raw, test_hi - window_lo)

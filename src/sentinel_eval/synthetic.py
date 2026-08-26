@@ -78,6 +78,9 @@ def build(seed: int = 0, n: int = 20_000, sharded_channel: str = "channel_7") ->
     driver = _latent_driver(rng, n)
     raw = {c["id"]: _channel_signal(rng, driver, c, grids[c["id"]], n) for c in spec}
 
+    fires = _command_times(rng, n)
+    _apply_commands(raw, grids, spec, fires, n)
+
     events = _inject(rng, raw, grids, spec, n)
     values = _scale_within_groups(raw, spec)
 
@@ -90,7 +93,9 @@ def build(seed: int = 0, n: int = 20_000, sharded_channel: str = "channel_7") ->
         channels.append(entry)
 
     annotations = _write_annotations(objects, events, spec)
-    manifest = _manifest(channels, annotations)
+    series = _write_telecommands(objects, fires,
+                                 EPOCH + np.arange(n) * np.timedelta64(PERIOD_S, "s"))
+    manifest = _manifest(channels, annotations, series)
     objects["_manifest/manifest.json"] = json.dumps(manifest, indent=2).encode() + b"\n"
 
     return SyntheticBucket(
@@ -355,10 +360,15 @@ def _write_annotations(objects: dict, events: list[dict], spec: list[dict]) -> d
         "Target": pa.array(["YES" if c["target"] else "NO" for c in spec]),
         "Categorical": pa.array(["YES" if c.get("categorical") else "NO" for c in spec]),
     })
+    # Graded as ESA grades them, 0 to 3, and deliberately including a priority-3
+    # command that never executes -- 17 of Mission1's 698 are declared and never
+    # fire, and a dead command must be dropped rather than modelled as a
+    # constant-zero input column (docs/DECISIONS.md D7).
     telecommands = pa.table({
-        "mission": pa.array([MISSION, MISSION]),
-        "Telecommand": pa.array(["telecommand_1", "telecommand_2"]),
-        "Priority": pa.array([1, 2], type=pa.int64()),
+        "mission": pa.array([MISSION] * 5),
+        "Telecommand": pa.array(["telecommand_1", "telecommand_2", "telecommand_3",
+                                 "telecommand_4", "telecommand_5"]),
+        "Priority": pa.array([3, 3, 1, 0, 3], type=pa.int64()),
     })
     events_table = pa.table({
         "mission": pa.array([MISSION]), "Event": pa.array(["event_1"]),
@@ -381,7 +391,87 @@ def _write_annotations(objects: dict, events: list[dict], spec: list[dict]) -> d
     return out
 
 
-def _manifest(channels: list[dict], annotations: dict) -> dict:
+#: Priority-3 commands that actually fire. `telecommand_5` is graded 3 and never
+#: executes, so the loader must drop it.
+COMMANDED = ("telecommand_1", "telecommand_2")
+
+#: How far a commanded response reaches, in grid steps, and how large it is.
+#:
+#: Deliberately generous. This fixture exists to prove that the command input
+#: reaches the model and changes its forecast where it should -- it is a test of
+#: **wiring, not of effect size**, and a signature too faint to demonstrate the
+#: wiring is a bad fixture rather than a conservative one. At a 40-step span the
+#: differential against uncommanded timesteps was 1.2 percentage points, which is
+#: the right sign and too thin to distinguish a working input from a slightly
+#: larger model. Nothing about these values predicts anything about ESA-ADB,
+#: where the real transients are whatever they are.
+COMMAND_SPAN = 150
+COMMAND_SIZE = 0.6
+
+
+def _command_times(rng, n: int) -> dict[str, np.ndarray]:
+    """When each modelled command fires, as grid indices."""
+    out = {}
+    for i, name in enumerate(COMMANDED):
+        every = 900 + 200 * i
+        first = 400 + 150 * i
+        jitter = rng.integers(-40, 40, size=max(1, (n - first) // every))
+        fires = np.clip(np.arange(first, n, every)[:jitter.shape[0]] + jitter, 0, n - 1)
+        out[name] = np.unique(fires)
+    return out
+
+
+def _apply_commands(raw: dict, grids: dict, spec: list, fires: dict, n: int) -> None:
+    """Give commanded events a real, learnable signature in the telemetry.
+
+    A commanded manoeuvre looks abnormal and is not -- Objective.md 6.2. Without
+    the command as an input a forecaster cannot predict these and will alarm on
+    them, which is precisely the failure the real run exhibits at 22/48. With the
+    command it can. If the fixture had no such structure the ablation would be
+    measuring nothing.
+    """
+    shape = np.exp(-np.arange(COMMAND_SPAN) / (COMMAND_SPAN / 3.0))
+    for command_index, (name, steps) in enumerate(sorted(fires.items())):
+        touched = [c["id"] for c in spec
+                   if not c.get("categorical") and c["group"] == command_index % 3]
+        for cid in touched:
+            grid, values = grids[cid], raw[cid]
+            for step in steps:
+                lo = np.searchsorted(grid, step)
+                hi = min(lo + COMMAND_SPAN, values.shape[0])
+                if hi > lo:
+                    values[lo:hi] += COMMAND_SIZE * shape[: hi - lo]
+
+
+def _write_telecommands(objects: dict, fires: dict, grid_times: np.ndarray) -> dict:
+    """The execution series: one object, three columns, as the real archive has."""
+    ids, times = [], []
+    for name, steps in sorted(fires.items()):
+        ids.extend([name] * steps.shape[0])
+        times.extend(grid_times[steps].tolist())
+    order = np.argsort(np.array(times, dtype="datetime64[ns]"), kind="stable")
+
+    table = pa.table({
+        "telecommand_id": pa.array([ids[i] for i in order]),
+        "timestamp": pa.array(np.array(times, dtype="datetime64[ns]")[order],
+                              type=pa.timestamp("ns")),
+        "value": pa.array(np.ones(len(ids), dtype=np.float32), type=pa.float32()),
+    })
+    sink = io.BytesIO()
+    pq.write_table(table, sink, compression="zstd", version="2.6")
+    blob = sink.getvalue()
+    sha, md5 = _digest(blob)
+    key = f"esa-adb/v1/archive/{MISSION}/telecommands.parquet"
+    objects[key] = blob
+    return {"key": key, "rows": table.num_rows, "bytes": len(blob),
+            "sha256": sha, "md5_hex": md5,
+            "time_start_utc": None, "time_end_utc": None,
+            "distinct_telecommands": len(fires), "telecommand_files": len(fires),
+            "empty_telecommands": 0}
+
+
+def _manifest(channels: list[dict], annotations: dict,
+              telecommand_series: dict | None = None) -> dict:
     return {
         "schema_version": "1.1",
         "generated_utc": "2000-01-01T00:00:00Z",
@@ -400,6 +490,8 @@ def _manifest(channels: list[dict], annotations: dict) -> dict:
                         "channel_count": len(channels),
                         "target_channel_count": sum(1 for c in channels if c["is_target"]),
                         "channels": channels,
+                        **({"telecommand_series": telecommand_series}
+                           if telecommand_series else {}),
                     }
                 },
                 "annotations": annotations,

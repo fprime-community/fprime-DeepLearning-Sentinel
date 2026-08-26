@@ -31,6 +31,57 @@ import numpy as np
 from .reference import ReferenceError
 
 
+#: How long a "recently commanded" trace takes to fall to 1/e. Long enough to
+#: outlast a response transient, short enough that overlapping commands stay
+#: distinguishable. A model hyperparameter, which is why it lives here.
+DEFAULT_DECAY_STEPS = 60
+
+#: Time constants of history used to warm the decay before a window starts. After
+#: five the carry is below 1% and the trace is indistinguishable from one computed
+#: over the whole mission.
+DECAY_WARMUP = 5
+
+
+def decay(impulses: np.ndarray, steps: int = DEFAULT_DECAY_STEPS) -> np.ndarray:
+    """A "recently commanded" trace: each impulse decaying over ``steps``.
+
+    ``y[t] = max(x[t], y[t-1] * r)`` with ``r`` set so the trace falls to 1/e over
+    ``steps``. **Maximum rather than sum**, so overlapping commands do not
+    accumulate into a level the model has never seen: the feature answers *how
+    recently*, and the impulse column beside it already answers *how many*.
+
+    Derived rather than stored (`docs/DECISIONS.md` D11) -- over a whole mission a
+    stored float32 trace costs four times the `uint8` impulses it comes from.
+    """
+    values = np.asarray(impulses, dtype=np.float32)
+    rate = np.float32(np.exp(-1.0 / max(1, steps)))
+    out = np.empty_like(values)
+    carry = np.zeros(values.shape[-1], dtype=np.float32)
+    for t in range(values.shape[0]):
+        carry = np.maximum(values[t], carry * rate)
+        out[t] = carry
+    return out
+
+
+def command_features(impulses: np.ndarray, starts: np.ndarray, window: int,
+                     decay_steps: int = DEFAULT_DECAY_STEPS) -> np.ndarray:
+    """``(batch, window, 2K)`` -- the impulse, and how recently it fired.
+
+    Each window is decayed over a warm-up prefix that is then discarded, so a
+    sequence beginning long after a command still sees the tail of it. Computing
+    the trace over the whole mission and slicing it would be exact and would cost
+    968 MB for eleven commands over 14.7M timesteps; this is bounded by the batch.
+    """
+    warm = DECAY_WARMUP * decay_steps
+    span = warm + window
+    offsets = np.arange(span)[None, :]
+    rows = np.clip(starts[:, None] - warm + offsets, 0, impulses.shape[0] - 1)
+
+    block = np.asarray(impulses[rows], dtype=np.float32)      # (batch, span, K)
+    traced = np.stack([decay(sequence, decay_steps) for sequence in block])
+    return np.concatenate([block[:, warm:], traced[:, warm:]], axis=2)
+
+
 def usable_runs(usable: np.ndarray, minimum: int) -> list[tuple[int, int]]:
     """Maximal contiguous ``True`` runs of at least ``minimum`` steps, as [lo, hi)."""
     flat = np.asarray(usable, dtype=bool)
@@ -80,8 +131,12 @@ class SequenceSampler:
     """
 
     def __init__(self, values: np.ndarray, runs: list[tuple[int, int]], *,
-                 window: int, n_predictions: int) -> None:
+                 window: int, n_predictions: int,
+                 impulses: np.ndarray | None = None,
+                 decay_steps: int = DEFAULT_DECAY_STEPS) -> None:
         self.values = values
+        self.impulses = impulses
+        self.decay_steps = int(decay_steps)
         self.window = int(window)
         self.n_predictions = int(n_predictions)
         span = self.window + self.n_predictions
@@ -126,7 +181,17 @@ class SequenceSampler:
         block = self.values[rows]
         inputs = np.ascontiguousarray(block[:, :self.window])
         targets = np.ascontiguousarray(block[:, self.window:])
-        if not np.isfinite(inputs).all() or not np.isfinite(targets).all():
+
+        if self.impulses is not None:
+            # Commands join the *inputs* and never the targets. The model is asked
+            # what the telemetry will do given what was commanded; asking it to
+            # forecast the commands would be asking it to predict the ground
+            # segment, and a wrong answer there would inflate the loss for a
+            # quantity no anomaly can be detected in.
+            extra = command_features(self.impulses, starts, self.window,
+                                     self.decay_steps)
+            inputs = np.ascontiguousarray(np.concatenate([inputs, extra], axis=2))
+        if not np.isfinite(inputs).all() or not np.isfinite(targets).all():  # noqa: E501
             raise ReferenceError(
                 "a sampled sequence contains a non-finite value; the usable mask and "
                 "the values disagree, which means the grid's staleness guard was bypassed"

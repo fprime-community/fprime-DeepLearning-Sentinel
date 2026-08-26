@@ -183,6 +183,29 @@ class Catalog:
             ) from None
         return StoredObject(raw["key"], raw["sha256"], raw["bytes"], raw["rows"])
 
+    def telecommand_series(self, mission: str) -> StoredObject:
+        """The mission's telecommand executions, as one object.
+
+        telemanom's LSTM takes telemetry **and encoded command information**
+        (docs/DECISIONS.md D6); this is where the second half comes from. Mission1
+        holds 1,594,722 executions of 681 distinct commands in a single 7.7 MB
+        object spanning the whole timeline, so supplying them costs one Class B.
+
+        Separate from :meth:`annotation` because this is a time series in the
+        archive, not a description table in the annotations. The 821-row
+        description table -- which carries the priority grading -- is
+        ``annotation("telecommands")``, and the two are easy to confuse because
+        they share a name.
+        """
+        try:
+            raw = self.dataset["missions"][mission]["telecommand_series"]
+        except KeyError:
+            raise TaskError(
+                f"{mission} has no telecommand series in the manifest; "
+                f"mission3 carries none"
+            ) from None
+        return StoredObject(raw["key"], raw["sha256"], raw["bytes"], raw["rows"])
+
     # -- ESA's magic numbers, which exist in no CSV ------------------------
     @property
     def hints(self) -> dict:

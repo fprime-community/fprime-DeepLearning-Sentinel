@@ -32,7 +32,8 @@ import torch
 from torch import nn
 
 from .reference import DTYPE, LayerWeights, ReferenceError, Weights
-from .windows import SequenceSampler, split_runs, usable_runs
+from .windows import (DEFAULT_DECAY_STEPS, SequenceSampler, split_runs,
+                      usable_runs)
 
 #: CPU only. MPS is not deterministic across releases and this model is far too
 #: small to need a GPU; Objective.md 11 rule 5 wants reproducibility, not speed.
@@ -126,6 +127,7 @@ class TrainingReport:
     history: list[float] = field(default_factory=list)
     stopped_early: bool = False
     threads: int = THREADS
+    n_exogenous: int = 0
 
     def as_dict(self) -> dict:
         return {
@@ -138,6 +140,7 @@ class TrainingReport:
             "validation_history": [round(v, 8) for v in self.history],
             "stopped_early": self.stopped_early,
             "torch_threads": self.threads,
+            "exogenous_inputs": self.n_exogenous,
         }
 
 
@@ -149,7 +152,7 @@ class TelemanomLSTM(nn.Module):
     a difference of one line that would otherwise have been a silent deviation.
     """
 
-    def __init__(self, n_channels: int, hyper: Hyper) -> None:
+    def __init__(self, n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> None:
         super().__init__()
         if len(set(hyper.hidden)) != 1:
             raise ReferenceError(
@@ -158,8 +161,9 @@ class TelemanomLSTM(nn.Module):
             )
         self.hyper = hyper
         self.n_channels = n_channels
+        self.n_exogenous = int(n_exogenous)
         self.lstm = nn.LSTM(
-            input_size=n_channels, hidden_size=hyper.hidden[0],
+            input_size=n_channels + self.n_exogenous, hidden_size=hyper.hidden[0],
             num_layers=len(hyper.hidden), batch_first=True,
             dropout=hyper.dropout if len(hyper.hidden) > 1 else 0.0,
         )
@@ -202,6 +206,7 @@ def to_weights(model: TelemanomLSTM) -> Weights:
         n_channels=model.n_channels,
         window=model.hyper.window,
         n_predictions=model.hyper.n_predictions,
+        n_exogenous=model.n_exogenous,
     )
 
 
@@ -213,7 +218,9 @@ def configure_determinism(seed: int) -> None:
 
 
 def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0,
-          log=None) -> tuple[Weights, TrainingReport]:
+          impulses: np.ndarray | None = None,
+          decay_steps: int = DEFAULT_DECAY_STEPS, log=None
+          ) -> tuple[Weights, TrainingReport]:
     """Fit on nominal data only and return plain arrays plus what the fit did.
 
     ``values`` is the training window, ``usable`` the harness's mask over it:
@@ -234,10 +241,11 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     train_runs, validation_runs = split_runs(runs, hyper.validation_fraction)
 
     values = np.ascontiguousarray(values, dtype=DTYPE)
+    exogenous = dict(impulses=impulses, decay_steps=decay_steps)
     trainer = SequenceSampler(values, train_runs, window=hyper.window,
-                              n_predictions=hyper.n_predictions)
+                              n_predictions=hyper.n_predictions, **exogenous)
     validator = SequenceSampler(values, validation_runs, window=hyper.window,
-                                n_predictions=hyper.n_predictions)
+                                n_predictions=hyper.n_predictions, **exogenous)
     if len(trainer) == 0:
         raise ReferenceError("the training side of the split holds no complete sequence")
 
@@ -246,7 +254,10 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     report = TrainingReport(sequences_per_epoch=per_epoch, train_positions=len(trainer),
                             validation_positions=len(validator))
 
-    model = TelemanomLSTM(values.shape[1], hyper).to(DEVICE)
+    # Two features per command -- the impulse, and how recently it fired.
+    n_exogenous = 0 if impulses is None else 2 * impulses.shape[1]
+    model = TelemanomLSTM(values.shape[1], hyper, n_exogenous).to(DEVICE)
+    report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
     loss_fn = nn.MSELoss()
 
