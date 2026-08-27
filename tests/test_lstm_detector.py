@@ -396,3 +396,40 @@ def test_agreement_tightens_quantile_mode_too():
         detector.agreement = k
         tops[k] = float(np.nanmax(detector.score(values, None, _context(3))))
     assert tops[1] >= tops[2] >= tops[3], f"k did not tighten: {tops}"
+
+
+def test_a_commanded_model_survives_the_round_trip(tmp_path, monkeypatch):
+    """`n_exogenous` was not being written, so commanded weights would not reload.
+
+    It failed safe -- `_load_weights` catches and returns a cache miss, so the
+    consequence was silent refitting rather than a wrong answer. But an hour of
+    GPU fitting was thrown away before verification caught it, and "fails safe"
+    is not "works".
+    """
+    monkeypatch.setattr(D, "WEIGHT_STORE", tmp_path / "_weights")
+    values, usable = _data()
+    commands = np.zeros((values.shape[0], 2), dtype=np.uint8)
+    commands[::300] = 1
+
+    context = Context(mission="missionX", channels=("a", "b", "c"), groups=(1,),
+                      period_seconds=30, fold=0, window=(0, 3000),
+                      commands=commands[:3000], command_ids=("tc_a", "tc_b"))
+    detector = D.TelemanomCommanded(
+        hyper=Hyper(window=40, hidden=(12, 12), n_predictions=3, batch_size=16,
+                    max_epochs=2, sequence_budget_divisor=8,
+                    max_validation_sequences=64),
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300)
+    detector.fit(values[:3000], usable[:3000], context)
+    fitted = detector._weights
+    assert fitted.n_exogenous == 4, "two commands, two features each"
+
+    D.clear_caches()
+    reloaded = D._load_weights(D._digest(
+        (detector.hyper.as_dict_key(), context.channels, context.fold, context.window,
+         values[:3000].shape, D._sample_digest(values[:3000]),
+         D._digest(usable[:3000][::997]), D._sample_digest(commands[:3000]))))
+    assert reloaded is not None, "the commanded model did not survive the round trip"
+    assert reloaded[0].n_exogenous == fitted.n_exogenous
+    assert reloaded[0].n_inputs == fitted.n_inputs
+    assert np.array_equal(reloaded[0].head_w, fitted.head_w)

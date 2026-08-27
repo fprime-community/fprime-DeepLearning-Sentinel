@@ -166,3 +166,26 @@ def test_the_trace_is_derived_rather_than_stored():
     """
     impulses = np.zeros((10_000, 11), dtype=np.uint8)
     assert decay(impulses).nbytes == 4 * impulses.nbytes
+
+
+def test_the_batched_decay_is_bit_identical_to_the_per_sequence_one():
+    """The optimisation that unblocked the commanded arm, held to identity.
+
+    Every sequence in a batch is independent of the others, so advancing them
+    together is the same arithmetic -- but "should be" is not "is", and this
+    changed the numbers that go into a trained model.
+    """
+    rng = np.random.default_rng(0)
+    block = (rng.random((16, 200, 3)) < 0.02).astype(np.float32)
+    batched = decay(block, 60)
+    one_at_a_time = np.stack([decay(sequence, 60) for sequence in block])
+    assert np.array_equal(batched, one_at_a_time)
+
+
+def test_the_decay_still_takes_a_single_window():
+    """The 2-D form the module documents, unchanged."""
+    impulses = np.zeros((100, 2), dtype=np.uint8)
+    impulses[10, 0] = 1
+    traced = decay(impulses, steps=60)
+    assert traced.shape == (100, 2)
+    assert traced[30, 0] == pytest.approx(np.exp(-20 / 60), rel=1e-5)

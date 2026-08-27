@@ -35,8 +35,18 @@ from .reference import DTYPE, LayerWeights, ReferenceError, Weights
 from .windows import (DEFAULT_DECAY_STEPS, SequenceSampler, split_runs,
                       usable_runs)
 
-#: CPU only. MPS is not deterministic across releases and this model is far too
-#: small to need a GPU; Objective.md 11 rule 5 wants reproducibility, not speed.
+#: Where fitting happens. **CPU by default**, and never MPS -- Apple's backend is
+#: not deterministic across releases.
+#:
+#: Set to ``"cuda"`` by `scripts/fit_folds.py` when fitting on a rented GPU, which
+#: is 19x this laptop on the shape that matters and, measured on an A40, produces
+#: **bit-identical weights across runs on the same box**. It does not produce the
+#: same weights a different box would: reduction order differs with the hardware,
+#: so "reproducible from cold" means on equivalent fitting hardware, and the
+#: device is recorded in provenance for that reason.
+#:
+#: Scoring is unaffected either way -- it runs through
+#: `sentinel_models.reference`, plain NumPy, on whatever machine scores.
 DEVICE = "cpu"
 
 #: Pinned so weights reproduce. CPU GEMM reduction order varies with the thread
@@ -210,6 +220,8 @@ def to_weights(model: TelemanomLSTM) -> Weights:
     Objective.md decision 14.2.
     """
     def array(tensor: torch.Tensor) -> np.ndarray:
+        """Off the device and into a plain array. This is what makes a fit
+        portable: what leaves here has no tie to the machine that produced it."""
         return np.ascontiguousarray(tensor.detach().cpu().numpy(), dtype=DTYPE)
 
     layers = tuple(
@@ -298,7 +310,8 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
         for _ in range(n_batches):
             inputs, targets = trainer.draw(hyper.batch_size, rng)
             optimiser.zero_grad(set_to_none=True)
-            loss = loss_fn(model(torch.from_numpy(inputs)), torch.from_numpy(targets))
+            loss = loss_fn(model(torch.from_numpy(inputs).to(DEVICE)),
+                           torch.from_numpy(targets).to(DEVICE))
             loss.backward()
             optimiser.step()
 
@@ -370,8 +383,8 @@ def _validate(model: TelemanomLSTM, validation, loss_fn, chunk: int = 256) -> fl
     total, seen = 0.0, 0
     with torch.no_grad():
         for lo in range(0, inputs.shape[0], chunk):
-            x = torch.from_numpy(inputs[lo:lo + chunk])
-            y = torch.from_numpy(targets[lo:lo + chunk])
+            x = torch.from_numpy(inputs[lo:lo + chunk]).to(DEVICE)
+            y = torch.from_numpy(targets[lo:lo + chunk]).to(DEVICE)
             total += float(loss_fn(model(x), y)) * x.shape[0]
             seen += x.shape[0]
     return total / max(seen, 1)

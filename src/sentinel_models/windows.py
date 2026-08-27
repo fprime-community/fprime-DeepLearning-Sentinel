@@ -56,10 +56,17 @@ def decay(impulses: np.ndarray, steps: int = DEFAULT_DECAY_STEPS) -> np.ndarray:
     values = np.asarray(impulses, dtype=np.float32)
     rate = np.float32(np.exp(-1.0 / max(1, steps)))
     out = np.empty_like(values)
-    carry = np.zeros(values.shape[-1], dtype=np.float32)
-    for t in range(values.shape[0]):
-        carry = np.maximum(values[t], carry * rate)
-        out[t] = carry
+
+    # Carries a whole batch at once when given one. The recurrence runs along the
+    # time axis and every sequence in a batch is independent of the others, so
+    # advancing them together is the same arithmetic -- asserted bit-identical by
+    # test, not assumed. It matters: derived per batch inside training, the
+    # per-sequence version was 21x slower and became the bottleneck of the
+    # commanded arm on a GPU that had made everything else instant.
+    carry = np.zeros(values.shape[:-2] + values.shape[-1:], dtype=np.float32)
+    for t in range(values.shape[-2]):
+        carry = np.maximum(values[..., t, :], carry * rate)
+        out[..., t, :] = carry
     return out
 
 
@@ -78,7 +85,7 @@ def command_features(impulses: np.ndarray, starts: np.ndarray, window: int,
     rows = np.clip(starts[:, None] - warm + offsets, 0, impulses.shape[0] - 1)
 
     block = np.asarray(impulses[rows], dtype=np.float32)      # (batch, span, K)
-    traced = np.stack([decay(sequence, decay_steps) for sequence in block])
+    traced = decay(block, decay_steps)                       # batched, same result
     return np.concatenate([block[:, warm:], traced[:, warm:]], axis=2)
 
 

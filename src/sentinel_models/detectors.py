@@ -127,6 +127,7 @@ def _save_weights(key: str, weights: Weights, report: dict) -> None:
     arrays: dict = {"n_channels": np.int64(weights.n_channels),
                     "window": np.int64(weights.window),
                     "n_predictions": np.int64(weights.n_predictions),
+                    "n_exogenous": np.int64(weights.n_exogenous),
                     "n_layers": np.int64(len(weights.layers)),
                     "head_w": weights.head_w, "head_b": weights.head_b,
                     "report": np.array(json.dumps(report))}
@@ -148,15 +149,28 @@ def _load_weights(key: str) -> tuple[Weights, dict] | None:
                                for name in ("w_ih", "w_hh", "b_ih", "b_hh")))
                 for i in range(int(blob["n_layers"]))
             )
+            n_channels = int(blob["n_channels"])
+            # Inferred when absent, because the field postdates the first files
+            # written: the input width is in the weights themselves, so this is
+            # exact rather than a guess. A file saved before the exogenous count
+            # existed describes a model with none, and one saved after says so.
+            exogenous = (int(blob["n_exogenous"]) if "n_exogenous" in blob.files
+                         else layers[0].n_in - n_channels)
             weights = Weights(layers=layers, head_w=blob["head_w"],
                               head_b=blob["head_b"],
-                              n_channels=int(blob["n_channels"]),
+                              n_channels=n_channels,
                               window=int(blob["window"]),
-                              n_predictions=int(blob["n_predictions"]))
+                              n_predictions=int(blob["n_predictions"]),
+                              n_exogenous=exogenous)
             return weights, json.loads(str(blob["report"]))
     except Exception:
         # A truncated or unreadable file is a cache miss, never a wrong answer:
         # the filename is a content digest, so refitting reproduces it exactly.
+        #
+        # That safety is also how a real defect stayed quiet: `n_exogenous` was
+        # not being written, so every commanded model failed to reconstruct here
+        # and was silently refitted. Correct, and an hour of wasted fitting. A
+        # cache that fails safe still has to be checked.
         return None
 
 

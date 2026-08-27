@@ -471,3 +471,81 @@ refit.
 Recorded because the failure is invisible by construction. Nothing errors, nothing
 warns, and the only symptom is a run that takes longer than it should -- which is
 easy to attribute to the machine.
+
+---
+
+## D15. Fitting is portable because the arithmetic is asserted, not because the environments match
+
+**DATE** 2026-08-26 | **STATUS** resolved
+
+**CONTEXT.** Fitting is the only expensive part of a run and the only part a GPU
+helps with: scoring goes through `sentinel_models.reference`, the plain-NumPy
+forward pass Phase 2's C++ is transcribed from, which no GPU touches. So the work
+splits -- fit on a rented GPU, score on the Mac -- and weights travel between two
+machines that agree on nothing.
+
+**ALTERNATIVES.** Fit and score in the same place. Pin an identical environment on
+both. Containerise.
+
+**EVIDENCE.** The fitting box ran Ubuntu 24.04, Python 3.12.3, torch 2.6.0+cu124
+on an NVIDIA A40-8Q. The scoring box runs macOS, Python 3.14.6, torch 2.13.0 on an
+Apple M5. **Nothing matches.** `tests/test_reference_equivalence.py` passed on
+both, holding the torch model and the NumPy reference to 1e-5.
+
+Measured on the same fold, 35 epochs:
+
+```
+  M5, 4 threads          18.9 s/epoch    11.0 min
+  A40, fused cuDNN        0.9 s/epoch     0.5 min     21x
+  A40, deterministic      1.0 s/epoch     0.6 min     19x
+```
+
+Twelve fits in **15.9 minutes** against ~5.5 hours locally. And determinism was
+checked as a property rather than trusted as a flag: two fits, same seed, same
+box, **bit-identical weights on both paths**, so the deterministic path costs 11%
+and no publication rule needed amending.
+
+**CONSEQUENCE.** A weight file is certified by an **equivalence assertion, not an
+environment lockfile**. That is what makes fitting portable at all, and work items
+5 and 6 inherit it for the GRU and the TCN without re-deriving the argument.
+
+Two caveats travel with it. Bit-identical means **on the same box**: a GPU and a
+laptop produce different weights from the same seed because reduction order
+follows the hardware, so "reproduced from cold" means on equivalent fitting
+hardware and provenance records the device. And nothing persists on a rented box
+-- data streams from R2, weights come back, the machine is destroyed.
+
+---
+
+## D16. A cache that fails safe still has to be verified
+
+**DATE** 2026-08-26 | **STATUS** resolved
+
+**CONTEXT.** `Weights` gained an `n_exogenous` field when telecommands became
+model inputs. `_save_weights` was never updated to write it.
+
+**EVIDENCE.** Every commanded model failed to reconstruct on load. The failure was
+**invisible**, by design: `_load_weights` catches any exception and returns a
+cache miss, so the consequence was not a wrong answer but a silent refit --
+correct numbers, hours of wasted fitting, and no signal that anything was wrong.
+
+It was caught by the verification step before a pod was released, which is the
+only reason it did not cost a second GPU session. An hour of fitting had already
+been thrown away by then.
+
+**CONSEQUENCE.**
+
+> **Failing safe is not working.** A cache that degrades to a silent recomputation
+> converts a defect into a cost, and a cost with no signal attached is
+> indistinguishable from the machine being slow -- which is exactly how the
+> positional-key defect in D14 hid, and how this one did.
+
+`n_exogenous` is written, and inferred exactly from the weight shapes for files
+that predate the field, so nothing already banked was orphaned. A test asserts a
+commanded model survives the round trip.
+
+**And the general rule, which is what the pod procedure exists to enforce:
+"downloaded" is not "verified".** Every file is loaded through the production
+loader and one is scored end to end before a machine that cannot be recovered is
+released. This defect is the argument for that step; without it the twelve fits
+would have been declared safe and the Mac would have quietly refitted all of them.
