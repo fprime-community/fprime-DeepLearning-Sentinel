@@ -62,12 +62,28 @@ from .reference import ReferenceError
 #: label-free operating point every baseline in this project is scored at.
 ADMISSION_RATE = 0.001
 
-#: Pulled toward the diagonal before inversion. The covariance of twelve
-#: telemetry channels over millions of samples is well conditioned, but two
-#: channels that move almost identically make it nearly singular and the inverse
-#: then amplifies whichever direction is least observed. A small ridge costs
-#: almost nothing and removes the failure mode; recorded rather than tuned.
-SHRINKAGE = 0.01
+#: Pulled toward the **identity of the correlation matrix** before inversion.
+#:
+#: **This was 0.01 toward `diag(S)` and that was wrong.** Shrinking a covariance
+#: toward its own diagonal softens correlations and does nothing about channel
+#: variances differing by orders of magnitude -- which ESA's within-group min-max
+#: scaling guarantees they do. Measured, the condition number reached **4.3e8**,
+#: a channel with tiny residual variance took an enormous precision weight, and
+#: its numerical noise dominated the whitened length. Standardising first and
+#: shrinking the *correlation* matrix toward the identity bounds the conditioning
+#: by correlation structure alone, which is the quantity this stage is about.
+SHRINKAGE = 0.05
+
+#: A whitened C-dimensional residual has length near ``sqrt(C)`` by construction.
+#: Asserted rather than trusted: the first run of this stage produced thresholds
+#: of 25.7 to 36.3 against ``sqrt(12) = 3.5`` and scored anyway, silently. A
+#: broken whitening must not be able to produce a number again.
+LENGTH_TOLERANCE = 3.0
+
+#: Refused above this. The failure mode is a near-singular covariance whose
+#: inverse amplifies whichever direction is least observed, and it produces
+#: plausible-looking large numbers rather than an error.
+MAX_CONDITION = 1.0e4
 
 #: Rows kept for the threshold quantile. The covariance is accumulated exactly in
 #: one pass; the score's own distribution cannot be until the covariance exists,
@@ -89,6 +105,8 @@ class Config:
     admission_rate: float = ADMISSION_RATE
     shrinkage: float = SHRINKAGE
     sample_stride: int = SAMPLE_STRIDE
+    length_tolerance: float = LENGTH_TOLERANCE
+    max_condition: float = MAX_CONDITION
 
     def as_dict(self) -> dict:
         return {"error_window": self.error_window,
@@ -98,7 +116,9 @@ class Config:
                 "pruning_p": self.pruning_p,
                 "admission_rate": self.admission_rate,
                 "shrinkage": self.shrinkage,
-                "sample_stride": self.sample_stride}
+                "sample_stride": self.sample_stride,
+                "length_tolerance": self.length_tolerance,
+                "max_condition": self.max_condition}
 
 
 @dataclass(frozen=True)
@@ -111,17 +131,21 @@ class Whitening:
     """
 
     mean: np.ndarray            #: (C,) nominal residual mean
-    precision: np.ndarray       #: (C, C) inverse covariance, shrunk
+    scale: np.ndarray           #: (C,) nominal residual sd, so precision is a correlation
+    precision: np.ndarray       #: (C, C) inverse *correlation*, shrunk toward identity
     threshold: float            #: whitened length admitting `admission_rate` on nominal
     nominal_steps: int
     condition_number: float
+    median_length: float        #: on nominal; must sit near sqrt(C) or this is broken
 
     def as_dict(self) -> dict:
         return {"mean": [float(m) for m in self.mean],
+                "scale": [float(v) for v in self.scale],
                 "threshold": float(self.threshold),
                 "nominal_steps": int(self.nominal_steps),
                 "condition_number": float(self.condition_number),
-                "precision_diagonal": [float(v) for v in np.diag(self.precision)]}
+                "median_length": float(self.median_length),
+                "expected_length": float(np.sqrt(self.mean.shape[0]))}
 
 
 class Accumulator:
@@ -142,8 +166,21 @@ class Accumulator:
         self.rows: list[np.ndarray] = []
         self._offset = 0
 
-    def add(self, block: np.ndarray) -> None:
+    def add(self, block: np.ndarray, usable: np.ndarray | None = None) -> None:
+        """``usable`` keeps only genuinely nominal rows.
+
+        **The mask is not optional in a run and it was missing.**
+        `harness._score_fold` applies `train_mask` to `detector.fit` and **not**
+        to the `detector.score` call this calibration reads, so without it the
+        99.9th percentile is set partly by the anomalies inside the fitting
+        window -- pushed up by the events it exists to catch
+        (`docs/NARRATIVE.md` section 6).
+        """
         block = np.asarray(block, dtype=np.float64)
+        if usable is not None:
+            block = block[np.asarray(usable, dtype=bool)]
+        if block.shape[0] == 0:
+            return
         self.n += block.shape[0]
         self.total += block.sum(axis=0)
         self.gram += block.T @ block
@@ -160,34 +197,60 @@ class Accumulator:
         # Symmetrise: the two halves differ only by float64 rounding, and an
         # asymmetric matrix makes the inverse subtly direction-dependent.
         covariance = 0.5 * (covariance + covariance.T)
+        # Standardise before inverting, so what is inverted is a CORRELATION
+        # matrix. Shrinking a covariance toward its own diagonal leaves channel
+        # variances untouched, and ESA's within-group min-max scaling makes those
+        # differ by orders of magnitude -- measured, a condition number of 4.3e8
+        # and a whitened length dominated by the noise of the quietest channel.
+        variance = np.diag(covariance).copy()
+        floor = max(1e-30, 1e-10 * float(np.mean(variance)))
+        scale = np.sqrt(np.maximum(variance, floor))
+        correlation = covariance / np.outer(scale, scale)
         ridge = float(config.shrinkage)
-        covariance = (1.0 - ridge) * covariance + ridge * np.diag(np.diag(covariance))
-        # A channel that never moves has zero variance and no inverse. Floor it
-        # rather than raising: a constant channel carries no relationship and
-        # should contribute nothing, which is what a large diagonal achieves.
-        floor = max(1e-30, 1e-12 * float(np.mean(np.diag(covariance))))
-        np.fill_diagonal(covariance, np.maximum(np.diag(covariance), floor))
-        precision = np.linalg.inv(covariance)
+        correlation = (1.0 - ridge) * correlation + ridge * np.eye(correlation.shape[0])
+        precision = np.linalg.inv(correlation)
         precision = 0.5 * (precision + precision.T)
+        condition = float(np.linalg.cond(correlation))
+        if not np.isfinite(condition) or condition > config.max_condition:
+            raise ReferenceError(
+                f"the nominal correlation matrix is ill-conditioned "
+                f"({condition:.3g} > {config.max_condition:.3g}). Its inverse would "
+                f"amplify whichever direction is least observed and produce large "
+                f"numbers that look like detections. Refusing to score."
+            )
 
         sample = (np.concatenate(self.rows) if self.rows
                   else np.zeros((1, mean.shape[0]), dtype=np.float32))
-        distances = whitened_length(sample, mean, precision)
+        distances = whitened_length(sample, mean, scale, precision)
+        median = float(np.median(distances))
+        expected = float(np.sqrt(mean.shape[0]))
+        tolerance = float(config.length_tolerance)
+        if not (expected / tolerance <= median <= expected * tolerance):
+            raise ReferenceError(
+                f"whitened lengths sit at a median of {median:.2f} where a "
+                f"{mean.shape[0]}-channel residual should sit near "
+                f"sqrt(C) = {expected:.2f}. The whitening is not whitening. This "
+                f"assertion exists because the first run of this stage produced "
+                f"thresholds of 25.7 to 36.3 against sqrt(12) and scored anyway."
+            )
         threshold = float(np.quantile(distances, 1.0 - config.admission_rate))
-        return Whitening(mean=mean, precision=precision, threshold=threshold,
-                         nominal_steps=self.n,
-                         condition_number=float(np.linalg.cond(covariance)))
+        return Whitening(mean=mean, scale=scale, precision=precision,
+                         threshold=threshold, nominal_steps=self.n,
+                         condition_number=condition, median_length=median)
 
 
-def whitened_length(residual: np.ndarray, mean: np.ndarray,
+def whitened_length(residual: np.ndarray, mean: np.ndarray, scale: np.ndarray,
                     precision: np.ndarray) -> np.ndarray:
-    """``sqrt((r - mu)' P (r - mu))`` per timestep. One number, not C of them."""
-    centred = np.asarray(residual, dtype=np.float64) - mean
-    quadratic = np.einsum("ij,ij->i", centred @ precision, centred)
-    return np.sqrt(np.maximum(quadratic, 0.0))
+    """``sqrt(z' P z)`` per timestep, ``z = (r - mu)/sigma``. One number, not C.
+
+    Standardised first, so ``P`` is an inverse correlation and the length cannot
+    be dominated by whichever channel happens to have the smallest variance.
+    """
+    z = (np.asarray(residual, dtype=np.float64) - mean) / scale
+    return np.sqrt(np.maximum(np.einsum("ij,ij->i", z @ precision, z), 0.0))
 
 
-def contributions(residual: np.ndarray, mean: np.ndarray,
+def contributions(residual: np.ndarray, mean: np.ndarray, scale: np.ndarray,
                   precision: np.ndarray) -> np.ndarray:
     """Which channel carries most of the whitened length, per timestep.
 
@@ -197,8 +260,8 @@ def contributions(residual: np.ndarray, mean: np.ndarray,
     attribution is at least about the whitened direction rather than about which
     raw error happened to be biggest.
     """
-    centred = np.asarray(residual, dtype=np.float64) - mean
-    return np.abs(centred @ precision).argmax(axis=1).astype(np.int8)
+    z = (np.asarray(residual, dtype=np.float64) - mean) / scale
+    return np.abs(z @ precision).argmax(axis=1).astype(np.int8)
 
 
 def ratios(residual: np.ndarray, config: Config, whitening: Whitening
@@ -215,8 +278,9 @@ def ratios(residual: np.ndarray, config: Config, whitening: Whitening
     if residual.ndim != 2:
         raise ReferenceError(f"ratios expects (steps, channels), got {residual.shape}")
     steps = residual.shape[0]
-    distance = whitened_length(residual, whitening.mean, whitening.precision)
-    who = contributions(residual, whitening.mean, whitening.precision)
+    distance = whitened_length(residual, whitening.mean, whitening.scale,
+                               whitening.precision)
+    who = contributions(residual, whitening.mean, whitening.scale, whitening.precision)
 
     eps = float(whitening.threshold)
     raw = (distance / eps if eps > 0 else np.zeros_like(distance)).astype(np.float32)

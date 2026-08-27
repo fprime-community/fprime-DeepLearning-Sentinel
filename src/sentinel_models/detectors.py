@@ -526,12 +526,18 @@ class OSCFARDetector(ForecastDetector):
         super().__init__(config=config or oscfar.Config(), mode=NDT, **kwargs)
         self.calibration: oscfar.Calibration | None = None
         self.binding = None
+        self._fit_usable: np.ndarray | None = None
 
     def fit(self, values, usable, context) -> None:
         # A calibration belongs to the fit that produced it; carrying one across
         # folds would be the stale-checkpoint failure in a different costume.
         self.calibration, self.binding = None, None
         super().fit(values, usable, context)
+        # The mask the harness gives to fit and withholds from score. Without it
+        # the floor is a quantile of a pool containing the anomalies it exists to
+        # sit above -- docs/NARRATIVE.md section 6.
+        self._fit_usable = (np.asarray(usable, dtype=bool)
+                            & np.isfinite(np.asarray(values)).all(axis=1))
         # The report dict comes out of the shared weight cache, so it is copied
         # before anything is written into it. `harness._score_fold` captures this
         # object by reference straight after the fit, which is how the binding
@@ -546,7 +552,14 @@ class OSCFARDetector(ForecastDetector):
             # multipliers are fitted on -- and its forecast is being computed
             # here anyway, so the calibration is free.
             nominal = self._smoothed_errors(np.asarray(values), context)
-            self.calibration = oscfar.calibrate(nominal, self.config)
+            if self._fit_usable is None or self._fit_usable.shape[0] != nominal.shape[0]:
+                raise ReferenceError(
+                    f"{self.name} has no nominal mask for this window; calibrating "
+                    f"on the unmasked fitting window is the defect in "
+                    f"docs/NARRATIVE.md section 6. Refusing rather than repeating it."
+                )
+            self.calibration = oscfar.calibrate(nominal, self.config,
+                                                usable=self._fit_usable)
         return super().score(values, valid, context)
 
     def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
@@ -630,11 +643,18 @@ class WhitenedDetector(ForecastDetector):
             )
         super().__init__(config=config or whiten.Config(), mode=NDT, **kwargs)
         self.whitening: whiten.Whitening | None = None
+        self._fit_usable: np.ndarray | None = None
 
     def fit(self, values, usable, context) -> None:
         self.whitening = None
         super().fit(values, usable, context)
         self.report = dict(self.report or {})
+        # `harness._score_fold` hands the mask to fit and NOT to score, so the
+        # calibration would otherwise read the anomalies inside the fitting
+        # window as nominal -- docs/NARRATIVE.md section 6. Kept here because
+        # this is the only place it is offered.
+        self._fit_usable = (np.asarray(usable, dtype=bool)
+                            & np.isfinite(np.asarray(values)).all(axis=1))
 
     def score(self, values, valid, context) -> np.ndarray:
         if context.window == self._fit_window and self.whitening is None:
@@ -668,12 +688,21 @@ class WhitenedDetector(ForecastDetector):
         consulted, and the harness is already forecasting this window to derive an
         operating point, so the pass is not an extra one.
         """
-        accumulator = None
+        mask = self._fit_usable
+        if mask is None or mask.shape[0] != np.asarray(values).shape[0]:
+            raise ReferenceError(
+                f"{self.name} has no nominal mask for this window. Calibrating on "
+                f"the unmasked fitting window sets the threshold partly from the "
+                f"anomalies inside it, which is the defect in docs/NARRATIVE.md "
+                f"section 6. Refusing rather than repeating it."
+            )
+        accumulator, at = None, 0
         for smoothed in self._signed_blocks(values, context):
             if accumulator is None:
                 accumulator = whiten.Accumulator(smoothed.shape[1],
                                                  self.config.sample_stride)
-            accumulator.add(smoothed)
+            accumulator.add(smoothed, mask[at:at + smoothed.shape[0]])
+            at += smoothed.shape[0]
         if accumulator is None:
             raise ReferenceError("no residual to fit a covariance on")
         return accumulator.finish(self.config)

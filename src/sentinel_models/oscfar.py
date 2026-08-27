@@ -236,7 +236,8 @@ def _fit_jointly(values, scales, config: Config) -> tuple[float, float]:
     return best
 
 
-def calibrate(nominal: np.ndarray, config: Config, *, rng=None) -> Calibration:
+def calibrate(nominal: np.ndarray, config: Config, *, rng=None,
+              usable: np.ndarray | None = None) -> Calibration:
     """Fit the multipliers on nominal residuals. No label is consulted.
 
     ``nominal`` is the fitting window's smoothed error, ``(steps, channels)``.
@@ -258,11 +259,21 @@ def calibrate(nominal: np.ndarray, config: Config, *, rng=None) -> Calibration:
     rate = float(config.admission_rate)
     rng = np.random.default_rng(0) if rng is None else rng
     stride = max(1, config.stride)
+    # Segments containing anything not annotated nominal are dropped whole. A
+    # partially-anomalous segment cannot contribute a clean quantile, and keeping
+    # it is the defect in docs/NARRATIVE.md section 6: the floor ends up sitting
+    # above the events it exists to detect.
+    clean = None if usable is None else np.asarray(usable, dtype=bool)
 
     n_segments = max(1, (steps + stride - 1) // stride)
     take = _segment_budget(config, n_segments)
     first = config.error_window // stride
     pool = np.arange(first, n_segments) if n_segments > first else np.arange(n_segments)
+    if clean is not None:
+        whole = np.array([bool(clean[int(i) * stride:min(int(i) * stride + stride,
+                                                         steps)].all())
+                          for i in pool])
+        pool = pool[whole] if whole.any() else pool
     picked = np.sort(rng.choice(pool, size=min(take, pool.shape[0]), replace=False))
 
     alpha = np.empty(channels, dtype=np.float64)
@@ -274,7 +285,8 @@ def calibrate(nominal: np.ndarray, config: Config, *, rng=None) -> Calibration:
             # No usable local scale anywhere. 1.0 makes the local term equal its
             # own reference quantile; the floor, where there is one, then decides.
             alpha[c] = 1.0
-            floor[c] = float(np.quantile(nominal[:, c], 1.0 - rate)) \
+            column = nominal[:, c] if clean is None else nominal[clean, c]
+            floor[c] = float(np.quantile(column, 1.0 - rate)) \
                 if config.calibration != LOCAL_ONLY else 0.0
             continue
         ratios = values / np.maximum(scales, 1e-30)
