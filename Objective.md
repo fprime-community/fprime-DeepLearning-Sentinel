@@ -860,6 +860,18 @@ anomaly *detection* specifically is less established. An inaccurate Level 2 is w
 Level 2 at all - by section 11 rule 2, a detector that cries wolf gets ignored, and an ignored
 detector is worse than none. **Ship Level 2 only when measured.**
 
+**(!) A second, sharper measurement, 2026-08-27.** Two calibrations of the *same*
+threshold rule, given the *same* stated alarm budget on the *same* residuals,
+produced **126 alarm ranges and 2,405**. Nineteenfold, from how the constants
+were fitted rather than from any change to the model, the data or the budget.
+Thresholds are not merely model-specific: they are *fitting-procedure*-specific,
+and two defensible procedures disagree by more than an order of magnitude. **A
+transcribed constant cannot express that and a format that bakes thresholds into
+the weights cannot carry it.** They must travel in `model.bin` as fitted values
+with their fitting procedure recorded beside them, and be replaceable without
+retraining. This is what decision 2's format freeze needs to know.
+See docs/RESULTS.md section 6b.
+
 **(!) Empirical justification for storing thresholds separately, 2026-08-27.** The
 recommendation below -- thresholds as PrmDb-style parameters rather than baked into the
 weights -- began as an argument from flexibility. It is now a measured requirement.

@@ -406,6 +406,94 @@ records why: the best cell of the `z` sweep reaches F0.5 0.794 with zero
 rare-event false alarms, and it is selected by reading scores against 46
 labelled anomalies, which no adopting mission can do.
 
+## 6b. The order-statistic arms, as a curve across admission rates
+
+Nine cells: three calibrations across three nominal admission rates, both channel
+sets, all folds, cached weights, nothing fitted. 45 Class B. Artifacts
+`runs/m1-g8.9.10/_curve/2026-08-27T2011*Z-*.json`. Pre-registered in
+`docs/MODELS.md` 10.8; the design is `docs/DECISIONS.md` D20.
+
+**The admission rate is a mission's input, not ours.** It is what a control room
+can absorb, and a two-person CubeSat team answers differently from ESOC. So the
+curve is reported and **no operating point is recommended from it**. Selecting
+the best-scoring cell would be the oracle sweep `docs/MODELS.md` section 7
+refuses, and it stays refused.
+
+**GATE -- `m1-g8.9.10`**
+
+| calibration | rate | **F0.5** | **lead** | recall | precision | MVGS | point | **rare-FA** |
+|---|---|---|---|---|---|---|---|---|
+| `independent` | 0.01% | 0.185 | +25.5 | 2/46 | 2/2 | 2/32 | 0/11 | 0/48 |
+| `independent` | 0.10% | 0.411 | **-47.0 (!)** | 6/46 | 8/9 | 6/32 | 0/11 | 1/48 |
+| `independent` | 1.00% | **0.449** | **+26.0** | 37/46 | 51/126 | 27/32 | 9/11 | **14/48** |
+| `joint` | 0.01% | 0.172 | +25.5 | 2/46 | 2/3 | 2/32 | 0/11 | 1/48 |
+| `joint` | 0.10% | 0.119 | +27.5 | 18/46 | 20/198 | 16/32 | 2/11 | 5/48 |
+| `joint` | 1.00% | 0.033 | +24.0 | 40/46 | 64/2,405 | 29/32 | 9/11 | 22/48 |
+| `local_only` | 0.01% | 0.454 | **-120.0 (!)** | 7/46 | 9/10 | 7/32 | 0/11 | 1/48 |
+| `local_only` | 0.10% | 0.317 | **+26.0** | 21/46 | 25/85 | 19/32 | 2/11 | **8/48** |
+| `local_only` | 1.00% | 0.063 | +26.0 | 40/46 | 120/2,359 | 30/32 | 9/11 | 28/48 |
+
+**`m1-ss5`**
+
+| calibration | rate | **F0.5** | **lead** | recall | precision | MVGS | **rare-FA** |
+|---|---|---|---|---|---|---|---|
+| `independent` | 0.01% | 0.200 | +25.5 | 2/42 | 2/2 | 2/31 | 0/48 |
+| `independent` | 0.10% | 0.200 | +25.5 | 2/42 | 2/2 | 2/31 | 0/48 |
+| `independent` | 1.00% | 0.377 | +28.0 | 36/42 | 41/124 | 27/31 | 18/48 |
+| `joint` | 0.01% | 0.200 | +25.5 | 2/42 | 2/2 | 2/31 | 0/48 |
+| `joint` | 0.10% | 0.096 | +34.5 | 14/42 | 14/172 | 12/31 | 5/48 |
+| `joint` | 1.00% | 0.055 | +26.5 | 38/42 | 56/1,262 | 29/31 | 33/48 |
+| `local_only` | 0.01% | 0.200 | +25.5 | 2/42 | 2/2 | 2/31 | 0/48 |
+| `local_only` | 0.10% | 0.315 | +27.0 | 19/42 | 19/65 | 17/31 | 4/48 |
+| `local_only` | 1.00% | 0.065 | +26.5 | 38/42 | 47/884 | 29/31 | 33/48 |
+
+**(!) Two cells are disqualified on lead time** (`docs/HARNESS.md` section 1):
+`independent` at 0.10% (-47.0, n=6) and `local_only` at 0.01% (-120.0, n=7).
+Small denominators, and D9 is a rule rather than a preference. Every lead figure
+here carries the open caveat in `docs/DECISIONS.md` D21 -- `error_buffer`'s
++/-99 dilation is nearly four times the +26 being defended, so these are
+comparable to one another and not clean in absolute terms.
+
+**Binding rate**, the share of segments whose threshold came from the local term
+rather than the floor, pooled over folds:
+
+```
+                     0.01%   0.10%   1.00%
+  m1-g8.9.10  ind    0.252   0.127   0.187
+              joint  0.073   0.157   0.316
+  m1-ss5      ind    0.019   0.082   0.068
+              joint  0.009   0.075   0.167
+  local_only  -- 1.000 everywhere, by construction: there is no floor
+```
+
+### What the curve says
+
+**Correcting an arithmetic error made the detector worse.** At a 1% budget on the
+gate set the *broken* independent fit spends **126** alarm ranges and the
+*correct* joint fit spends **2,405**, for 37/46 against 40/46 recall. The
+independent fit admits only about two thirds of the budget it is given, and that
+shortfall had been acting as an unintended out-of-sample margin.
+
+**`independent` at 1% is the highest event-wise F0.5 this document records with a
+positive median lead time** -- 0.449, against 0.269 for pre-fix `lstm-telemanom`
+and 0.250 for the `rstd` floor, at the same +26 and with rare-event false alarms
+nearly halved, 14/48 against 22/48. **It is reported and not recommended.** It
+works partly through an error whose out-of-sample margin is unmeasured, and no
+cell here is selected.
+
+**The floor was the part that was wrong.** `local_only` at 0.1% beats
+`lstm-telemanom` on every axis at once -- 19/32 headline cell against 28/32 at
+**85 alarm ranges against 3,548**, +26.0 lead, 8/48 rare events against 30/48.
+Run bare, the local order statistic holds up. That is a different design from the
+one proposed and `docs/DECISIONS.md` D20 stays open until it has its own
+pre-registration.
+
+**Per fold, and fold 0 remains the control.** `local_only` at 1% spends 405 alarm
+ranges for 14/15 on fold 0, and **1,338 for 13/15 on fold 1** -- the 40x-improved
+fold needs 3.3x the alarms for the same recall. The local scale degrades as the
+forecast improves, which is the limitation `docs/MODELS.md` 10.3 predicted for
+this design in advance.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and

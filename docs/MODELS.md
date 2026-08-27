@@ -682,10 +682,47 @@ the same unmeasured term as every figure it is being compared against**. The
 comparison is sound; the absolute claim is not, until D21's measurement lands.
 Every lead-time figure from this run carries that sentence.
 
-### 10.7 OBSERVED
+### 10.7 OBSERVED -- the first run
 
-*Not yet run. Filled in after the run and beside the predictions above, never in
-place of them.*
+Beside the predictions, never in place of them. Artifacts
+`runs/m1-g8.9.10/{lstm-telemanom,lstm-oscfar,lstm-telemanom-guarded,lstm-oscfar-guarded}/2026-08-27T185132Z-*.json`.
+
+**The control reproduced exactly.** `lstm-telemanom` scored 38/46, 75/3,548,
+28/32, +26.0 -- identical to the published figures, so `guard_segment=False`
+moved nothing and every comparison in the run rests on that exactness.
+
+| arm, `m1-g8.9.10` | F0.5 | lead | recall | precision | MVGS | rare-FA |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` (control) | 0.026 | +26.0 | 38/46 | 75/3,548 | 28/32 | 30/48 |
+| `lstm-oscfar` | 0.429 | **-196.5** | **6/46** | 7/7 | **6/32** | 0/48 |
+| `lstm-telemanom-guarded` | 0.022 | +21.0 | 34/46 | 78/4,507 | 27/32 | 32/48 |
+| `lstm-oscfar-guarded` | 0.429 | **-196.5** | 6/46 | 7/7 | 6/32 | 0/48 |
+
+**P1 to P5: refuted.** `lstm-oscfar` reproduced `lstm-quantile` -- **recall 6/46,
+headline cell 6/32, point 0/11, identical in all three** -- at a median lead of
+-196.5, worse than the -122 that closed that branch (`docs/DECISIONS.md` D13).
+Stop-and-report triggers 1 and 3 fired.
+
+**The cause was an arithmetic error in the calibration, not the design.** The two
+terms were fitted independently, each to admit the target rate, then combined
+with `max()`. The maximum of two thresholds each admitting `r` admits far less
+than `r`: measured, **0.00066 of a 0.001 budget** and **0.000056 of a 0.0001
+budget**. The rule was quieter than its budget asked, the floor dominated, and a
+dominant global term is the global rule. Section 10.8 is the retest.
+
+**P6: refuted, on direction and magnitude.** Predicted a small effect (<5% of
+windows) on long events, **raising** recall. Measured on `m1-g8.9.10`: alarm
+ranges **3,548 to 4,507 (+27%)**, recall **38/46 to 34/46**, lead **+26.0 to
++21.0**, and fold 0 collapsing from 12/15 at +18.0 to **8/15 at +2.0**.
+
+**(!) And the sign reverses between channel sets, which is the interesting
+part.** On `m1-ss5` guard cells *helped*: 38/42 to 39/42, MVGS 29/31 to 30/31.
+Twelve channels lose, six channels gain. **A change conditional on something we
+have not identified** -- event footprint, channel count or fold composition are
+all candidates and none is established. Stated as an open question rather than
+averaged away. Guard cells are neither adopted nor rejected; the docstring
+correction stands regardless, because the window *is* 2,170 samples with the
+segment included whatever its measured effect.
 
 ---
 
@@ -754,3 +791,130 @@ recall, precision, rare-event false alarms, alarm ranges, and **lead time**.
    else it scores.
 4. **Non-monotonic response to the admission rate.** The calibration is not doing
    what it claims and nothing downstream of it can be read.
+
+### 10.8.6 OBSERVED -- the retest
+
+Artifacts `runs/m1-g8.9.10/_curve/2026-08-27T2011*Z-{independent,joint,local_only}.json`.
+Nine cells, three calibrations across three admission rates, both channel sets,
+all folds, cached weights, nothing fitted. 45 Class B.
+
+**P10 -- monotonicity: HELD, everywhere.** Alarm ranges and recall rise with the
+budget on all six set-mode pairs, so the calibration does what it claims and the
+rest is readable. On `m1-g8.9.10`: `independent` 2/9/126 ranges,
+`joint` 3/198/2,405, `local_only` 10/85/2,359.
+
+**P7 -- joint binds above 10% at every rate: REFUTED.** Pooled binding on
+`m1-g8.9.10` is **0.073** at 0.01%, 0.157 at 0.1%, 0.316 at 1%; on `m1-ss5`
+**0.009**, **0.075**, 0.167. It collapses at the tight end of the curve.
+
+**P8 -- `local_only` at 0.1%: two of three.** 85 alarm ranges against a predicted
+100-1,500 (just outside), MVGS **19/32** inside the predicted 15-32, median lead
+**+26.0** and positive as predicted.
+
+**P9 -- `local_only` degrades as the model improves: SUPPORTED, and it is this
+document's own objection confirmed.** At 1% on `m1-g8.9.10`, per fold: fold 0
+(the control, 1.6x improvement) spends **405 alarm ranges for 14/15**; fold 1
+(40x) spends **1,338 for 13/15**. The improved fold needs **3.3x the control's
+alarms for the same recall**. An order statistic is immune to tail weight and not
+to scale collapse, exactly as 10.3 said, and the effect is measurable rather than
+theoretical.
+
+**(!) Correcting the arithmetic error made the detector worse.**
+
+| `m1-g8.9.10` at a 1% budget | F0.5 | lead | recall | precision | MVGS | rare-FA |
+|---|---|---|---|---|---|---|
+| `independent` -- the **broken** fit | **0.449** | +26.0 | 37/46 | 51/**126** | 27/32 | **14/48** |
+| `joint` -- the **correct** fit | 0.033 | +24.0 | 40/46 | 64/**2,405** | 29/32 | 22/48 |
+
+Same stated budget, **nineteen times the alarms**. The under-admission was acting
+as an unintended out-of-sample margin and fixing the arithmetic removed it. The
+`independent` cell is the highest event-wise F0.5 this project has recorded *with
+positive lead time* -- 0.449 against the previous 0.269 -- at the same +26, with
+rare-event false alarms nearly halved. **It is reported and not recommended**: it
+works partly by an error whose out-of-sample margin is unmeasured, and selecting
+a cell for its score is the oracle sweep section 7 refuses.
+
+**Trigger 2 fired: `local_only` holds up without a floor.** At 0.1% on
+`m1-g8.9.10` it reaches 21/46 recall, **19/32 MVGS**, **85 alarm ranges**, median
+lead **+26.0**, rare-event false alarms **8/48** -- better than `lstm-telemanom`
+on every one of those axes (38/46 at 3,548 ranges and 30/48). The floor was not
+load-bearing. It was the part that broke the design. Per 10.8.5 that is a
+different design from the one proposed and **nothing is decided here**.
+
+**Trigger 3 fired twice.** Median lead negative at `independent` 0.1%
+(**-47.0**, n=6) and `local_only` 0.01% (**-120.0**, n=7). Small n, and D9 is a
+rule rather than a preference. Every other cell lands +24.0 to +34.5, all under
+10.6a's caveat.
+
+### 10.8.7 (!) The falsification condition was badly designed, and that is the finding
+
+Section 10.3 said: *if the local term binds in fewer than 10% of segments, the
+floor is doing all the work and this has collapsed back to `lstm-quantile`.*
+
+> **The `independent @ 0.1%` cell binds at 0.127 -- above the threshold -- and it
+> is the cell that reproduces `lstm-quantile` exactly.** The condition would have
+> **passed** the design that demonstrably failed.
+
+A binding rate above 10% says the local term wins *somewhere*. It says nothing
+about whether it wins where it matters, and a rule that wins 13% of segments
+uniformly scattered through quiet history is a global rule with decoration. The
+condition measured the wrong quantity and it was pre-registered, which is exactly
+the position in which a wrong condition does damage: it would have been cited as
+evidence the design survived.
+
+What actually falsified it was the **outcome** -- recall, headline cell and point
+recall identical to the closed branch. A condition on the mechanism is only worth
+having if it is harder to satisfy than the outcome it stands in for, and this one
+was easier. Recorded in `docs/DECISIONS.md` D22.
+
+---
+
+## 11. (!) What tests cross-channel structure, and what does not
+
+**Established by inspection of every stage between the forecast and the alarm,
+2026-08-27.** It matters because Objective.md 2.4 is the project's whole claim
+and this is where it is and is not expressed.
+
+**The forecaster is multivariate and the decision layer is not.** One LSTM
+predicts every channel from every channel, so a broken relationship raises the
+residual on whichever channels became unpredictable -- that is why 28 of 32
+headline-cell events are caught (`docs/RESULTS.md`). Everything after that point
+sees **twelve independent error series**:
+
+| Stage | Input | Sees more than one channel? |
+|---|---|---|
+| `ewma` smoothing | `(T, C)` | **No.** Vectorised over columns, independent per column |
+| `dynamic_threshold` / order statistic | one column | **No** |
+| `sequences_at`, `_buffered` | one column | **No** |
+| `prune` | one column | **No** |
+| `channel_ratios` | one column | **No** |
+| **`top_ratios` / `top_columns`** | `(T, C)` | **Yes -- the only one** |
+| `apply_persistence` | the combined 1-D mask | **No** |
+
+> **`k`-of-`n` channel agreement is the only stage downstream of the forecaster
+> that looks at more than one channel at a time.** And it tests **co-occurrence,
+> not relationship**: `top[k-1] >= 1` means *k channels are simultaneously over
+> their own individual thresholds*, which is not the same claim as *the
+> relationship between them broke*.
+
+**So the decision layer asks "did errors get large", where the thesis is "did the
+relationship break".** The two overlap and they are not the same, and the
+false-alarm problem lives in the gap: a commanded manoeuvre makes several
+channels individually surprising at once, which is exactly what `k`-of-`n`
+rewards, and it is nominal.
+
+**Two consequences, stated rather than left to be inferred.**
+
+1. **The cross-channel claim currently rests on the forecaster alone.** The
+   decision layer neither strengthens nor tests it. Every headline-cell number
+   this project reports is the forecaster's, filtered by a channel-blind rule.
+2. **`k`-of-`n` was tuned against 182 alarm ranges and there are now 3,548**
+   (`docs/DECISIONS.md` D18). It is the one stage that partially recovers the
+   structure and its setting is stale by a factor of twenty.
+
+**Therefore any threshold proposal that goes forward must re-derive `k`-of-`n`
+rather than inherit it**, and report what requiring 2 or 3 channels to agree
+costs and buys **on the new residuals**: alarm count, headline-cell recall, and
+lead time, per fold, both channel sets. If agreement recovers precision without
+costing headline-cell recall, that is a better answer than any threshold, because
+it is the one that expresses the thesis rather than working around it.

@@ -952,6 +952,35 @@ thesis holds. `error_buffer` is **outside** it -- D21.
 
 ---
 
+**OUTCOME, 2026-08-27. Refuted as run; retested as intended; still open.**
+`docs/MODELS.md` 10.7 and 10.8.6 carry the numbers.
+
+*As run*, the two terms were calibrated independently and combined with `max()`,
+which admits far less than either term alone -- **0.00066 of a 0.001 budget**.
+The floor dominated, and `lstm-oscfar` reproduced `lstm-quantile` exactly at a
+median lead of **-196.5**. That is my arithmetic, not the design.
+
+*As intended*, with both terms fitted so the maximum admits the target, the rule
+**gets worse**: at a 1% budget on `m1-g8.9.10` the correct fit spends **2,405
+alarm ranges** where the broken one spent **126**, for 40/46 recall against
+37/46. **The under-admission had been acting as an unintended out-of-sample
+margin**, and removing the error removed the margin. That is a real finding about
+the two-term form and it is not favourable to it.
+
+*And the floor turns out to be the part that was wrong.* Run bare, the local
+order statistic alone reaches 21/46 recall, **19/32 headline cell**, **85 alarm
+ranges** and **+26.0** median lead at a 0.1% budget -- better than
+`lstm-telemanom` on every one of those axes. The floor was not load-bearing; it
+was the part that broke the design.
+
+**D20 therefore does not close.** The two-term form it proposes is measured and
+unfavourable, and what replaces it -- a local order statistic with no floor -- is
+a *different* design that needs its own decision, its own pre-registration, and
+`k`-of-`n` re-derived rather than inherited (**D23**). Nothing is decided until
+that proposal exists.
+
+---
+
 ## D21. `error_buffer` reaches into two stages it does not belong to
 
 **DATE** 2026-08-27 | **STATUS** OPEN -- logged now so it is not lost, decided
@@ -1009,3 +1038,101 @@ once. **Also carried into work items 5 and 6**: `error_buffer` is why the
 persistence filter measured as subsumed on this detector (Objective.md 7.1), so
 the GRU and the TCN inherit all three couplings unexamined unless this is settled
 first.
+
+---
+
+## D22. A pre-registered falsification condition that would have passed the failure it was written for
+
+**DATE** 2026-08-27 | **STATUS** resolved
+
+**CONTEXT.** `docs/MODELS.md` 10.3 pre-registered the condition that would
+falsify the two-term threshold: *if the local term binds in fewer than 10% of
+segments, the floor is doing all the work and this has collapsed back to
+`lstm-quantile`.* It carried a number deliberately, so the result would be read
+against an expectation rather than a hope. That was the right instinct applied to
+the wrong quantity.
+
+**EVIDENCE.** The `independent @ 0.1%` cell **binds at 0.127**, above the
+threshold. It is also the cell that reproduces `lstm-quantile` exactly -- recall
+6/46, headline cell 6/32, point 0/11, all three identical to the branch closed in
+D13, at a median lead of -196.5.
+
+> **The condition passes the configuration it was written to catch.**
+
+**ALTERNATIVES.** Lower the threshold. Drop mechanism conditions and rely on
+outcomes. Keep both and require both.
+
+**CONSEQUENCE.** The defect is not the number 0.10, and lowering it would be
+fitting the condition to the result it failed to catch. The defect is that
+**binding rate measures whether the local term wins somewhere, not whether it
+wins where it matters.** A rule winning 13% of segments scattered through quiet
+history is a global rule with decoration, and the statistic cannot tell the two
+apart.
+
+The general form, which is what makes this worth an entry rather than a
+correction:
+
+> **A condition on the mechanism is only worth pre-registering if it is *harder*
+> to satisfy than the outcome it stands in for.** This one was easier, so it
+> could only ever have added false reassurance. What actually falsified the
+> design was the outcome -- recall, headline cell and point recall identical to a
+> closed branch.
+
+Mechanism conditions are still worth writing, because an outcome condition tells
+you *that* something failed and not *why*. But they are recorded **alongside** an
+outcome condition and never instead of one, and where they disagree the outcome
+wins. Applied to the next proposal: the falsifier is *reproduces `lstm-quantile`
+on recall, headline cell and point recall*, with the binding rate reported as a
+diagnostic that explains rather than decides.
+
+This is the most consequential methodological finding of the run, and it is
+recorded because it is the kind that is invisible when the design succeeds. Had
+the corrected calibration worked, the condition would have been cited as evidence
+it survived, and nobody would have checked what it measured.
+
+---
+
+## D23. The decision layer is channel-blind; the cross-channel claim rests on the forecaster alone
+
+**DATE** 2026-08-27 | **STATUS** OPEN -- structural, resolve before the architecture gate
+
+**CONTEXT.** Objective.md 2.4 defines the target class as one where every channel
+is individually legal while the combination is wrong, and `docs/RESULTS.md`
+reports 28 of 32 headline-cell events caught against `rstd`'s 3. Where in the
+pipeline that claim is actually expressed had never been written down.
+
+**EVIDENCE.** Every stage between the forecast and the alarm, inspected:
+smoothing, thresholding, sequence-finding, pruning and persistence all take **one
+channel at a time**. `top_ratios` / `top_columns` -- the `k`-of-`n` reduction --
+is the only stage that takes the `(T, C)` matrix and combines across it. Full
+table in `docs/MODELS.md` section 11.
+
+And what it tests is **co-occurrence, not relationship**: `top[k-1] >= 1` means
+`k` channels are simultaneously over their own individual thresholds. That is not
+the claim *the relationship between them broke*.
+
+**CONSEQUENCE.**
+
+> **The forecaster is multivariate. The decision layer is twelve univariate
+> detectors and a vote.** The cross-channel claim rests entirely on the
+> forecaster, and every headline-cell number is the forecaster's, filtered by a
+> rule that cannot see what the forecaster learned.
+
+Two things follow and neither is decided here. **The false-alarm problem lives in
+that gap**: a commanded manoeuvre makes several channels individually surprising
+at once, which is precisely what `k`-of-`n` rewards, and it is nominal -- so the
+one stage that recovers cross-channel structure recovers the wrong kind. And
+`k`-of-`n` was tuned against 182 alarm ranges when there are now 3,548 (D18), so
+the only structure-aware stage is stale by a factor of twenty.
+
+**Any threshold proposal that goes forward re-derives `k`-of-`n` rather than
+inheriting it**, and reports the trade explicitly on the new residuals -- alarm
+count, headline-cell recall and lead time, per fold, both channel sets. If
+agreement recovers precision without costing headline-cell recall, that is a
+better answer than any threshold, because it expresses the thesis instead of
+working around it.
+
+Recorded as open because the alternative -- a decision stage that tests
+relationships rather than magnitudes -- is a design question for the architecture
+gate and not a tuning knob, and it should not be answered inside a run measuring
+something else.

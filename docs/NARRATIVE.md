@@ -111,10 +111,10 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Seven times now, a cheap measurement has changed a decision that
-looked settled without it -- and the seventh is the one that refuted a
-hypothesis rather than replacing one, which is the harder thing for a
-measurement to be able to do.
+produced. Eight times now, a cheap measurement has changed a decision that
+looked settled without it. Two of the last three refuted a hypothesis rather
+than replacing one, which is the harder thing for a measurement to be able to
+do -- and one of them refuted the *instrument*, which is harder still.
 
 **Reporting `k/n` instead of bare rates showed the samples were far smaller than
 the percentages implied.** "Recall 0.36" over eleven events takes twelve possible
@@ -194,6 +194,63 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+**A pre-registered falsification condition would have passed the failure it was
+written to catch, and that is the most transferable thing this run produced.**
+The two-term threshold design carried a condition with a number attached --
+*if the local term binds in fewer than 10% of segments, the floor is doing all
+the work and this has collapsed back to the branch we closed*. Deliberately
+numeric, so the result would be read against an expectation rather than a hope.
+
+The cell that reproduced the closed branch exactly -- recall 6/46, headline cell
+6/32, point 0/11, all three identical -- **binds at 0.127**. Above the threshold.
+The condition passes it.
+
+The defect is not the number, and lowering it would be fitting the condition to
+the result it missed. **Binding rate measures whether the local term wins
+somewhere, not whether it wins where it matters**, and a rule winning 13% of
+segments scattered through quiet history is a global rule with decoration. The
+general form is worth more than the instance:
+
+> **A condition on the mechanism is only worth pre-registering if it is harder to
+> satisfy than the outcome it stands in for.** This one was easier, so it could
+> only ever have added false reassurance.
+
+What actually falsified the design was the outcome. And the reason to record this
+rather than quietly fix it is that **the defect is invisible when the design
+succeeds**: had the corrected calibration worked, the condition would have been
+cited as evidence it survived, and nobody would have gone back to ask what it
+measured. `docs/DECISIONS.md` D22.
+
+**Then correcting an arithmetic error made the detector worse.** The two terms
+had been calibrated independently, each to admit the target rate, and combined
+with `max()` -- which admits far less than either, measured at 0.00066 of a
+0.001 budget. Fixing it so the combined rule admits what it is asked spent
+**2,405 alarm ranges where the broken version spent 126**, at the same budget on
+the same residuals. The error had been acting as an unintended out-of-sample
+margin. A correct calibration is still the right thing to have; what it revealed
+is that the two-term form was leaning on a mistake.
+
+**And the part of the design that was wrong was the part added for safety.** The
+floor was there to bound the collapse. Run bare, the local order statistic alone
+beats the reproduced telemanom on every axis at once -- 19/32 headline cell at
+**85 alarm ranges against 3,548**, +26 lead, 8/48 rare-event false alarms against
+30/48. The floor was not load-bearing. It was the thing breaking it.
+
+**Two other predictions from the same programme were refuted, and one of them
+reversed sign between channel sets.** Guard cells -- excluding the judged segment
+from its own reference window, the CFAR arrangement -- were predicted to have a
+small effect concentrated on long events, raising recall. On twelve channels they
+raised alarms 27% and *lost* recall, 38/46 to 34/46, with the control fold
+collapsing from 12/15 at +18 to 8/15 at +2. On six channels they *helped*. A
+change conditional on something not yet identified, stated as an open question
+rather than averaged into a mean.
+
+**And a figure written into a planning mock-up was read back as data.** Numbers
+put into an options preview to show a table's shape were taken for measurements.
+They were placeholders, they were corrected in the open before anything rested on
+them, and the lesson is the smallest and most repeatable one here: **an
+illustrative figure is still a figure.**
 
 **And once, the failure mode occurred inside the document arguing against it.**
 Filling the lead-time column of `docs/RESULTS.md`, two baseline figures were
