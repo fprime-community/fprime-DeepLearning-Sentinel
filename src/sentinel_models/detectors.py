@@ -233,6 +233,7 @@ class ForecastDetector(Detector):
         self._weights: Weights | None = None
         self._fill: np.ndarray | None = None
         self._impulses: np.ndarray | None = None
+        self._fit_window: tuple[int, int] | None = None
         self.report: dict | None = None
         self.last_attribution: np.ndarray | None = None
 
@@ -296,6 +297,7 @@ class ForecastDetector(Detector):
 
         self._weights, self.report = cached
         self._impulses = impulses
+        self._fit_window = context.window
         rows = values[usable] if usable.any() else values
         with np.errstate(invalid="ignore"):
             self._fill = np.nanmean(rows, axis=0).astype(np.float32)
@@ -318,6 +320,20 @@ class ForecastDetector(Detector):
             # the next grid sweeps.
             top, self.last_attribution = self._tops(values, context)
             combined = top[self.agreement - 1]
+        elif context.window == self._fit_window:
+            # The harness scores the *fitting* window too, to derive an operating
+            # point -- and in NDT mode `threshold_from` returns a fixed 1.0 and
+            # never looks at these scores. Running the dynamic threshold over
+            # 22.1M steps to produce a number nothing reads is two thirds of a
+            # run's scoring cost.
+            #
+            # What comes back is the smoothed error itself, not a placeholder, so
+            # a caller that did consult it would get a real quantity rather than
+            # nonsense -- and `test_the_ndt_operating_point_ignores_its_argument`
+            # pins the invariant that makes skipping safe.
+            smoothed = self._smoothed_errors(values, context)
+            combined = smoothed.max(axis=1)
+            self.last_attribution = smoothed.argmax(axis=1).astype(np.int8)
         else:
             # The cache is consulted before the errors are computed, not after.
             # Checking afterwards would recompute the forecast and the smoothing

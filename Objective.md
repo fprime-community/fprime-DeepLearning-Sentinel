@@ -860,6 +860,17 @@ anomaly *detection* specifically is less established. An inaccurate Level 2 is w
 Level 2 at all - by section 11 rule 2, a detector that cries wolf gets ignored, and an ignored
 detector is worse than none. **Ship Level 2 only when measured.**
 
+**(!) Empirical justification for storing thresholds separately, 2026-08-27.** The
+recommendation below -- thresholds as PrmDb-style parameters rather than baked into the
+weights -- began as an argument from flexibility. It is now a measured requirement.
+Correcting a training defect improved the forecast about fortyfold, and the transcribed
+detection threshold, unchanged, went from 182 alarm ranges to 3,548 on identical data.
+**A threshold that suits one model does not suit a better one**, so it cannot be a
+constant of the method: it is a fitted quantity belonging to the model it was measured
+against. A mission uplinking an improved `model.bin` must uplink its thresholds with it,
+and must be able to recalibrate them without retraining. See docs/DECISIONS.md, the
+amendment on dimensionless constants.
+
 **Format implication for decision 2**, which must freeze before Phase 2: a quantized,
 self-describing FlatBuffer, TFLite-Micro compatible. The header carries model type, version,
 channel count and ordering, window length, quantization parameters, a mandatory `baseline_only`

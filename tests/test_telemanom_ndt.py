@@ -77,7 +77,7 @@ def test_skipping_unreachable_z_values_changes_nothing():
 
     exhaustive = None
     best = -np.inf
-    for z in T.Z_VALUES:
+    for z in CONFIG.z_values:
         eps = mu + z * sigma
         above = window >= eps
         if not above.any():
@@ -224,3 +224,37 @@ def test_combine_reduces_channels_and_names_the_one_responsible():
     fired = combined >= 1.0
     assert fired[12000:12500].any()
     assert (who[12000:12500][fired[12000:12500]] == 1).all()
+
+
+def test_the_z_sweep_is_configuration_not_a_module_constant():
+    """It has to be fitted per model, so it cannot live as a global.
+
+    z counts standard deviations and is immune to rescaling -- but not to a
+    change in the shape of the error distribution. A fortyfold better forecast
+    turned the same range from 182 alarm ranges into 3,548 (docs/DECISIONS.md).
+    """
+    published = Config()
+    assert published.z_floor == 2.5 and published.z_ceiling == 12.0
+    assert published.z_values[0] == 2.5
+
+    raised = Config(z_floor=8.0, z_ceiling=20.0, z_step=1.0)
+    assert raised.z_values[0] == 8.0 and raised.z_values[-1] == 19.0
+    assert raised.as_dict()["z_floor"] == 8.0
+
+
+def test_raising_the_floor_makes_the_detector_quieter():
+    """The knob has to move the thing it is being swept for."""
+    e_s = _smoothed_noise(anomaly=(12000, 12600), size=2.0)
+    fired = {}
+    for floor in (2.5, 8.0, 20.0):
+        cfg = Config(z_floor=floor, z_ceiling=max(12.0, floor + 8.0))
+        fired[floor] = int((T.channel_ratios(e_s, cfg) >= 1.0).sum())
+    assert fired[2.5] >= fired[8.0] >= fired[20.0], fired
+
+
+def test_the_silence_fallback_follows_the_ceiling():
+    """If no z qualifies, eps sits at the ceiling -- which must move with it."""
+    quiet = _smoothed_noise(n=CONFIG.error_window)[:CONFIG.error_window]
+    low = T.dynamic_threshold(quiet, Config(z_ceiling=12.0))[0]
+    high = T.dynamic_threshold(quiet, Config(z_ceiling=30.0))[0]
+    assert high > low

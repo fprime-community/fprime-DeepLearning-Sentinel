@@ -70,16 +70,28 @@ ERROR_WINDOW_COUNT = 30          # window_size
 ERROR_BUFFER = 100
 PRUNING_P = 0.13
 
-#: The z values swept for each window: telemanom's `np.arange(2.5, 12, 0.5)`.
-Z_VALUES = np.arange(2.5, 12.0, 0.5)
+#: telemanom's published sweep: `np.arange(2.5, 12, 0.5)`. **A default, not a
+#: constant of the method.** z counts standard deviations of the smoothed error,
+#: so it is immune to rescaling -- and not immune to a change in the *shape* of
+#: the error distribution. Correcting a training defect improved the forecast
+#: about fortyfold and this same range then produced 3,548 alarm ranges where it
+#: had produced 182: with a poor forecast the residual is dominated by model bias
+#: and 2.5 sigma is a real excursion, with a good one it is dominated by noise and
+#: 2.5 sigma sits on the floor. See docs/DECISIONS.md, the amendment on
+#: dimensionless constants. The floor is therefore fitted per model, not
+#: transcribed, which is why it lives on :class:`Config`.
+Z_FLOOR = 2.5
+Z_CEILING = 12.0
+Z_STEP = 0.5
 
 #: Spans of smoothing to discard at the opening of a series, while the
 #: bias-corrected average is still an average of very few samples.
 EWMA_SETTLE = 3
 
 #: Used when no z produces a defensible threshold -- telemanom's `sd_lim`, which
-#: is where its epsilon starts and stays if nothing improves on it.
-Z_LIMIT = 12.0
+#: is where its epsilon starts and stays if nothing improves on it. Tied to the
+#: sweep's ceiling so raising the range raises the silence fallback with it.
+Z_LIMIT = Z_CEILING
 
 
 @dataclass(frozen=True)
@@ -91,6 +103,14 @@ class Config:
     smoothing_window: int = int(ERROR_WINDOW_BATCH * ERROR_WINDOW_COUNT * SMOOTHING_PERC)
     error_buffer: int = ERROR_BUFFER
     pruning_p: float = PRUNING_P
+    z_floor: float = Z_FLOOR
+    z_ceiling: float = Z_CEILING
+    z_step: float = Z_STEP
+
+    @property
+    def z_values(self) -> np.ndarray:
+        """The sweep, from this configuration rather than a module constant."""
+        return np.arange(self.z_floor, self.z_ceiling, self.z_step)
 
     def as_dict(self) -> dict:
         return {"error_window": self.error_window,
@@ -98,7 +118,8 @@ class Config:
                 "smoothing_window": self.smoothing_window,
                 "error_buffer": self.error_buffer,
                 "pruning_p": self.pruning_p,
-                "z_values": [round(float(z), 1) for z in Z_VALUES]}
+                "z_floor": self.z_floor, "z_ceiling": self.z_ceiling,
+                "z_step": self.z_step}
 
 
 # -- smoothing --------------------------------------------------------------
@@ -196,17 +217,18 @@ def dynamic_threshold(e_s: np.ndarray, config: Config
     mu = float(np.mean(e_s))
     sigma = float(np.std(e_s))
     if not np.isfinite(mu) or not np.isfinite(sigma) or sigma == 0.0:
-        return mu + Z_LIMIT * (sigma if np.isfinite(sigma) else 0.0), []
+        return mu + config.z_ceiling * (sigma if np.isfinite(sigma) else 0.0), []
 
     best_score = -np.inf
-    best_eps = mu + Z_LIMIT * sigma
+    best_eps = mu + config.z_ceiling * sigma
     best_sequences: list[tuple[int, int]] = []
 
     # A candidate above the window's maximum exceeds nothing, by construction.
     # Skipping those z values is identical arithmetic and three to four times
     # faster, which is what makes telemanom's thirtyfold overlap affordable.
     reach = (float(np.max(e_s)) - mu) / sigma
-    for z in Z_VALUES[Z_VALUES <= reach]:
+    candidates = config.z_values
+    for z in candidates[candidates <= reach]:
         eps = mu + z * sigma
         above = e_s >= eps
         if not above.any():

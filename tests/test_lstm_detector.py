@@ -303,7 +303,8 @@ def test_a_decision_layer_sweep_does_not_recompute_the_forecast():
     detector._smoothed_errors = counted
     for k in (1, 2, 3):
         detector.agreement = k
-        detector.score(values, None, _context(3))
+        # A window distinct from the fitting one, as the harness always scores.
+        detector.score(values, None, _context(3, window=(3000, 6000)))
     assert calls["n"] == 1, f"forecast recomputed {calls['n']} times for one sweep"
 
 
@@ -317,7 +318,8 @@ def test_agreement_requires_that_many_channels_to_be_over_threshold():
     fired = {}
     for k in (1, 2, 3):
         detector.agreement = k
-        fired[k] = int((detector.score(values, None, _context(3)) >= 1.0).sum())
+        fired[k] = int((detector.score(values, None,
+                                       _context(3, window=(3000, 6000))) >= 1.0).sum())
     assert fired[1] >= fired[2] >= fired[3], f"agreement did not tighten: {fired}"
 
 
@@ -349,7 +351,8 @@ def test_a_quantile_sweep_does_not_recompute_the_forecast():
     detector._smoothed_errors = counted
     for k in (1, 2, 3):
         detector.agreement = k
-        detector.score(values, None, _context(3))
+        # A window distinct from the fitting one, as the harness always scores.
+        detector.score(values, None, _context(3, window=(3000, 6000)))
     assert calls["n"] == 1, f"forecast recomputed {calls['n']} times for one sweep"
 
 
@@ -370,11 +373,11 @@ def test_the_two_reductions_do_not_share_a_cache_entry():
 
     ndt = D.ForecastDetector(**shared)
     ndt.fit(values[:3000], usable[:3000], _context(3))
-    ndt_scores = ndt.score(values, None, _context(3))
+    ndt_scores = ndt.score(values, None, _context(3, window=(3000, 6000)))
 
     quantile = D.TelemanomQuantile(**shared)
     quantile.fit(values[:3000], usable[:3000], _context(3))
-    quantile_scores = quantile.score(values, None, _context(3))
+    quantile_scores = quantile.score(values, None, _context(3, window=(3000, 6000)))
 
     assert not np.allclose(ndt_scores, quantile_scores), \
         "quantile mode was served the dynamic threshold's ratios"
@@ -394,7 +397,8 @@ def test_agreement_tightens_quantile_mode_too():
     tops = {}
     for k in (1, 2, 3):
         detector.agreement = k
-        tops[k] = float(np.nanmax(detector.score(values, None, _context(3))))
+        tops[k] = float(np.nanmax(
+            detector.score(values, None, _context(3, window=(3000, 6000)))))
     assert tops[1] >= tops[2] >= tops[3], f"k did not tighten: {tops}"
 
 
@@ -433,3 +437,31 @@ def test_a_commanded_model_survives_the_round_trip(tmp_path, monkeypatch):
     assert reloaded[0].n_exogenous == fitted.n_exogenous
     assert reloaded[0].n_inputs == fitted.n_inputs
     assert np.array_equal(reloaded[0].head_w, fitted.head_w)
+
+
+def test_the_ndt_operating_point_ignores_its_argument():
+    """The invariant that makes skipping the fitting window's threshold safe.
+
+    NDT folds its moving threshold into the score, so the operating point is a
+    fixed 1.0 and the training scores are never consulted. `score()` relies on
+    that to skip the dynamic threshold over the 22.1M-step fitting window -- two
+    thirds of a run's scoring cost, spent producing a number nothing reads.
+
+    If this ever stops holding, the skip becomes wrong, so it is pinned here
+    rather than left as a comment.
+    """
+    detector = _tiny()
+    for argument in (np.array([0.0]), np.array([1e9, -1e9]),
+                     np.linspace(0, 1000, 5000), np.array([np.nan, np.inf])):
+        assert detector.threshold_from(argument) == 1.0
+
+
+def test_the_fitting_window_and_the_scored_window_do_not_collide():
+    """The skip keys on the window, so the two must be distinguishable."""
+    values, usable = _data()
+    detector = _tiny()
+    detector.fit(values[:3000], usable[:3000], _context(3, window=(0, 3000)))
+    assert detector._fit_window == (0, 3000)
+
+    scored = detector.score(values, None, _context(3, window=(3000, 6000)))
+    assert np.isfinite(scored[3000:]).any(), "the scored window produced nothing"
