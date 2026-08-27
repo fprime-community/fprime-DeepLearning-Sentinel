@@ -46,12 +46,29 @@ is not something that can fly, and the harness should not measure one that does.
 `rstd`, the number we have to beat, is strictly trailing, and handing the LSTM
 2,100 steps of hindsight would not be a comparison.
 
-So each threshold is chosen from the 2,100 errors preceding a 70-step segment and
-applied to that segment alone. The mechanism that matters survives intact -- the
-reference window at an onset is still mostly nominal, which is exactly why long
-events remain visible -- and what it costs is honest: a fixed 70-cycle batching
-latency, which delays detection rather than improving it, and which is how the
-flight component would have to run anyway. It costs about 112 microseconds per
+So each threshold is chosen from a window that ends at the segment it judges,
+and applied to that segment alone. **Precisely: the window is
+``e_s[seg_lo - 2100 : seg_hi]``, which is 2,170 samples and includes the 70 being
+judged.** It has to -- the sequences reported for a segment are found by
+:func:`_buffered` over the same array -- but the consequence is worth stating
+rather than leaving to be discovered, because ``mu``, ``sigma`` and the
+reachability bound are all computed with the judged segment inside them. A
+segment therefore contributes about 3.2% of its own threshold.
+
+That is a **guard-cell violation** in the CFAR sense (docs/RESEARCH.md): target
+energy in the reference cells raises the threshold and can mask the target, and
+the standard answer is to exclude the cells adjacent to the one under test. Under
+a sustained event the contribution is not 3.2% of a nominal window, it is a
+segment of the event raising the bar the event has to clear. Measured, not
+assumed -- see docs/MODELS.md section 10; unmeasured at the time this was
+written, and the docstring said "the 2,100 errors preceding", which is what the
+code was believed to do rather than what it does.
+
+The mechanism that matters survives intact -- the reference window at an onset is
+still mostly nominal, which is exactly why long events remain visible -- and what
+it costs is honest: a fixed 70-cycle batching latency, which delays detection
+rather than improving it, and which is how the flight component would have to run
+anyway. It costs about 112 microseconds per
 window, and the sweep skips the ``z`` values that cannot produce an exceedance,
 which is free -- they have none by construction.
 """
@@ -322,10 +339,13 @@ def window_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
 def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
     """Score one channel's whole smoothed-error series with trailing windows.
 
-    Every ``stride`` steps, a threshold is chosen from the ``error_window`` errors
-    that came before and applied to the ``stride`` steps that follow. Returns
-    ``e_s / eps`` per timestep, forced to at least 1.0 wherever a surviving
-    sequence covers the step and pushed below 1.0 everywhere else.
+    Every ``stride`` steps, a threshold is chosen from
+    ``e_s[seg_lo - error_window : seg_hi]`` and applied to the ``stride`` steps of
+    that segment. **The window spans ``error_window + stride`` samples and
+    includes the segment being judged**, which is a guard-cell violation in the
+    CFAR sense -- see the module docstring. Returns ``e_s / eps`` per timestep,
+    forced to at least 1.0 wherever a surviving sequence covers the step and
+    pushed below 1.0 everywhere else.
 
     Trailing rather than centred, for the reason in the module docstring: the
     baseline this has to beat is trailing, and a detector scored on hindsight is

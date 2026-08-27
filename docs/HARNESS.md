@@ -55,6 +55,20 @@ on every scorecard, in every `docs/RESULTS.md` row, and as a primary column in
 every sweep rather than a footnote. Work items 5 and 6 report it for the GRU and
 the TCN.
 
+**(!) OPEN, 2026-08-27: an unmeasured additive term in this metric.**
+Lead time is `event_start - start of the earliest alarm range overlapping the
+event`. telemanom's `error_buffer = 100` dilates every exceeded timestep by
++/-99 before those ranges are formed, so **an alarm range can start up to 99
+timesteps before the exceedance that caused it**. The reported median is +26 and
+99 is nearly four times it. This is not a claim that the lead time is an
+artifact -- it is **not measured**. It is a claim that a metric which
+*disqualifies configurations* has a term of a size that could dominate it, and
+nobody had looked. Measuring it is cheap: recompute lead time against the
+undilated exceedance on the same cached weights, and report both readings side by
+side. `docs/DECISIONS.md` D21 carries it. Every lead-time figure in this
+repository is to be read with this open, including the ones that disqualified
+`rstd`, `mavg` and `lstm-quantile`.
+
 **Several precision mechanisms buy their gains by waiting longer**, and waiting
 is the one thing this project cannot spend freely. The persistence sweep already
 showed the shape: lead time fell almost one timestep per unit of N, from +26 at

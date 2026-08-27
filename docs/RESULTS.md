@@ -159,6 +159,15 @@ By taxonomy cell, `lstm-telemanom`: **+41** median on
 `Multivariate/Global/Point` (n=9), **+21** on `Multivariate/Global/Subsequence`
 (n=28).
 
+**(!) Every figure in this section has an unmeasured additive term, found
+2026-08-27.** `error_buffer = 100` widens each exceedance by +/-99 timesteps
+before alarm ranges are formed, and lead time is measured from a range's start.
+So an alarm can begin up to **99 timesteps** before the exceedance that caused
+it, against a reported median of **+26**. Not measured, not claimed to be an
+artifact, and not removable from these numbers retrospectively -- recorded here
+because a table gets screenshotted and travels without the document that
+qualifies it. `docs/DECISIONS.md` D21; `docs/HARNESS.md` section 1.
+
 ## 4. The decision layer, swept as a grid
 
 Two mechanisms the project designed were off while the figures in section 2 were

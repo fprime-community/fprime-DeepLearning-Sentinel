@@ -871,3 +871,141 @@ artifact path is the unambiguous identifier and is what the documents cite.
 between the two records of a pair -- rather than asserting the cache exists,
 because a test that pins the mechanism instead of the behaviour passes for the
 wrong reasons later.
+
+---
+
+## D20. A local scale under a global floor: neither threshold is safe alone
+
+**DATE** 2026-08-27 | **STATUS** open, pre-registered and not yet run
+
+**CONTEXT.** Two thresholding rules have been measured on identical weights, and
+each fails in the opposite direction. That symmetry is the design.
+
+**THE TWO FAILURES, and they are the same fact seen twice.**
+
+| | responds to | fails by | measured |
+|---|---|---|---|
+| Nonparametric dynamic threshold | the **local** recent error scale | the local scale collapsing onto a noise floor when the forecast improves | 50 alarm ranges to 1,505 (D17, D18) |
+| Global quantile | the **99.9th percentile of years of training scores** | needing absolute magnitude, so it fires only after divergence has grown | median lead **-122**, all six catches late (D13) |
+
+D13 closed the quantile branch on structure and the wording was careful:
+*a rising error crosses a local threshold as soon as it departs from the recent
+norm; to cross a global one it must grow to an absolute size, and growing takes
+time.* That is exactly what makes a global rule unusable **as a threshold** and
+exactly what makes it sound **as a floor**. The local term still triggers at
+onset whenever the local scale is healthy; the floor only decides what happens
+when it is not.
+
+> **Local for timeliness, global for the fact that the local scale can vanish.**
+> The 26-timestep head start is bought by locality and this keeps it. What the
+> floor removes is the regime in which locality is meaningless -- a window whose
+> entire content is smaller than anything the model was ever wrong by on nominal
+> data.
+
+**ALTERNATIVES.** Keep `mu + z*sigma` and fit `z` honestly per model. Replace
+the criterion but keep the family. Adopt a global quantile. Adopt a local order
+statistic alone.
+
+**EVIDENCE.** Fitting `z` honestly is refused on measurement, not on taste:
+`sigma` fell three- to eightfold between weight generations while the window
+maximum did not, at excess kurtosis reaching 6,754, so **every** member of the
+`mu + k*sigma` family inherits the defect whatever `k` is and however it was
+chosen. An order statistic is unchanged by tail weight, which is what removes
+that. A local order statistic **alone** is refused for the reason stated in the
+proposal's own objection below.
+
+**CONSEQUENCE.** The proposed form, per segment, from its trailing reference
+window `R` and the nominal residual pool `N` of the fitting window under the same
+weights:
+
+```
+  eps = max( alpha * Q_p(R) ,        local  -- onset sensitivity
+             beta  * Q_p(N) )        floor  -- bounds the collapse
+```
+
+`mu` and `sigma` appear nowhere. `alpha` and `beta` are fitted on nominal
+residuals against an **alarm budget in timesteps** -- what a mission's operators
+can act on (`docs/RESEARCH.md`, ISA-18.2 and EEMUA 191) -- never against a
+detection score. `p` is bounded below the measured contamination rate: the median
+window carries 53 exceedances in 2,170 samples, 2.4%, so a rank near 0.75 sits
+far under any plausible breakdown point, and that bound is read from residuals
+rather than transcribed.
+
+**(!) THE OBJECTION TO THIS DESIGN, RECORDED BEFORE IT IS TESTED AND NOT AS A
+CAVEAT AFTERWARDS.** An order statistic is immune to tail **weight**, not to
+scale **collapse**. `Q_p` of a uniformly tiny window is tiny. So the honest claim
+is narrower than *order statistics fix it*:
+
+> **What fixes it is calibrating the multiplier against nominal residuals instead
+> of transcribing a constant.** The order statistic is what makes that
+> calibration robust to a tail that moves; the floor is what carries the rest.
+
+If the floor does all the work and the local term never binds, this has collapsed
+back to `lstm-quantile` and **is reported as such** rather than defended. That
+condition is written into the pre-registration with a number attached, so the
+result is read against an expectation rather than a hope.
+
+**What this is not.** Not a replacement for `lstm-telemanom`, which stays as the
+published-comparison baseline the Phase 1 gate is written against. An addition, in
+`sentinel_models` only, so the harness never learns about it and the layering
+thesis holds. `error_buffer` is **outside** it -- D21.
+
+---
+
+## D21. `error_buffer` reaches into two stages it does not belong to
+
+**DATE** 2026-08-27 | **STATUS** OPEN -- logged now so it is not lost, decided
+after the threshold is frozen
+
+**CONTEXT.** `error_buffer = 100` is a parameter of telemanom's post-smoothing
+step: it dilates every exceeded timestep by +/-99 and merges the results. It has
+now been measured reaching into two stages that are not its own, and one of those
+reaches into a **headline number**.
+
+**FIRST REACH -- into the threshold's selection criterion. Now moot, and
+recorded because of how it was found.** `covered` is the length of the buffered,
+merged sequences, and it is the criterion's denominator. Measured, `len(E_seq)`
+is 1 at every candidate and `covered` falls only from 289 to 207 across the whole
+range, asymptoting at 199 because one exceeded sample already costs it. **The
+denominator cannot move**, the numerator decays with `z`, and the criterion is
+arithmetically forced to the bottom of its range (D18).
+
+D20 dissolves this rather than fixing it: an order-statistic threshold has no
+selection criterion, so there is no denominator to pin. **That is why
+`error_buffer` is outside D20's proposal** -- the coupling disappears as a side
+effect of removing the stage that reached, and changing both at once would
+confound them.
+
+**SECOND REACH -- into lead time, and this one is live.**
+
+> **(!) A +/-99 dilation moves an alarm range's start up to 99 timesteps earlier
+> than the exceedance that caused it. Lead time is measured as
+> `event_start - start of the earliest alarm range overlapping the event`. So up
+> to 99 timesteps of every lead-time figure this project reports may be the
+> buffer rather than the detector.**
+
+The reported median is **+26** (`docs/RESULTS.md` section 3), and 99 is nearly
+four times it. This is not a claim that the lead time is an artifact -- it is
+**not measured**, and it might be that the exceedances genuinely precede the
+event and the buffer contributes nothing. It is a claim that a headline number
+has an unexamined term of a size that could dominate it, and that this was
+noticed while measuring something else.
+
+It matters more than an ordinary open item because lead time is not a supporting
+figure here. It is a **gate metric with a disqualifying rule** (D9): a negative
+median disqualifies a configuration whatever its F0.5, and that rule has already
+disqualified `rstd`, `mavg` and `lstm-quantile`. A metric that decides
+eligibility should not have an unmeasured additive term.
+
+**How to measure it, and it is cheap.** Lead time recomputed against the
+**undilated** exceedance rather than the buffered range, on the same cached
+weights and the same bundle load. The difference is the buffer's contribution,
+per detector, per fold, per channel set. It changes no published number -- it
+adds a second reading of one -- and both are then reported side by side.
+
+**CONSEQUENCE.** Held at 100 while D20's threshold is measured, so the two do not
+confound. Decided afterwards, with the threshold frozen, against both reaches at
+once. **Also carried into work items 5 and 6**: `error_buffer` is why the
+persistence filter measured as subsumed on this detector (Objective.md 7.1), so
+the GRU and the TCN inherit all three couplings unexamined unless this is settled
+first.

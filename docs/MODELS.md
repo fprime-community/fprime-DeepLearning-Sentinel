@@ -61,7 +61,7 @@ claim of faithfulness that cannot be audited is worth nothing.
 | 3 | 35 epochs over a channel's whole training set (~2-8k steps) | Up to 35 epochs, sequence budget **scaled to the fold**, one sequence per 180 usable steps | Folds hold 3.6M to 10.8M usable steps. See section 3 -- a fixed budget would destroy the data-sufficiency curve |
 | 4 | Random 20% validation split | **Chronological last 20%** of usable steps | `docs/HARNESS.md` section 3 is unconditional: never fit on data that follows what is scored, and early stopping is a fitting decision |
 | 5 | Keras `EarlyStopping`, which stops but does not restore | **Restores the best-validating weights** | Strictly the better estimator. Recorded rather than assumed |
-| 6 | Error window centred on the errors it judges | **Trailing**: threshold chosen from the 2,100 errors *before* a 70-step segment, applied to that segment | See section 1.1. telemanom's windows extend forward, so a timestep is scored partly from errors that had not happened yet. `rstd`, the number we have to beat, is strictly trailing |
+| 6 | Error window centred on the errors it judges | **Trailing**: the window ends at the segment it judges rather than extending past it | See section 1.1. telemanom's windows extend forward, so a timestep is scored partly from errors that had not happened yet. `rstd`, the number we have to beat, is strictly trailing. **Corrected 2026-08-27**: this row said "the 2,100 errors *before* a 70-step segment". The window is `e_s[seg_lo - 2100 : seg_hi]` -- 2,170 samples, the judged segment **included**. It must be, since the segment's sequences are found in the same array, but it means a segment contributes ~3.2% of its own threshold and a sustained event raises the bar it has to clear. Measured as a variant in section 10 |
 | 7 | Inference over l_s=250 windows from a zero state | **Chunked-parallel streaming**, each chunk warmed by a 250-step zero-initialised prefix | Identical arithmetic. A warmed chunk sees exactly the history telemanom's own windowed inference sees |
 | 8 | `find_epsilon` accepts a candidate only if `score >= max_score` **and** `len(E_seq) <= 5` **and** `len(i_anom) < len(e_s) * 0.5` | **Neither condition is present.** `dynamic_threshold` takes the argmax of the criterion and nothing else | **A defect, not a deviation, and the third of them.** Verified against `khundman/telemanom`, `telemanom/errors.py`. The second condition is a 50% coverage cap: published telemanom rejects outright any candidate that would flag more than half the reference window. Both are invisible while the forecast is poor and few candidates exceed anything, and both bear directly on the failure now under investigation. Found while auditing the criterion for work item 4; measured before anything is changed |
 | 9 | `min_delta = 3e-4`, applied as `current < best_loss - min_delta` | **`min_improvement = 0.001`**, applied as `current < best * (1 - min_improvement)` | The published value is absolute and in the units of the loss. Validation MSE on ESA-ADB is ~1e-4, so the bar went negative and **no epoch after the first ever qualified, for every fit in three work items**. A ratio has no units. `docs/DECISIONS.md` D17 |
@@ -247,6 +247,9 @@ takes twelve possible values and cannot separate two detectors. It is reported a
 a coverage check and is stamped UNDERPOWERED wherever it appears.
 
 ### OBSERVED
+
+**A second pre-registration exists**, for the threshold rule that replaces the
+one this section's run used: section 10. This one is preserved unchanged.
 
 Filled in beside the prediction above, never in place of it. **Both generations
 are given**, because the run that tested the prediction was made with weights
@@ -478,3 +481,132 @@ Nothing changed about the control: `scripts/check_no_list.py` bans `fsspec` and
 `s3fs` at source level across `src/` and `scripts/`, and `tests/test_no_list.py`
 fails the suite on any violation. Recorded here so that seeing fsspec in
 `pip list` does not read as a regression.
+
+---
+
+## 10. The second pre-registration: `lstm-oscfar`
+
+**Written and committed before the first run**, like section 4 and for the same
+reason: a pre-registration that can be quietly replaced is not one. Section 4's
+failed and is preserved with what happened beside it. This one will be treated
+the same way.
+
+The design and its justification are `docs/DECISIONS.md` D20. The measurement
+that forced it is `docs/THRESHOLD.md`; D17 and D18 are what it settled.
+
+### 10.1 What is being tested
+
+A new detector, `lstm-oscfar`, added beside `lstm-telemanom` and **not replacing
+it** -- the published-comparison baseline the Phase 1 gate is written against
+does not move. Same forecaster, same cached weights, same folds, same bundle.
+**The decision rule is the only thing that differs**, which is what made the
+`lstm-telemanom` / `lstm-quantile` pair informative and is the only way this pair
+can be.
+
+Per segment, from its trailing reference window `R` and the nominal residual pool
+`N` -- the fitting window scored under the same weights:
+
+```
+  eps = max( alpha * Q_p(R) ,        local  -- onset sensitivity
+             beta  * Q_p(N) )        floor  -- bounds the collapse
+```
+
+`mu` and `sigma` appear nowhere, because measurement rules out the whole
+`mu + k*sigma` family and not merely one value of `k` (D20).
+
+### 10.2 What is fitted, and how it stays label-free
+
+| Quantity | Fitted from | Why a mission can do this |
+|---|---|---|
+| `p`, the quantile rank | bounded below the measured contamination rate -- 53 exceedances in 2,170 samples, 2.4% -- so a rank near 0.75 is far under the breakdown point | read from its own residuals |
+| `alpha`, `beta` | the **nominal alarm budget in timesteps**, on the fitting window's residuals | it states what its operators can act on (`docs/RESEARCH.md`: ISA-18.2, EEMUA 191). It has no failures to fit to |
+
+**No labelled anomaly enters the fit.** The fitting window is normal-only by
+construction -- `splits.train_mask` removes annotated anomalies -- and the target
+is an alarm rate, not a detection score. This is the test `docs/HARNESS.md`
+section 6b sets and the one `docs/MODELS.md` section 7 refused the oracle sweep
+for failing.
+
+**The alarm count is therefore not a prediction. It is set by the budget.** What
+is genuinely predicted is what survives at that budget, which is what section
+10.4 is about.
+
+### 10.3 (!) The objection to this proposal, before its first run
+
+An order statistic is immune to tail **weight**. It is not immune to scale
+**collapse**: `Q_p` of a uniformly tiny window is tiny. So the claim is narrower
+than *order statistics fix it*:
+
+> **What fixes it is calibrating the multiplier against nominal residuals instead
+> of transcribing a constant.** The order statistic makes that calibration robust
+> to a tail that moves; the floor carries the rest.
+
+**FALSIFICATION CONDITION, stated with a number so the result is read against an
+expectation rather than a hope.** If the local term binds in **fewer than 10%**
+of scored windows, the floor is doing all the work, this has collapsed back to
+`lstm-quantile`, and **it is reported as such rather than defended.**
+
+### 10.4 PREDICTED
+
+Per fold, never pooled. **Fold 0 is the control** -- its forecast improved 1.6x
+where folds 1 and 2 improved ~40x, its within-window `sigma` went *up* while
+theirs fell three- to eightfold, and its alarm count barely moved. If the new
+rule behaves the same on fold 0 as on 1 and 2, the mechanism in D17 is not what
+is being fixed.
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P1** | The **local term binds in 60-90%** of scored windows on folds 1 and 2, and **more often on fold 0** | The model is fitted on `N`, so in-sample residuals are smaller than out-of-sample: `Q_p(R)` should typically exceed `Q_p(N)`. Fold 0's residuals are ~6x larger in level than folds 1 and 2 |
+| **P2** | **Fold 0 changes least on every axis.** Its alarm count stays within ~2x of the current 73 (`m1-g8.9.10`) and 26 (`m1-ss5`), where folds 1 and 2 fall by roughly an order of magnitude from 1,970 / 1,505 and 692 / 757 | The control did not suffer the collapse, so it has little to recover |
+| **P3** | **Headline-cell recall holds at or above 25/32** on `m1-g8.9.10` at a budget near the pre-fix alarm rate | The NDT reached 28/32 at 182 ranges before the training fix and 28/32 at 3,548 after, so the events are visible at both budgets; the question is whether a fitted floor keeps them |
+| **P4** | **Median lead time stays positive on both sets**, and falls -- predicted in the **+10 to +30** band against the current +26 | A floor is a magnitude condition and magnitude takes time to reach (D13). This predicts the cost is real and bounded, not absent |
+| **P5** | **Rare-event false alarms improve on 30/48 and 33/48**, and do **not** reach `mavg`'s 10/48 | The false alarms are on commanded manoeuvres, and no thresholding change makes a commanded event predictable. That needs the command inputs (D6) |
+| **P6** | The **guard-cell variant** (10.5) changes fewer than 5% of windows' `eps` by more than 1% overall, and its effect concentrates on windows overlapping long events, in the direction of **raising** recall | 70 of 2,170 is 3.2% of a quantile's support in a nominal window; under a sustained event the segment is event energy raising the bar the event must clear |
+
+**What is deliberately not predicted.** Point recall -- eleven events take twelve
+values and cannot separate two detectors. VUS-PR -- the score transform differs
+between the two rules, so a threshold-free ranking metric is not comparing like
+with like and is reported as a diagnostic.
+
+### 10.5 The run, and the variants in it
+
+One bundle load, both channel sets, all three folds, **cached weights and no
+refit**, held-back sets untouched. Four arms scored against the same residuals:
+
+| Arm | What it isolates |
+|---|---|
+| `lstm-telemanom` | the control. Unchanged, reproduces the published numbers |
+| `lstm-oscfar` | the proposed rule |
+| `lstm-telemanom`, guard-cell variant | the reference window excluding the segment it judges |
+| `lstm-oscfar`, guard-cell variant | the same, on the proposed rule |
+
+**The guard-cell variant is measured, not assumed.** Deviation 6 in the ledger
+was corrected on 2026-08-27: the reference window is `e_s[seg_lo - 2100 : seg_hi]`
+-- 2,170 samples, the judged segment **included** -- so a segment contributes
+about 3.2% of its own threshold and a sustained event raises the bar it has to
+clear. That is the exact CFAR mechanism `docs/RESEARCH.md` records, now confirmed
+in our own code rather than cited from radar practice. It is near-free in the
+same pass and better known than carried forward.
+
+**`error_buffer` is held at 100 throughout** (`docs/DECISIONS.md` D21). It is
+decided afterwards with the threshold frozen, because changing a smoothing
+parameter and a threshold rule together would confound them.
+
+### 10.6 Stop-and-report triggers
+
+1. **Median lead time negative on either channel set.** Report before anything
+   else. D9 disqualifies such a configuration whatever its F0.5, and +26 is the
+   entire budget this project has to spend.
+2. **The local term binds in under 10% of windows.** Section 10.3's falsification
+   condition. Report as a collapse to `lstm-quantile`, not as a result.
+3. **Headline-cell recall below 20/32** on `m1-g8.9.10`. Half the events the
+   project exists to catch, given up to buy precision, is a trade that needs
+   authorising rather than reporting.
+4. **Fold 0 moving as much as folds 1 and 2.** The control behaving like the
+   treatment means the mechanism in D17 is not what is being addressed, and the
+   result would be uninterpretable whichever way the numbers fell.
+
+### 10.7 OBSERVED
+
+*Not yet run. Filled in after the run and beside the predictions above, never in
+place of them.*
