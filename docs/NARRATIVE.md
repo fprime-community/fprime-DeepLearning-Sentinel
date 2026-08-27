@@ -111,8 +111,9 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Nine times now, a cheap measurement has changed a decision that
-looked settled without it. Two of the last three refuted a hypothesis rather
+produced. Ten times now, a cheap measurement has changed a decision that
+looked settled without it -- and the tenth withdrew the reasoning behind a
+decision this project had already published and built on twice. Two of the last three refuted a hypothesis rather
 than replacing one, which is the harder thing for a measurement to be able to
 do -- and one of them refuted the *instrument*, which is harder still.
 
@@ -194,6 +195,31 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+**A structural claim that was really a configuration, quoted forward into two
+designs before anyone rechecked it.** `docs/DECISIONS.md` D13 closed the quantile
+branch on a generalisation rather than on its numbers: *a global threshold
+responds to absolute magnitude, so it must fire late.* Clean measurement
+contradicts it. Cells whose binding rate is 0.010 to 0.041 -- a threshold that is
+global in all but name -- fire at **+24.0 to +29.0** and catch 18 of 32
+headline-cell events, and seventeen of eighteen cells on the curve lead
+positively.
+
+The original evidence was also confounded, and the confound is checkable in four
+lines of code: `lstm-quantile` runs through `top_columns`, which applies **no
+`error_buffer` dilation and no pruning**, while every telemanom-path detector has
+each exceedance widened by +/-99 timesteps before alarm ranges are formed. Lead
+time is measured from a range's start. So the -122 against +26 was never
+like-for-like -- one arm had up to 99 timesteps of dilation and the other had
+none.
+
+**The branch stays closed on its measured numbers and the reason is withdrawn.**
+What makes it worth an entry is what the sentence had been doing since: D20's
+entire two-term design existed because a global term was assumed structurally
+late and therefore needed a local one beside it. **That design was solving a
+problem that may not exist.** A structural claim is exactly the kind that gets
+reused without rechecking, which is why one resting on a single detector's
+configuration is worse than no claim at all.
 
 **A threshold calibrated on "nominal" data that was not nominal, and it
 contaminated two separate results before anything caught it.**

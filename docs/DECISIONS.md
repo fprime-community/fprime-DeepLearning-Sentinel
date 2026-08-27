@@ -422,6 +422,66 @@ this one scored.
 
 ---
 
+**(!) REVISITED 2026-08-27. THE STRUCTURAL CLAIM DOES NOT HOLD. The branch stays
+closed on its measured numbers; the reason given for closing it was wrong.**
+
+D13 says a global threshold must fire late *by construction* -- it responds to
+absolute magnitude, and growing to a magnitude takes time. That generalisation is
+contradicted by direct measurement.
+
+`scripts/oscfar_curve.py` on a clean calibration pool produces cells in which the
+**floor** -- a global quantile of nominal residuals -- decides almost every
+window, and they fire **early**:
+
+```
+  set          rule                binding   median lead   recall    headline cell
+  m1-ss5       independent 0.10%     0.011        +28.0     24/42          18/31
+  m1-ss5       joint       0.01%     0.010        +24.5     20/42          18/31
+  m1-g8.9.10   joint       0.01%     0.041        +29.0     21/46          18/32
+```
+
+A binding rate of 0.011 means the local term wins in one window in ninety; the
+threshold is global in all but name. **It leads by +28 and catches 18 of 31
+headline-cell events.** Seventeen of the eighteen cells on the clean curve have a
+positive median lead, +24.0 to +32.5.
+
+**And the original evidence was confounded, which is the part worth keeping.**
+`lstm-quantile` runs through `telemanom.top_columns`, which applies **no
+`error_buffer` dilation and no pruning** -- verified, zero calls. Every
+telemanom-path detector has each exceedance widened by +/-99 timesteps before
+alarm ranges are formed, and lead time is measured from a range's start (D21). So
+the -122 against `lstm-telemanom`'s +26 was **never a like-for-like comparison**:
+one arm had up to 99 timesteps of dilation and the other had none. The gap
+between them is not 148 timesteps of structure; an unmeasured part of it is a
+post-processing asymmetry.
+
+**What survives and what does not.**
+
+* **Survives:** the measured numbers. `lstm-quantile` scored median lead -122 on
+  its own terms, best cell -100 across 24 grid points, recall identical at 6/46
+  throughout. Those are unchanged and the branch remains closed on them.
+* **Does not survive:** *a global threshold fires late because it needs
+  magnitude*. A global threshold fitted on genuinely nominal residuals, given the
+  same alarm shaping as everything else, fires early. What made `lstm-quantile`
+  late was its own configuration, not the class it belongs to.
+* **Not the cause:** the calibration-pool contamination. The harness masks
+  `train_scores[usable]` before `threshold_from` (`harness.py:157`), so
+  `lstm-quantile`'s threshold was always fitted on genuinely nominal scores. This
+  correction is independent of that bug.
+
+**CONSEQUENCE.** D13's conclusion stands and its reasoning is withdrawn. Nothing
+built on the sentence *a global rule cannot warn early* may continue to rest on
+it -- including D20, whose whole design was a local term added because a global
+one was assumed structurally late. That assumption is now measured and false, and
+D20's two-term form was solving a problem that may not exist.
+
+Recorded rather than quietly amended because the sentence was quoted forward into
+two later designs. **A structural claim is exactly the kind that gets reused
+without being rechecked**, which is why one built on a single detector's
+configuration is worse than no claim at all.
+
+---
+
 ## D14. The weight-cache key must be named and versioned, not positional
 
 **DATE** 2026-08-26 | **STATUS** open, implement after Layer 1 lands

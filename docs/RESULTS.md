@@ -408,31 +408,19 @@ labelled anomalies, which no adopting mission can do.
 
 ## 6b. The order-statistic arms, as a curve across admission rates
 
-> **(!) PROVISIONAL, 2026-08-27. These numbers were computed against a
-> contaminated calibration pool and may not survive its correction.**
+> **(!) TWO READINGS, BOTH KEPT. The tables below are the CONTAMINATED run and
+> are retained, not corrected in place.**
 >
-> Every multiplier below was fitted on the fitting window's residuals, which the
-> code and this document both described as normal-only. `splits.train_mask`
-> removes annotated anomalies before the **fit**; it is not applied to the
-> **scoring call** the calibration reads (`harness._score_fold`). So the
-> 99.9th-percentile floor was set partly by the anomalies inside the fitting
-> window -- pushed up by the events it exists to catch.
+> Every multiplier in them was fitted on the fitting window's residuals, which
+> the code and this document both called normal-only. `splits.train_mask` removes
+> annotated anomalies before the **fit**; it is not applied to the **scoring
+> call** the calibration reads (`harness._score_fold`). So the floor was set
+> partly by the anomalies it exists to sit above. `docs/NARRATIVE.md` section 6.
 >
-> The conclusion most at risk is *the floor dominates every window*, which was
-> read as a finding about the two-term design and may be an artifact of the bug.
-> The curve is being re-run on a clean pool; both readings will be kept, neither
-> deleted. `docs/NARRATIVE.md` section 6 carries the defect.
-
-Nine cells: three calibrations across three nominal admission rates, both channel
-sets, all folds, cached weights, nothing fitted. 45 Class B. Artifacts
-`runs/m1-g8.9.10/_curve/2026-08-27T2011*Z-*.json`. Pre-registered in
-`docs/MODELS.md` 10.8; the design is `docs/DECISIONS.md` D20.
-
-**The admission rate is a mission's input, not ours.** It is what a control room
-can absorb, and a two-person CubeSat team answers differently from ESOC. So the
-curve is reported and **no operating point is recommended from it**. Selecting
-the best-scoring cell would be the oracle sweep `docs/MODELS.md` section 7
-refuses, and it stays refused.
+> **Section 6c is the clean re-run and is the reading to use.** Both are here
+> because the difference is the finding: at tight budgets the contaminated
+> numbers were almost entirely artifact, and one conclusion drawn from them --
+> and one published decision built on that -- did not survive.
 
 **GATE -- `m1-g8.9.10`**
 
@@ -508,6 +496,124 @@ ranges for 14/15 on fold 0, and **1,338 for 13/15 on fold 1** -- the 40x-improve
 fold needs 3.3x the alarms for the same recall. The local scale degrades as the
 forecast improves, which is the limitation `docs/MODELS.md` 10.3 predicted for
 this design in advance.
+
+## 6c. The same curve on a clean calibration pool
+
+Same nine cells, same weights, same folds, the calibration pool masked to
+genuinely nominal timesteps. Artifacts
+`runs/m1-g8.9.10/_curve/2026-08-27T2318*Z-clean-*.json`.
+
+**P10 monotonicity holds on every set-mode pair**, so the calibration does what
+it claims and the rest is readable.
+
+**GATE -- `m1-g8.9.10`**, contaminated -> clean:
+
+| calibration | rate | alarm ranges | recall | MVGS | **F0.5** | **lead** |
+|---|---|---|---|---|---|---|
+| `independent` | 0.01% | 2 -> 11 | 2/46 -> 9/46 | 2/32 -> 9/32 | 0.185 -> 0.549 | +25.5 -> **-50.0 (!)** |
+| `independent` | 0.10% | 9 -> 30 | 6/46 -> 24/46 | 6/32 -> 19/32 | 0.411 -> **0.806** | -47.0 -> **+27.5** |
+| `independent` | 1.00% | 126 -> 259 | 37/46 -> 37/46 | 27/32 -> 27/32 | **0.449 -> 0.232** | +26.0 -> +26.0 |
+| `joint` | 0.01% | 3 -> 27 | 2/46 -> 21/46 | 2/32 -> 18/32 | 0.172 -> **0.788** | +25.5 -> +29.0 |
+| `joint` | 0.10% | 198 -> 401 | 18/46 -> 37/46 | 16/32 -> 27/32 | 0.119 -> 0.150 | +27.5 -> +26.0 |
+| `joint` | 1.00% | 2,405 -> 2,700 | 40/46 -> 40/46 | 29/32 -> 29/32 | 0.033 -> 0.030 | +24.0 -> +24.0 |
+| `local_only` | 0.01% | 10 -> 43 | 7/46 -> 20/46 | 7/32 -> 16/32 | 0.454 -> 0.651 | -120.0 -> **+24.0** |
+| `local_only` | 0.10% | 85 -> 393 | 21/46 -> 36/46 | 19/32 -> 26/32 | 0.317 -> 0.253 | +26.0 -> +27.5 |
+| `local_only` | 1.00% | 2,359 -> 2,678 | 40/46 -> 40/46 | 30/32 -> 30/32 | 0.063 -> 0.054 | +26.0 -> +26.0 |
+
+**`m1-ss5`**, contaminated -> clean:
+
+| calibration | rate | alarm ranges | recall | MVGS | **F0.5** | **lead** |
+|---|---|---|---|---|---|---|
+| `independent` | 0.01% | 2 -> 12 | 2/42 -> 12/42 | 2/31 -> 10/31 | 0.200 -> 0.667 | +25.5 -> +32.5 |
+| `independent` | 0.10% | 2 -> 35 | 2/42 -> 24/42 | 2/31 -> 18/31 | 0.200 -> **0.741** | +25.5 -> +28.0 |
+| `independent` | 1.00% | 124 -> 307 | 36/42 -> 38/42 | 27/31 -> 29/31 | 0.377 -> 0.176 | +28.0 -> +26.5 |
+| `joint` | 0.01% | 2 -> 23 | 2/42 -> 20/42 | 2/31 -> 18/31 | 0.200 -> **0.820** | +25.5 -> +24.5 |
+| `joint` | 0.10% | 172 -> 236 | 14/42 -> 36/42 | 12/31 -> 27/31 | 0.096 -> 0.207 | +34.5 -> +28.0 |
+| `joint` | 1.00% | 1,262 -> 1,334 | 38/42 -> 38/42 | 29/31 -> 29/31 | 0.055 -> 0.055 | +26.5 -> +26.5 |
+| `local_only` | 0.01% | 2 -> 29 | 2/42 -> 26/42 | 2/31 -> 20/31 | 0.200 -> **0.868** | +25.5 -> +31.0 |
+| `local_only` | 0.10% | 65 -> 198 | 19/42 -> 36/42 | 17/31 -> 27/31 | 0.315 -> 0.238 | +27.0 -> +28.0 |
+| `local_only` | 1.00% | 884 -> 953 | 38/42 -> 38/42 | 29/31 -> 29/31 | 0.065 -> 0.062 | +26.5 -> +26.5 |
+
+### What the correction moved
+
+**The tight end of the curve was almost entirely artifact.** At 0.01% every arm
+had been reporting 2 events caught; clean, they catch 9 to 26. The contaminated
+floor sat above the events, so the detector was silent and every conclusion drawn
+from that region was about the bug.
+
+**One highlighted result did not survive.** `independent @ 1%` was reported as
+the highest event-wise F0.5 in this document with positive lead time, at 0.449.
+Clean it is **0.232** -- below the `rstd` floor of 0.250. It is retained above
+and withdrawn here.
+
+**One conclusion did survive, weakened.** *Correcting the calibration arithmetic
+made the detector noisier* holds: at 1% the joint fit still spends far more alarm
+ranges than the independent one, 2,700 against 259. The ratio falls from 19x to
+10.4x.
+
+**And one published decision did not.** `docs/DECISIONS.md` **D13** closed the
+quantile branch on the structural claim that *a global threshold must fire late*.
+Clean, cells whose binding rate is 0.010 to 0.041 -- global in all but name --
+fire at **+24.0 to +29.0** and catch 18/32 and 18/31 headline-cell events.
+Seventeen of eighteen cells have a positive median lead. **The branch stays
+closed on its measured numbers and its stated reason is withdrawn.** D13 carries
+the full revision, including the confound in its original evidence:
+`lstm-quantile` receives no `error_buffer` dilation where every telemanom-path
+detector does, so the -122 against +26 was never like-for-like.
+
+## 6d. `lstm-whitened` -- a decision layer that tests the relationship
+
+`docs/DECISIONS.md` D23 established that every stage downstream of the forecaster
+reads one channel at a time, and that `k`-of-`n` -- the only stage that does not
+-- tests **co-occurrence rather than relationship**, which is precisely what a
+commanded manoeuvre produces. This scores the whitened length of the **signed**
+residual vector against its nominal covariance instead: one number per timestep,
+low for a residual consistent with normal co-variation however large, high for
+one orthogonal to it however small.
+
+Same forecaster, same cached weights, same folds, same `error_buffer`, same
+pruning. **The decision rule is the only difference.** Artifact
+`runs/m1-g8.9.10/lstm-whitened/2026-08-27T225817Z-88b4df0d.json`.
+
+**GATE -- `m1-g8.9.10`**
+
+| | **rare-event FA** | **MVGS** | recall | precision | **F0.5** | **lead** |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 30/48 (0.625) | **28/32** | 38/46 | 75/3,548 | 0.026 | +26.0 |
+| `lstm-whitened` | **2/48 (0.042)** | 21/32 | 27/46 | **39/40** | **0.861** | **+29.0** |
+
+**`m1-ss5`**
+
+| | **rare-event FA** | **MVGS** | recall | precision | **F0.5** | **lead** |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 33/48 (0.688) | **29/31** | 38/42 | 42/1,475 | 0.035 | +26.5 |
+| `lstm-whitened` | **2/48 (0.042)** | 15/31 | 18/42 | 112/113 | 0.785 | +21.0 |
+
+**The trade, stated rather than absorbed.** The adoption number falls by an order
+of magnitude -- 30/48 to 2/48 and 33/48 to 2/48, with alarm ranges 3,548 to 40
+and 1,475 to 113 at 39/40 and 112/113 precision, and lead time held or improved
+on the gate set. **It is paid for in the class the project exists to catch:
+headline-cell recall 28/32 to 21/32, and 29/31 to 15/31.** Seven events on the
+gate set; fourteen on the subset, nearly half.
+
+Event-wise F0.5 of **0.861** is the highest this document records by a wide
+margin, against the `rstd` floor of 0.250, and it clears the lead-time rule at
++29.0. **That is not sufficient to adopt it** -- `docs/HARNESS.md` section 1 is
+explicit that recall and precision are read together, and giving up seven
+cross-channel events is a decision about what the component is for rather than a
+number to optimise.
+
+**(!) An open question that should be answered before this is adopted or
+rejected.** The six-channel set loses **far more** recall than the twelve-channel
+one, 14 events against 7. That is the opposite of what a relationship test should
+do -- fewer channels means less relational structure for a covariance to exploit
+-- so this may be measuring how much joint structure the rule has to work with
+rather than how good the rule is. Untested either way.
+
+**The whitening's own health is now asserted rather than assumed.** Median
+whitened length 1.71 to 2.63 against `sqrt(12) = 3.46`, condition numbers 83 to
+129. The first attempt produced 25.7 to 36.3 and condition numbers to 4.3e8 and
+**scored anyway, silently**; `whiten.Accumulator.finish` now refuses both.
 
 ## 7. What these numbers say
 
