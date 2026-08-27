@@ -168,3 +168,118 @@ Each changed a decision.
 > measure, and it will not report that something is missing. Adding a cheap
 > measurement is almost always worth it -- and the ones worth adding are, by
 > definition, the ones nobody has thought to ask for yet.
+
+---
+
+## 7. Then training started working, and everything downstream broke
+
+A defect in early stopping had been disabling training for the whole project.
+telemanom's published `min_delta` is 3e-4, applied as
+`current < best_loss - min_delta`, and it is **absolute, in the units of the
+loss**. Validation MSE on ESA-ADB is about 1e-4, so the bar went negative, no
+epoch after the first ever qualified, and every fit in three work items stopped
+at epoch 11 having kept epoch 1. Median 3.1x better weights discarded, worst
+case 8.8x.
+
+It announced itself in no way at all. No error, no warning. The signature --
+eleven epochs with `best_epoch = 0`, every time -- was sitting in the training
+reports, and **nothing was reading the training reports**. They are on the
+scorecard now, and a fit that keeps its first epoch raises rather than warns,
+because a line of output nobody looks at is indistinguishable from silence.
+
+Fixing it improved the forecast about fortyfold. And:
+
+```
+  lead time       +26  ->  +26      held
+  events caught    37  ->  38       improved
+  MVGS recall   28/32  ->  28/32    held
+  event F0.5    0.269  ->  0.026    collapsed
+  rare-event FA 22/48  ->  30/48    got worse
+  ALARM RANGES    182  ->  3,548    twenty times more
+```
+
+A worse model catches fewer events. This one catches more, at the same lead
+time, firing twenty times as often -- so the model was not what got worse.
+
+### The instinct was to sweep the threshold, and that was the wrong instrument
+
+A `z` sweep was run and produced a clean curve with a seductive answer:
+`z_floor = 8.0` gives F0.5 0.794, precision 22/22, zero rare-event false alarms
+and a median lead time of +35.5 with not one late detection.
+
+But telemanom's `z` **is not a constant**. It is selected per window by
+maximising `(dmu/mu + dsigma/sigma) / (|E_seq|^2 + |e_a|)` over a candidate
+range, and that self-selection is the entire meaning of *nonparametric dynamic
+thresholding*. Sweeping `z_floor` sweeps the **lower bound of the candidate
+range**. It does not tune a threshold; it takes options away from a selector
+whose answers we did not like. And picking the winning cell would be fitting to
+46 labelled anomalies, which is precisely what a real spacecraft -- with no
+failures to fit to -- cannot do.
+
+So the question was not *what `z` should we pick*. It was *why is the selection
+criterion choosing badly*.
+
+### What the measurement found, and what it refuted
+
+`scripts/threshold_diagnostics.py`, both channel sets, all three folds, both
+generations of weights, **5,684,580 reference windows**, every one verified
+byte-identical to the live `telemanom.dynamic_threshold` -- because a
+re-implementation that is merely similar describes a function nobody scores.
+
+**The leading hypothesis was wrong, and it was ours.** Auditing the criterion
+against published telemanom turned up two admissibility conditions we do not
+have: `len(E_seq) <= 5` and `len(i_anom) < len(e_s) * 0.5`. The second is a 50%
+coverage cap, and it looked like exactly the guard against a selector flagging
+huge swathes of a window -- the behaviour under investigation. **Neither binds
+on a single one of the 5.68 million windows.** The alarm count under published
+telemanom's own rule is identical, in every fold, on both channel sets. The
+reason is a stage upstream: EWMA at span 105 makes exceedances contiguous, so
+they merge into one or two sequences covering a few hundred samples of 2,170,
+far under both limits. The omission is a real defect in the reproduction and it
+is not the cause of anything here.
+
+**The brief's hypothesis was wrong too, and it is the more interesting one.** It
+predicted the residual had moved from heavy-tailed model bias to near-Gaussian
+irreducible noise, leaving an outlier-finder with nothing to find. Measured, the
+residual moved the *other way*: excess kurtosis of the signed residual rose from
+27.3 to **6,754.6** on one fold and 148.1 to **7,348.8** on another. A trained
+forecaster predicts the bulk almost perfectly and leaves a few large excursions
+it cannot predict.
+
+**What actually happened is local, not global.** `eps = mu + z*sigma` is computed
+per 2,170-sample window, so the within-window scale is what governs it, and that
+collapsed three- to eightfold. The window *maximum* did not fall with it,
+because the tail got heavier. So `(max - mu)/sigma` **rose** -- 2.04 to 2.94 on
+one fold -- and a floor of 2.5 that used to be out of reach in 93% of windows is
+now cleared in 80% of them. Every window that clears it contributes an alarm at
+least 199 timesteps wide, because `error_buffer = 100` dilates one exceeded
+sample by +/-99. Fifty alarm ranges become 1,505.
+
+**And the criterion is not choosing.** Of the 2,081,285 windows that selected
+anything, **92.6% selected the range minimum**. Restricting to the 1,049,475
+windows that had more than one candidate -- a real choice -- **85.4% still chose
+the minimum**, and the criterion is monotone decreasing in `z` in the large
+majority of sampled windows. On these residuals the nonparametric dynamic
+threshold reduces to `eps = mu + 2.5*sigma`: a fixed multiplier on the local
+scale, with the selection decorative and `z_floor` doing all the work. Which is
+why sweeping `z_floor` appeared to work so well, and why that appearance was
+misleading rather than informative.
+
+**Fold 0 is the control, and it was sitting in the artifacts unread.** The
+forecast did not improve equally across folds: fold 0 improved 1.6x against
+folds 1 and 2 at ~40x. Its within-window sigma went *up*, its reachable fraction
+went *down*, and its alarm count barely moved -- 42 to 73, against 90 to 1,970
+and 50 to 1,505. A control arm and a treatment arm inside the same run, on both
+channel sets, and nobody had looked.
+
+### What it cost, and the pattern it repeats
+
+One script, no refitting, no source changed, 15 Class B operations, about twelve
+minutes. Two hypotheses refuted, one of them the one this coder was most
+confident in and had put first in the plan.
+
+That is the fourth entry in section 6's list, and it is the same shape as the
+other three. The difference is that this time the measurement was designed to be
+able to say *no*: the guard counterfactual would have been just as easy to run
+in a form that could only confirm, and the fold-0 control was already on disk
+waiting for somebody to read it as a control rather than as an outlier.

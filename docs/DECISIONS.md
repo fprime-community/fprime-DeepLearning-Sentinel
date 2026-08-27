@@ -555,16 +555,16 @@ would have been declared safe and the Mac would have quietly refitted all of the
 ## D17. Dimensionless constants transfer across scales, but not across distribution shapes
 
 **DATE** 2026-08-26 | **RECORDED** 2026-08-27, two commits late -- see the note
-at the end | **STATUS** OPEN, hypothesis under investigation
+at the end | **STATUS** resolved, with the stated mechanism **measured and refuted**
+-- see MEASURED below
 
 **(!) READ THE STATUS.** The mechanism below is the reasoning that was acted on
-when `z` was moved onto `Config`. It is **not** a measured finding. It is being
-tested by the work item 4 threshold-selector investigation, and at least one
-competing explanation is live: our `dynamic_threshold` omits two admissibility
-conditions that published telemanom applies, and that omission alone could
-account for the same symptom without any appeal to distribution shape. This
-entry is written down so that four files stop citing something that does not
-exist, not so that a hypothesis can become a conclusion by being written down.
+when `z` was moved onto `Config`. It was **not** a measured finding when this
+entry was written, and it has since been measured. **The conclusion survives and
+the mechanism does not**: the residual did not become near-Gaussian, it became
+very much more heavy-tailed, and a dimensionless constant failed to transfer for
+the opposite of the stated reason. The original wording is kept below exactly as
+it was acted on; MEASURED at the end is what the data says.
 
 **CONTEXT.** Two published constants failed in the same week, in the same way,
 and the second failure showed the first lesson had been drawn too narrowly.
@@ -644,3 +644,190 @@ convention has no test. Recorded plainly rather than backfilled silently,
 because a commit message asserting that a document was updated when it was not
 is a worse defect than the missing document: it is a claim in the audit trail
 that the audit trail does not support.
+
+---
+
+**MEASURED, 2026-08-27.** `scripts/threshold_diagnostics.py`, both channel sets,
+all three folds, both generations of weights, **5,684,580 reference windows**,
+every one of them verified byte-identical to the live
+`telemanom.dynamic_threshold`. Artifact
+`runs/m1-g8.9.10/_threshold/2026-08-27T*-diagnostics.json`. No labelled anomaly
+informs any figure below; alarms are counted, never scored.
+
+**The stated mechanism is wrong.** It said that with a good forecast the residual
+is "dominated by irreducible noise" -- near-Gaussian, nothing left for an
+outlier-finder to find. Measured, the residual moved the other way. Excess
+kurtosis of the signed residual, pre-fix to post-fix:
+
+```
+  m1-g8.9.10   fold 0     63.6 ->     71.7        m1-ss5   fold 0    143.9 ->    159.1
+               fold 1    145.2 ->    176.3                 fold 1    117.0 ->    153.2
+               fold 2     27.3 ->  6,754.6                 fold 2    148.1 ->  7,348.8
+```
+
+A trained forecaster predicts the bulk almost perfectly and leaves a small number
+of large excursions it cannot predict. That is **more** tailed, not less.
+
+**The conclusion survives, by a different route, and it is the local moments that
+matter rather than the global distribution.** `eps = mu + z*sigma` is computed
+per 2,170-sample window, so what governs it is the within-window scale, and that
+is what collapsed:
+
+```
+                     within-window sigma       fraction of windows with
+                     (median) pre -> post      (max-mu)/sigma >= 2.5
+  m1-g8.9.10 fold 0  6.95e-4 -> 1.19e-3 (1.7x)   0.224 -> 0.083     <- control
+             fold 1  6.59e-4 -> 2.11e-4 (0.32x)  0.216 -> 0.729
+             fold 2  9.27e-4 -> 2.06e-4 (0.22x)  0.073 -> 0.803
+  m1-ss5     fold 0  1.66e-3 -> 6.10e-4 (0.37x)  0.010 -> 0.252
+             fold 1  1.34e-3 -> 1.76e-4 (0.13x)  0.056 -> 0.921
+             fold 2  1.07e-3 -> 1.73e-4 (0.16x)  0.143 -> 0.953
+```
+
+The chain, end to end: the local scale falls three- to eightfold; the window
+*maximum* does not fall with it, because the tail got heavier; so
+`(max - mu)/sigma` **rises**, from a median of 2.04 to 2.94 on `m1-g8.9.10` fold
+2 and 2.24 to 3.28 on `m1-ss5` fold 2; so a floor of 2.5 that used to be out of
+reach in 93% of windows is now cleared in 80% of them; and every window that
+clears it contributes an alarm at least 199 timesteps wide, because
+`error_buffer = 100` dilates a single exceeded sample by +/-99. Fifty alarm
+ranges become 1,505.
+
+**Fold 0 is the control and it behaves as the mechanism predicts.** Its forecast
+improved 1.6x rather than 40x, its within-window sigma went *up*, its reachable
+fraction went *down* -- 0.224 to 0.083 -- and its alarm count barely moved, 42 to
+73. The two arms are in the same run.
+
+**So a dimensionless constant is not immune to a change in distribution shape,
+which is what this entry claimed, and the reason is not the one it gave.** `z`
+counts standard deviations, and a standard deviation is a poor summary of a
+distribution whose kurtosis is in the thousands. What transfers across scales
+does not transfer across a change in the relationship between a distribution's
+scale and its extremes. That is the corrected form.
+
+**A competing explanation was tested and refuted, and it is recorded because it
+was the leading candidate.** `dynamic_threshold` omits two admissibility
+conditions published telemanom applies -- `len(E_seq) <= 5` and
+`len(i_anom) < len(e_s) * 0.5` (`docs/MODELS.md` deviation 8). The second is a
+50% coverage cap and looked like exactly the guard against a selector flagging
+huge swathes. **Measured, neither condition binds on a single one of the
+5,684,580 windows**, and the alarm count under published telemanom's rule is
+identical in every fold of both channel sets. The reason is upstream: EWMA at
+span 105 makes exceedances contiguous, so they merge into one or two sequences
+covering a few hundred of 2,170 samples, far under both limits. The omission is
+a real defect in the reproduction and it is **not** the cause of this. Reported
+before any change was proposed, which is why it is a finding rather than a fix
+that would have moved every published number for nothing.
+
+---
+
+## D18. The selection criterion is degenerate on these residuals, and no threshold is chosen
+
+**DATE** 2026-08-27 | **STATUS** OPEN -- reported, deliberately unresolved
+
+**CONTEXT.** Work item 4's threshold investigation was asked for three
+diagnostics and told to report them together **before** proposing any change,
+and not to pick a threshold by looking at scored results. It found the criterion
+is not selecting anything. The obvious next move is therefore to choose a rule,
+and this entry exists to record that the choice was not made and why.
+
+**EVIDENCE.** `scripts/threshold_diagnostics.py`, 5,684,580 reference windows,
+both channel sets, all three folds, both generations of weights, every window
+verified byte-identical to the live `telemanom.dynamic_threshold`. Alarms
+counted, never scored; no labelled anomaly informs any of it.
+
+```
+  windows examined                                    5,684,580
+  windows that selected a z                           2,081,285   (36.6%)
+    of those, z = 2.5, the range minimum              1,927,583   (92.6%)
+  windows with more than one candidate -- a choice     1,049,475   (50.4% of firing)
+    of those, z = 2.5, the range minimum                895,773   (85.4%)
+```
+
+The criterion is **monotone decreasing in z** in the large majority of sampled
+windows, so its argmax is the boundary of the candidate range by construction.
+Its median normalised value falls 1.000, 0.843, 0.676, 0.504, 0.350 across
+z = 2.5, 3.0, 3.5, 4.0, 4.5. There is a gradient -- the best candidate beats the
+next by 20-45% -- and it points monotonically downhill, at the floor.
+
+> **On these residuals the nonparametric dynamic threshold reduces to
+> `eps = mu + 2.5*sigma`.** A fixed multiplier on the local scale, with the
+> selection decorative and `z_floor` doing all the work. That is what made the
+> `z_floor` sweep look so effective, and it is why the sweep was measuring the
+> wrong thing: raising the floor raises the only quantity that was ever live.
+
+**Why it is monotone, decomposed.** Medians over sampled windows that had more
+than one candidate, `m1-g8.9.10` post-fix fold 2:
+
+```
+      z       n  n_above  n_seq  covered   denominator   numerator      score
+    2.5   3,330       53      1      289           290      0.1517   4.54e-04
+    3.0   3,330       30      1      237           238      0.1021   3.99e-04
+    3.5   2,664       21      1      220           221      0.0863   3.82e-04
+    4.0   1,998       15      1      213           214      0.0742   3.48e-04
+    4.5   1,332       10      1      207           208      0.0576   2.83e-04
+```
+
+**The denominator is a constant in disguise.** `len(E_seq)` is **1** at every
+candidate, so the squared anti-fragmentation term contributes 1 and is inert.
+`covered` falls only from 289 to 207 across the range and asymptotes at 199,
+because `error_buffer = 100` dilates a single exceeded sample by +/-99 and
+merging collapses the rest. The numerator meanwhile falls 2.6-fold, from 0.152
+to 0.058, because removing fewer points changes the moments less.
+
+> A ratio whose denominator cannot move and whose numerator falls with z has its
+> maximum at the smallest z on offer. **The criterion is arithmetically forced to
+> prefer the bottom of its range**, and no residual distribution can rescue it.
+> `error_buffer` is a parameter of the smoothing stage, not of the threshold, and
+> it is what disables the selection.
+
+Two things follow. The `|E_seq|^2` term -- the part telemanom's paper describes
+as stopping the sweep buying a statistical improvement with a shower of
+fragmented detections -- **never activates here**, because the same buffer that
+pins the denominator also merges every exceedance into one sequence. And the
+apparent uptick above z = 5.5 in the full table is a selection effect, not a
+peak: only windows with a large `reach` survive into those columns and there are
+113 to 292 of them against 3,330, so the population differs column to column.
+
+**ALTERNATIVES considered and refused.**
+
+*Adopt `z_floor = 8.0` from the sweep.* Its cell is the best in the grid --
+F0.5 0.794, precision 22/22, rare-event false alarms 0/48, median lead +35.5
+with no late detections. It is also chosen by reading a table of scores against
+46 labelled anomalies. A mission has no failures to fit to (Objective.md 6.1),
+so this is a number no adopter could ever obtain, and `docs/MODELS.md` section 7
+already refused the same move once under the name "oracle threshold sweep".
+
+*Replace the criterion.* Premature. It is degenerate here for a reason that is
+now measured, and the reason implicates stages upstream of it -- see below. A
+replacement chosen before those are examined would be fitted to a defect one
+layer down.
+
+*Scale `z` by a robust dispersion rather than the standard deviation.* The most
+promising direction and still a proposal, not a decision. It is derivable from
+residual properties alone, which is the test the brief sets: the failure is that
+`sigma` collapses in quiet windows while the extremes do not, and a median
+absolute deviation or an interquartile range has the same problem in a different
+proportion. It needs measuring before it is adopted, on the same windows, and
+that is the next piece of work rather than this one.
+
+**CONSEQUENCE. No threshold value is chosen, and the three stages that the
+measurement implicates are flagged rather than retuned.** `docs/HARNESS.md` is
+explicit that a stage needing revisiting is flagged, not adjusted inside a run
+measuring something else.
+
+| Stage | Why the measurement implicates it | Status |
+|---|---|---|
+| `error_buffer = 100` | One exceeded sample becomes a 199-timestep alarm. It sets the floor on what a single crossing costs, and it is also why published telemanom's 50% coverage guard cannot bind here | **Flagged, untouched** |
+| EWMA span 105 | Makes exceedances contiguous, which is what collapses `len(E_seq)` and `covered` and renders both published guards inert. Inherited, never examined | **Flagged, untouched** |
+| `z_floor = 2.5` | Selected in 92.6% of firing windows. It is not a floor on a range, it is the operating threshold | **Flagged, untouched** |
+| k-of-n agreement | Tuned when there were 182 alarm ranges. There are 3,548 | **Flagged, stale, untouched** |
+| pruning `p = 0.13` | Reads the same residual ladder the threshold does. Not measured here | **Flagged, unmeasured** |
+
+**And one thing that is settled.** The competing hypothesis -- that our omission
+of published telemanom's two admissibility conditions caused this -- is refuted:
+neither binds on any of the 5,684,580 windows and the alarm count under
+published telemanom's rule is identical everywhere. The omission stays in the
+deviation ledger as a real defect (`docs/MODELS.md` deviation 8) and is not the
+cause. Restoring it would move no number, which is a good reason to restore it
+for faithfulness and no reason at all to expect it to help.

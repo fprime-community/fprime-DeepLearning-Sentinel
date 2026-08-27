@@ -75,6 +75,15 @@ cherry-pick if you never discard anything. See `docs/HARNESS.md` section 2.
 All figures at the **default operating point** -- persistence 1, channel
 agreement 1. Section 4 sweeps both.
 
+> **(!) EVERY LSTM ROW IN THIS SECTION IS PRE-TRAINING-FIX.** A defect in early
+> stopping meant every model in this project trained for one epoch
+> (`docs/DECISIONS.md` D17). It was corrected on 2026-08-26 and the forecaster
+> improved about fortyfold, and the detection stack downstream of it collapsed:
+> event-wise F0.5 fell from **0.269 to 0.026** here and from **0.664 to 0.035**
+> on `m1-ss5`. **Section 6a carries both sets of numbers side by side and is the
+> current state.** These tables are kept, not replaced, for the reason section 6
+> gives.
+
 **GATE -- `m1-g8.9.10`** (12 channels, groups 8+9+10, the primary recall set)
 
 | Detector | **F0.5** | **lead** | recall | precision | MVGS | contextual | point | **rare-event FA** | alarms/1k | VUS-PR |
@@ -293,6 +302,101 @@ corrected numbers visible has to wonder what else was quietly cleaned up.
 
 Pre-fix artifacts remain under `runs/m1-g8.9.10/*/2026-08-25T*.json`.
 
+## 6a. The second correction: the training fix, pre and post
+
+`docs/HARNESS.md` requires that a fix moving a published number has **both**
+numbers recorded. This is that record for the early-stopping fix, and it is a
+far larger movement than section 6's.
+
+**What the defect was.** telemanom applies early stopping as
+`current < best_loss - min_delta` with a published `min_delta` of 3e-4.
+Validation MSE on ESA-ADB is about 1e-4, so the bar went negative and no epoch
+after the first ever qualified. Every fit in this project stopped at epoch 11
+having kept epoch 1. `docs/DECISIONS.md` D17.
+
+**What it moved.** Same harness, same data, same folds, same decision layer at
+persistence 1 and agreement 1. The only difference is the stopping rule.
+
+**GATE -- `m1-g8.9.10`**
+
+| | **F0.5** | **lead** | recall | precision | MVGS | contextual | point | **rare-event FA** | nominal-step FA | alarms/1k | VUS-PR |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| pre-fix | **0.269** | +26 | 37/46 (0.804) | 42/182 (0.231) | 28/32 (0.875) | 37/45 (0.822) | 9/11 (0.818) | **22/48 (0.458)** | 21,780/10,675,488 (0.0020) | 0.015 | 0.078 |
+| post-fix | **0.026** | +26 | 38/46 (0.826) | 75/3,548 (0.021) | 28/32 (0.875) | 38/45 (0.844) | 9/11 (0.818) | **30/48 (0.625)** | 530,769/10,675,488 (0.0497) | 0.320 | 0.068 |
+
+**`m1-ss5`** (6 channels, group 8; demoted, always reported)
+
+| | **F0.5** | **lead** | recall | precision | MVGS | contextual | point | **rare-event FA** | nominal-step FA | alarms/1k | VUS-PR |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| pre-fix | **0.664** | +28 | 36/42 (0.857) | 39/62 (0.629) | 27/31 (0.871) | 36/41 (0.878) | 9/11 (0.818) | **17/48 (0.354)** | 8,066/10,875,689 (0.0007) | 0.005 | 0.184 |
+| post-fix | **0.035** | +26.5 | 38/42 (0.905) | 42/1,475 (0.028) | 29/31 (0.935) | 38/41 (0.927) | 9/11 (0.818) | **33/48 (0.688)** | 217,618/10,875,689 (0.0200) | 0.133 | 0.074 |
+
+Recall components are read against the precision beside them, which is the
+whole of what this table says: **detection improved on every axis and precision
+collapsed.** Recall 37/46 to 38/46, headline cell held at 28/32, lead time
+unchanged at +26 with one fewer catch landing late. A worse model catches fewer
+events. This one catches more, at the same lead time, firing twenty times as
+often, so the model is not what got worse.
+
+Lead time, both sets, is unchanged within the resolution of 38 events: median
++26 to +26 and +28 to +26.5, p75 +46 to +46.75 and +47.25 to +46.75, with 5 of
+37 late becoming 4 of 38 and 3 of 36 becoming 2 of 38.
+
+**The adoption number moved the wrong way and that is the serious half.** Rare-
+event false alarms 22/48 to 30/48 and 17/48 to 33/48. `Objective.md` 11 rule 2
+is explicit that a detector alarming at most commanded manoeuvres is muted
+within a week in orbit whatever its recall.
+
+### Per fold, which is where the mechanism shows
+
+The forecast did not improve equally across folds, and the alarm count tracked
+it. Validation MSE is read from each cached fit's embedded training report;
+alarm ranges are the denominators of the per-fold event precision.
+
+```
+  m1-g8.9.10   val MSE pre -> post          alarm ranges pre -> post   recall
+    fold 0     2.745e-4 -> 1.691e-4  (1.6x)      42 ->    73  (1.7x)   13/15 -> 12/15
+    fold 1     1.447e-4 -> 3.552e-6 (40.7x)      90 -> 1,970 (21.9x)   12/15 -> 13/15
+    fold 2     1.599e-4 -> 4.089e-6 (39.1x)      50 -> 1,505 (30.1x)   12/16 -> 13/16
+
+  m1-ss5
+    fold 0     1.709e-4 -> 3.441e-5  (5.0x)      20 ->    26  (1.3x)   13/13 -> 12/13
+    fold 1     9.309e-5 -> 5.205e-6 (17.9x)      20 ->   692 (34.6x)   11/14 -> 13/14
+    fold 2     9.972e-5 -> 8.096e-6 (12.3x)      22 ->   757 (34.4x)   12/15 -> 13/15
+```
+
+**Fold 0 barely improved and barely exploded, on both channel sets.** That is a
+control arm and a treatment arm inside the same run, and it is why the pooled
+figures above must not be read on their own: pooling averages the control into
+the treatment. It was sitting in the artifacts unread until work item 4's
+threshold investigation went looking.
+
+**Artifacts.** Pre-fix `runs/m1-g8.9.10/lstm-telemanom/2026-08-26T212610Z-1f8b6fd6.json`,
+post-fix `runs/m1-g8.9.10/lstm-telemanom/2026-08-27T012552Z-8f48b731.json`.
+Both carry all three folds and both channel sets.
+
+**(!) A provenance defect noticed while reading them.** `RunRecord.git_commit`
+is a `default_factory`, evaluated when each record is constructed rather than
+once at run start, so the pre-fix artifact records `1bf6710` for `m1-g8.9.10`
+and `5bab55e` for `m1-ss5` -- one run, two commits, because it was in flight
+while the repository moved. The artifact path is the unambiguous identifier and
+is what this document cites. Reported, not fixed: it is a harness correctness
+question and `docs/HARNESS.md` requires escalation before a fix.
+
+**The cause, measured.** `docs/DECISIONS.md` D17 and D18, from
+`runs/m1-g8.9.10/_threshold/2026-08-27T*-diagnostics.json`. In one line: the
+forecast improved, the **within-window** standard deviation of the smoothed
+error fell three- to eightfold, the window maximum did not fall with it because
+the residual's tail got *heavier* rather than lighter, so `(max - mu)/sigma`
+rose and a `z` floor of 2.5 that used to be out of reach in 93% of windows is
+now cleared in 80% of them. Each crossing costs at least 199 alarm timesteps
+because `error_buffer = 100` dilates one exceeded sample by +/-99.
+
+**No threshold has been chosen and none will be chosen from this table.** D18
+records why: the best cell of the `z` sweep reaches F0.5 0.794 with zero
+rare-event false alarms, and it is selected by reading scores against 46
+labelled anomalies, which no adopting mission can do.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
@@ -325,7 +429,8 @@ real multi-hour extent.
 | Split | forward chaining, seed 25%, 3 folds -- both sets, so the pair differs in channels alone |
 | Persistence / agreement | 1 / 1 for section 2; swept in section 4 |
 | Thresholds | `lstm-telemanom`: telemanom's nonparametric dynamic threshold, folded into the score so a fixed 1.0 reproduces it. Everything else: label-free 99.9th percentile of each fold's training scores. No oracle sweep |
-| LSTM | 2x80 LSTM, l_s=250, l_p=10, dropout 0.3, Adam 1e-3, early stopping at ~19 of 35 epochs; seed 0, `torch.set_num_threads(4)` pinned; trained in PyTorch, **scored through the plain-NumPy reference** at 4.1e-08 agreement |
+| LSTM | 2x80 LSTM, l_s=250, l_p=10, dropout 0.3, Adam 1e-3; seed 0, `torch.set_num_threads(4)` pinned; trained in PyTorch, **scored through the plain-NumPy reference** at 4.1e-08 agreement |
+| **(!) correction** | This row read "early stopping at ~19 of 35 epochs". **It was never true.** Every cached fit behind the section 2 tables records `epochs_run = 11` and `best_epoch = 0` -- the defect in D17. The figure was written from expectation rather than read from a training report, which is the rule `docs/HARNESS.md` states and which nothing was reading at the time. Corrected here rather than deleted |
 | Seeds | 0; the trivial baselines are deterministic and use none |
 | **Operations measured** | **15 Class B, 1 Class A** for both sets and all five detectors |
 

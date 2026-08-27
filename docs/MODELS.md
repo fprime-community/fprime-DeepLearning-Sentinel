@@ -63,6 +63,9 @@ claim of faithfulness that cannot be audited is worth nothing.
 | 5 | Keras `EarlyStopping`, which stops but does not restore | **Restores the best-validating weights** | Strictly the better estimator. Recorded rather than assumed |
 | 6 | Error window centred on the errors it judges | **Trailing**: threshold chosen from the 2,100 errors *before* a 70-step segment, applied to that segment | See section 1.1. telemanom's windows extend forward, so a timestep is scored partly from errors that had not happened yet. `rstd`, the number we have to beat, is strictly trailing |
 | 7 | Inference over l_s=250 windows from a zero state | **Chunked-parallel streaming**, each chunk warmed by a 250-step zero-initialised prefix | Identical arithmetic. A warmed chunk sees exactly the history telemanom's own windowed inference sees |
+| 8 | `find_epsilon` accepts a candidate only if `score >= max_score` **and** `len(E_seq) <= 5` **and** `len(i_anom) < len(e_s) * 0.5` | **Neither condition is present.** `dynamic_threshold` takes the argmax of the criterion and nothing else | **A defect, not a deviation, and the third of them.** Verified against `khundman/telemanom`, `telemanom/errors.py`. The second condition is a 50% coverage cap: published telemanom rejects outright any candidate that would flag more than half the reference window. Both are invisible while the forecast is poor and few candidates exceed anything, and both bear directly on the failure now under investigation. Found while auditing the criterion for work item 4; measured before anything is changed |
+| 9 | `min_delta = 3e-4`, applied as `current < best_loss - min_delta` | **`min_improvement = 0.001`**, applied as `current < best * (1 - min_improvement)` | The published value is absolute and in the units of the loss. Validation MSE on ESA-ADB is ~1e-4, so the bar went negative and **no epoch after the first ever qualified, for every fit in three work items**. A ratio has no units. `docs/DECISIONS.md` D17 |
+| 10 | `z` swept over the module constant `np.arange(2.5, 12, 0.5)` | **The same range, moved onto `Config`** as `z_floor` / `z_ceiling` / `z_step`, fittable per model | The range is unchanged and remains the default; what changed is that it is no longer a constant of the method. A threshold measured against one model does not suit a better one, so it belongs to the model it was fitted against. `docs/DECISIONS.md` D17, and the Phase 2 consequence in Objective.md 14.10 |
 
 ### 1.1 One deviation was withdrawn, and it would have been fatal
 
@@ -114,9 +117,16 @@ anyway.
 
 **Kept exactly:** `l_s = 250`, layers `[80, 80]`, dropout 0.3 after *each* LSTM,
 MSE loss, Adam at 1e-3, `l_p = 10` predictions aggregated by mean, `epochs = 35`,
-`patience = 10`, `min_delta = 3e-4`, `batch_size = 70`, `smoothing_perc = 0.05`
+`patience = 10`, `batch_size = 70`, `smoothing_perc = 0.05`
 (EWMA window 105), `window_size = 30` giving `h = 2100`, `error_buffer = 100`,
-and pruning at `p = 0.13`.
+pruning at `p = 0.13`, and the z sweep `arange(2.5, 12, 0.5)`.
+
+**(!) `min_delta = 3e-4` was on that list and should not have been.** It is
+deviation 9 now, and it was a *defect* for as long as it sat here: the value was
+transcribed faithfully and it silently disabled training for every model in the
+project. A list headed "kept exactly" is the last place anyone looks for a bug,
+which is most of why it survived three work items. Corrected rather than
+quietly removed, because the correction is the more useful record.
 
 ---
 
@@ -238,8 +248,32 @@ a coverage check and is stamped UNDERPOWERED wherever it appears.
 
 ### OBSERVED
 
-*Not yet run. This section is filled in after the run and beside the prediction
-above, never in place of it.*
+Filled in beside the prediction above, never in place of it. **Both generations
+are given**, because the run that tested the prediction was made with weights
+that were trained for one epoch (`docs/DECISIONS.md` D17) and the corrected
+weights answer several of these differently. `docs/RESULTS.md` section 6a is the
+side-by-side record; the artifacts are named there.
+
+| Prediction | Pre-fix | Post-fix | Verdict |
+|---|---|---|---|
+| **F0.5 on `m1-g8.9.10` clears `rstd`'s 0.250** | **0.269** | **0.026** | **Held, then lost.** It cleared the floor by 0.019 with a one-epoch model and fell an order of magnitude below it once the model was trained. The floor is a two-line rolling standard deviation |
+| **Headline-cell recall above `rstd`'s 3/32** | 28/32 | 28/32 | **Held, decisively, and it is the project's thesis.** A per-channel statistic finds three; a forecaster over the channel set finds twenty-eight, at 0.231 and 0.021 precision respectively |
+| **Rare-event false alarms low, near `rstd`'s 1/48** | 22/48 | 30/48 | **Wrong, and wrong by a lot.** Trigger 3 fired: the prediction's own stop-and-report threshold was `mavg`'s 10/48 |
+| **`m1-ss5` may lose to `mavg`'s 0.135** | 0.664 | 0.035 | **Wrong pre-fix, right post-fix**, for a reason the prediction did not contain: not the spiky regime suiting a per-channel method, but the threshold collapsing |
+| **`lstm-quantile` loses to `lstm-telemanom`** | 0.421 vs 0.269 | not re-run | **Wrong on F0.5, right on the thing that matters.** Trigger 2 fired and was reported: the quantile branch wins F0.5 and is structurally late, and is closed on that ground (`docs/DECISIONS.md` D13) |
+
+**Two of three stop-and-report triggers fired, and both were reported rather
+than absorbed.** Trigger 1 -- F0.5 below 0.250 -- did not fire on the run the
+prediction was written for and **does fire now**, at 0.026. That is what work
+item 4's threshold investigation exists to explain, and it is recorded here
+rather than in a commit message because a pre-registration that only records
+the triggers that fired conveniently is not one.
+
+**What the prediction got wrong about itself.** Every row above was framed on
+the assumption that a better forecaster would produce better detection. The
+post-fix column is the counter-example: the forecast improved about fortyfold
+and every precision-bearing number got worse, because the decision rule
+downstream was calibrated against residuals that no longer exist.
 
 ---
 
