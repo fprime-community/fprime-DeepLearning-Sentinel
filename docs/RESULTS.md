@@ -408,6 +408,21 @@ labelled anomalies, which no adopting mission can do.
 
 ## 6b. The order-statistic arms, as a curve across admission rates
 
+> **(!) PROVISIONAL, 2026-08-27. These numbers were computed against a
+> contaminated calibration pool and may not survive its correction.**
+>
+> Every multiplier below was fitted on the fitting window's residuals, which the
+> code and this document both described as normal-only. `splits.train_mask`
+> removes annotated anomalies before the **fit**; it is not applied to the
+> **scoring call** the calibration reads (`harness._score_fold`). So the
+> 99.9th-percentile floor was set partly by the anomalies inside the fitting
+> window -- pushed up by the events it exists to catch.
+>
+> The conclusion most at risk is *the floor dominates every window*, which was
+> read as a finding about the two-term design and may be an artifact of the bug.
+> The curve is being re-run on a clean pool; both readings will be kept, neither
+> deleted. `docs/NARRATIVE.md` section 6 carries the defect.
+
 Nine cells: three calibrations across three nominal admission rates, both channel
 sets, all folds, cached weights, nothing fitted. 45 Class B. Artifacts
 `runs/m1-g8.9.10/_curve/2026-08-27T2011*Z-*.json`. Pre-registered in

@@ -111,7 +111,7 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Eight times now, a cheap measurement has changed a decision that
+produced. Nine times now, a cheap measurement has changed a decision that
 looked settled without it. Two of the last three refuted a hypothesis rather
 than replacing one, which is the harder thing for a measurement to be able to
 do -- and one of them refuted the *instrument*, which is harder still.
@@ -194,6 +194,50 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+**A threshold calibrated on "nominal" data that was not nominal, and it
+contaminated two separate results before anything caught it.**
+
+Two detection rules in a row fit their operating point on the fitting window's
+residuals, and both documents and both docstrings said the same thing: *the
+fitting window is normal-only by construction, `splits.train_mask` removes
+annotated anomalies*. That sentence is true of **fitting** and false of the
+**scoring call** the calibration hooks. From `harness._score_fold`:
+
+```
+  usable = train_mask(fold, truth)[train_lo:train_hi]
+  detector.fit(bundle.values[train_lo:train_hi], usable, context)     # mask applied
+  train_raw = detector.score(bundle.values[train_lo:train_hi], ...)   # mask NOT applied
+```
+
+So a 99.9th-percentile threshold meant to admit one nominal timestep in a
+thousand was set partly by the anomalies inside the fitting window -- the largest
+excursions in the sample, sitting at exactly the end of the distribution the
+quantile reads. **The threshold was pushed up by the events it exists to catch.**
+
+It surfaced on the whitened-residual stage, which went silent: 0/48 rare-event
+false alarms and headline-cell recall of 2/32 against the reproduced telemanom's
+28/32, firing ten times in eleven million timesteps. Reported as a *broken
+measurement* rather than as that design failing, because it does not test that
+design.
+
+**The reason it matters is what it did to a result already recorded.**
+`lstm-oscfar`'s floor was fitted on the same contaminated pool, so the "the floor
+dominates every window" conclusion in `docs/RESULTS.md` section 6b -- which was
+read as a finding about the two-term design -- is partly an artifact of this bug.
+That section is marked provisional until the curve is re-run on a clean pool. Not
+to reopen a closed branch, but because **a conclusion that may not survive a fix
+should not sit in the record as though it had.**
+
+Same family as the rest of section 6: a number that was not what the document
+said it was. What is different is the blast radius. A wrong constant produces one
+wrong result; a wrong *calibration pool* silently rescales every threshold fitted
+from it, and it had been quoted in two documents and two designs before anything
+looked. The check that would have caught it existed and was not run -- for a
+whitened twelve-dimensional residual the length should sit near `sqrt(12) = 3.5`,
+and the fitted thresholds were **25.7 to 36.3**. That arithmetic takes a minute
+and it is now an assertion in the code, so a broken whitening cannot score
+silently again.
 
 **A pre-registered falsification condition would have passed the failure it was
 written to catch, and that is the most transferable thing this run produced.**
