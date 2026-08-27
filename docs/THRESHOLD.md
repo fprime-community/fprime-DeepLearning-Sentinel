@@ -11,6 +11,12 @@ it refuted.
 Artifacts: `runs/m1-g8.9.10/_threshold/2026-08-27T172004Z-diagnostics.json` and
 `-windows.npz`. Script: `scripts/threshold_diagnostics.py`.
 
+*The run was made twice: the second retains the per-candidate decomposition in
+section 5, which the first did not. Every array in the two is identical, so the
+superseded pair was dropped rather than kept -- 109 MB of duplicate per-window
+arrays is not a result being preserved, it is the same result written twice. The
+kept JSON is a strict superset of the one removed.*
+
 ---
 
 ## 1. The question

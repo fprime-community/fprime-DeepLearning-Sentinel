@@ -111,8 +111,10 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Six times now, a cheap measurement has changed a decision that looked
-settled without it.
+produced. Seven times now, a cheap measurement has changed a decision that
+looked settled without it -- and the seventh is the one that refuted a
+hypothesis rather than replacing one, which is the harder thing for a
+measurement to be able to do.
 
 **Reporting `k/n` instead of bare rates showed the samples were far smaller than
 the percentages implied.** "Recall 0.36" over eleven events takes twelve possible
@@ -143,6 +145,56 @@ times wider. And `rstd` -- the floor the entire work item was measured against -
 came in at **-1,512**. The floor was never an early-warning detector, and that was
 unknowable before the metric existed.
 
+**A hypothesis stated confidently in the handover brief was wrong, and so was
+the one that replaced it.** The brief for the threshold investigation named a
+cause: the residual distribution had moved from heavy-tailed model bias to
+near-Gaussian irreducible noise, so a criterion built to find outliers in
+structured error had nothing left to find. Auditing the criterion against
+published telemanom then turned up a better candidate -- two admissibility
+conditions we do not have, one of them a 50% coverage cap that rejects outright
+any threshold flagging more than half its reference window. That looked like the
+whole answer, and it was put first in the plan.
+
+**It binds on zero of 5,684,580 windows.** The alarm count under published
+telemanom's own rule is identical in every fold of both channel sets. And the
+residual had not become Gaussian: excess kurtosis of the signed residual went
+27.3 to **6,754.6** on one fold. Both hypotheses failed, and what the
+measurement found instead was a **cross-stage coupling** neither of them
+contained -- `error_buffer`, a smoothing parameter, pinning the denominator the
+threshold's selection criterion is supposed to trade against. `docs/THRESHOLD.md`
+carries the measurement; `docs/DECISIONS.md` D17 and D18 carry what it settled.
+
+**The part worth teaching is that the test was built so it could say no.** The
+guard counterfactual would have been just as easy to run in a form that could
+only confirm -- take a sample of windows where the selector chose the floor, show
+that the coverage cap would have rejected that choice, and stop. Instead it
+evaluated **every** candidate in **every** window on the real path, recorded the
+guard flags whether or not they fired, and reported the binding rate as a
+measurement rather than as an illustration. The confirming-only version costs
+the same and cannot produce a zero.
+
+The same design decision runs through the rest of it. The selected `z` was
+recovered as `(eps - mu)/sigma` from the live function's own output rather than
+recomputed, so the distribution is the scored one and not a reconstruction of
+it. Every window asserted that this file's unguarded selection reproduced
+`telemanom.dynamic_threshold` exactly, so a mismatch aborted the run rather than
+producing a plausible number about a function nobody scores. And fold 0 -- which
+improved 1.6x where the others improved 40x -- was read as a **control arm**
+rather than as an outlier, which is the only reason "better forecast causes the
+alarm explosion" is an association in the data rather than a story about it.
+
+Two smaller things from the same investigation, recorded because they are the
+same discipline applied to smaller stakes. The handover brief listed four
+metrics that moved and omitted that the **adoption number moved the wrong way on
+both channel sets** -- rare-event false alarms 22/48 to 30/48 and 17/48 to 33/48
+-- which is the figure Objective.md 11 rule 2 says decides whether a mission
+flies this at all, and which should have led. And a set of illustrative figures
+written into an options mock-up while planning the work were read back as though
+they were data. They were not measured, they were placeholders showing a table's
+shape, and they were corrected in the open before anything was built on them.
+**An illustrative figure is still a figure**, which is exactly what the rule
+below says.
+
 **And once, the failure mode occurred inside the document arguing against it.**
 Filling the lead-time column of `docs/RESULTS.md`, two baseline figures were
 written from expectation rather than read from the run artifacts: `rstd` as `+2`
@@ -159,7 +211,8 @@ so.
 
 Each of these was nearly free. A denominator beside a rate. A histogram of event
 lengths. Four injected anomalies at different durations. Keeping a table instead
-of replacing it. One subtraction per caught event.
+of replacing it. One subtraction per caught event. Two extra boolean columns in
+a table that was being computed anyway.
 
 Each changed a decision.
 

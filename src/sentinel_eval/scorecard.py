@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 
 from . import HARNESS_VERSION
 from .metrics.counts import Count
@@ -30,7 +31,21 @@ from .metrics.falsealarm import FalseAlarmScore
 from .metrics.leadtime import LeadTimeScore
 
 
+@lru_cache(maxsize=1)
 def git_commit() -> str:
+    """The commit this process is running, resolved **once**.
+
+    It was a plain function behind a ``default_factory``, so it re-ran for every
+    `RunRecord` a run constructed -- one per channel set. A paired run takes long
+    enough that the repository can move underneath it, and one did: the artifact
+    `runs/m1-g8.9.10/lstm-telemanom/2026-08-26T212610Z-1f8b6fd6.json` records
+    `1bf6710` for `m1-g8.9.10` and `5bab55e` for `m1-ss5`. One run, one set of
+    weights, one bundle, two provenance stamps.
+
+    A run has one provenance, not one per record, so the value is cached for the
+    life of the process. Nothing about a metric changes; what changes is that the
+    artifact can no longer disagree with itself about which code produced it.
+    """
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True, check=False)

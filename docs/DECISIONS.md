@@ -831,3 +831,43 @@ published telemanom's rule is identical everywhere. The omission stays in the
 deviation ledger as a real defect (`docs/MODELS.md` deviation 8) and is not the
 cause. Restoring it would move no number, which is a good reason to restore it
 for faithfulness and no reason at all to expect it to help.
+
+---
+
+## D19. A run has one provenance, not one per record
+
+**DATE** 2026-08-27 | **STATUS** resolved
+
+**CONTEXT.** `RunRecord.git_commit` was `field(default_factory=git_commit)` over
+a plain function, so it re-ran for every record a run constructed -- one per
+channel set. Found while reading the pre-fix artifacts to build
+`docs/RESULTS.md` section 6a.
+
+**ALTERNATIVES.** Leave it and note the discrepancy in the document. Stamp the
+commit in `cli.py` and pass it down. Cache the resolution for the process.
+
+**EVIDENCE.** `runs/m1-g8.9.10/lstm-telemanom/2026-08-26T212610Z-1f8b6fd6.json`
+stamps `1bf6710` on the `m1-g8.9.10` record and `5bab55e` on the `m1-ss5` record.
+One invocation, one bundle, one set of weights, two answers to *which code
+produced this*. The run spanned a commit because a paired run takes long enough
+to.
+
+**CONSEQUENCE.** `git_commit` resolves once per process (`lru_cache(maxsize=1)`).
+A correctness fix, escalated and authorised before being made, per
+`docs/HARNESS.md`.
+
+**No number moves, and that is worth stating rather than assuming.** The field
+is provenance, not a measurement: no metric reads it, no scorecard derives from
+it, and the obligation to record both numbers when a fix moves a published one
+therefore has nothing to record. What was broken is the ability to trust a
+stamp, which is the only thing a stamp is for.
+
+Existing artifacts are **not rewritten**. The pre-fix artifact keeps its two
+commits and `docs/RESULTS.md` section 6a says so, because an artifact edited
+after the fact is worth less than one that carries its own defect visibly. The
+artifact path is the unambiguous identifier and is what the documents cite.
+
+`tests/test_run_provenance.py` reproduces the defect directly -- HEAD moving
+between the two records of a pair -- rather than asserting the cache exists,
+because a test that pins the mechanism instead of the behaviour passes for the
+wrong reasons later.
