@@ -519,7 +519,29 @@ Per segment, from its trailing reference window `R` and the nominal residual poo
 | Quantity | Fitted from | Why a mission can do this |
 |---|---|---|
 | `p`, the quantile rank | bounded below the measured contamination rate -- 53 exceedances in 2,170 samples, 2.4% -- so a rank near 0.75 is far under the breakdown point | read from its own residuals |
-| `alpha`, `beta` | the **nominal alarm budget in timesteps**, on the fitting window's residuals | it states what its operators can act on (`docs/RESEARCH.md`: ISA-18.2, EEMUA 191). It has no failures to fit to |
+| `alpha`, `beta` | the **nominal alarm budget**, on the fitting window's residuals | it states what its operators can act on (`docs/RESEARCH.md`: ISA-18.2, EEMUA 191). It has no failures to fit to |
+
+**The budget is not a number invented for this run.** It is the operating point
+this project already uses and has used since the first baseline:
+`sentinel_eval.detector.DEFAULT_THRESHOLD_QUANTILE = 0.999`, the label-free
+99.9th percentile of training scores that every trivial baseline and
+`lstm-quantile` are scored at. Applying the same convention here rather than
+choosing a fresh target is what stops the budget becoming a free parameter fitted
+by eye. Concretely, per channel, on the fitting window's residuals under the same
+weights:
+
+```
+  floor  =  Q_0.999( e_s )                        the existing convention, unchanged
+  alpha  =  Q_0.999( e_s / Q_p(R) )               the same convention, applied to
+                                                  the LOCALLY NORMALISED error
+  eps(t) =  max( alpha * Q_p(R(t)) , floor )
+```
+
+So the two multipliers are one idea used twice, and every constant in the rule
+traces to a quantile already committed to this repository. `alpha` is estimated
+from a sample of nominal segments rather than the whole fitting window, because
+running the full local rule over 10.8M steps to fit one scalar is the cost the
+NDT short-circuit exists to avoid.
 
 **No labelled anomaly enters the fit.** The fitting window is normal-only by
 construction -- `splits.train_mask` removes annotated anomalies -- and the target
@@ -605,6 +627,41 @@ parameter and a threshold rule together would confound them.
 4. **Fold 0 moving as much as folds 1 and 2.** The control behaving like the
    treatment means the mechanism in D17 is not what is being addressed, and the
    result would be uninterpretable whichever way the numbers fell.
+5. **Median lead time below +15 on folds 1 or 2, on either channel set** -- even
+   though positive, and even though D9 only disqualifies a negative one.
+
+**Why trigger 5 exists and why +15.** D9 draws one line, at zero. Between "still
+positive" and "too expensive" there was nothing, so a configuration landing at
++8 would have its acceptability judged **while looking at the result**, which is
+the one thing this project refuses everywhere else. The number is therefore set
+here, before the run, and it is read from an artifact rather than chosen:
+
+> **+15 is the current 25th percentile.**
+> `runs/m1-g8.9.10/lstm-telemanom/2026-08-27T012552Z-8f48b731.json` records
+> `p25 = 15.25` on `m1-g8.9.10` and `15.25` on `m1-ss5`, against medians of
+> `+26.0` and `+26.5`.
+
+A median that has fallen to where the first quartile used to be means **the
+typical detection is now as late as the worst quarter used to be**. That is a
+change in kind rather than a cost worth absorbing quietly, and it is reported
+before anything is decided. Per-fold post-fix medians are `+18 / +22 / +36` on
+`m1-g8.9.10`, so folds 1 and 2 have `+7` and `+21` of room; fold 0 sits near the
+line already and is reported rather than triggered on, because it is the control.
+
+### 10.6a (!) How to read a favourable lead-time result from this run
+
+**A good lead-time number from this run is not clean, and must not be reported as
+though it were.** `error_buffer = 100` widens every exceedance by +/-99 before
+alarm ranges are formed, and lead time is measured from a range's start -- so up
+to 99 timesteps of any figure here may be the buffer rather than the detector,
+against a budget of +26 (`docs/DECISIONS.md` D21, `docs/HARNESS.md` section 1).
+The dilation is nearly four times the whole number being defended.
+
+This cuts both ways and that is the point. A result clearing +15 does not
+establish that the rule detects early; it establishes that it clears +15 **under
+the same unmeasured term as every figure it is being compared against**. The
+comparison is sound; the absolute claim is not, until D21's measurement lands.
+Every lead-time figure from this run carries that sentence.
 
 ### 10.7 OBSERVED
 
