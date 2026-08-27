@@ -124,6 +124,14 @@ class Config:
     z_ceiling: float = Z_CEILING
     z_step: float = Z_STEP
 
+    #: Exclude the judged segment from the window the threshold is derived from.
+    #: **Default False, which is the behaviour every published number was
+    #: measured under.** True is the CFAR guard-cell arrangement: the scale
+    #: estimate is taken from reference cells only and then applied to the cells
+    #: under test, so a sustained event cannot raise the bar it has to clear.
+    #: Measured as an arm of docs/MODELS.md section 10 rather than assumed.
+    guard_segment: bool = False
+
     @property
     def z_values(self) -> np.ndarray:
         """The sweep, from this configuration rather than a module constant."""
@@ -136,7 +144,7 @@ class Config:
                 "error_buffer": self.error_buffer,
                 "pruning_p": self.pruning_p,
                 "z_floor": self.z_floor, "z_ceiling": self.z_ceiling,
-                "z_step": self.z_step}
+                "z_step": self.z_step, "guard_segment": self.guard_segment}
 
 
 # -- smoothing --------------------------------------------------------------
@@ -214,6 +222,21 @@ def _buffered(mask: np.ndarray, buffer: int) -> list[tuple[int, int]]:
         else:
             merged.append((lo, hi))
     return [(lo, hi) for lo, hi in merged if hi - lo > 1]
+
+
+def sequences_at(e_s: np.ndarray, eps: float, config: Config) -> list[tuple[int, int]]:
+    """The buffered, merged runs of ``e_s`` at or above a threshold chosen elsewhere.
+
+    :func:`dynamic_threshold` derives ``eps`` and finds its sequences in one pass
+    over one array, which is right when the two are the same array. Under
+    ``guard_segment`` they are not: the threshold comes from reference cells that
+    exclude the segment, and is then applied to the segment. Factored out rather
+    than duplicated so both paths dilate and merge identically.
+    """
+    above = np.asarray(e_s) >= eps
+    if not above.any():
+        return []
+    return _buffered(above, config.error_buffer)
 
 
 def dynamic_threshold(e_s: np.ndarray, config: Config
@@ -364,7 +387,14 @@ def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
         window = e_s[reference_lo:seg_hi]
         offset = seg_lo - reference_lo          # where the judged segment starts
 
-        eps, sequences = dynamic_threshold(window, config)
+        if config.guard_segment and offset > 0:
+            # Guard cells: the scale estimate sees reference cells only, and the
+            # threshold it yields is then applied to the cells under test. The
+            # segment can no longer contribute to the bar it has to clear.
+            eps, _ = dynamic_threshold(window[:offset], config)
+            sequences = sequences_at(window, eps, config)
+        else:
+            eps, sequences = dynamic_threshold(window, config)
         if eps > 0:
             raw[seg_lo:seg_hi] = e_s[seg_lo:seg_hi] / eps
         if not sequences:

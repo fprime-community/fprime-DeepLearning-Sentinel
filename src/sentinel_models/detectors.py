@@ -40,7 +40,7 @@ import numpy as np
 
 from sentinel_eval.detector import Detector
 
-from . import reference, telemanom
+from . import oscfar, reference, telemanom
 from .lstm import Hyper, train
 from .reference import LayerWeights, ReferenceError, Weights
 from .windows import DEFAULT_DECAY_STEPS, aggregate_predictions, command_features
@@ -484,6 +484,106 @@ class ForecastDetector(Detector):
             column[:] = column[index]
             column[np.isnan(column)] = self._fill[c]
         return filled
+
+
+class TelemanomGuarded(ForecastDetector):
+    """telemanom's rule with CFAR guard cells. The variant, not the baseline.
+
+    The reference window excludes the segment it judges, so a sustained event
+    cannot raise the bar it has to clear. `docs/MODELS.md` deviation 6 records
+    that our window is `e_s[seg_lo - 2100 : seg_hi]` -- 2,170 samples with the
+    judged segment inside -- which is the guard-cell violation
+    `docs/RESEARCH.md` describes from radar practice, now confirmed in our own
+    code. Measured as an arm rather than assumed either way.
+    """
+
+    name = "lstm-telemanom-guarded"
+
+    def __init__(self, **kwargs) -> None:
+        config = kwargs.pop("config", None) or telemanom.Config()
+        super().__init__(config=type(config)(**{**vars(config), "guard_segment": True}),
+                         **kwargs)
+
+
+class OSCFARDetector(ForecastDetector):
+    """A local order statistic under a nominal floor. `sentinel_models.oscfar`.
+
+    Same forecaster, same cached weights, same folds, same bundle as
+    `lstm-telemanom`. **The decision rule is the only thing that differs**, which
+    is what made the telemanom/quantile pair informative and is the only way this
+    pair can be.
+
+    Pre-registered in `docs/MODELS.md` section 10 before its first run, including
+    the condition that falsifies it: if the local term binds in fewer than 10% of
+    segments, the floor is doing all the work and this is a rediscovery of
+    `lstm-quantile` rather than a new rule.
+    """
+
+    name = "lstm-oscfar"
+
+    def __init__(self, *, config: oscfar.Config | None = None, **kwargs) -> None:
+        kwargs.pop("mode", None)
+        super().__init__(config=config or oscfar.Config(), mode=NDT, **kwargs)
+        self.calibration: oscfar.Calibration | None = None
+        self.binding = None
+
+    def fit(self, values, usable, context) -> None:
+        # A calibration belongs to the fit that produced it; carrying one across
+        # folds would be the stale-checkpoint failure in a different costume.
+        self.calibration, self.binding = None, None
+        super().fit(values, usable, context)
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if context.window == self._fit_window and self.calibration is None:
+            # The harness scores the fitting window before the test window, to
+            # derive an operating point. That window is normal-only
+            # (`splits.train_mask`), so it is exactly the nominal pool both
+            # multipliers are fitted on -- and its forecast is being computed
+            # here anyway, so the calibration is free.
+            nominal = self._smoothed_errors(np.asarray(values), context)
+            self.calibration = oscfar.calibrate(nominal, self.config)
+        return super().score(values, valid, context)
+
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
+        if self.calibration is None:
+            raise ReferenceError(
+                f"{self.name} scored a window before it was calibrated. The "
+                f"harness scores the fitting window first and that is where the "
+                f"nominal pool comes from; a caller driving the detector directly "
+                f"must do the same."
+            )
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               _digest(self.calibration.alpha, self.calibration.floor), self.mode)
+        cached = _TOPS.get(key)
+        if cached is not None:
+            return cached
+
+        smoothed = self._smoothed_errors(values, context)
+        top, who, binding = oscfar.top_ratios(smoothed, self.config, self.calibration,
+                                              depth=MAX_AGREEMENT)
+        self.binding = binding
+        del smoothed
+        result = (top, who)
+        cost = top.nbytes + who.nbytes
+        held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
+        while _TOPS and held + cost > TOPS_CACHE_BYTES:
+            evicted = _TOPS.pop(next(iter(_TOPS)))
+            held -= evicted[0].nbytes + evicted[1].nbytes
+        if cost <= TOPS_CACHE_BYTES:
+            _TOPS[key] = result
+        return result
+
+
+class OSCFARGuarded(OSCFARDetector):
+    """The proposed rule with CFAR guard cells. The fourth arm."""
+
+    name = "lstm-oscfar-guarded"
+
+    def __init__(self, *, config: oscfar.Config | None = None, **kwargs) -> None:
+        config = config or oscfar.Config()
+        super().__init__(config=type(config)(**{**vars(config), "guard_segment": True}),
+                         **kwargs)
 
 
 class TelemanomQuantile(ForecastDetector):

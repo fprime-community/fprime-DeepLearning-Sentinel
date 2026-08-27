@@ -39,6 +39,9 @@ BUILDERS = {
     "random": baselines.RandomScore,
     "lstm-telemanom": _trained("ForecastDetector"),
     "lstm-quantile": _trained("TelemanomQuantile"),
+    "lstm-oscfar": _trained("OSCFARDetector"),
+    "lstm-telemanom-guarded": _trained("TelemanomGuarded"),
+    "lstm-oscfar-guarded": _trained("OSCFARGuarded"),
     "lstm-commanded": _trained("TelemanomCommanded"),
     "lstm-smoke": _trained("TelemanomSmoke"),
 }
