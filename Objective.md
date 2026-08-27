@@ -216,6 +216,43 @@ statistics. Cost is a fixed sequence of matrix multiplies and elementwise nonlin
 ~thousands of parameters - trivial on Linux-class flight processors (Ingenuity flew F' on a
 Snapdragon-class part). Envelope measured explicitly in Phase 4.
 
+### 4.4 (!) What is built, and what section 4.2 describes but does not exist
+
+**Added 2026-08-27, because otherwise this document describes a system we do not
+have.** Measured by inspecting every stage between the forecast and the alarm
+(docs/MODELS.md section 11, docs/DECISIONS.md D23).
+
+**The forecaster is multivariate. The decision layer is not.** One model predicts
+every channel from every channel, which is why 28 of 32 cross-channel events are
+caught. Everything after that point sees C independent error series: smoothing,
+thresholding, sequence-finding, pruning and persistence each take **one channel
+at a time**. The k-of-n channel agreement is the only stage that looks at more
+than one, and what it tests is **co-occurrence, not relationship** -- k channels
+simultaneously over their own individual thresholds is not the claim that the
+relationship between them broke.
+
+> **The cross-channel claim currently rests entirely on the forecaster. The
+> decision layer is blind to what the forecaster learned.**
+
+That is not a neutral gap. **A commanded manoeuvre makes several channels
+individually surprising at once, which is exactly what k-of-n rewards, and it is
+nominal** -- so the one stage meant to recover cross-channel structure recovers
+the kind that generates false alarms. The adoption number and the thesis are
+failing at the same place, for the same reason.
+
+**And the explanation layer in section 7 does not exist.** Section 7 promises a
+"learned map of which channel pairs move together, including time-lagged", and
+section 4.2 shows its output -- `BattTemp / ChargeCurrent decoupled at 14:32`, a
+named *pair*. What is implemented is `last_attribution`: the index of the single
+channel with the largest error at each timestep, which is not written to any
+artifact. No pair map, no lag map, no covariance exists anywhere in `src/`.
+Naming a channel is not naming a relationship, and section 11 rule 4 -- every
+warning explainable -- rests on the difference.
+
+Neither is a defect in what was built; both are things that were assumed built
+because this document says so. What a relationship-testing stage would require is
+scoped in docs/MODELS.md section 12. **Nothing is decided.**
+
 **5 - Warn, never act.** Output is a standard F' event:
 
 ```
@@ -342,7 +379,7 @@ Three mechanisms turn a raw error signal into an operator-grade warning:
 |---|---|---|
 | **Persistence filter** | Signal must survive N consecutive cycles | Suppresses blips; a single weird sample is ignored. **Measured as subsumed on the LSTM - see below. Retained.** |
 | **Trend projection** | Rolls forecast forward against dictionary limits | Turns "something's off" into "crosses RED_LO in ~4h" |
-| **Explanation layer** | Learned map of which channel pairs move together, including time-lagged | Names the break, so the warning is **auditable, not a score** |
+| **Explanation layer** | Learned map of which channel pairs move together, including time-lagged | Names the break, so the warning is **auditable, not a score**. **(!) NOT BUILT -- see 4.4.** What exists is the index of the single largest-error channel, which is not persisted. Naming a channel is not naming a relationship |
 
 The explanation layer is what makes warnings actionable. An operator can pull up the two named
 channels and judge the claim in seconds. `anomaly: 0.87` is unactionable and gets ignored.

@@ -1133,6 +1133,29 @@ better answer than any threshold, because it expresses the thesis instead of
 working around it.
 
 Recorded as open because the alternative -- a decision stage that tests
-relationships rather than magnitudes -- is a design question for the architecture
-gate and not a tuning knob, and it should not be answered inside a run measuring
-something else.
+relationships rather than magnitudes -- is a design question and not a tuning
+knob, and it should not be answered inside a run measuring something else. Scoped
+in `docs/MODELS.md` section 12; stated in Objective.md 4.4, because a document
+that describes a capability the code does not have is worse than one that admits
+the gap.
+
+**Two things the scoping established that change the shape of this entry.**
+
+**The information is discarded, not absent.** A relationship *is* visible in the
+residual vector -- it is a direction in `R^C` that nominal data does not visit --
+and what destroys it is `np.abs()` at `detectors.py:410` taking the sign off,
+then twelve marginal thresholds that cannot express a covariance. Both channels
+rising together and one rising while the other falls become the same number, and
+that difference is the whole of the relationship. So the cheapest shape -- a
+nominal residual covariance, **144 floats at C=12** against 91,640 model
+parameters -- is a fixed matrix multiply with no state, and it down-weights
+exactly the commanded manoeuvres that `k`-of-`n` rewards.
+
+**And the explanation layer does not exist.** Objective.md 7 has promised "a
+learned map of which channel pairs move together, including time-lagged" since
+day one, and 4.2 shows its output as a named *pair*. What is implemented is
+`last_attribution`, the index of the largest-error channel, and it is not written
+to any artifact. **Naming a channel is not naming a relationship**, and
+Objective.md 11 rule 4 -- every warning explainable -- rests on that difference.
+It was assumed built because the objective says so, which is the same failure as
+D17's missing entry in a different register.

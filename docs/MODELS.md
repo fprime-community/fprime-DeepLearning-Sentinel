@@ -918,3 +918,100 @@ costs and buys **on the new residuals**: alarm count, headline-cell recall, and
 lead time, per fold, both channel sets. If agreement recovers precision without
 costing headline-cell recall, that is a better answer than any threshold, because
 it is the one that expresses the thesis rather than working around it.
+
+---
+
+## 12. Scoping a relationship-testing stage
+
+**A scope, not a design, and nothing here is decided.** Prompted by section 11
+and `docs/DECISIONS.md` D23: the decision layer cannot see what the forecaster
+learned, and the one stage that looks across channels tests the wrong thing.
+
+### 12.1 One premise worth correcting first
+
+The natural reading is that a relationship test cannot come from residuals,
+because residuals are per-channel by construction. **That is not quite right, and
+the difference decides how much work this is.**
+
+The residual *vector* `r_t` in R^C is jointly informative even when every
+component is unremarkable on its own. A broken relationship is a **direction** in
+residual space that nominal data does not visit -- one channel up while its
+group-mate is flat -- and that direction exists in the residuals we already
+compute. What destroys it is not the residual; it is what happens next:
+
+| Where | What is lost |
+|---|---|
+| `detectors.py:410`, `np.abs(filled - forecast)` | **the sign.** Both channels rising together and one rising while the other falls become the same number, and that difference *is* the relationship |
+| per-channel smoothing and thresholding | **the joint distribution.** Twelve marginals cannot express a covariance |
+| `top_ratios` | **the pattern.** It counts how many channels exceeded, not which, nor in what combination |
+
+So the information is discarded by the decision layer, not absent from the
+forecaster. That is the cheaper diagnosis and it should be stated before anything
+is built.
+
+### 12.2 What the forecaster already provides
+
+- **Signed residuals**, at no extra forecast cost. The harness already scores the
+  fitting window, so nominal residual statistics are free where they are computed
+  today -- `scripts/threshold_diagnostics.py` already keeps the signed residual.
+- **A normal-only fitting window** (`splits.train_mask`), which is the sample any
+  nominal covariance or pair map would be estimated from. Label-free.
+- **Nothing else.** No covariance, no pair map, no lag structure, no persisted
+  attribution.
+
+### 12.3 Three shapes, cheapest first
+
+**A. Whitened residual (Mahalanobis).** Estimate the nominal residual covariance
+`S` (C x C) on the fitting window; score `r_t' S^-1 r_t`. One number per timestep
+that is a genuine relationship test: a residual consistent with normal
+co-variation scores low **even when large**, and one orthogonal to it scores high
+**even when small**.
+
+- *Adds:* a C x C matrix. **144 floats at C=12** -- against 91,640 model
+  parameters, it is rounding error in `model.bin`, and in flight it is a fixed
+  matrix multiply with no state.
+- *Why it targets the actual failure:* a commanded manoeuvre moves channels
+  together in a learned pattern, so its residual lies **along** a high-variance
+  direction of `S` and is down-weighted -- exactly where k-of-n rewards it.
+- *Cost:* keeping the sign, and a new detector. Both additive.
+- *Limit:* it tests **linear** co-variation and it names nothing. It would
+  improve detection without satisfying section 11 rule 4.
+
+**B. Lagged pair map -- the explanation layer section 7 promises.** For each pair
+and each lag, the nominal relationship; at runtime, compare a windowed estimate
+against it and name the pair whose agreement broke.
+
+- *Adds:* a `C x C x L` map, and a windowed correlation per cycle. At C=12 and a
+  modest lag set this is still small, but it is **real new work** and the runtime
+  cost is no longer trivial.
+- *This is the only shape that produces `BattTemp / ChargeCurrent decoupled`.*
+  It is what makes a warning auditable rather than a score.
+
+**C. Direction-only test.** Keep the sign and ask whether the residual direction
+falls in a nominal cone. Cheapest, weakest, and mostly a degenerate case of A.
+
+### 12.4 Phase 1, or the architecture gate
+
+**Recorded as a recommendation with its reasoning, for someone else to decide.**
+
+**A looks like a Phase 1 item.** It is small, label-free, additive, and it aims
+directly at the number that decides adoption. It changes no existing metric and
+adds one detector beside `lstm-telemanom`.
+
+**B looks like an architecture-gate-or-later item.** It is a product capability
+rather than detection mathematics, its runtime cost needs the Phase 4 envelope,
+and its output format is a Phase 2 decision.
+
+**And one constraint binds both, from Objective.md 10.2's own argument.** The
+Phase 1 gate asks *which forecaster architecture*. Adding a decision stage while
+comparing LSTM, GRU and TCN makes the comparison unattributable -- the same
+reason Phase 1 stays single-instance. So whatever is adopted must be **fixed
+before the gate and held identical across all three**, or deferred past it
+entirely. It cannot land in the middle.
+
+**A competing answer already exists and is unmeasured.** `lstm-commanded` (D6)
+attacks the same false-alarm number by giving the model the input that makes
+commanded events predictable, and its ablation has never been run against
+post-fix weights. Whether a relationship stage is needed *in addition* to command
+conditioning is not established, and building both before measuring either would
+repeat the mistake this section exists to prevent.
