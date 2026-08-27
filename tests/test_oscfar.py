@@ -144,3 +144,53 @@ def test_the_guarded_window_excludes_the_segment_and_the_plain_one_does_not():
     guarded = len(range(max(0, seg_lo - span), seg_lo))
     assert plain == span + stride == 2170
     assert guarded == span == 2100
+
+
+# -- the calibration error the first run made, and its correction ------------
+def test_independent_calibration_admits_less_than_it_was_asked_for():
+    """The arithmetic error, pinned so it cannot come back unnoticed.
+
+    Two thresholds each admitting r, combined with max(), admit far less than r.
+    That is what ran in the first `lstm-oscfar` pass: the rule was far quieter
+    than its budget asked, the floor dominated every window, and the result was
+    `lstm-quantile` rediscovered. Kept as a test rather than deleted, because the
+    corrected arm is measured against it.
+    """
+    nominal = _nominal(steps=200_000)
+    for rate in (0.01, 0.001):
+        loose = oscfar.calibrate(nominal, oscfar.Config(
+            calibration=oscfar.INDEPENDENT, admission_rate=rate))
+        assert loose.admitted < 0.85 * rate, (
+            f"independent calibration admitted {loose.admitted} of a {rate} budget; "
+            f"the max() shortfall this test exists for has gone")
+
+
+def test_joint_calibration_admits_what_it_was_asked_for():
+    nominal = _nominal(steps=200_000)
+    for rate in (0.01, 0.001, 0.0001):
+        joint = oscfar.calibrate(nominal, oscfar.Config(
+            calibration=oscfar.JOINT, admission_rate=rate))
+        assert abs(joint.admitted - rate) <= 0.15 * rate, (
+            f"joint calibration missed its target: asked {rate}, admitted {joint.admitted}"
+        )
+
+
+def test_local_only_drops_the_floor_entirely():
+    nominal = _nominal(steps=200_000)
+    bare = oscfar.calibrate(nominal, oscfar.Config(
+        calibration=oscfar.LOCAL_ONLY, admission_rate=0.001))
+    assert np.all(bare.floor == 0.0), "local_only kept a floor"
+    assert abs(bare.admitted - 0.001) <= 0.15 * 0.001
+
+
+def test_an_unknown_calibration_is_refused_rather_than_ignored():
+    with pytest.raises(ReferenceError, match="unknown calibration"):
+        oscfar.calibrate(_nominal(), oscfar.Config(calibration="whatever"))
+
+
+def test_the_segment_budget_scales_with_the_admission_rate():
+    """A 0.01% quantile of 140,000 points rests on fourteen of them."""
+    loose = oscfar.Config(admission_rate=0.01)
+    tight = oscfar.Config(admission_rate=0.0001)
+    many = 10 ** 7
+    assert oscfar._segment_budget(tight, many) > oscfar._segment_budget(loose, many)

@@ -532,6 +532,11 @@ class OSCFARDetector(ForecastDetector):
         # folds would be the stale-checkpoint failure in a different costume.
         self.calibration, self.binding = None, None
         super().fit(values, usable, context)
+        # The report dict comes out of the shared weight cache, so it is copied
+        # before anything is written into it. `harness._score_fold` captures this
+        # object by reference straight after the fit, which is how the binding
+        # rate reaches the artifact without the harness learning about this rule.
+        self.report = dict(self.report or {})
 
     def score(self, values, valid, context) -> np.ndarray:
         if context.window == self._fit_window and self.calibration is None:
@@ -563,6 +568,12 @@ class OSCFARDetector(ForecastDetector):
         top, who, binding = oscfar.top_ratios(smoothed, self.config, self.calibration,
                                               depth=MAX_AGREEMENT)
         self.binding = binding
+        # docs/MODELS.md section 10.3 names this as the number that falsifies the
+        # design, and the first run inferred it from the outcome instead of
+        # producing it. A number not read from an artifact is not a number.
+        if isinstance(self.report, dict):
+            self.report["binding_rate"] = round(float(binding), 6)
+            self.report["calibration"] = self.calibration.as_dict()
         del smoothed
         result = (top, who)
         cost = top.nbytes + who.nbytes

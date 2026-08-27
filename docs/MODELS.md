@@ -521,10 +521,29 @@ Per segment, from its trailing reference window `R` and the nominal residual poo
 | `p`, the quantile rank | bounded below the measured contamination rate -- 53 exceedances in 2,170 samples, 2.4% -- so a rank near 0.75 is far under the breakdown point | read from its own residuals |
 | `alpha`, `beta` | the **nominal alarm budget**, on the fitting window's residuals | it states what its operators can act on (`docs/RESEARCH.md`: ISA-18.2, EEMUA 191). It has no failures to fit to |
 
-**The budget is not a number invented for this run.** It is the operating point
-this project already uses and has used since the first baseline:
-`sentinel_eval.detector.DEFAULT_THRESHOLD_QUANTILE = 0.999`, the label-free
-99.9th percentile of training scores that every trivial baseline and
+**(!) SUPERSEDED 2026-08-27, and the paragraph below is preserved because it was
+acted on.** It argued that pinning the budget to
+`DEFAULT_THRESHOLD_QUANTILE = 0.999` stops it being a free parameter. That is
+half right and the wrong half is load-bearing:
+
+> **0.1% is label-free and it is not derived.** No anomaly label is used and a
+> mission that has never failed can compute *fire on 0.1% of my nominal
+> telemetry* -- that part stands. But nobody derived 0.1%. **Relabelling an
+> arbitrary threshold as an arbitrary budget does not remove the arbitrary
+> constant**, which is the failure this whole work item exists to correct.
+
+The budget is not ours to pick. It is an **operational input** -- how many alarms
+a mission's operators can act on -- and a two-person university CubeSat team
+answers differently from an ESOC or JPL control room. Neither answer is a
+property of the detector. So section 10.8 reports **a curve across admission
+rates**, never a point, and recommends no operating point. That is
+`docs/RESEARCH.md`'s precision@k and EEMUA 191 pattern: a mission states what it
+can absorb and reads its point off the curve.
+
+*Superseded text, kept:* **The budget is not a number invented for this run.** It
+is the operating point this project already uses and has used since the first
+baseline: `sentinel_eval.detector.DEFAULT_THRESHOLD_QUANTILE = 0.999`, the
+label-free 99.9th percentile of training scores that every trivial baseline and
 `lstm-quantile` are scored at. Applying the same convention here rather than
 choosing a fresh target is what stops the budget becoming a free parameter fitted
 by eye. Concretely, per channel, on the fitting window's residuals under the same
@@ -667,3 +686,71 @@ Every lead-time figure from this run carries that sentence.
 
 *Not yet run. Filled in after the run and beside the predictions above, never in
 place of them.*
+
+---
+
+## 10.8 The retest: what ran was not what was designed
+
+**Written before the retest runs.** Section 10.7 records the first result and is
+not edited. This section says what is being retested and why the first attempt
+does not settle the design.
+
+### 10.8.1 The first run failed on an arithmetic error of mine, not on the design
+
+`lstm-oscfar` reproduced `lstm-quantile` exactly -- **recall 6/46, headline cell
+6/32, point 0/11, identical in all three** -- at median lead **-196.5**, worse
+than the -122 that closed that branch in `docs/DECISIONS.md` D13. Triggers 1 and
+3 fired.
+
+The mechanism is understood and it is not a property of order statistics:
+
+> **The two terms were calibrated independently, each to admit 0.1%, and then
+> combined with `max()`. The maximum of two thresholds each admitting `r` admits
+> far less than `r`.** Measured on nominal residuals, the independent fit admits
+> **0.00066 of a 0.001 budget** and **0.000056 of a 0.0001 budget** -- a third to
+> a half short. The rule was far quieter than its budget asked for, the floor
+> dominated every window, and a dominant global term is the global rule.
+
+So **the design has not been tested.** D20 is refuted *as run* and retested *as
+intended*; both outcomes stay in the record, and if the corrected form also fails
+D20 closes on two pieces of evidence rather than one.
+
+### 10.8.2 Three arms
+
+| Arm | What it is | Why |
+|---|---|---|
+| `independent` | the fit that ran, preserved | the corrected form is measured against it, not in place of it |
+| `joint` | both terms fitted so **the maximum** admits the target | the design as intended. The honest retest |
+| `local_only` | the local order statistic **with no floor** | **it has never operated.** The floor dominated every window of the first run, so there is not one measurement of the local term |
+
+### 10.8.3 PREDICTED, and `local_only` is a new arm so it is pre-registered like one
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P7** | `joint` binds above **10%** at every admission rate, clearing 10.3's falsification threshold, and fires materially more than the 7 ranges the independent fit produced | it admits what it was asked to; the independent fit did not |
+| **P8** | `local_only` **alarms far more than `joint` and less than the NDT's 3,548** on `m1-g8.9.10` at 0.1% -- predicted in the **100 to 1,500** band -- with **positive** median lead and headline-cell recall **between 15/32 and 28/32** | it is a local scale rule like the NDT and inherits its onset sensitivity, but its multiplier is *fitted on this model's own nominal residuals* rather than transcribed, which is the thing D17 says was actually broken |
+| **P9** | `local_only` **degrades toward the NDT's failure** as the model improves: worse on folds 1 and 2 than on fold 0, relative to its own budget | 10.3's objection -- an order statistic is immune to tail weight, not to scale collapse -- predicts the local term suffers the same collapse, only more slowly |
+| **P10** | On every arm, alarm ranges and recall rise **monotonically** with the admission rate across 0.01% / 0.1% / 1% | an internal consistency check on the calibration itself. Non-monotonicity means the fit is not doing what it claims, whatever the detection numbers say |
+
+**Not predicted:** which admission rate is right. That is the mission's input,
+not ours, and no operating point is recommended from these numbers. Selecting the
+best-scoring cell would be the oracle sweep section 7 already refused, and it
+stays refused.
+
+### 10.8.4 What is reported
+
+Every arm, at every admission rate, **per fold, per channel set**, `k/n`
+throughout: **binding rate** first, then recall, headline-cell recall, point
+recall, precision, rare-event false alarms, alarm ranges, and **lead time**.
+`lstm-telemanom` is the control and is unchanged.
+
+### 10.8.5 Stop and report
+
+1. **`joint` also collapses to the global rule.** That closes D20, and the next
+   step is a decision rather than another variant.
+2. **`local_only` holds up without a floor.** That is a *different design* from
+   the one proposed and needs its own decision before being pursued.
+3. **Median lead negative on any arm at any rate.** D9 disqualifies it whatever
+   else it scores.
+4. **Non-monotonic response to the admission rate.** The calibration is not doing
+   what it claims and nothing downstream of it can be read.

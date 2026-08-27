@@ -61,18 +61,43 @@ from .reference import ReferenceError
 #: neighbourhood, for the same robustness reason (docs/RESEARCH.md).
 RANK_P = 0.75
 
-#: The label-free operating point, unchanged from
-#: `sentinel_eval.detector.DEFAULT_THRESHOLD_QUANTILE`. Repeated as a constant
-#: here rather than imported, because `sentinel_models` may import
-#: `sentinel_eval.detector` and nothing else from the harness
-#: (tests/test_layering.py) and a threshold rule should not widen that.
-CALIBRATION_QUANTILE = 0.999
+#: The share of nominal timesteps the rule is allowed to alarm on. **Not a
+#: property of the detector.** It is an operational input -- how many alarms a
+#: mission's operators can absorb -- and a two-person CubeSat team answers
+#: differently from an ESOC control room (`docs/RESEARCH.md`: EEMUA 191,
+#: ISA-18.2, and fraud detection's precision@k).
+#:
+#: **This default exists so the dataclass has one. It is not a recommendation.**
+#: An earlier version of this design fixed 0.1% and called it label-free, which
+#: it is -- and label-free is not the same as derived. Relabelling an arbitrary
+#: threshold as an arbitrary budget does not remove the arbitrary constant. The
+#: rule is therefore **reported as a curve across admission rates**, never at a
+#: point, and no operating point is recommended from scored results.
+ADMISSION_RATE = 0.001
 
-#: How many nominal segments the local multiplier is estimated from. Running the
-#: full local rule over a 10.8M-step fitting window to fit one scalar is the cost
-#: the NDT short-circuit exists to avoid; 2,000 segments is 140,000 samples per
-#: channel, which is far more than a 99.9th percentile needs.
+#: How the two multipliers are fitted.
+#:
+#: ``independent`` calibrates each term to the target rate on its own and takes
+#: the maximum. **It is wrong, and it is kept because it is what ran**: the
+#: maximum of two thresholds each admitting r admits far less than r, so the
+#: rule was far quieter than its budget asked for. Preserved so the corrected
+#: form is measured against it rather than replacing it.
+#:
+#: ``joint`` fits both together so that the combined rule -- the maximum --
+#: admits the target rate. This is the design as intended.
+#:
+#: ``local_only`` drops the floor entirely. The local order statistic has never
+#: operated: the floor dominated every window of the first run, so there is no
+#: measurement of it at all. Run bare, it is either a better design than the one
+#: proposed or a demonstration that the floor was load-bearing.
+INDEPENDENT, JOINT, LOCAL_ONLY = "independent", "joint", "local_only"
+CALIBRATIONS = (INDEPENDENT, JOINT, LOCAL_ONLY)
+
+#: Nominal segments the multipliers are estimated from. Scaled to the admission
+#: rate rather than fixed: a 0.01% quantile estimated from 140,000 samples rests
+#: on fourteen of them. :func:`_segment_budget` keeps ~200 above the cut.
 CALIBRATION_SEGMENTS = 2_000
+CALIBRATION_TARGET_EXCEEDANCES = 200
 
 
 @dataclass(frozen=True)
@@ -87,7 +112,8 @@ class Config:
     error_buffer: int = telemanom.ERROR_BUFFER
     pruning_p: float = telemanom.PRUNING_P
     rank_p: float = RANK_P
-    calibration_quantile: float = CALIBRATION_QUANTILE
+    admission_rate: float = ADMISSION_RATE
+    calibration: str = INDEPENDENT
     calibration_segments: int = CALIBRATION_SEGMENTS
 
     #: See `telemanom.Config.guard_segment`. Measured as an arm, not assumed.
@@ -100,7 +126,8 @@ class Config:
                 "error_buffer": self.error_buffer,
                 "pruning_p": self.pruning_p,
                 "rank_p": self.rank_p,
-                "calibration_quantile": self.calibration_quantile,
+                "admission_rate": self.admission_rate,
+                "calibration": self.calibration,
                 "calibration_segments": self.calibration_segments,
                 "guard_segment": self.guard_segment}
 
@@ -109,89 +136,159 @@ class Config:
 class Calibration:
     """What the fitting window's nominal residuals fixed, per channel.
 
-    Both are quantiles of nominal data at the same level, which is the whole of
-    why neither is a free parameter: ``floor`` is the operating point the trivial
-    baselines already use, and ``alpha`` is that same operating point applied to
-    the locally normalised error instead of the raw one.
+    ``floor`` of zero means the floor is disabled -- the ``local_only`` arm.
+    ``admitted`` is what the fitted rule actually let through on nominal data,
+    which is the check that the calibration did what it was asked: under
+    ``independent`` it comes out well below the target, and that gap is the
+    arithmetic error the first run made.
     """
 
     alpha: np.ndarray          #: multiplier on the local order statistic, per channel
-    floor: np.ndarray          #: absolute lower bound on eps, per channel
+    floor: np.ndarray          #: absolute lower bound on eps, per channel; 0 disables it
     nominal_steps: int
+    mode: str = INDEPENDENT
+    target_rate: float = ADMISSION_RATE
+    admitted: float = float("nan")   #: measured nominal admission of the fitted rule
 
     def as_dict(self) -> dict:
-        return {"alpha": [round(float(a), 6) for a in self.alpha],
+        return {"mode": self.mode, "target_rate": self.target_rate,
+                "admitted_on_nominal": (None if self.admitted != self.admitted
+                                        else round(float(self.admitted), 8)),
+                "alpha": [round(float(a), 6) for a in self.alpha],
                 "floor": [float(f) for f in self.floor],
                 "nominal_steps": self.nominal_steps}
 
 
-def _reference_quantiles(e_s: np.ndarray, config: Config) -> tuple[np.ndarray, np.ndarray]:
-    """``Q_p`` of each segment's trailing reference window, and the segment starts.
+def _segment_budget(config: Config, n_segments: int) -> int:
+    """Enough sampled segments that the fitted quantile rests on real samples.
 
-    One channel. The window is the same one telemanom uses -- span
-    ``error_window`` ending at the segment -- so the two rules are compared on
-    identical history and differ in what they compute from it.
+    A 0.01% quantile of 140,000 points is decided by fourteen of them. Scaling
+    the sample to the rate keeps roughly `CALIBRATION_TARGET_EXCEEDANCES` above
+    the cut whatever the budget, which is what stops the low-rate end of the
+    curve being noise dressed as a measurement.
     """
-    steps = e_s.shape[0]
-    span, stride = config.error_window, max(1, config.stride)
-    starts = np.arange(0, steps, stride)
-    out = np.empty(starts.shape[0], dtype=np.float64)
-    for i, seg_lo in enumerate(starts):
+    rate = max(float(config.admission_rate), 1e-9)
+    need = CALIBRATION_TARGET_EXCEEDANCES / (rate * max(1, config.stride))
+    return int(min(n_segments, max(config.calibration_segments, need)))
+
+
+def _sampled(column: np.ndarray, config: Config, picked, steps: int):
+    """``(values, scales)`` for the sampled segments of one channel.
+
+    ``scales`` is that segment's local order statistic, repeated per step, so
+    the two arrays align and a candidate rule can be evaluated by elementwise
+    comparison rather than by a second pass over the window.
+    """
+    values, scales = [], []
+    stride = max(1, config.stride)
+    for seg in picked:
+        seg_lo = int(seg) * stride
         seg_hi = min(seg_lo + stride, steps)
-        lo = max(0, seg_lo - span)
-        window = e_s[lo:seg_lo] if (config.guard_segment and seg_lo > lo) else e_s[lo:seg_hi]
-        out[i] = np.quantile(window, config.rank_p) if window.size else 0.0
-    return out, starts
+        lo = max(0, seg_lo - config.error_window)
+        window = (column[lo:seg_lo] if (config.guard_segment and seg_lo > lo)
+                  else column[lo:seg_hi])
+        if window.size == 0 or seg_hi <= seg_lo:
+            continue
+        scale = float(np.quantile(window, config.rank_p))
+        if scale <= 0.0:
+            continue
+        segment = column[seg_lo:seg_hi]
+        values.append(segment)
+        scales.append(np.full(segment.shape[0], scale, dtype=np.float64))
+    if not values:
+        return np.zeros(0), np.zeros(0)
+    return np.concatenate(values).astype(np.float64), np.concatenate(scales)
+
+
+def _admitted(values, scales, alpha: float, floor: float) -> float:
+    if values.size == 0:
+        return 0.0
+    return float(np.mean(values >= np.maximum(alpha * scales, floor)))
+
+
+def _fit_jointly(values, scales, config: Config) -> tuple[float, float]:
+    """Fit both terms so that **the maximum** admits the target rate.
+
+    The first run fitted each term to the target on its own and took the
+    maximum, which admits far less than the target -- an arithmetic error, not a
+    property of order statistics. Here a single inner level ``u`` sets both, and
+    ``u`` is bisected until the combined rule admits what was asked. Both terms
+    still come from nominal residuals only; what changed is that they are fitted
+    against the rule that is actually applied.
+    """
+    target = float(config.admission_rate)
+    lo, hi = target, 0.5                      # u >= target, since max() only tightens
+    best = (float(np.quantile(values / np.maximum(scales, 1e-30), 1.0 - target)),
+            float(np.quantile(values, 1.0 - target)))
+    for _ in range(40):
+        u = 0.5 * (lo + hi)
+        alpha = float(np.quantile(values / np.maximum(scales, 1e-30), 1.0 - u))
+        floor = float(np.quantile(values, 1.0 - u))
+        got = _admitted(values, scales, alpha, floor)
+        best = (alpha, floor)
+        if abs(got - target) <= 0.02 * target:
+            break
+        # A looser inner level admits more; the relation is monotone in u.
+        if got < target:
+            lo = u
+        else:
+            hi = u
+    return best
 
 
 def calibrate(nominal: np.ndarray, config: Config, *, rng=None) -> Calibration:
-    """Fit both multipliers on nominal residuals. No label is consulted.
+    """Fit the multipliers on nominal residuals. No label is consulted.
 
     ``nominal`` is the fitting window's smoothed error, ``(steps, channels)``.
-    That window is normal-only by construction, so this is the pre-launch
-    calibration an adopting mission performs on its own flatsat data.
+    That window is normal-only by construction (`splits.train_mask` removes
+    annotated anomalies), so this is the pre-launch calibration an adopting
+    mission performs on its own flatsat data. What a mission supplies is the
+    **admission rate** -- what its operators can absorb -- and that is an
+    operational input rather than a constant this project gets to choose, which
+    is why the rule is reported as a curve across rates.
     """
     nominal = np.asarray(nominal, dtype=np.float32)
     if nominal.ndim != 2:
         raise ReferenceError(f"calibrate expects (steps, channels), got {nominal.shape}")
+    if config.calibration not in CALIBRATIONS:
+        raise ReferenceError(
+            f"unknown calibration {config.calibration!r}; expected one of {CALIBRATIONS}"
+        )
     steps, channels = nominal.shape
-    q = float(config.calibration_quantile)
+    rate = float(config.admission_rate)
     rng = np.random.default_rng(0) if rng is None else rng
-
-    floor = np.quantile(nominal, q, axis=0).astype(np.float64)
-
     stride = max(1, config.stride)
+
     n_segments = max(1, (steps + stride - 1) // stride)
-    take = min(config.calibration_segments, n_segments)
-    # Sampled rather than swept, and the sample is seeded so a calibration is
-    # reproducible from cold. Segments that precede a full reference window are
-    # excluded: their quantile is taken over a short window and is not the
-    # quantity the scored path will see.
+    take = _segment_budget(config, n_segments)
     first = config.error_window // stride
     pool = np.arange(first, n_segments) if n_segments > first else np.arange(n_segments)
     picked = np.sort(rng.choice(pool, size=min(take, pool.shape[0]), replace=False))
 
     alpha = np.empty(channels, dtype=np.float64)
+    floor = np.zeros(channels, dtype=np.float64)
+    admitted = np.zeros(channels, dtype=np.float64)
     for c in range(channels):
-        column = nominal[:, c]
-        ratios = []
-        for seg in picked:
-            seg_lo = int(seg) * stride
-            seg_hi = min(seg_lo + stride, steps)
-            lo = max(0, seg_lo - config.error_window)
-            window = (column[lo:seg_lo] if (config.guard_segment and seg_lo > lo)
-                      else column[lo:seg_hi])
-            if window.size == 0 or seg_hi <= seg_lo:
-                continue
-            scale = float(np.quantile(window, config.rank_p))
-            if scale <= 0.0:
-                continue
-            ratios.append(column[seg_lo:seg_hi] / scale)
-        # A channel with no usable scale anywhere cannot be normalised locally.
-        # 1.0 makes the local term equal its own reference quantile, which the
-        # floor then dominates -- silence rather than a guess.
-        alpha[c] = float(np.quantile(np.concatenate(ratios), q)) if ratios else 1.0
-    return Calibration(alpha=alpha, floor=floor, nominal_steps=int(steps))
+        values, scales = _sampled(nominal[:, c], config, picked, steps)
+        if values.size == 0:
+            # No usable local scale anywhere. 1.0 makes the local term equal its
+            # own reference quantile; the floor, where there is one, then decides.
+            alpha[c] = 1.0
+            floor[c] = float(np.quantile(nominal[:, c], 1.0 - rate)) \
+                if config.calibration != LOCAL_ONLY else 0.0
+            continue
+        ratios = values / np.maximum(scales, 1e-30)
+        if config.calibration == LOCAL_ONLY:
+            alpha[c], floor[c] = float(np.quantile(ratios, 1.0 - rate)), 0.0
+        elif config.calibration == INDEPENDENT:
+            alpha[c] = float(np.quantile(ratios, 1.0 - rate))
+            floor[c] = float(np.quantile(values, 1.0 - rate))
+        else:
+            alpha[c], floor[c] = _fit_jointly(values, scales, config)
+        admitted[c] = _admitted(values, scales, alpha[c], floor[c])
+    return Calibration(alpha=alpha, floor=floor, nominal_steps=int(steps),
+                       mode=config.calibration, target_rate=rate,
+                       admitted=float(np.mean(admitted)))
 
 
 def channel_ratios(e_s: np.ndarray, config: Config, alpha: float, floor: float
@@ -229,6 +326,9 @@ def channel_ratios(e_s: np.ndarray, config: Config, alpha: float, floor: float
 
         local = float(alpha) * float(np.quantile(scale_over, config.rank_p))
         eps = max(local, float(floor))
+        # With no floor the local term decides every segment by construction, so
+        # the rate is 1.0 -- which is the honest reading, not a degenerate one:
+        # `local_only` exists precisely to run the local term unaided.
         local_bound[index] = local > float(floor)
         if eps <= 0:
             continue
