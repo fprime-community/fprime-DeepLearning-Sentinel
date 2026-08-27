@@ -549,3 +549,98 @@ commanded model survives the round trip.
 loader and one is scored end to end before a machine that cannot be recovered is
 released. This defect is the argument for that step; without it the twelve fits
 would have been declared safe and the Mac would have quietly refitted all of them.
+
+---
+
+## D17. Dimensionless constants transfer across scales, but not across distribution shapes
+
+**DATE** 2026-08-26 | **RECORDED** 2026-08-27, two commits late -- see the note
+at the end | **STATUS** OPEN, hypothesis under investigation
+
+**(!) READ THE STATUS.** The mechanism below is the reasoning that was acted on
+when `z` was moved onto `Config`. It is **not** a measured finding. It is being
+tested by the work item 4 threshold-selector investigation, and at least one
+competing explanation is live: our `dynamic_threshold` omits two admissibility
+conditions that published telemanom applies, and that omission alone could
+account for the same symptom without any appeal to distribution shape. This
+entry is written down so that four files stop citing something that does not
+exist, not so that a hypothesis can become a conclusion by being written down.
+
+**CONTEXT.** Two published constants failed in the same week, in the same way,
+and the second failure showed the first lesson had been drawn too narrowly.
+
+The first was `min_delta`. telemanom applies early stopping as
+`current < best_loss - min_delta` with a published `min_delta` of 3e-4.
+Validation MSE on ESA-ADB is about 1e-4, so after the first epoch the bar became
+`current < 1.7e-4 - 3e-4 = -1.3e-4`. That is negative, and no mean-squared error
+can be negative, so no epoch after the first ever registered as an improvement.
+`best_epoch` stayed 0, `restore_best` restored epoch 1, and patience fired at
+epoch 11 -- for every fit in this project, across three work items. Median 3.1x
+better weights discarded, worst case 8.8x.
+
+The rule drawn from it was: **absolute constants in data units do not transfer;
+dimensionless ones do.** The replacement is a fraction of the standing best
+rather than a smaller constant, because picking another absolute number by eye
+reproduces the failure with different digits.
+
+The second was `z`. telemanom's published sweep is `np.arange(2.5, 12, 0.5)`,
+and it was audited under that rule and passed: `z` counts standard deviations of
+the smoothed error, so it is dimensionless and immune to rescaling. Fixing
+`min_delta` then improved the forecast about fortyfold, and that same audited,
+scale-free range produced **3,548 alarm ranges where it had produced 182**.
+
+**ALTERNATIVES.** Replace the rule -- treat the audit as worthless. Keep the
+rule and call `z` a special case. Pick a new `z` by eye. Amend the rule.
+
+**EVIDENCE.** Detection improved on every other axis at the same time, which is
+what rules out a worse model as the cause: 38 of 46 events caught against 37,
+headline cell held at 28/32, lead time unchanged at +26 with fewer landing late.
+Only precision collapsed. A worse model catches fewer events; this one catches
+more, at the same lead time, firing twenty times as often.
+
+**(!) Two figures the original reasoning did not include, added on 2026-08-27
+because they are read from the same artifacts and they qualify it.** The
+adoption number moved the wrong way too -- rare-event false alarms 22/48 to
+30/48 on `m1-g8.9.10` and 17/48 to 33/48 on `m1-ss5` -- and event-wise F0.5 fell
+from 0.269 to 0.026 and from 0.664 to 0.035. "Only precision collapsed" is true
+and reads as narrower than it is.
+
+**CONSEQUENCE.** The audit's rule is amended rather than replaced. It was right
+about units and incomplete about distributions:
+
+> **A dimensionless constant is immune to rescaling. It is not immune to a
+> change in the shape of the thing it indexes.** With a poor forecast the
+> residual is dominated by model bias and 2.5 sigma is a real excursion; with a
+> good one it is dominated by irreducible noise and 2.5 sigma sits on the floor.
+
+`z` therefore moves from a module constant onto `Config`, where it can be fitted
+per model, with the silence fallback tied to the sweep's ceiling so that raising
+the range raises the fallback with it. **The floor is fitted, not transcribed.**
+
+If the mechanism holds it is the failure mode that returns every time the model
+improves, so work items 5 and 6 will meet it with the GRU and the TCN, and it is
+a property of the method rather than of this fit.
+
+**The Phase 2 consequence, recorded against Objective.md decision 2.** Storing
+thresholds separately from weights began as an argument from flexibility; it is
+now a measured requirement. A threshold that suits one model does not suit a
+better one, so it is a fitted quantity belonging to the model it was measured
+against. A mission uplinking an improved `model.bin` must uplink its thresholds
+with it, and must be able to recalibrate them without retraining.
+
+**NOTE -- how this entry came to be written late, which is itself the record.**
+`docs/HARNESS.md` is unconditional that this file is updated **in the same
+commit as the decision it records**. It was not. Commit `1aeff2d` made the
+`min_delta` decision and did not touch this file; commit `0648fe7` made the `z`
+decision, stated in its own message that "Corrected form recorded in
+DECISIONS.md", and did not touch this file either. In between, five places
+began citing an entry that did not exist -- `Objective.md` section 14.10,
+`src/sentinel_models/telemanom.py`, `src/sentinel_models/lstm.py`,
+`tests/test_early_stopping.py` and `scripts/threshold_sweep.py` -- and the
+handover brief for the next work item cited it as well.
+
+Nothing errored. The rule that was supposed to catch this is a convention, and a
+convention has no test. Recorded plainly rather than backfilled silently,
+because a commit message asserting that a document was updated when it was not
+is a worse defect than the missing document: it is a claim in the audit trail
+that the audit trail does not support.
