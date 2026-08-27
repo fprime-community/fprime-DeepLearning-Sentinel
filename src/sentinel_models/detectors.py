@@ -40,7 +40,7 @@ import numpy as np
 
 from sentinel_eval.detector import Detector
 
-from . import oscfar, reference, telemanom
+from . import oscfar, reference, telemanom, whiten
 from .lstm import Hyper, train
 from .reference import LayerWeights, ReferenceError, Weights
 from .windows import DEFAULT_DECAY_STEPS, aggregate_predictions, command_features
@@ -595,6 +595,120 @@ class OSCFARGuarded(OSCFARDetector):
         config = config or oscfar.Config()
         super().__init__(config=type(config)(**{**vars(config), "guard_segment": True}),
                          **kwargs)
+
+
+class WhitenedDetector(ForecastDetector):
+    """The decision layer that tests the relationship. `sentinel_models.whiten`.
+
+    Every other detector here reduces the residual to C independent error series
+    before the alarm rule sees it, so the rule asks *did errors get large* where
+    the project's claim is *did the relationship break* (`docs/DECISIONS.md`
+    D23). This one scores the whitened length of the **signed** residual vector
+    against its nominal covariance, which is one number per timestep and is a
+    relationship test: a residual consistent with normal co-variation scores low
+    however large, one orthogonal to it scores high however small.
+
+    A commanded manoeuvre moves channels together in the pattern the forecaster
+    already learned, so it lies along a high-variance direction and is divided
+    down -- which is the same mechanism that makes it a false alarm under
+    `k`-of-`n`, running the other way.
+
+    **`k`-of-`n` does not apply and is refused rather than ignored.** Agreement
+    counts how many channels independently exceeded; here there is one joint
+    score and nothing to count. That is the point of the stage, not a limitation
+    of it.
+    """
+
+    name = "lstm-whitened"
+
+    def __init__(self, *, config: whiten.Config | None = None, **kwargs) -> None:
+        kwargs.pop("mode", None)
+        if int(kwargs.get("agreement", 1)) != 1:
+            raise ReferenceError(
+                f"{self.name} scores one joint series, so channel agreement has "
+                f"nothing to count. Refused rather than silently ignored"
+            )
+        super().__init__(config=config or whiten.Config(), mode=NDT, **kwargs)
+        self.whitening: whiten.Whitening | None = None
+
+    def fit(self, values, usable, context) -> None:
+        self.whitening = None
+        super().fit(values, usable, context)
+        self.report = dict(self.report or {})
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if context.window == self._fit_window and self.whitening is None:
+            self.whitening = self._whiten_on(np.asarray(values), context)
+            self.report["whitening"] = self.whitening.as_dict()
+        return super().score(values, valid, context)
+
+    def _signed_blocks(self, values, context):
+        """Signed, smoothed residual, block by block. The sign is the point.
+
+        `ForecastDetector._smoothed_errors` takes ``np.abs`` of the residual,
+        which makes *both channels rising together* and *one rising while the
+        other falls* the same number -- and that difference is the whole of the
+        relationship (`docs/MODELS.md` 12.1). Same forecast, same EWMA span, same
+        blocking and the same carried state, so nothing else differs.
+        """
+        filled = self._filled(np.asarray(values))
+        state = telemanom.EwmaState()
+        block = self.chunks * self.chunk_steps
+        for lo in range(0, filled.shape[0], block):
+            hi = min(lo + block, filled.shape[0])
+            forecast = self._forecast(filled, lo, hi)
+            yield telemanom.ewma(filled[lo:hi] - forecast, self.config.smoothing_window,
+                                 state)
+
+    def _whiten_on(self, values, context) -> whiten.Whitening:
+        """Fit the covariance on the fitting window, which is normal-only.
+
+        `splits.train_mask` removed annotated anomalies before the fit, so this is
+        the pre-launch calibration a mission performs on its own data. No label is
+        consulted, and the harness is already forecasting this window to derive an
+        operating point, so the pass is not an extra one.
+        """
+        accumulator = None
+        for smoothed in self._signed_blocks(values, context):
+            if accumulator is None:
+                accumulator = whiten.Accumulator(smoothed.shape[1],
+                                                 self.config.sample_stride)
+            accumulator.add(smoothed)
+        if accumulator is None:
+            raise ReferenceError("no residual to fit a covariance on")
+        return accumulator.finish(self.config)
+
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
+        if self.whitening is None:
+            raise ReferenceError(
+                f"{self.name} scored a window before its covariance was fitted. The "
+                f"harness scores the fitting window first and that is the nominal pool"
+            )
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               _digest(self.whitening.precision, self.whitening.mean), self.mode)
+        cached = _TOPS.get(key)
+        if cached is not None:
+            return cached
+
+        pieces = [b for b in self._signed_blocks(values, context)]
+        signed = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
+        del pieces
+        scored, who = whiten.ratios(signed, self.config, self.whitening)
+        del signed
+        # One joint series, broadcast to the reduction's shape so the harness's
+        # `top[agreement - 1]` indexing is unchanged. Every level is the same
+        # series, which is exactly what "there is nothing to agree" means.
+        top = np.repeat(scored[None, :], MAX_AGREEMENT, axis=0)
+        result = (top, who)
+        cost = top.nbytes + who.nbytes
+        held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
+        while _TOPS and held + cost > TOPS_CACHE_BYTES:
+            evicted = _TOPS.pop(next(iter(_TOPS)))
+            held -= evicted[0].nbytes + evicted[1].nbytes
+        if cost <= TOPS_CACHE_BYTES:
+            _TOPS[key] = result
+        return result
 
 
 class TelemanomQuantile(ForecastDetector):

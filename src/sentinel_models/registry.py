@@ -40,6 +40,7 @@ BUILDERS = {
     "lstm-telemanom": _trained("ForecastDetector"),
     "lstm-quantile": _trained("TelemanomQuantile"),
     "lstm-oscfar": _trained("OSCFARDetector"),
+    "lstm-whitened": _trained("WhitenedDetector"),
     "lstm-telemanom-guarded": _trained("TelemanomGuarded"),
     "lstm-oscfar-guarded": _trained("OSCFARGuarded"),
     "lstm-commanded": _trained("TelemanomCommanded"),
