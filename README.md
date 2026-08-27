@@ -61,6 +61,7 @@ analysis, the roadmap and the open decisions. Other documents defer to it.
 | [docs/RESEARCH.md](docs/RESEARCH.md) | the external evidence base, with thin evidence marked as thin |
 | [docs/NARRATIVE.md](docs/NARRATIVE.md) | what happened in order, errors included |
 | [docs/DATA.md](docs/DATA.md) | where the data is and how to read it |
+| [docs/THRESHOLD.md](docs/THRESHOLD.md) | work item 4: what telemanom's z-selection criterion is actually choosing, measured over 5.68M windows |
 
 ## Data
 
