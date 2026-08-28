@@ -1209,3 +1209,205 @@ headline cell **18/31** against 15/31 at `p = 0.13`, recall 23/42 against 18/42,
 rare-event rate unmoved at 2/48. `m1-g8.9.10` is unchanged at 21/32 as measured
 before. Precision on the gate set reads 41/43 rather than 39/40, which is the
 three extra alarm ranges pruning had been removing.
+
+---
+
+## 14. Pre-registration: `gru-quantile` (work item 5)
+
+**Written and committed before any fit.** Sections 4, 10 and 13 each recorded
+a prediction and what happened to it; this one is treated the same way, and
+its OBSERVED section is filled in beside the predictions, never over them.
+
+### 14.1 What is being tested, and what is not
+
+The architecture gate asks one question: **which forecaster**. The decision
+layer is frozen as `lstm-quantile` (`docs/DECISIONS.md` D25) and is identical
+here: per-channel EWMA of the absolute residual, the maximum across channels,
+one label-free 99.9th percentile of the anomaly-masked fitting window's scores.
+`gru-quantile` is that rule on a GRU forecast. **The cell is the only
+variable** -- `Hyper(cell="gru")`, every other value shared with the LSTM by
+construction (D26): 12 channels, `l_s = 250`, two layers of 80, dropout 0.3
+after each layer, MSE, Adam 1e-3, batch 70, up to 35 epochs, patience 10,
+relative `min_improvement = 0.001`, seed `0 + fold`, the same sampler and the
+same guard against a fit that keeps its first epoch.
+
+**The hypothesis under test, stated as one.** `lstm-quantile` misses twelve
+events on `m1-g8.9.10` that `lstm-telemanom` catches, and eleven on `m1-ss5`
+(section 14.2). Five hypotheses about the decision layer have been measured
+and did not recover them (`docs/RESULTS.md` 6d, section 13, D24, D25). The
+forecaster has not been varied. The route by which a different cell could
+reach them is **a lower residual noise floor**: the threshold is a quantile of
+nominal residuals, so a forecaster whose nominal residual is smaller sets a
+lower bar, and an event whose peak sat below the LSTM's bar may clear the
+GRU's. That is a hypothesis, not a conclusion on record: D24 says in as many
+words that the twelve are not claimed unrecoverable, and section 4 records the
+counter-example in which a fortyfold better forecast made detection worse.
+What this run measures is whether the mechanism operates at all.
+
+**What does not move.** The harness, the folds, the split, the bundle, the
+decision layer, `error_buffer` (D21 first reach still open, and irrelevant to
+the gate arm, which has no dilation), `k`-of-`n` (D23, resolved before the
+gate and not here), and the held-back sets `m2-ss1` and `m1-g3`.
+
+### 14.2 The events, and their reach under the frozen rule
+
+Read from `runs/m1-g8.9.10/_forensics/2026-08-28T022324Z-events.json`,
+`.../2026-08-28T184844Z-head-to-head.json`, and the reach run below. **Reach**
+is an event's peak score inside its span as a fraction of the fold's
+threshold: 1.0 is the bar; a miss sits below it. Under `lstm-quantile` that
+score is the maximum across channels of the smoothed absolute residual, so a
+reach is in the units the frozen rule actually cuts on -- the whitened reaches
+in section 13.2 are a different quantity and are not reused here.
+
+Artifact `runs/m1-g8.9.10/_forensics/2026-08-28T205347Z-head-to-head.json`
+(`lstm-telemanom` vs `lstm-quantile`, cached weights, weight store unchanged,
+15 Class B). Ordered by reach. `T` is `lstm-telemanom`'s reach under its own
+dynamic threshold, for the record; it catches all of these.
+
+**`m1-g8.9.10`** -- `lstm-quantile` catches 26/46, all of them inside `lstm-telemanom`'s 38; kept events reach a median 1.40 (min 1.09). The 12 it misses that `lstm-telemanom` catches:
+
+```
+  fold  event    cell                               footprint   reach      T
+  1     id_132   Multivariate/Global/Point                1   0.995   1.66
+  1     id_138   Multivariate/Global/Subsequence       1787   0.480   1.28
+  2     id_157   Multivariate/Global/Subsequence         51   0.307   1.18
+  1     id_20    Multivariate/Local/Subsequence       16227   0.209   1.56
+  0     id_110   Multivariate/Global/Point                1   0.181   1.09
+  0     id_109   Multivariate/Global/Point                1   0.172   1.10
+  0     id_90    Multivariate/Global/Subsequence         27   0.168   1.81
+  0     id_12    Multivariate/Global/Subsequence      11937   0.168   1.81
+  0     id_107   Multivariate/Global/Subsequence         32   0.158   1.69
+  0     id_93    Multivariate/Global/Subsequence         63   0.150   1.58
+  0     id_114   Multivariate/Global/Point                1   0.147   1.17
+  0     id_89    Multivariate/Global/Subsequence       8995   0.111   1.31
+```
+
+**`m1-ss5`** -- `lstm-quantile` catches 27/42, all of them inside `lstm-telemanom`'s 38; kept events reach a median 1.36 (min 1.05). The 11 it misses that `lstm-telemanom` catches:
+
+```
+  fold  event    cell                               footprint   reach      T
+  1     id_138   Multivariate/Global/Subsequence       1786   0.321   1.39
+  2     id_157   Multivariate/Global/Subsequence         51   0.236   1.14
+  0     id_109   Multivariate/Global/Point                1   0.208   1.17
+  1     id_121   Multivariate/Global/Subsequence          1   0.204   1.00
+  0     id_90    Multivariate/Global/Subsequence          1   0.202   2.20
+  0     id_12    Multivariate/Global/Subsequence          1   0.202   2.20
+  0     id_93    Multivariate/Global/Subsequence          1   0.200   1.73
+  0     id_110   Multivariate/Global/Point                1   0.195   1.23
+  0     id_114   Multivariate/Global/Point                1   0.195   1.39
+  0     id_107   Multivariate/Global/Subsequence          1   0.175   2.12
+  0     id_89    Multivariate/Global/Subsequence       4117   0.139   1.34
+```
+
+**What the table says before any GRU exists.** One event, `id_132` -- a
+footprint-1 point anomaly on fold 1 -- sits at **0.995 of the bar**: a threshold
+half a percent lower catches it, and that is inside the run-to-run noise of any
+refit. Its return would say nothing about the mechanism in either direction,
+and it is scored that way below. **Every other missed event is at 0.48 or
+less** on the gate set and 0.32 or less on `m1-ss5`; the eight fold-0 events
+sit between 0.11 and 0.18. For those to return, the GRU's floor would have to
+fall to **less than half** the LSTM's -- on fold 0, to less than a fifth -- while
+P17 predicts it moves by a quarter at most. That is the gap the hypothesis of
+14.1 has to close, stated in the rule's own units before the fit.
+
+
+### 14.3 PREDICTED
+
+Anchors, all from `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json`
+and `runs/_weights_pod/fit_report.json`. Fold 0 is the control, as in section
+10.4: it is the data-poor fold, its LSTM forecast is ~40x worse than folds 1
+and 2, and its noise floor is ~10x theirs.
+
+| fold | LSTM val-MSE, `m1-g8.9.10` / `m1-ss5` | LSTM noise floor (threshold), `m1-g8.9.10` / `m1-ss5` | LSTM epochs (best), `m1-g8.9.10` |
+|---|---|---|---|
+| 0 | 1.691e-4 / 3.441e-5 | 0.1468 / 0.1020 | 14 (3) |
+| 1 | 3.552e-6 / 5.205e-6 | 0.01563 / 0.01243 | 35 (28) |
+| 2 | 4.089e-6 / 8.096e-6 | 0.01178 / 0.01545 | 32 (21) |
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P15** | **71,160 parameters, 278.0 KiB**, against the LSTM's 91,640 -- 22.35% fewer overall, 25% fewer in the recurrent layers | Arithmetic, and already measured by `Weights.n_parameters` (section 3). Recorded so that the number the gate's criterion 2 reads was stated before the fit |
+| **P16** | **Validation MSE within 0.7x-1.4x of the LSTM's on every fold, both sets** | Objective.md 8's working hypothesis: parity at this scale. Fold 0 is the fold most likely to leave the band, in either direction -- less capacity on the least data |
+| **P17** | **Noise floor within 0.8x-1.25x of the LSTM's threshold on every fold, both sets**, and **fold 0's floor stays at least 5x folds 1 and 2** on `m1-g8.9.10` | If P16 holds the nominal residual is the same size and the quantile of it moves little. The fold-0 gap is set by the data, not the cell |
+| **P18** | On `m1-g8.9.10`: **MVGS 19/32 to 23/32** (21/32 now), **rare-event FA at most 4/48** on both sets (2/48 now), **nominal-step FA at most 0.006%** (0.002% now), **pooled honest median lead +0.0** on both sets | A quantile rule on a residual of the same size fires at the same events. The crossing is the emission on this path, and a magnitude rule fires at the boundary, not before it |
+| **P19** | **None of the eleven whitened-lost events returns, on either set.** `id_132` (reach 0.995) is a coin toss and is predicted neither way; its return alone is **not** a recovery of the weak events and is not scored as one. If any of the eleven does return, it is the **highest-reach** of them (`id_138`, 0.48, fold 1) or one of the fold-0 eight, and only on a fold whose floor fell by the factor its reach requires | An event returns only if its reach rises to 1. With P17's floor moving by at most 25%, only events above 0.8 can return and there is exactly one, at 0.995. The eleven need the floor to halve at least, and on fold 0 to fall fivefold; a return there without that fall is a mechanism other than the noise floor and is reported as such |
+| **P20** | On `m1-ss5`: **MVGS 19/31 to 23/31** (21/31 now), recall **24/42 to 30/42** (27/42 now) | Same reasoning as P18 on the six-channel view |
+
+**Deliberately not predicted.** Point recall -- eleven events, twelve values,
+UNDERPOWERED wherever it appears. VUS-PR. And `gru-telemanom`'s numbers: it is
+scored in the same run at no extra cost as the reproduction reading beside
+`lstm-telemanom`, but it runs through telemanom's dynamic threshold and
+`error_buffer`, both of which D17, D18 and D21 have shown to be properties of
+the decision rule rather than the forecaster. It is reported, and it is not
+the gate.
+
+### 14.4 Outcome condition, and a mechanism condition that is harder
+
+D22: a mechanism condition earns its place only if it can fail while the
+outcome passes. Section 13.3's condition -- nominal admission on the fitting
+window -- is **tautological for this rule**: the threshold *is* the 99.9th
+percentile of those scores, so the fitting-window admission is 0.1% by
+construction and tests nothing. A different condition is needed.
+
+**Outcome condition (parity):** MVGS >= 21/32 and rare-event FA <= 2/48 on
+`m1-g8.9.10`.
+
+**Mechanism condition, strictly harder, ANY of which fails the run whatever
+the detection numbers say:**
+
+1. **Nominal-step false alarms on the *test* window exceed 3x the LSTM's on
+   any fold of either set** (floored at 0.001% of that fold's nominal steps,
+   because fold 0 of `m1-g8.9.10` is at 0/3,569,953). Measured on nominal
+   timesteps, independently of every labelled event, and it can fail while the
+   outcome passes: a rule can hold 21/32 and 2/48 while firing three times as
+   often on healthy telemetry, and 48 rare events cannot see that where ten
+   million nominal steps can. A GRU that "recovers" an event this way has
+   bought it with alarms, not sensitivity.
+2. **A recovered event whose fold's floor did not fall by what its reach
+   required.** An event at reach `r < 1` under the LSTM needs the GRU's
+   threshold at or below `r` times the LSTM's on that fold, all else equal. If
+   it returns on a fold where the floor fell less than that -- or not at all --
+   the noise floor is not what recovered it and the hypothesis of 14.1 is not
+   what the run confirmed: reported as a recovery by an unidentified mechanism
+   (a residual that grew under the event rather than a floor that fell), never
+   as support for the stated one. `id_132` at 0.995 is exempt from this test
+   by construction and from P19 by declaration.
+3. **`best_epoch == 0` on any fold.** The guard raises; a raise is the stop.
+
+### 14.5 The run
+
+| Step | What | Cost |
+|---|---|---|
+| Fit, on a rented GPU | `scripts/fit_folds.py --task m1-g8.9.10 --detector gru-quantile --device cuda` -- six fits, two sets by three folds, after `tests/test_reference_equivalence.py` passes on that box (D15) and after two same-seed fits of `m1-ss5` fold 0 prove bit-identical (D15 measured that for the LSTM only) | ~16 operations, 1 Class A |
+| Verify, on the Mac | every file through the production loader, `cell == "gru"`, `best_epoch > 0`; torch-vs-NumPy on the real weights at 1e-5; then the scoring run below must show a cache hit on fold 0 before the pod is destroyed (D16) | 0 |
+| Score, on the Mac | `python -m sentinel_eval run m1-g8.9.10 --detector gru-quantile --detector gru-telemanom --no-sweep` -- one bundle load, both sets, all folds, both arms; weight store must gain no file | 15 Class B, 1 Class A |
+| Per event | `scripts/head_to_head.py --a lstm-quantile --b gru-quantile`, with reach | 15 Class B, 1 Class A |
+
+Held-back sets untouched. Nothing refitted for the LSTM.
+
+### 14.6 Stop and report
+
+1. **`tests/test_reference_equivalence.py` cannot reach 1e-5 on the fitting
+   box.** No fit is banked.
+2. **Any of the eleven returns** (`id_132` reported, not stopped on). That is
+   the headline, reported before anything else is written, with 14.4's second
+   condition read alongside it.
+3. **GRU MVGS at or above 21/32 on `m1-g8.9.10`.** Report and wait before
+   anything further -- the two cells would then be separated by criteria 2 to
+   5 of Objective.md 8, which is a decision and not a measurement.
+4. **Any fold's validation MSE above 3x the LSTM's.** A fitting problem to
+   diagnose, not a cell result to record.
+5. **More than 200 operations in any single run.** A script shaped wrongly;
+   the tripwire is 1,000 and this plan expects at most 16.
+
+### 14.7 On the record for later, not built
+
+A two-forecaster *agreement* ensemble -- LSTM and GRU both exceeding their own
+floors -- as a noise-reduction route to whatever weak events remain. Nothing on
+record anywhere in this repository considers it; it is evaluable only once GRU
+and TCN rows exist, and it cannot land mid-comparison (section 12.4). Logged
+so it is not lost, and not touched.
+
+### 14.8 OBSERVED
+
+*Filled in after the run, beside the predictions.*
