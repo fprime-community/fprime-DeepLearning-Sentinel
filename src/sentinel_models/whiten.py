@@ -85,6 +85,12 @@ LENGTH_TOLERANCE = 3.0
 #: plausible-looking large numbers rather than an error.
 MAX_CONDITION = 1.0e4
 
+#: Rank of the trailing local reference, used only under `local_reference`.
+#: The same neighbourhood OS-CFAR draws its scale estimate from, and far below
+#: the measured contamination rate, so a handful of anomalous steps inside the
+#: window cannot drag the reference up with them (`docs/RESEARCH.md`).
+LOCAL_RANK = 0.75
+
 #: Rows kept for the threshold quantile. The covariance is accumulated exactly in
 #: one pass; the score's own distribution cannot be until the covariance exists,
 #: so a strided sample is held back rather than paying a second forecast pass.
@@ -125,6 +131,19 @@ class Config:
     length_tolerance: float = LENGTH_TOLERANCE
     max_condition: float = MAX_CONDITION
 
+    #: Compare the whitened length against a **trailing local quantile of itself**
+    #: rather than one global quantile of the nominal pool. Default False, which
+    #: is the rule every published whitened figure was measured under.
+    #:
+    #: The motivation is measured (docs/MODELS.md 13): the events this rule loses
+    #: are weak, not invisible, and they peak at a median 0.240 of the global
+    #: threshold. A local reference lowers the bar only where the neighbourhood is
+    #: quiet. **It is also the shape that collapsed onto the noise floor when the
+    #: forecaster improved** (D17, D18), which is why 13.3 defines the collapse
+    #: signature before the run.
+    local_reference: bool = False
+    local_rank: float = LOCAL_RANK
+
     def as_dict(self) -> dict:
         return {"error_window": self.error_window,
                 "error_window_stride": self.stride,
@@ -135,7 +154,9 @@ class Config:
                 "shrinkage": self.shrinkage,
                 "sample_stride": self.sample_stride,
                 "length_tolerance": self.length_tolerance,
-                "max_condition": self.max_condition}
+                "max_condition": self.max_condition,
+                "local_reference": self.local_reference,
+                "local_rank": self.local_rank}
 
 
 @dataclass(frozen=True)
@@ -154,6 +175,8 @@ class Whitening:
     nominal_steps: int
     condition_number: float
     median_length: float        #: on nominal; must sit near sqrt(C) or this is broken
+    local_multiplier: float | None = None   #: set only under `local_reference`
+    nominal_admission: float | None = None  #: what the fitted rule admits on nominal
 
     def as_dict(self) -> dict:
         return {"mean": [float(m) for m in self.mean],
@@ -162,7 +185,11 @@ class Whitening:
                 "nominal_steps": int(self.nominal_steps),
                 "condition_number": float(self.condition_number),
                 "median_length": float(self.median_length),
-                "expected_length": float(np.sqrt(self.mean.shape[0]))}
+                "expected_length": float(np.sqrt(self.mean.shape[0])),
+                "local_multiplier": (None if self.local_multiplier is None
+                                     else float(self.local_multiplier)),
+                "nominal_admission": (None if self.nominal_admission is None
+                                      else float(self.nominal_admission))}
 
 
 class Accumulator:
@@ -250,10 +277,58 @@ class Accumulator:
                 f"assertion exists because the first run of this stage produced "
                 f"thresholds of 25.7 to 36.3 against sqrt(12) and scored anyway."
             )
-        threshold = float(np.quantile(distances, 1.0 - config.admission_rate))
+        rate = float(config.admission_rate)
+        threshold = float(np.quantile(distances, 1.0 - rate))
+        local_multiplier = admitted = None
+        if config.local_reference:
+            # The multiplier for a trailing local reference, fitted on the same
+            # nominal sample: the (1 - rate) quantile of d divided by the local
+            # quantile of d. Dimensionless, and the same convention the global
+            # threshold uses -- what changes is what it is measured against.
+            local = _trailing_quantile(distances, config)
+            usable = local > 0
+            if usable.sum() < 100:
+                raise ReferenceError(
+                    "too few nominal windows carry a positive local reference to "
+                    "fit a local multiplier"
+                )
+            ratios = distances[usable] / local[usable]
+            local_multiplier = float(np.quantile(ratios, 1.0 - rate))
+            admitted = float(np.mean(distances[usable]
+                                     >= local_multiplier * local[usable]))
+            # docs/MODELS.md 13.3, collapse condition 1. Measured on the nominal
+            # pool before any event is scored, and it can fail while the adoption
+            # number still looks healthy -- which is exactly what it is for.
+            if admitted > 2.0 * rate:
+                raise ReferenceError(
+                    f"the local reference admits {admitted:.5f} of nominal data "
+                    f"against a target of {rate:.5f} -- more than twice. That is "
+                    f"the noise-floor collapse signature pre-registered in "
+                    f"docs/MODELS.md 13.3, condition 1. Refusing to score."
+                )
+        else:
+            admitted = float(np.mean(distances >= threshold))
         return Whitening(mean=mean, scale=scale, precision=precision,
                          threshold=threshold, nominal_steps=self.n,
-                         condition_number=condition, median_length=median)
+                         condition_number=condition, median_length=median,
+                         local_multiplier=local_multiplier, nominal_admission=admitted)
+
+
+def _trailing_quantile(distance: np.ndarray, config: Config) -> np.ndarray:
+    """``Q_p`` of the ``error_window`` whitened lengths ending at each segment.
+
+    One value per segment, held across the segment's steps, so the reference is
+    the same trailing window telemanom uses -- span ``error_window``, stride
+    ``stride`` -- and the two rules are compared on identical history.
+    """
+    steps = distance.shape[0]
+    span, stride = config.error_window, max(1, config.stride)
+    out = np.zeros(steps, dtype=np.float64)
+    for seg_lo in range(0, steps, stride):
+        seg_hi = min(seg_lo + stride, steps)
+        window = distance[max(0, seg_lo - span):seg_hi]
+        out[seg_lo:seg_hi] = np.quantile(window, config.local_rank) if window.size else 0.0
+    return out
 
 
 def whitened_length(residual: np.ndarray, mean: np.ndarray, scale: np.ndarray,
@@ -299,8 +374,20 @@ def ratios(residual: np.ndarray, config: Config, whitening: Whitening
                                whitening.precision)
     who = contributions(residual, whitening.mean, whitening.scale, whitening.precision)
 
-    eps = float(whitening.threshold)
-    raw = (distance / eps if eps > 0 else np.zeros_like(distance)).astype(np.float32)
+    if config.local_reference:
+        if whitening.local_multiplier is None:
+            raise ReferenceError(
+                "local_reference is set but no local multiplier was fitted; the "
+                "calibration and the scoring disagree about which rule this is"
+            )
+        local = _trailing_quantile(distance, config)
+        eps_at = whitening.local_multiplier * local
+        eps_at[eps_at <= 0] = float(whitening.threshold)
+    else:
+        eps_at = np.full(steps, float(whitening.threshold), dtype=np.float64)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        raw = np.where(eps_at > 0, distance / eps_at, 0.0).astype(np.float32)
     alarm = np.zeros(steps, dtype=bool)
     stride = max(1, config.stride)
 
@@ -309,6 +396,7 @@ def ratios(residual: np.ndarray, config: Config, whitening: Whitening
         reference_lo = max(0, seg_lo - config.error_window)
         window = distance[reference_lo:seg_hi]
         offset = seg_lo - reference_lo
+        eps = float(eps_at[seg_lo])
         sequences = telemanom.sequences_at(window, eps, config)
         if not sequences:
             continue

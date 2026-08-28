@@ -740,6 +740,28 @@ class WhitenedDetector(ForecastDetector):
         return result
 
 
+class WhitenedLocal(WhitenedDetector):
+    """The relationship test with a **local** reference instead of a global one.
+
+    Pre-registered in `docs/MODELS.md` section 13 before its first run, collapse
+    signature and all. The whitened length is compared against a trailing
+    quantile of itself rather than one global quantile of the nominal pool -- the
+    only change, so the pair isolates *where the threshold comes from* and
+    nothing else.
+
+    This is the shape that collapsed onto the noise floor when the forecaster
+    improved (D17, D18), and `whiten.Accumulator.finish` refuses to score if the
+    fitted rule admits more than twice its target on nominal data.
+    """
+
+    name = "lstm-whitened-local"
+
+    def __init__(self, *, config: whiten.Config | None = None, **kwargs) -> None:
+        config = config or whiten.Config()
+        super().__init__(config=type(config)(**{**vars(config),
+                                                "local_reference": True}), **kwargs)
+
+
 class TelemanomQuantile(ForecastDetector):
     """Same forecaster and cached weights; the harness picks the threshold.
 

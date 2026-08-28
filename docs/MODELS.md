@@ -1025,3 +1025,99 @@ commanded events predictable, and its ablation has never been run against
 post-fix weights. Whether a relationship stage is needed *in addition* to command
 conditioning is not established, and building both before measuring either would
 repeat the mistake this section exists to prevent.
+
+---
+
+## 13. Pre-registration: `lstm-whitened-local`
+
+**Written and committed before the run.** Section 10's first pre-registration
+failed and is preserved; this one is treated the same way.
+
+### 13.1 What is being tested, and why this and not a looser threshold
+
+`lstm-whitened` misses eleven anomalies `lstm-telemanom` catches, and four
+explanations are measured and refuted (`docs/RESULTS.md` 6d). What separates lost
+from kept is that the lost events are **weak** -- median peak `||z||` of 3.76
+against 16.41 -- and they peak at a **median 0.240 of the threshold**. Loosening
+globally would need roughly a fourfold reduction and would take the 2/48 with it.
+
+The remaining hypothesis is about *where* the threshold comes from, not how high
+it is. `lstm-telemanom` compares each channel against a **local** window of 2,100
+errors and so adapts to a quiet stretch; `lstm-whitened` compares a joint score
+against **one global quantile** of the whole nominal pool. Excellent precision
+(39/40), poor sensitivity to small excursions -- which is `docs/DECISIONS.md`
+D13's asymmetry arriving from the other side.
+
+`lstm-whitened-local` keeps the relationship test unchanged and replaces only the
+reference: the whitened length `d` is compared against a **trailing local
+quantile of `d` itself**, with the multiplier calibrated on nominal residuals to
+the same noise floor. Nothing else moves -- same covariance, same smoothing, same
+`error_buffer`, pruning disabled as in section 6d.
+
+**And it is the design most likely to reintroduce the failure this work item
+began with.** A locally-referenced threshold is exactly what collapsed onto the
+noise floor when the forecaster improved (D17, D18). That is why the collapse
+signature below is defined before the run rather than after it.
+
+### 13.2 PREDICTED
+
+The eleven, ordered by how close they came -- `reach` is the event's peak whitened
+length as a fraction of the threshold, read from
+`runs/m1-g8.9.10/_forensics/2026-08-28T034312Z-discriminator.json`:
+
+```
+  id_93   0.647   id_107  0.637   id_110  0.632   id_90   0.602
+  id_12   0.602   id_109  0.567   id_114  0.485   id_138  0.367
+  id_157  0.300   id_20   0.240   id_89   0.136
+```
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P11** | **Between 4 and 7 of the seven highest-reach events return** -- `id_93`, `id_107`, `id_110`, `id_90`, `id_12`, `id_109`, `id_114`. Headline cell moves from **21/32 to between 23/32 and 25/32** | a local reference lowers the bar only where the neighbourhood is quiet, so events already at half the global threshold are the ones it can reach |
+| **P12** | **`id_89` (0.136) and `id_20` (0.240) do not return.** A local reference cannot close a sevenfold gap | |
+| **P13** | **All seven high-reach events are on fold 0**, so the recovery concentrates there and folds 1 and 2 move little | read from the table above, not assumed. Worth stating because if recovery appears on folds 1 and 2 instead, the mechanism is not the one proposed |
+| **P14** | **Rare-event false alarms stay at or below 4/48** on both sets, against 2/48 now | the noise floor is recalibrated to the same target, so the rate should hold |
+
+### 13.3 The collapse signature, and it is harder than the outcome
+
+`docs/DECISIONS.md` D22 records a pre-registered condition that would have
+**passed** the failure it was written for, because it was easier to satisfy than
+the outcome it stood in for. This one is written to be harder.
+
+**Outcome condition (what success looks like):** headline cell >= 23/32 and
+rare-event false alarms <= 4/48 on `m1-g8.9.10`.
+
+**Collapse signature -- ANY of these means the noise-floor failure has recurred,
+whatever the detection numbers say:**
+
+1. **Measured nominal admission on the fitting window exceeds 2x its target.**
+   The rule is calibrated to admit `r` of nominal timesteps; if it actually
+   admits more than `2r` on that same nominal pool, the locality is not
+   controlled.
+2. **Alarm ranges exceed 400 on `m1-g8.9.10`**, ten times the 40 the global rule
+   produces.
+3. **Nominal-step false alarms exceed 0.5%** on the test window, against 0.026%
+   for the global rule.
+
+**Why condition 1 is strictly harder than the outcome.** It is measured on
+nominal data, before any event is scored, and it **can fail while the outcome
+passes** -- a rule firing constantly can still miss the 48 rare events and report
+a healthy 2/48. That is not hypothetical: the run that produced 3,548 alarm
+ranges reported a rare-event rate of 30/48 while its nominal-step rate was
+**4.97%**, so the rate that mattered was visible in the nominal data and not in
+the adoption number. A mechanism condition earns its place only if it can catch
+something the outcome misses, and this one can.
+
+### 13.4 The run
+
+Two arms, cached weights, both channel sets, all folds, no refit, `error_buffer`
+held at 100:
+
+| Arm | Why |
+|---|---|
+| `lstm-whitened` | the global rule at `pruning_p = 0`, giving authoritative scored numbers for the default adopted in section 6d rather than paying for a separate pass |
+| `lstm-whitened-local` | the local reference |
+
+### 13.5 OBSERVED
+
+*Not yet run. Filled in beside the predictions, never in place of them.*

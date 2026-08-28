@@ -236,3 +236,59 @@ def test_disabling_pruning_keeps_every_sequence():
     e_s = np.array([1.0, 9.0, 1.0, 5.0, 1.0, 3.0], dtype=np.float32)
     sequences = [(1, 2), (3, 4), (5, 6)]
     assert all(telemanom.prune(e_s, sequences, 2.0, 0.0))
+
+
+# -- the local reference, pre-registered in docs/MODELS.md 13 ----------------
+def test_the_local_reference_is_off_by_default():
+    """Every published whitened figure was measured against the global rule."""
+    assert whiten.Config().local_reference is False
+    assert whiten.Config().as_dict()["local_reference"] is False
+
+
+def test_a_local_multiplier_is_fitted_only_when_asked_for():
+    residual = _related()
+    _, plain = _fitted(residual)
+    assert plain.local_multiplier is None
+    _, local = _fitted(residual, whiten.Config(local_reference=True))
+    assert local.local_multiplier is not None and local.local_multiplier > 0
+
+
+def test_the_local_rule_admits_about_its_target_on_nominal_data():
+    residual = _related()
+    for rate in (0.01, 0.001):
+        _, w = _fitted(residual, whiten.Config(local_reference=True,
+                                               admission_rate=rate))
+        assert w.nominal_admission is not None
+        assert w.nominal_admission <= 2.0 * rate
+
+
+def test_the_collapse_signature_refuses_to_score():
+    """docs/MODELS.md 13.3 condition 1, as an assertion rather than a hope.
+
+    D22 records a pre-registered condition that PASSED the failure it was written
+    for. This one is checked on nominal data before any event is scored, so it
+    can fail while the adoption number still looks healthy -- which is the whole
+    reason it exists.
+    """
+    config = whiten.Config(local_reference=True, admission_rate=0.001)
+    residual = _related()
+    acc = whiten.Accumulator(residual.shape[1], config.sample_stride)
+    for lo in range(0, residual.shape[0], 25_000):
+        acc.add(residual[lo:lo + 25_000])
+    w = acc.finish(config)          # nominal data: must not trip
+    assert w.nominal_admission <= 2.0 * config.admission_rate
+
+    import types
+    broken = types.SimpleNamespace(**{**vars(config), "admission_rate": 1e-9})
+    with pytest.raises(ReferenceError, match="collapse signature"):
+        acc.finish(whiten.Config(**{**vars(config), "admission_rate": 1e-9}))
+
+
+def test_the_local_rule_scores_one_series_and_differs_from_the_global_one():
+    residual = _related()
+    cfg_g, wg = _fitted(residual)
+    cfg_l, wl = _fitted(residual, whiten.Config(local_reference=True))
+    og, _ = whiten.ratios(residual, cfg_g, wg)
+    ol, _ = whiten.ratios(residual, cfg_l, wl)
+    assert og.shape == ol.shape == (residual.shape[0],)
+    assert not np.array_equal(og, ol), "the local reference changed nothing"
