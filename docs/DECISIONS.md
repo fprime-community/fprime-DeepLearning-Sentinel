@@ -1155,11 +1155,20 @@ dilation. `lstm-quantile` and the trivial baselines run through paths with **no
 `+27.5` the other did not. Every lead-time figure in `docs/RESULTS.md` inherits
 this, including the ones that disqualified `rstd`, `mavg` and `lstm-quantile`.
 
-**CONSEQUENCE.** Held at 100 while D20's threshold is measured, so the two do not
-confound. Decided afterwards, with the threshold frozen, against both reaches at
-once. **And the lead-time metric cannot be used to compare architectures until
-this is resolved** -- the Phase 1 gate turns on it, and it currently measures the
-buffer more than the detector. **Also carried into work items 5 and 6**: `error_buffer` is why the
+**RESOLVED 2026-08-28 for the second reach.** `sentinel_eval` gained an
+optional emission point, additive and absent unless a detector provides one, and
+the honest reading is in `docs/RESULTS.md` 6f. Medians of **-43.0** and **-41.5**
+on the gate set against +26.0 and +29.0, with 22 of 23 and 18 of 18 detections
+negative -- **and fifteen of thirty-eight events on the gate set have no emission
+overlapping them at all**, caught by the backward widening rather than by the
+detector. No detection count moved; only the reading.
+
+**CONSEQUENCE.** `error_buffer` is still held at 100 and its first reach -- into
+the alarm width itself -- is still undecided, so this entry stays open on that.
+What is settled is the metric: every detector is now measured from where it could
+speak, those that do not dilate falling through unchanged, so the comparison is
+finally like-for-like. **D9's disqualifications were made on the old reading and
+should be revisited on the honest one before the architecture gate.** **Also carried into work items 5 and 6**: `error_buffer` is why the
 persistence filter measured as subsumed on this detector (Objective.md 7.1), so
 the GRU and the TCN inherit all three couplings unexamined unless this is settled
 first.

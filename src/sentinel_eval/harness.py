@@ -35,7 +35,7 @@ from .detector import Context, Detector, reduce_scores
 from .labels import ANOMALY, Event
 from .metrics import eventwise, falsealarm, leadtime, vus
 from .metrics.counts import Count, f_beta
-from .metrics.ranges import Range, merge
+from .metrics.ranges import Range, mask_to_ranges, merge
 from .scorecard import FoldResult, RunRecord, Scorecard
 from .splits import Split, coverage, train_mask
 from .tasks import Task
@@ -207,9 +207,19 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     # the one stage that widens.
     emission = getattr(detector, "last_emission", None)
     if emission is not None:
+        # Re-date each alarm range to the moment the detector could speak about
+        # it, keeping the range itself. The emission mask marks single batch
+        # boundaries, so using it AS the alarm mask would silently change which
+        # events count as detected -- measuring two things at once and reporting
+        # the result as one. The detected set must stay the detector's; only the
+        # *start* of each range moves forward to when it was actually available.
         emission = np.asarray(emission, dtype=bool)[warmup:]
-        emission = apply_persistence(emission, task.persistence)
-    honest = np.asarray(emission if emission is not None else predicted)
+        honest = np.zeros_like(predicted)
+        for lo, hi in mask_to_ranges(predicted):
+            inside = np.flatnonzero(emission[lo:hi])
+            honest[lo + (int(inside[0]) if inside.size else 0):hi] = True
+    else:
+        honest = predicted
     lead_emitted = (leadtime.score(events, spans, honest, scorable)
                     if task.scores_recall else None)
 

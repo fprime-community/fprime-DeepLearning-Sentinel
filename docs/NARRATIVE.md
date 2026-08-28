@@ -222,6 +222,24 @@ The pattern across all four is the one this section keeps recording. Each
 hypothesis was cheap to test, each would have been comfortable to assume, and the
 one that survived is the one nobody proposed.
 
+**And measured properly, the claim does not survive.** The honest reading -- each
+alarm re-dated to the batch boundary where the detector could actually speak --
+puts the median lead at **-43.0** against the reported +26.0, with 22 of 23
+detections negative. Worse, **fifteen of the thirty-eight events on the gate set
+have no emission overlapping them at all**: the detector's first word came after
+the event had ended, and the alarm touched the event only because the buffer
+widened it backwards into the past.
+
+Two implementation errors of mine on the way, both caught by reading the output
+rather than by the tests, which is its own signal. The first described the
+dilation as reaching back 99 steps when it is clipped to the 70-step batch -- the
+measured maximum of +63 was the tell and I did not read it. The second used the
+emission mask *as* the alarm mask, which silently changed which events counted as
+detected and would have reported a lead time and a recall change as one number.
+
+**The project does not currently warn early.** Not on either channel set, not
+with either decision layer. The +26 was the batching latency counted backwards.
+
 **The project's headline claim measured itself from a start it never reached.**
 Objective.md section 2 promises warning *before* an event, and every lead-time
 figure this repository publishes is measured from the start of an alarm range.

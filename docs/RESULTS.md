@@ -743,6 +743,63 @@ the first actual threshold crossing the median is **+0.0**, and the detector
 leads in 3 of 38 events rather than 34 of 38. `+29.0` here means *no worse than
 the arm beside it*, nothing more, until that metric is made honest.
 
+## 6f. Lead time, measured from a moment the detector could reach
+
+`docs/DECISIONS.md` D21, closed. Both readings, neither deleted. The honest one
+re-dates each alarm range to the batch boundary at which the detector could
+actually emit, keeping the range; the detected set stays the detector's.
+Artifacts `runs/m1-g8.9.10/lstm-{telemanom,whitened}/2026-08-28T162*Z-*.json`.
+
+**GATE -- `m1-g8.9.10`**
+
+| Detector | reading | median | p25 | p75 | n | negative |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` | as reported | **+26.0** | +15.2 | +46.8 | 38 | 4 |
+| `lstm-telemanom` | **honest** | **-43.0** | -54.5 | -21.5 | **23** | **22** |
+| `lstm-whitened` | as reported | **+29.0** | +17.0 | +46.5 | 27 | 1 |
+| `lstm-whitened` | **honest** | **-41.5** | -50.5 | -20.8 | **18** | **18** |
+
+**`m1-ss5`**
+
+| Detector | reading | median | n | negative |
+|---|---|---|---|---|
+| `lstm-telemanom` | as reported | +26.5 | 38 | 2 |
+| `lstm-telemanom` | **honest** | **-53.0** | **11** | 10 |
+| `lstm-whitened` | as reported | +27.0 | 23 | 1 |
+| `lstm-whitened` | **honest** | **-51.0** | **8** | 8 |
+
+### The two things this says, and the second is worse than the first
+
+**Every detector warns late.** Medians of **-43.0** and **-41.5** on the gate set
+against the +26.0 and +29.0 reported, and **22 of 23** and **18 of 18**
+individual detections negative. The reported figures were dated from the start of
+the batch in which a crossing occurred; the detector can only speak at that
+batch's end.
+
+**And the denominator falls, which is not a measurement artifact.** `n` goes 38 to
+**23** on the gate set and 38 to **11** on the subset. Those events have **no
+emission overlapping them at all** -- the detector's first word came after the
+event had ended, and the only reason the alarm range touched the event was that
+`error_buffer` widened it backwards into the past. **Fifteen of 38 events on the
+gate set were caught by the dilation and not by the detector.** Their lead is not
+-43; it is worse than that and the median over the surviving 23 understates it.
+
+**What this does not do.** It does not change any detection count: recall stays
+38/46 and 27/46, and `event_recall`, precision, MVGS and the rare-event rate are
+untouched. Only the lead-time reading moves, and both readings are kept.
+
+**What it does do.** Objective.md 2's claim is warning *before* an event.
+Measured from a moment that exists, **this project does not currently warn
+early** -- on either channel set, with either decision layer. The +26 was the
+batching latency counted backwards.
+
+**And it makes the metric usable again.** Every detector is now treated
+identically: those that do not dilate fall through to their alarm mask unchanged,
+because for them a crossing is the emission. `lstm-quantile`'s -122 and `mavg`'s
+0 were never comparable with `lstm-telemanom`'s +26; under this reading they are.
+D9's disqualifications should be revisited on the honest figures before the
+architecture gate, and that is **not** done here.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and

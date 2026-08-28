@@ -138,3 +138,34 @@ def test_the_whitened_rule_emits_too():
     if (out >= 1.0).any():
         assert emission.any(), "the whitened rule alarmed without ever emitting"
         assert int(np.flatnonzero(emission)[0]) >= int(np.flatnonzero(out >= 1.0)[0])
+
+
+def test_re_dating_preserves_the_detected_set():
+    """The honest reading must not change WHAT was caught, only WHEN it was said.
+
+    The emission mask marks single batch boundaries. Using it as the alarm mask
+    silently drops events whose span contains no boundary -- measuring two things
+    and reporting them as one. The harness therefore re-dates each range to its
+    first emission and keeps the range's end, so the detected set stays the
+    detector's.
+    """
+    predicted = np.zeros(1000, dtype=bool)
+    predicted[100:300] = True
+    predicted[600:800] = True
+    emission = np.zeros(1000, dtype=bool)
+    emission[209] = True                      # inside the first range
+    emission[699] = True                      # inside the second
+
+    honest = np.zeros_like(predicted)
+    from sentinel_eval.metrics.ranges import mask_to_ranges
+    for lo, hi in mask_to_ranges(predicted):
+        inside = np.flatnonzero(emission[lo:hi])
+        honest[lo + (int(inside[0]) if inside.size else 0):hi] = True
+
+    assert len(mask_to_ranges(honest)) == len(mask_to_ranges(predicted)), (
+        "re-dating changed the number of alarm ranges"
+    )
+    # An event overlapping the tail of a range is still detected by both.
+    assert honest[250] and predicted[250]
+    # But the range now starts later, which is the whole correction.
+    assert not honest[150] and predicted[150]
