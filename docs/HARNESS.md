@@ -92,6 +92,54 @@ and it is what decides whether a mission would fly this at all: a detector
 alarming at 81% of commanded manoeuvres is muted within a week in orbit, and a
 muted detector is worse than none (Objective.md 11, rule 2).
 
+### (!) There is no alarm budget. The threshold is a noise floor, not a dial
+
+**Standing principle, recorded 2026-08-28, and it strikes an earlier framing in
+this repository rather than adding to it.**
+
+Work on the decision layer drifted into calibrating thresholds against a target
+admission rate -- 0.1% of nominal timesteps, swept as a curve, justified as *what
+a mission's operators can absorb*. That framing is wrong and it is struck.
+
+> **The detector fires when the relationship breaks and is silent otherwise.
+> Zero alarms one month and five the next are both correct. The count is
+> reality's, not ours.**
+
+A target rate makes the detector answer a question about operator convenience
+instead of a question about the spacecraft. Tuning until the number looks
+acceptable is how a detector is taught to under-report a spacecraft that is
+genuinely degrading -- the exact condition Objective.md 11 rule 1 exists to
+prevent, arriving by a different route.
+
+**The threshold's only legitimate meaning is the noise floor.** *The relationship
+broke* is a measurement carrying sensor noise, so a line between hum and break
+must exist. That line is **measured from nominal residuals** and never chosen
+from results:
+
+```
+  calibration   what does this spacecraft's normal noise look like     DO THIS
+  fitting       what threshold makes my numbers look good              NEVER
+```
+
+`lstm-whitened` is already calibrated the first way -- its covariance and its
+threshold come from the fitting window's nominal residuals and no label or score
+is consulted -- and it stays that way.
+
+**The per-week figure survives only as a pre-launch sanity report.** After
+calibration, report how often the detector fired on held-out **healthy** data. A
+sane number validates the calibration; an absurd one means the calibration is
+broken and should be investigated, not turned down. **Nobody adjusts anything on
+the strength of it.** It is an instrument check, in the same family as `selftest`.
+
+**Where this leaves the admission-rate curves already published.**
+`docs/RESULTS.md` sections 6b and 6c sweep an admission rate across three
+decades. They stay, because a swept parameter reported at every value and
+selected at none is a *measurement of sensitivity*, which is legitimate and was
+the point of reporting a curve rather than a point. What is struck is the
+justification offered for the parameter -- that a mission picks its rate from
+operator capacity. It does not. Anything reading as *tune to an acceptable rate*
+is superseded by this section.
+
 ### No number enters a document that was not read from an artifact
 
 **A standing rule.** If a value is not to hand, the cell is left empty and said to

@@ -165,8 +165,18 @@ ISA-18.2 also **reclassifies suppressed alarms as recorded events** rather than
 discarding them.
 
 *Taken:* Layer 2's commanded-event-window masking, and its hard rule that every
-suppressed detection is logged and counted on the scorecard. Layer 5's alarm
-budget. The rates are quoted in wall-clock and **our data cannot be**: ESA-ADB
+suppressed detection is logged and counted on the scorecard.
+
+**(!) NOT taken, and the correction is 2026-08-28: the alarm budget.** These
+standards set rates a human operator can absorb, and an earlier reading of them
+here justified calibrating our threshold to a target admission rate. **That was
+the wrong borrowing.** A process plant's alarm rate is a design variable an
+engineer sets; a spacecraft's relationship breaks are not. Sentinel fires when a
+learned relationship breaks and is silent otherwise, and the count is the
+spacecraft's (`docs/HARNESS.md`; Objective.md 10.2 fix 3a). What survives is the
+weaker and still useful part: **a rate computed on healthy data is a sanity check
+on the calibration**, and ISA-18.2's rule that a suppressed detection is recorded
+rather than discarded. The rates are quoted in wall-clock and **our data cannot be**: ESA-ADB
 timestamps are anonymised and scaled, so we state budgets in timesteps and note
 that a mission converts using its own cycle rate.
 
@@ -216,9 +226,13 @@ anomaly density, with a cheap high-recall triage stage feeding a costlier
 high-precision adjudication stage. Operating points are chosen from human review
 capacity, and results reported as precision@k.
 
-*Taken:* Layer 3's two-stage cascade, and Layer 5's budget-normalised reporting.
-The cascade also happens to be what makes stage 2 flight-realisable: pure fixed
-logic, no learning, no allocation, bounded compute.
+*Taken:* Layer 3's two-stage cascade. The cascade is what makes stage 2
+flight-realisable: pure fixed logic, no learning, no allocation, bounded compute.
+
+**Not taken: precision@k and budget-normalised reporting** (2026-08-28). Choosing
+an operating point from human review capacity is exactly the framing struck in
+`docs/HARNESS.md` -- a fraud team can decide how many cases it will look at, and a
+spacecraft cannot decide how many of its relationships will break.
 
 ### Gorges et al. 2009 -- ICU alarm delays
 

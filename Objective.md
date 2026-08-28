@@ -671,6 +671,26 @@ Nearly every mission builds a sim or digital twin, and F' has strong sim tooling
 
 Neither alone is sufficient; both together is usually plenty for a model this small.
 
+**[x] 3a. No alarm budget, ever. The threshold is a measured noise floor.**
+*(Added 2026-08-28.)* The toolkit never asks a mission what alarm rate it wants,
+and nothing in the workflow turns a sensitivity dial. **Sentinel fires when a
+learned relationship breaks and is silent otherwise; zero alarms one month and
+five the next are both correct outcomes.** The count belongs to the spacecraft.
+
+The threshold exists for one reason: *the relationship broke* is a measurement
+with sensor noise on it, so a line between hum and break has to be drawn. That
+line is **calibrated** from the mission's own nominal pre-launch residuals -
+what does this spacecraft's normal noise look like - and never **fitted** to make
+a result acceptable. A target rate would teach the detector to under-report a
+spacecraft that is genuinely degrading, which is section 11 rule 1 arriving by a
+different route.
+
+What a mission does get is a **sanity report, not a target**: after calibration,
+how often the detector fired on held-out healthy data. A sane number validates
+the calibration; an absurd one means it is broken and needs investigating, not
+turning down. It sits beside the data-sufficiency report in fix 1 and is read the
+same way - a statement about whether the instrument is working, not a knob.
+
 **[x] 4. Confidence tiers - honest from day one.**
 Sentinel ships with **wide, conservative thresholds** and reports its own confidence as
 telemetry.

@@ -519,7 +519,17 @@ Per segment, from its trailing reference window `R` and the nominal residual poo
 | Quantity | Fitted from | Why a mission can do this |
 |---|---|---|
 | `p`, the quantile rank | bounded below the measured contamination rate -- 53 exceedances in 2,170 samples, 2.4% -- so a rank near 0.75 is far under the breakdown point | read from its own residuals |
-| `alpha`, `beta` | the **nominal alarm budget**, on the fitting window's residuals | it states what its operators can act on (`docs/RESEARCH.md`: ISA-18.2, EEMUA 191). It has no failures to fit to |
+| `alpha`, `beta` | the **nominal noise floor**, on the fitting window's residuals | it measures what its own normal looks like. It has no failures to fit to |
+
+**(!) SUPERSEDED FRAMING, 2026-08-28.** This table read *the nominal alarm
+budget -- what its operators can act on*. **There is no alarm budget**
+(`docs/HARNESS.md`). The detector fires when the relationship breaks and is
+silent otherwise; the count is reality's, not ours. The quantity being measured
+is the **noise floor** -- the line between sensor hum and a real break -- and it
+is read from nominal residuals, never chosen so the numbers look right. The
+sweeps below stay as a sensitivity measurement, reported at every value and
+selected at none; what is struck is the claim that a mission picks its value from
+operator capacity.
 
 **(!) SUPERSEDED 2026-08-27, and the paragraph below is preserved because it was
 acted on.** It argued that pinning the budget to

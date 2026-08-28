@@ -984,9 +984,16 @@ weights:
 ```
 
 `mu` and `sigma` appear nowhere. `alpha` and `beta` are fitted on nominal
-residuals against an **alarm budget in timesteps** -- what a mission's operators
-can act on (`docs/RESEARCH.md`, ISA-18.2 and EEMUA 191) -- never against a
-detection score. `p` is bounded below the measured contamination rate: the median
+residuals against a **measured noise floor** -- never against a detection score.
+
+**(!) The wording here was "an alarm budget in timesteps -- what a mission's
+operators can act on", and it is struck** (`docs/HARNESS.md`, and Objective.md
+10.2 fix 3a). There is no alarm budget. The detector fires when the relationship
+breaks and is silent otherwise, and the count belongs to the spacecraft rather
+than to us. What is calibrated is the line between sensor hum and a real break,
+read from nominal residuals. The distinction the entry was reaching for was
+label-free versus label-fitted, and that half stands; the operator-capacity
+justification does not. `p` is bounded below the measured contamination rate: the median
 window carries 53 exceedances in 2,170 samples, 2.4%, so a rank near 0.75 sits
 far under any plausible breakdown point, and that bound is read from residuals
 rather than transcribed.
