@@ -359,7 +359,8 @@ def window_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
     return ratios
 
 
-def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
+def channel_ratios(e_s: np.ndarray, config: Config,
+                   emission: np.ndarray | None = None) -> np.ndarray:
     """Score one channel's whole smoothed-error series with trailing windows.
 
     Every ``stride`` steps, a threshold is chosen from
@@ -387,6 +388,7 @@ def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
         window = e_s[reference_lo:seg_hi]
         offset = seg_lo - reference_lo          # where the judged segment starts
 
+        emitted = False
         if config.guard_segment and offset > 0:
             # Guard cells: the scale estimate sees reference cells only, and the
             # threshold it yields is then applied to the cells under test. The
@@ -406,6 +408,16 @@ def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
             lo, hi = max(lo, offset), min(hi, window.shape[0])
             if keep and hi > lo:
                 alarm[reference_lo + lo:reference_lo + hi] = True
+                # Where the detector could actually SAY something. The alarm above
+                # extends `error_buffer - 1` steps backwards from a crossing that
+                # has already happened, and a flight component cannot emit
+                # retroactively; it emits when the batch containing the crossing is
+                # processed, at the end of the segment. Recorded separately so lead
+                # time can be measured from a moment that exists.
+                if np.any(window[offset:] >= eps):
+                    emitted = True
+        if emission is not None and emitted:
+            emission[seg_hi - 1] = True
 
     # Anything not inside a surviving sequence must land below the operating
     # point. r/(1+r) is below 1 for every r >= 0 and increasing in r, so a
@@ -426,8 +438,8 @@ def channel_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
     return out
 
 
-def top_ratios(smoothed: np.ndarray, config: Config, depth: int = 3
-               ) -> tuple[np.ndarray, np.ndarray]:
+def top_ratios(smoothed: np.ndarray, config: Config, depth: int = 3,
+               emission: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """The ``depth`` largest per-channel ratios at each timestep, and who was highest.
 
     Returns ``(top, who)`` with ``top`` shaped ``(depth, steps)`` sorted
@@ -444,7 +456,7 @@ def top_ratios(smoothed: np.ndarray, config: Config, depth: int = 3
     who = np.zeros(steps, dtype=np.int8)
 
     for c in range(channels):
-        incoming = channel_ratios(smoothed[:, c], config)
+        incoming = channel_ratios(smoothed[:, c], config, emission=emission)
         who[incoming > top[0]] = c
         for level in range(depth):
             displaced = np.minimum(incoming, top[level])

@@ -35,6 +35,19 @@ from .errors import DetectorError
 #: A label-free operating point: alarm above this quantile of training scores.
 DEFAULT_THRESHOLD_QUANTILE = 0.999
 
+#: Optional, and absent unless a detector sets it: a boolean mask over the scored
+#: window marking the timesteps at which the detector could actually **emit**.
+#:
+#: For most detectors that is simply where the score crosses, and the harness
+#: defaults to the alarm mask when this is absent -- so nothing changes for them.
+#: It exists because telemanom's `error_buffer` widens every alarm range
+#: ``error_buffer - 1`` steps **backwards from a crossing that has already
+#: happened**, and lead time is measured from a range's start. A flight component
+#: cannot emit retroactively, so that measurement credited warning nobody
+#: received: measured, the reported +26 median became **+0.0**
+#: (`docs/DECISIONS.md` D21).
+EMISSION_ATTRIBUTE = "last_emission"
+
 
 @dataclass(frozen=True)
 class Context:

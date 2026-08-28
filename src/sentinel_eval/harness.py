@@ -195,7 +195,26 @@ def _score_fold(bundle: Bundle, fold, detector: Detector, task: Task, *, beta: f
     lead = (leadtime.score(events, spans, predicted, scorable)
             if task.scores_recall else None)
 
+    # The same measurement from a moment that exists. `error_buffer` widens every
+    # telemanom-path alarm range `error_buffer - 1` steps BACKWARDS from a crossing
+    # that has already happened, and lead time is measured from a range's start --
+    # so the figure credited warning nobody received (docs/DECISIONS.md D21).
+    #
+    # A detector may declare where it could actually emit. Absent, the alarm mask
+    # is used unchanged, which is correct for every detector that does not dilate:
+    # for them a crossing IS the emission and the two readings coincide. That is
+    # what makes the comparison identical across detectors rather than favouring
+    # the one stage that widens.
+    emission = getattr(detector, "last_emission", None)
+    if emission is not None:
+        emission = np.asarray(emission, dtype=bool)[warmup:]
+        emission = apply_persistence(emission, task.persistence)
+    honest = np.asarray(emission if emission is not None else predicted)
+    lead_emitted = (leadtime.score(events, spans, honest, scorable)
+                    if task.scores_recall else None)
+
     return FoldResult(
+        lead_time_emitted=lead_emitted,
         fold=fold.index, window=(test_lo, test_hi), threshold=threshold,
         events=event_score, false_alarms=alarms, vus_pr=volume, vus_detail=detail,
         oracle_f_beta=best, oracle_threshold=best_at, lead_time=lead,
@@ -247,6 +266,9 @@ def _pool(folds: list[FoldResult], task: Task, *, beta: float) -> dict:
             cells[cell] = cells.get(cell, Count(0, 0)) + count
     pooled["recall_by_cell"] = cells
 
+    emitted = [f.lead_time_emitted for f in folds if f.lead_time_emitted is not None]
+    if emitted:
+        pooled["lead_time_emitted"] = leadtime.pool(emitted)
     leads = [f.lead_time for f in folds if f.lead_time is not None]
     if leads:
         pooled["lead_time"] = leadtime.pool(leads)

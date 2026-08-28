@@ -236,6 +236,8 @@ class ForecastDetector(Detector):
         self._fit_window: tuple[int, int] | None = None
         self.report: dict | None = None
         self.last_attribution: np.ndarray | None = None
+        #: Where this detector could actually speak -- see `sentinel_eval.detector`.
+        self.last_emission: np.ndarray | None = None
 
     # -- contract ----------------------------------------------------------
     @property
@@ -318,7 +320,7 @@ class ForecastDetector(Detector):
             # smoothing for every point of a decision-layer grid, which is the
             # cost the cache exists to avoid -- and quantile mode is the branch
             # the next grid sweeps.
-            top, self.last_attribution = self._tops(values, context)
+            top, self.last_attribution, self.last_emission = self._tops(values, context)
             combined = top[self.agreement - 1]
         elif context.window == self._fit_window:
             # The harness scores the *fitting* window too, to derive an operating
@@ -334,12 +336,13 @@ class ForecastDetector(Detector):
             smoothed = self._smoothed_errors(values, context)
             combined = smoothed.max(axis=1)
             self.last_attribution = smoothed.argmax(axis=1).astype(np.int8)
+            self.last_emission = None
         else:
             # The cache is consulted before the errors are computed, not after.
             # Checking afterwards would recompute the forecast and the smoothing
             # for every point of a decision-layer grid -- the expensive two thirds
             # of the work, to answer a question about the cheap third.
-            top, self.last_attribution = self._tops(values, context)
+            top, self.last_attribution, self.last_emission = self._tops(values, context)
             combined = top[self.agreement - 1]
 
         observed = np.isfinite(np.asarray(values, dtype=np.float32)).all(axis=1)
@@ -377,12 +380,18 @@ class ForecastDetector(Detector):
             return cached
 
         smoothed = self._smoothed_errors(values, context)
-        result = (telemanom.top_columns(smoothed, depth=MAX_AGREEMENT)
-                  if self.mode == QUANTILE
-                  else telemanom.top_ratios(smoothed, self.config, depth=MAX_AGREEMENT))
+        if self.mode == QUANTILE:
+            # No dilation on this path: `top_columns` thresholds the raw smoothed
+            # errors and the harness cuts them, so a crossing IS the emission.
+            result = telemanom.top_columns(smoothed, depth=MAX_AGREEMENT) + (None,)
+        else:
+            emission = np.zeros(smoothed.shape[0], dtype=bool)
+            top, who = telemanom.top_ratios(smoothed, self.config,
+                                            depth=MAX_AGREEMENT, emission=emission)
+            result = (top, who, emission)
         del smoothed
         cost = result[0].nbytes + result[1].nbytes
-        held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
         while _TOPS and held + cost > TOPS_CACHE_BYTES:
             evicted = _TOPS.pop(next(iter(_TOPS)))          # oldest first
             held -= evicted[0].nbytes + evicted[1].nbytes
@@ -580,6 +589,7 @@ class OSCFARDetector(ForecastDetector):
         smoothed = self._smoothed_errors(values, context)
         top, who, binding = oscfar.top_ratios(smoothed, self.config, self.calibration,
                                               depth=MAX_AGREEMENT)
+        emission = None                      # not instrumented; falls back to alarms
         self.binding = binding
         # docs/MODELS.md section 10.3 names this as the number that falsifies the
         # design, and the first run inferred it from the outcome instead of
@@ -588,9 +598,9 @@ class OSCFARDetector(ForecastDetector):
             self.report["binding_rate"] = round(float(binding), 6)
             self.report["calibration"] = self.calibration.as_dict()
         del smoothed
-        result = (top, who)
+        result = (top, who, emission)
         cost = top.nbytes + who.nbytes
-        held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
         while _TOPS and held + cost > TOPS_CACHE_BYTES:
             evicted = _TOPS.pop(next(iter(_TOPS)))
             held -= evicted[0].nbytes + evicted[1].nbytes
@@ -723,15 +733,17 @@ class WhitenedDetector(ForecastDetector):
         pieces = [b for b in self._signed_blocks(values, context)]
         signed = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
         del pieces
-        scored, who = whiten.ratios(signed, self.config, self.whitening)
+        emission = np.zeros(signed.shape[0], dtype=bool)
+        scored, who = whiten.ratios(signed, self.config, self.whitening,
+                                    emission=emission)
         del signed
         # One joint series, broadcast to the reduction's shape so the harness's
         # `top[agreement - 1]` indexing is unchanged. Every level is the same
         # series, which is exactly what "there is nothing to agree" means.
         top = np.repeat(scored[None, :], MAX_AGREEMENT, axis=0)
-        result = (top, who)
+        result = (top, who, emission)
         cost = top.nbytes + who.nbytes
-        held = sum(a.nbytes + b.nbytes for a, b in _TOPS.values())
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
         while _TOPS and held + cost > TOPS_CACHE_BYTES:
             evicted = _TOPS.pop(next(iter(_TOPS)))
             held -= evicted[0].nbytes + evicted[1].nbytes

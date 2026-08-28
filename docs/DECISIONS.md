@@ -1125,13 +1125,27 @@ In **31 of 38** cases on the gate set and **34 of 37** on the subset, the entire
 positive lead is the dilation: the crossing is at or after the event start and
 only the backward widening puts the range's start before it.
 
-**Why this is a correctness question and not a presentational one.** The `+/-99`
+**Why this is a correctness question and not a presentational one.** The
 dilation widens a range *backwards from a crossing that has already happened*. A
 flight component emits when it detects, not retroactively, so no operator
 receives anything at the dilated start. Crediting lead time from there credits
-warning that was never given. And the raw figure is itself optimistic: it ignores
-the fixed 70-step batching latency (`docs/MODELS.md` 1.1), so operational lead is
-lower again.
+warning that was never given.
+
+**(!) The mechanism, corrected 2026-08-28 after implementing the fix.** This
+entry first said the dilation reaches back `+/-99` and therefore that up to 99
+timesteps of the figure could be buffer. **The backward reach is bounded by the
+stride, not by `error_buffer`**: `channel_ratios` clips each dilated sequence to
+the judged segment (`lo = max(lo, offset)`), so a range cannot start before its
+own 70-step batch does. The measured maximum inflation is **+63**, inside one
+batch, which is consistent and was the tell.
+
+That makes the quantity being credited **the batching latency itself**: a range is
+dated from the start of the batch in which a crossing occurred, while the
+detector can only speak at that batch's end. The median inflation of +27.5 is
+about a third of a batch, which is what you would expect from crossings landing
+anywhere within one. The measured numbers are unchanged; only the explanation
+was wrong, and it was wrong in a way that overstated the mechanism while
+understating how ordinary it is.
 
 **What it invalidates.** Lead time is a gate metric with a disqualifying rule
 (D9), and it has been compared across detectors that do not all receive the

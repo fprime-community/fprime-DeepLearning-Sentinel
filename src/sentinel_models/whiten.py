@@ -356,8 +356,8 @@ def contributions(residual: np.ndarray, mean: np.ndarray, scale: np.ndarray,
     return np.abs(z @ precision).argmax(axis=1).astype(np.int8)
 
 
-def ratios(residual: np.ndarray, config: Config, whitening: Whitening
-           ) -> tuple[np.ndarray, np.ndarray]:
+def ratios(residual: np.ndarray, config: Config, whitening: Whitening,
+           emission: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Score a whole window. Returns ``(ratios, attribution)``.
 
     telemanom's encoding and telemanom's alarm shaping, deliberately: the same
@@ -400,11 +400,18 @@ def ratios(residual: np.ndarray, config: Config, whitening: Whitening
         sequences = telemanom.sequences_at(window, eps, config)
         if not sequences:
             continue
+        emitted = False
         for keep, (lo, hi) in zip(telemanom.prune(window, sequences, eps, config.pruning_p),
                                   sequences):
             lo, hi = max(lo, offset), min(hi, window.shape[0])
             if keep and hi > lo:
                 alarm[reference_lo + lo:reference_lo + hi] = True
+                if np.any(window[offset:] >= eps):
+                    emitted = True
+        if emission is not None and emitted:
+            # See `telemanom.channel_ratios`: the alarm reaches backwards, the
+            # detector does not. This is when it could speak.
+            emission[seg_hi - 1] = True
 
     out = raw / (1.0 + raw)
     out[alarm] = np.maximum(raw[alarm], 1.0)

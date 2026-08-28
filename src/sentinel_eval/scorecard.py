@@ -66,6 +66,11 @@ class FoldResult:
     oracle_f_beta: float | None
     oracle_threshold: float | None
     lead_time: LeadTimeScore | None = None
+    #: The same metric measured from where the detector could actually emit,
+    #: rather than from a range start that `error_buffer` dilated backwards.
+    #: Absent unless computed, so earlier scorecards stay byte-identical.
+    #: `docs/DECISIONS.md` D21.
+    lead_time_emitted: LeadTimeScore | None = None
     #: What the detector recorded about fitting this fold -- epochs, best epoch,
     #: validation trajectory. Absent for anything that does not train.
     training: dict | None = None
@@ -86,6 +91,8 @@ class FoldResult:
         # byte-identical to one produced before the metric existed.
         if self.lead_time is not None:
             payload["lead_time"] = self.lead_time.as_dict()
+        if self.lead_time_emitted is not None:
+            payload["lead_time_emitted"] = self.lead_time_emitted.as_dict()
         if self.training is not None:
             payload["training"] = self.training
         return payload
