@@ -354,8 +354,13 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
 
     usable_steps = int(np.asarray(usable, dtype=bool).sum())
     per_epoch = hyper.sequences_per_epoch(usable_steps)
+    # `threads` is read here, at fit time, not at class definition: the module
+    # global is rebound by scripts/fit_folds.py, and the six GRU fits of
+    # 2026-08-28 recorded the default 4 while running on one thread because it
+    # was not. On CUDA the count does not touch the arithmetic; the record
+    # should still say what happened.
     report = TrainingReport(sequences_per_epoch=per_epoch, train_positions=len(trainer),
-                            validation_positions=len(validator))
+                            validation_positions=len(validator), threads=THREADS)
 
     # Two features per command -- the impulse, and how recently it fired.
     n_exogenous = 0 if impulses is None else 2 * impulses.shape[1]

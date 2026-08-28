@@ -92,3 +92,20 @@ def test_a_healthy_fit_is_not_flagged():
                                    scorecards=[card])._render_scores(card))
     assert "KEPT THE FIRST EPOCH" not in rendered
     assert "best epoch 17" in rendered
+
+
+def test_the_report_records_the_thread_count_the_fit_actually_used(loaded, monkeypatch):
+    """`scripts/fit_folds.py` rebinds `lstm.THREADS` at run time; the report must read it then.
+
+    The six GRU fits of 2026-08-28 recorded 4 threads while running on one,
+    because the field took the module default at class definition.
+    """
+    import numpy as np
+    from sentinel_models import lstm
+
+    monkeypatch.setattr(lstm, "THREADS", 2)
+    values = loaded.values[:3000]
+    _, report = lstm.train(values, np.isfinite(values).all(axis=1),
+                           lstm.Hyper(window=20, hidden=(4, 4), n_predictions=2, batch_size=8,
+                                      max_epochs=1, max_validation_sequences=8))
+    assert report.as_dict()["torch_threads"] == 2

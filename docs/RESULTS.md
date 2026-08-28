@@ -859,6 +859,194 @@ any sufficiently high global cut removes them.
 fires *at* the labelled event boundary, not before it. The metric is no longer
 negative, which is not the same as warning early. Objective.md 1.1 stands.
 
+## 6h. Work item 5: the GRU beside the LSTM
+
+`docs/MODELS.md` section 14 (pre-registered 2026-08-28, commit `4407988`,
+before any fit) and `docs/DECISIONS.md` D26. **The cell is the only variable**:
+`Hyper(cell="gru")`, every other value the LSTM's, the frozen `lstm-quantile`
+decision layer (D25) unchanged. Fitted on a rented A40 slice (six fits, 6.6
+minutes, the `m1-ss5` fold-0 refit bit-identical), scored on the M5 through the
+NumPy reference with refits refused. Artifacts
+`runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json`,
+`runs/m1-g8.9.10/gru-telemanom/2026-08-28T222635Z-a428c1d6.json`,
+`runs/_weights_pod/gru-2026-08-28/fit_report.json`; per event,
+`runs/m1-g8.9.10/_forensics/2026-08-28T2*Z-head-to-head.json` (section 6h.3).
+15 Class B, 1 Class A per run.
+
+### 6h.1 The gate row
+
+**GATE -- `m1-g8.9.10`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | nom-step FA | point | VUS-PR | **honest lead** |
+|---|---|---|---|---|---|---|---|---|---|
+| `lstm-quantile` | **0.838** | 26/46 | 21/32 | **40/42** | 2/48 | 0.002% | 5/11 | 0.343 | +0.0 (n=26) |
+| **`gru-quantile`** | 0.804 | **27/46** | **22/32** | 139/157 | **1/48** | **0.001%** | 5/11 | **0.374** | +0.0 (n=27) |
+
+**`m1-ss5`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | nom-step FA | point | VUS-PR | **honest lead** |
+|---|---|---|---|---|---|---|---|---|---|
+| `lstm-quantile` | **0.885** | **27/42** | 21/31 | **127/130** | **2/48** | 0.293% | 6/11 | **0.604** | +0.0 (n=27) |
+| **`gru-quantile`** | 0.593 | 26/42 | 21/31 | 101/172 | 3/48 | **0.014%** | 5/11 | 0.591 | +0.0 (n=26) |
+
+Point recall is over eleven events and cannot distinguish detectors; treat it
+as a coverage check. Honest lead is the crossing itself on this path (no
+dilation), median over caught events; 13 of 27 and 6 of 26 are negative.
+
+**Pooled, the two cells are a wash on the gate set** -- one more event, one
+more headline-cell event, one fewer rare-event false alarm, half the
+nominal-step rate, and a lower F0.5 because precision fell from 40/42 to
+139/157 alarm ranges. **Per fold they are not a wash at all**, and the pooled
+row hides two opposite movements.
+
+### 6h.2 Per fold: the floor fell on fold 0 and rose on fold 1
+
+Threshold is the fold's noise floor -- the 99.9th percentile of the
+anomaly-masked fitting window's scores -- and it is what the pre-registration
+(P17) said would move by a quarter at most.
+
+**`m1-g8.9.10`**, GRU against LSTM:
+
+| fold | val-MSE GRU / LSTM | threshold GRU / LSTM | recall | MVGS | precision | rare-FA | nom-step FA | honest lead | GRU epochs (best) |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | 4.628e-6 / 1.691e-4 (**0.03x**) | 0.01324 / 0.14681 (**0.09x**) | **11/15** vs 4/15 | **8/11** vs 4/11 | 13/31 vs 7/8 | 1/12 vs 1/12 | 79 vs 0 of 3,569,953 | +0.0 (n=11) vs -77.0 (n=4) | 35 (34) vs 14 (3) |
+| 1 | 3.378e-6 / 3.552e-6 (0.95x) | 0.02827 / 0.01563 (**1.81x**) | 4/15 vs **10/15** | 4/9 vs **7/9** | 114/114 vs 21/22 | 0/21 vs 1/21 | 0 vs 69 of 3,515,149 | -123.0 (n=4) vs +0.0 (n=10) | 35 (26) vs 35 (28) |
+| 2 | 3.468e-6 / 4.089e-6 (0.85x) | 0.01455 / 0.01178 (1.24x) | 12/16 vs 12/16 | 10/12 vs 10/12 | 12/12 vs 12/12 | 0/15 vs 0/15 | 63 vs 145 of 3,590,386 | +0.0 (n=12) vs +0.0 (n=12) | 29 (18) vs 32 (21) |
+
+**`m1-ss5`**:
+
+| fold | val-MSE GRU / LSTM | threshold GRU / LSTM | recall | MVGS | precision | rare-FA | nom-step FA | honest lead | GRU epochs (best) |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | 4.968e-6 / 3.441e-5 (**0.14x**) | 0.00878 / 0.10195 (**0.09x**) | **11/13** vs 4/13 | **8/10** vs 4/10 | 19/89 vs 13/15 | 2/12 vs 1/12 | 958 vs 121 of 3,644,798 | +0.0 (n=11) vs -41.0 (n=4) | 35 (32) vs 22 (11) |
+| 1 | 5.169e-6 / 5.205e-6 (0.99x) | 0.01710 / 0.01243 (**1.38x**) | 3/14 vs **11/14** | 3/9 vs **7/9** | 70/71 vs 102/102 | 1/21 vs 1/21 | 118 vs 31,607 of 3,608,842 | -1.0 (n=3) vs +0.0 (n=11) | 35 (27) vs 33 (22) |
+| 2 | 6.120e-6 / 8.096e-6 (0.76x) | 0.01022 / 0.01545 (0.66x) | 12/15 vs 12/15 | 10/12 vs 10/12 | 12/12 vs 12/13 | 0/15 vs 0/15 | 460 vs 101 of 3,622,049 | +0.0 (n=12) vs +0.0 (n=12) | 24 (13) vs 35 (33) |
+
+Every fold denominator is under 20 and UNDERPOWERED; the per-fold rows are
+where the mechanism shows, not where a ranking is read.
+
+**Fold 0.** The LSTM's fold-0 fit stopped at epoch 14 with the best at 3 and a
+validation MSE 40x worse than its other folds; the GRU ran to the 35-epoch cap
+with its best at 34 and reached the same MSE as folds 1 and 2. Its noise floor
+fell **elevenfold**, and seven events came back on each set -- recall 4/15 to
+11/15 and 4/13 to 11/13 -- at the price of 31 alarm ranges where the LSTM had 8,
+and 79 nominal-step alarms where the LSTM had none. Honest lead on those events
+is +0.0 against the LSTM's -77.0.
+
+**Fold 1.** Validation MSE is the same to 5%, and the **noise floor is 1.8x
+higher**. Six events lost on the gate set, eight on `m1-ss5`, and the four still
+caught are caught late (-123.0). The 99.9th percentile of the GRU's nominal
+residual is heavier-tailed on this fold than the LSTM's while its mean square is
+not: **the noise floor is a tail statistic and the validation loss is a mean,
+and the two moved independently.** D17's MEASURED section said the same about
+the LSTM's own residual -- excess kurtosis in the thousands -- and the gate has
+now measured it between two cells.
+
+**Fold 2.** Identical detections. The floor 1.24x higher and 0.66x lower on
+the two sets, and nothing that mattered moved.
+
+### 6h.3 Per event -- the headline
+
+Artifact `runs/m1-g8.9.10/_forensics/2026-08-28T223610Z-head-to-head.json`
+(`lstm-quantile` vs `gru-quantile`, cached weights, weight store unchanged at
+69, 15 Class B). Reach is the peak score in the event span over the fold's
+threshold; `needed` is the LSTM's threshold over the GRU's, the factor an
+event at LSTM reach `r` required the floor to fall by (`1/r`) against the
+factor it fell (14.4, condition 2).
+
+**`m1-g8.9.10`** -- both 20, only `lstm-quantile` 6, only `gru-quantile` 7,
+neither 13. **The seven the GRU recovers are seven of the eleven**, every one
+on fold 0, every one by the floor:
+
+```
+  fold  event    cell                               fp      LSTM reach -> GRU   floor fell   needed
+  0     id_107   Multivariate/Global/Subsequence      32     0.158 -> 1.286      11.1x        6.3x
+  0     id_109   Multivariate/Global/Point             1     0.172 -> 1.271      11.1x        5.8x
+  0     id_110   Multivariate/Global/Point             1     0.181 -> 1.233      11.1x        5.5x
+  0     id_114   Multivariate/Global/Point             1     0.147 -> 1.275      11.1x        6.8x
+  0     id_12    Multivariate/Global/Subsequence   11937     0.168 -> 1.269      11.1x        5.9x
+  0     id_90    Multivariate/Global/Subsequence      27     0.168 -> 1.269      11.1x        5.9x
+  0     id_93    Multivariate/Global/Subsequence      63     0.150 -> 1.249      11.1x        6.7x
+```
+
+Four of the seven are headline-cell events; that is 21/32 to 22/32 net of the
+losses below. The eleven's other four did not return: `id_89` (fold 0, 0.111 ->
+0.393 -- the floor fell 11x but the event's own peak fell with it), `id_138`
+(0.480 -> 0.181), `id_20` (0.209 -> 0.130) and `id_157` (0.307 -> 0.238), the
+last three on folds whose floor rose. `id_132`, the coin toss at 0.995, landed
+at 0.553 and is scored neither way, as declared.
+
+**The six the GRU loses are all on fold 1, and all by the floor too**, in the
+other direction: `id_122, id_124, id_129, id_130, id_140, id_142`, at LSTM
+reach 1.087-1.207, land at 0.596-0.616 -- the same peaks divided by a threshold
+1.81x higher. Two are headline-cell.
+
+**`m1-ss5`** -- both 19, only `lstm-quantile` 8, only `gru-quantile` 7,
+neither 8. **The same seven return**, on fold 0, at reach 1.873-1.917 against
+0.175-0.208, the floor having fallen 11.6x where 4.8x-5.7x was needed. Eight
+are lost on fold 1: the six above plus `id_132` (1.269 -> 0.914) and `id_145`
+(2.055 -> 0.884), against a floor 1.38x higher. `id_89` (0.139 -> 0.470),
+`id_121`, `id_138` and `id_157` stay missed.
+
+**P19 refuted, and mechanism condition 2 satisfied on every recovery.** The
+prediction was *none of the eleven returns*; seven did, twice. The condition
+was that a recovery happens only on a fold whose floor fell by what the reach
+required; every recovered event is on fold 0 and the floor fell by 11x against
+a requirement of 4.8x-6.8x, so **the recoveries are the stated mechanism** --
+a lower noise floor -- and not something else. What the pre-registration got
+wrong was not the mechanism but its size: it predicted the floor would move by
+a quarter and it moved by an order of magnitude on the one fold where the
+LSTM's fit had stalled, and rose on the fold where it had not. **Trigger 2
+fired.**
+
+### 6h.4 `gru-telemanom`, reported and not the gate
+
+telemanom's dynamic threshold and `error_buffer` on the GRU forecast, beside
+`lstm-telemanom` (section 6e). Same weights as `gru-quantile`, no extra fit.
+
+| `m1-g8.9.10` | F0.5 | recall | MVGS | precision | rare-FA | nom-step FA | lead as reported | honest lead |
+|---|---|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 0.026 | 38/46 | 28/32 | 75/3,548 | 30/48 | 4.972% | +26.0 (n=38) | -43.0 (n=23) |
+| `gru-telemanom` | 0.019 | 40/46 | **29/32** | 97/6,206 | **39/48** | **8.782%** | +26.0 (n=40) | -43.0 (n=24) |
+
+| `m1-ss5` | F0.5 | recall | MVGS | precision | rare-FA | nom-step FA | lead as reported | honest lead |
+|---|---|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 0.035 | 38/42 | 29/31 | 42/1,475 | 33/48 | -- | +26.5 (n=38) | -53.0 (n=11) |
+| `gru-telemanom` | 0.019 | 39/42 | **30/31** | 43/2,801 | **40/48** | 3.987% | +26.0 (n=39) | -53.5 (n=10) |
+
+D17 said the collapse "returns every time the model improves"; it has. A
+better forecast under `mu + 2.5 sigma` on a 2,170-sample window produces
+**6,206 alarm ranges** and alarms on 39 of 48 commanded manoeuvres. Recorded as
+the reproduction reading; nothing about the gate is read from it.
+
+### 6h.5 The pre-registration, adjudicated
+
+`docs/MODELS.md` 14.8 carries every prediction beside its outcome. In brief:
+P15 (71,160 parameters) held; **P16 and P17 refuted on fold 0 of both sets**
+-- the forecast improved 36x and 7x and the floor fell 11x, against a predicted
+band of 0.7x-1.4x and 0.8x-1.25x -- and held on folds 1 and 2 for the MSE
+while the floor left the band upward on fold 1; **P18 held** on all four axes
+(MVGS 22/32, rare-FA 1/48 and 3/48, nominal-step 0.001%, honest lead +0.0);
+P19, the per-event prediction, is adjudicated in 6h.3; P20 held. The outcome
+condition (parity: MVGS >= 21/32, rare-FA <= 2/48) **passed**. The mechanism
+condition **failed** where it was designed to be able to: nominal-step alarms
+on the test window exceeded 3x the LSTM's on fold 0 of both sets (79 against 0;
+958 against 121) and on `m1-ss5` fold 2 (460 against 101). The fold-0
+recoveries were bought partly with alarms that 48 rare events cannot see and
+3.6 million nominal steps can.
+
+**Two stop-and-report rules fired**: the GRU's headline-cell recall meets the
+LSTM's (22/32 against 21/32), and events the pre-registration predicted would
+not return did (6h.3). Both are reported here and nothing further is decided.
+
+### 6h.6 What is not claimed
+
+Not that the GRU is the better cell: pooled F0.5 is lower on both sets, and
+on `m1-ss5` by 0.3. Not that the fold-0 recovery is the cell rather than the
+fit -- the LSTM's fold-0 fit stopped at epoch 14 with its best at 3, and a
+refit of the LSTM on fold 0 with a different seed has not been run; that is the
+obvious control and it is one pod fit. Not that lead time improved: +0.0 is
+the boundary, on both cells. And every figure remains telemanom-minus-commands.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
@@ -895,6 +1083,7 @@ real multi-hour extent.
 | **(!) correction** | This row read "early stopping at ~19 of 35 epochs". **It was never true.** Every cached fit behind the section 2 tables records `epochs_run = 11` and `best_epoch = 0` -- the defect in D17. The figure was written from expectation rather than read from a training report, which is the rule `docs/HARNESS.md` states and which nothing was reading at the time. Corrected here rather than deleted |
 | Seeds | 0; the trivial baselines are deterministic and use none |
 | **Operations measured** | **15 Class B, 1 Class A** for both sets and all five detectors |
+| **GRU (section 6h)** | `Hyper(cell="gru")`, 2x80, l_s=250, l_p=10, dropout 0.3, Adam 1e-3, seed 0+fold; fitted on an NVIDIA A40-2Q slice (Ubuntu 24.04, Python 3.12.3, torch 2.13.0+cu126, 1 thread -- the six reports record `torch_threads: 4`, the module default, because the field was read at class definition; corrected in `lstm.train` afterwards and immaterial to CUDA arithmetic), `m1-ss5` fold-0 refit bit-identical; scored on the M5 (torch 2.13.0, NumPy reference) with `detectors.train` replaced by a function that raises, so a cache miss would have failed rather than refitted; git `aeade73` |
 
 `quiet` is not a candidate. It is the harness checking its own floor: a detector
 that never fires must score zero recall with *undefined* precision, never zero.

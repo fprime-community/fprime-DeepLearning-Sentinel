@@ -8,10 +8,24 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
+### Added - work item 5, 2026-08-28
+
+- `Hyper.cell`: the recurrent cell as a field of the LSTM's configuration, emitted only when
+  not the default so no banked LSTM weight or published fingerprint moved (D26, pinned by test).
+  One torch module builds `nn.LSTM` or `nn.GRU`; `train()` is shared verbatim.
+- `reference.gru_cell` / `gru_layer`: the GRU tick beside the LSTM's, `GRU_GATES`, a one-vector
+  state, and the cell of a weight file derived from its arrays and verified against the file's
+  `cell` field. The third recurrent bias sits inside the reset product and cannot be folded --
+  MODELS.md section 3 amended for the file format.
+- Detectors `gru-telemanom`, `gru-quantile` (the gate arm) and `gru-smoke`.
+- `scripts/fit_folds.py --determinism-check`; report written before the ledger; held-back sets
+  refused. `scripts/head_to_head.py` records each event's reach beside the booleans.
+- MODELS.md section 14: the `gru-quantile` pre-registration and its outcome. RESULTS.md 6h.
+
 ### Planned - Phase 1 work items, in order
 
-- Reproduce telemanom's detection method with a multivariate LSTM forecaster (current task).
-- Train and score GRU.
+- Reproduce telemanom's detection method with a multivariate LSTM forecaster (done).
+- Train and score GRU (done, 2026-08-28; two stop-and-report rules fired, see RESULTS.md 6h).
 - Train and score TCN.
 - Pass the architecture selection gate. Scores `m2-ss1` as well, across LSTM, GRU, TCN, `rstd`
   and `mavg` together, so the adoption number on an independent spacecraft is a comparison

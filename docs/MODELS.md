@@ -1410,4 +1410,134 @@ so it is not lost, and not touched.
 
 ### 14.8 OBSERVED
 
-*Filled in after the run, beside the predictions.*
+Beside the predictions, never in place of them. Artifacts
+`runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json`,
+`runs/m1-g8.9.10/gru-telemanom/2026-08-28T222635Z-a428c1d6.json`,
+`runs/_weights_pod/gru-2026-08-28/fit_report.json`, and the head-to-head named
+in 14.8.2. The full tables are `docs/RESULTS.md` 6h.
+
+**The run.** Six fits on an A40-2Q slice in 6.6 minutes, every fold with
+`best_epoch > 0`, the `m1-ss5` fold-0 refit **bit-identical**; every file
+loaded on the M5, `cell == "gru"` in field and arrays, torch-vs-NumPy at most
+3.0e-07 on the real weights; scored with refits refused, weight store
+unchanged. 16 operations per run.
+
+#### 14.8.1 The predictions
+
+| # | Predicted | Observed | Verdict |
+|---|---|---|---|
+| **P15** | 71,160 parameters | 71,160 (12 channels), 64,860 (6) | **Held** |
+| **P16** | val-MSE 0.7x-1.4x the LSTM's, every fold | `m1-g8.9.10` **0.03x** / 0.95x / 0.85x; `m1-ss5` **0.14x** / 0.99x / 0.76x | **Refuted on fold 0 of both sets, in the other direction**; held on folds 1-2 |
+| **P17** | floor 0.8x-1.25x, every fold; fold 0 at least 5x folds 1-2 | `m1-g8.9.10` **0.09x** / **1.81x** / 1.24x; `m1-ss5` **0.09x** / **1.38x** / 0.66x. Fold 0 is now the *lowest* floor on the gate set | **Refuted on five of six**. The floor moved by an order of magnitude on fold 0 and rose on fold 1 with the MSE unchanged |
+| **P18** | MVGS 19-23/32; rare-FA <= 4/48 both sets; nominal-step <= 0.006%; honest lead +0.0 both sets | **22/32**; **1/48** and **3/48**; **0.001%**; **+0.0** and **+0.0** | **Held**, on all four |
+| **P19** | none of the eleven returns; `id_132` predicted neither way; a return only on a fold whose floor fell by what the reach required | see 14.8.2 | see 14.8.2 |
+| **P20** | `m1-ss5` MVGS 19-23/31, recall 24-30/42 | 21/31, 26/42 | **Held** |
+
+**Not predicted, reported:** point recall 5/11 and 5/11; VUS-PR 0.374 and
+0.591 (LSTM 0.343 and 0.604); `gru-telemanom` in `docs/RESULTS.md` 6h.4, where
+D17's collapse returns at 6,206 alarm ranges and 39/48.
+
+**Why P16 and P17 failed, as far as the artifacts say.** The LSTM's fold-0 fit
+had stopped at epoch 14 with its best at epoch 3; the GRU's ran to the cap with
+its best at 34 and reached the MSE the LSTM reaches on folds 1 and 2. So the
+GRU did not have a better cell on fold 0 so much as a fit that did not stall,
+and whether the LSTM's stall is the cell or the seed is **unmeasured** -- one
+fold-0 refit of the LSTM with another seed would say, and it has not been run.
+On fold 1 the MSEs agree to 5% and the floor is 1.8x higher: the 99.9th
+percentile of the nominal residual is a tail statistic and the loss is a mean,
+and P17's reasoning -- same MSE, same floor -- assumed they move together. They
+do not, and D17's MEASURED section had already recorded kurtosis in the
+thousands on this residual. That is the corrected form of the hypothesis in
+14.1: **a lower noise floor recovers weak events, and the noise floor is not
+the validation loss.**
+
+#### 14.8.2 The per-event line
+
+Artifact `runs/m1-g8.9.10/_forensics/2026-08-28T223610Z-head-to-head.json`
+(`lstm-quantile` vs `gru-quantile`, cached weights, weight store unchanged at
+69, 15 Class B). Reach is the peak score in the event span over the fold's
+threshold; `needed` is the LSTM's threshold over the GRU's, the factor an
+event at LSTM reach `r` required the floor to fall by (`1/r`) against the
+factor it fell (14.4, condition 2).
+
+**`m1-g8.9.10`** -- both 20, only `lstm-quantile` 6, only `gru-quantile` 7,
+neither 13. **The seven the GRU recovers are seven of the eleven**, every one
+on fold 0, every one by the floor:
+
+```
+  fold  event    cell                               fp      LSTM reach -> GRU   floor fell   needed
+  0     id_107   Multivariate/Global/Subsequence      32     0.158 -> 1.286      11.1x        6.3x
+  0     id_109   Multivariate/Global/Point             1     0.172 -> 1.271      11.1x        5.8x
+  0     id_110   Multivariate/Global/Point             1     0.181 -> 1.233      11.1x        5.5x
+  0     id_114   Multivariate/Global/Point             1     0.147 -> 1.275      11.1x        6.8x
+  0     id_12    Multivariate/Global/Subsequence   11937     0.168 -> 1.269      11.1x        5.9x
+  0     id_90    Multivariate/Global/Subsequence      27     0.168 -> 1.269      11.1x        5.9x
+  0     id_93    Multivariate/Global/Subsequence      63     0.150 -> 1.249      11.1x        6.7x
+```
+
+Four of the seven are headline-cell events; that is 21/32 to 22/32 net of the
+losses below. The eleven's other four did not return: `id_89` (fold 0, 0.111 ->
+0.393 -- the floor fell 11x but the event's own peak fell with it), `id_138`
+(0.480 -> 0.181), `id_20` (0.209 -> 0.130) and `id_157` (0.307 -> 0.238), the
+last three on folds whose floor rose. `id_132`, the coin toss at 0.995, landed
+at 0.553 and is scored neither way, as declared.
+
+**The six the GRU loses are all on fold 1, and all by the floor too**, in the
+other direction: `id_122, id_124, id_129, id_130, id_140, id_142`, at LSTM
+reach 1.087-1.207, land at 0.596-0.616 -- the same peaks divided by a threshold
+1.81x higher. Two are headline-cell.
+
+**`m1-ss5`** -- both 19, only `lstm-quantile` 8, only `gru-quantile` 7,
+neither 8. **The same seven return**, on fold 0, at reach 1.873-1.917 against
+0.175-0.208, the floor having fallen 11.6x where 4.8x-5.7x was needed. Eight
+are lost on fold 1: the six above plus `id_132` (1.269 -> 0.914) and `id_145`
+(2.055 -> 0.884), against a floor 1.38x higher. `id_89` (0.139 -> 0.470),
+`id_121`, `id_138` and `id_157` stay missed.
+
+**P19 refuted, and mechanism condition 2 satisfied on every recovery.** The
+prediction was *none of the eleven returns*; seven did, twice. The condition
+was that a recovery happens only on a fold whose floor fell by what the reach
+required; every recovered event is on fold 0 and the floor fell by 11x against
+a requirement of 4.8x-6.8x, so **the recoveries are the stated mechanism** --
+a lower noise floor -- and not something else. What the pre-registration got
+wrong was not the mechanism but its size: it predicted the floor would move by
+a quarter and it moved by an order of magnitude on the one fold where the
+LSTM's fit had stalled, and rose on the fold where it had not. **Trigger 2
+fired.**
+
+#### 14.8.3 The conditions
+
+**Outcome condition (parity): PASSED.** MVGS 22/32 >= 21/32, rare-FA 1/48 <= 2/48.
+
+**Mechanism condition 1 -- nominal-step alarms on the test window <= 3x the
+LSTM's, floored at 0.001% of the fold's nominal steps: FAILED on three of six.**
+
+```
+  m1-g8.9.10   fold 0    79 vs     0   of 3,569,953   cap  36    FAIL
+               fold 1     0 vs    69   of 3,515,149   cap 207    pass
+               fold 2    63 vs   145   of 3,590,386   cap 435    pass
+  m1-ss5       fold 0   958 vs   121   of 3,644,798   cap 363    FAIL  (7.9x)
+               fold 1   118 vs 31,607  of 3,608,842                pass
+               fold 2   460 vs   101   of 3,622,049   cap 303    FAIL  (4.6x)
+```
+
+The condition was written to be able to fail while the outcome passed, and it
+did exactly that: pooled rare-FA improved to 1/48 while fold 0 of both sets
+fired more often on healthy telemetry than the LSTM, and `m1-ss5` fold 2 too.
+The recoveries on fold 0 are real detections (14.8.2) and they were bought
+partly with alarms the adoption number cannot see. Both are reported.
+
+**Mechanism condition 2 -- a returned event's fold floor fell by what its reach
+required:** adjudicated per event in 14.8.2.
+
+**Mechanism condition 3 -- `best_epoch == 0`:** did not fire on any fold.
+
+#### 14.8.4 Stop and report
+
+Trigger 1 did not fire (equivalence 3.0e-07). Trigger 4 did not fire (no fold
+worse than 3x; fold 0 was 36x *better*). Trigger 5 did not fire (16 operations).
+**Trigger 3 fired**: MVGS 22/32 is at or above the LSTM's 21/32. **Trigger 2**
+is adjudicated in 14.8.2. Everything from here is reported and nothing is
+decided: which cell goes forward is Objective.md 8's five criteria, read
+together with the TCN row that does not exist yet, and that is a decision for
+the record and not for this section.

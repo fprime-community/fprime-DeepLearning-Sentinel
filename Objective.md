@@ -479,7 +479,7 @@ No carried state. Keep the last N readings and look at all of them fresh, every 
 | | Memory | Pros | Cons |
 |---|---|---|---|
 | **LSTM** | Running summary, 4 gates, 2 state vectors | JPL's published choice -> directly comparable numbers; small runtime footprint (no history buffer) | Most parameters per unit capacity; **nastiest C++** - 4 gate computations, 2 states to manage |
-| **GRU** | Running summary, 3 gates, 1 state vector | ~25% fewer parameters; literature shows parity with LSTM at this scale; **much simpler C++ - fewer places for a fault to hide**; smaller model file | Not the published reference |
+| **GRU** | Running summary, 3 gates, 1 state vector | ~25% fewer parameters (**measured 2026-08-28: 71,160 against 91,640 -- 25% in the recurrent layers, 22.35% overall**, docs/MODELS.md section 3); literature shows parity with LSTM at this scale; **much simpler C++ - fewer places for a fault to hide**; smaller model file | Not the published reference |
 | **TCN** | None - fixed window | **Identical compute every cycle** (clean WCET analysis); **no state to corrupt**; **restarts perfectly clean**; easiest to verify in bare C++ | Needs history ring buffer (small at our scale); **hard blindness beyond the window** |
 
 **Working hypothesis:** a GRU matches LSTM detection performance on our benchmarks. Recent
@@ -868,9 +868,10 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
   1. OK  Repository stood up, documentation-first
   2. OK  Ingest ESA-ADB > R2 (parquet, SHA-256, manifest)   234 objects, 11.53 GB
   3. OK  Evaluation harness built, baselines scored, floor recorded
-  4. --  Reproduce telemanom's detection method with a       <-- current task
+  4. OK  Reproduce telemanom's detection method with a
          multivariate LSTM forecaster
-  5. --  Train + score GRU
+  5. OK  Train + score GRU   (2026-08-28; docs/RESULTS.md 6h -- two stop-and-
+         report rules fired and the next step is a decision, not the TCN)
   6. --  Train + score TCN
   7. --  Pass the architecture selection gate. Scores m2-ss1 as well,
          across LSTM, GRU, TCN, rstd and mavg together, so the adoption

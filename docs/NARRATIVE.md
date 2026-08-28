@@ -586,3 +586,53 @@ other three. The difference is that this time the measurement was designed to be
 able to say *no*: the guard counterfactual would have been just as easy to run
 in a form that could only confirm, and the fold-0 control was already on disk
 waiting for somebody to read it as a control rather than as an outlier.
+
+## 8. Work item 5: the second player, and what the first one's control fold turned out to be
+
+**2026-08-28.** The GRU was added as a value of one field, `Hyper.cell`, so the
+LSTM and the GRU share every line of the trainer and differ by the cell alone;
+the NumPy reference gained the GRU's three-gate tick beside the LSTM's four,
+and a test that a C++ author folding the third recurrent bias into the input
+bias cannot pass. The LSTM's cache key and every published fingerprint were
+pinned by test before the field existed and did not move (D26).
+
+**The pre-registration was anchored on a measurement, not a hope.** Under the
+frozen rule, the twelve events `lstm-quantile` misses sat at 0.11 to 0.48 of
+the threshold, except `id_132` at 0.995 -- a coin toss, predicted neither way.
+For the eleven to return the floor had to at least halve, fivefold on fold 0
+where eight of them sat, against a predicted movement of a quarter.
+
+**It fell elevenfold on fold 0, and rose 1.8x on fold 1.** Seven events came
+back on the control fold of each set, and six were lost on fold 1 with the
+validation MSE unchanged to 5%. Two predictions refuted in opposite directions
+inside one run, and the correction they force is the same one D17 recorded for
+the LSTM's own residual: **the noise floor is a tail statistic and the loss is
+a mean, and they move independently.**
+
+**And "fold 0 is the control" was a statement about a fit, not a fold.** The
+LSTM's fold-0 fit had stopped at epoch 14 with its best at epoch 3 and a
+validation MSE 40x worse than its other folds; section 7 read that as the
+data-poor fold behaving as a data-poor fold should. The GRU's fold-0 fit ran
+to the cap with its best at 34 and reached the same MSE as folds 1 and 2.
+Whether the LSTM stalled because of the cell or because of the seed is one pod
+fit away and unmeasured; what is measured is that the fold nobody expected to
+move is where nearly everything moved.
+
+**The mechanism condition did what it was written to do.** It failed on fold 0
+of both sets while the outcome condition passed: the recovered events came with
+79 nominal-step alarms where the LSTM had none, and 958 against 121 on the
+subset -- alarms 48 rare events cannot see and 3.6 million nominal steps can.
+D22's lesson, applied: a condition that can only confirm is worth nothing, and
+this one could say no.
+
+**Two lost afternoons, both procedural, both recorded.** A first pod was
+destroyed by hand during setup and had cost 25 minutes of installing; the
+default `torch` wheel on the second was built for CUDA 13 and the driver was
+12.4, so the fit could not start until the cu126 build replaced it. Neither
+touched a number. Both are why the setup is now one script.
+
+**The two stop rules fired -- headline-cell recall meets the LSTM's, and
+events predicted not to return did -- and the work stops here**, with the rows
+written and the decision unmade. The obvious next measurement is not the TCN;
+it is the LSTM's fold 0 refitted, because until that is run the recovery can
+be read as a better cell or as a luckier fit and the documents must not choose.
