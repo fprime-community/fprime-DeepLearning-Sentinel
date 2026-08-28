@@ -159,6 +159,23 @@ By taxonomy cell, `lstm-telemanom`: **+41** median on
 `Multivariate/Global/Point` (n=9), **+21** on `Multivariate/Global/Subsequence`
 (n=28).
 
+**(!) WHAT THIS METRIC IS MEASURED AGAINST, and it qualifies every figure in this
+section whatever its sign.** Lead time here is the gap to the **labelled event
+start** -- a hindsight annotation written by an operations engineer after the
+fact. It is **not** a limit trip. A positive figure would mean *the detector
+spoke before the annotation begins*, not *before the spacecraft was in danger*,
+and only the second is the product claim.
+
+The break-to-limit-trip lead **cannot be computed on this data at all**: ESA-ADB
+carries no dictionary limits and its timestamps are anonymised and scaled
+(`docs/HARNESS.md` section 4). It is a Phase 3 measurement on the F' Ref
+deployment, on a real clock. **No wall-clock or "hours" figure may be derived
+from anything in this document** (Objective.md 1.1).
+
+What this project claims from Phase 1 is not earliness. It is that Sentinel is the
+**first and only observer of cross-channel relationship breaks** -- 28 of 32
+headline-cell events against a per-channel statistic's 3.
+
 **(!) MEASURED 2026-08-28: the term is the whole of the number.** From the first
 actual threshold crossing, `lstm-telemanom`'s median lead is **+0.0** on both
 sets against the **+26.0** and **+27.0** reported here, and it leads in **3 of

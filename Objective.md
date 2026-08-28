@@ -32,6 +32,41 @@ university CubeSat can each adopt without ML expertise, using telemetry they alr
 
 ---
 
+### 1.1 (!) What is claimed, and what is retired -- 2026-08-28
+
+**Read this before any figure in this document is quoted.**
+
+**RETIRED: "+26 timesteps of early warning."** Every lead-time figure this
+project published was dated from the start of an alarm range that
+`error_buffer` had widened **backwards from a crossing that had already
+happened**. Measured from the batch boundary at which the detector can actually
+emit, the median lead is **-43.0** on the gate set, and **fifteen of thirty-eight
+detected events have no emission overlapping them at all** -- the alarm touched
+them only through the backward widening. `docs/RESULTS.md` 6f,
+`docs/DECISIONS.md` D21.
+
+**And a second qualification that stands whatever the number is.** Lead time here
+is measured against the **labelled event start**, which is a hindsight annotation
+written by an operations engineer after the fact. It is *not* a limit trip. Even
+a positive figure would say *we spoke before the annotation begins*, not *we
+spoke before the spacecraft was in danger*. The two are different quantities and
+only the second is the product claim.
+
+**KEPT, and it is the stronger claim anyway:** Sentinel is the **first and only
+observer of cross-channel relationship breaks**. On `m1-g8.9.10` a forecaster
+over the channel set finds 28 of 32 headline-cell events where a per-channel
+statistic finds 3. Nothing else in an F' deployment is watching for them at all.
+
+**The break-to-limit-trip lead is a Phase 3 deliverable and is unmeasured.**
+ESA-ADB carries no dictionary limits and its timestamps are anonymised and
+scaled, so the quantity cannot be computed on this data at all (section 9.5,
+`docs/HARNESS.md` section 4). It is measured on the F' Ref deployment, on a real
+clock, against real limits.
+
+> **No wall-clock claim -- no "hours", no "~4h" -- may be made from Phase 1
+> evidence.** Every such figure in this document is a **design target for Phase
+> 3**, not a result, and is marked as one below.
+
 ## 2. The problem
 
 ### 2.1 What spacecraft do today
@@ -369,7 +404,7 @@ inside its limits.** That gap in time is the early warning.
     |                    ^                       ^
     |              divergence begins        limit trips
     |              SENTINEL WARNS           legacy alarm
-    |                    |<---- ~4 hours ---->|
+    |                    |<-- Phase 3 target -->|
     +---------------------------------------------------- time
 ```
 
@@ -378,7 +413,7 @@ Three mechanisms turn a raw error signal into an operator-grade warning:
 | Mechanism | What it does | Why |
 |---|---|---|
 | **Persistence filter** | Signal must survive N consecutive cycles | Suppresses blips; a single weird sample is ignored. **Measured as subsumed on the LSTM - see below. Retained.** |
-| **Trend projection** | Rolls forecast forward against dictionary limits | Turns "something's off" into "crosses RED_LO in ~4h" |
+| **Trend projection** | Rolls forecast forward against dictionary limits | Turns "something's off" into "crosses RED_LO in ~4h". **(!) NOT BUILT and not measurable on ESA-ADB** -- no dictionary limits, anonymised clock. Phase 3 |
 | **Explanation layer** | Learned map of which channel pairs move together, including time-lagged | Names the break, so the warning is **auditable, not a score**. **(!) NOT BUILT -- see 4.4.** What exists is the index of the single largest-error channel, which is not persisted. Naming a channel is not naming a relationship |
 
 The explanation layer is what makes warnings actionable. An operator can pull up the two named
@@ -960,7 +995,7 @@ established framework pattern, not inventing one.
 > We're building a plug-in module for NASA's F' flight software. It learns what a spacecraft's
 > normal telemetry looks like from pre-launch tests, then runs onboard in C++ watching for the
 > relationships *between* channels breaking down - which is how 41% of real anomalies show up,
-> invisible to limit checks. It warns hours early with a named cause and a time-to-limit, and
+> invisible to limit checks. It aims to warn early with a named cause and a time-to-limit -- both Phase 3 targets, neither measured -- and
 > never commands anything. JPL proved the method, ESA proved it flies, nobody's made it
 > reusable. That's us. Right now we're in Python, proving the detection works against ESA's
 > benchmark before writing a line of flight code.
