@@ -105,6 +105,10 @@ def main() -> int:
     parser.add_argument("--device", default="cpu", choices=("cpu", "cuda"))
     parser.add_argument("--telecommand-priority", type=int, default=3)
     parser.add_argument("--threads", type=int, default=L.THREADS)
+    parser.add_argument("--determinism-check", action="store_true",
+                        help="refit the first fold once more with the cache off and require "
+                             "bit-identical weights before anything else is fitted (D15 measured "
+                             "that for the LSTM only; the GRU is measured, not assumed)")
     args = parser.parse_args()
 
     from sentinel_models import registry
@@ -125,7 +129,12 @@ def main() -> int:
     print(loaded.describe())
 
     report: dict = {}
-    for task, view in members(primary, catalog, labels, loaded):
+    paired = members(primary, catalog, labels, loaded)
+    # The check runs on fold 0 of the narrowest member -- the cheapest fit in
+    # the run (m1-ss5 fold 0 on the gate pair), as docs/MODELS.md 14.5 says.
+    check_on = min(paired, key=lambda pair: pair[1].values.shape[1])[0].id
+    check_pending = args.determinism_check
+    for task, view in paired:
         split = splits.forward_chaining(len(view.grid), **task.split_kwargs)
         for detector, name in zip(built, args.detector):
             for fold in split.folds:
@@ -135,6 +144,34 @@ def main() -> int:
                 info["device"] = args.device
                 info["cell"] = detector.hyper.cell
                 report[f"{task.id}/{name}/{fold.index}"] = info
+                if check_pending and task.id == check_on and fold.index == 0:
+                    # Same seed, same box, cache off: the second fit must be
+                    # bit-identical to the first or nothing here is reproducible
+                    # from cold, and the weights are not banked.
+                    check_pending = False
+                    again = registry.build(name)
+                    D.set_caching(False)
+                    try:
+                        twice = fit_fold(view, fold, again)
+                    finally:
+                        D.set_caching(True)
+                    first, second = detector._weights, again._weights
+                    identical = (
+                        np.array_equal(first.head_w, second.head_w)
+                        and np.array_equal(first.head_b, second.head_b)
+                        and all(np.array_equal(getattr(a, n), getattr(b, n))
+                                for a, b in zip(first.layers, second.layers)
+                                for n in ("w_ih", "w_hh", "b_ih", "b_hh"))
+                    )
+                    info["bit_identical_refit"] = identical
+                    info["refit_seconds"] = twice["seconds"]
+                    print(f"      determinism: second fit {twice['seconds'] / 60:.1f} min, "
+                          f"{'BIT-IDENTICAL' if identical else 'DIFFERS -- ABORT'}", flush=True)
+                    if not identical:
+                        out = C.PROJECT_ROOT / "runs" / "_weights" / "fit_report.json"
+                        out.write_text(json.dumps(report, indent=2, default=str) + "\n")
+                        print("  ABORT: same seed, same box, different weights. Nothing further is fitted.")
+                        return 3
                 print(f"      {info['seconds'] / 60:.1f} min   "
                       f"{info.get('epochs_run', 0)} epochs   "
                       f"best epoch {info.get('best_epoch', -1)}   "
