@@ -196,6 +196,32 @@ shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
 
+**Four explanations for one gap, each plausible, each refuted by a cheap
+measurement.** `lstm-whitened` loses eleven anomalies that `lstm-telemanom`
+catches, and the obvious candidates were tested rather than argued: single-channel
+events a joint test cannot see (every lost event touches five to twelve channels);
+lower channel count (identical between lost and kept); shorter footprint (lost are
+*longer*, 51 against 42); and pruning discarding real detections -- which turned
+out to be **true on six channels and false on twelve**, recovering three
+headline-cell events for free on the subset and nothing at all on the gate set.
+
+The fourth was mine and the most interesting if it had held: that whitening
+divides out an anomaly which moves channels together in the learned pattern, the
+exact arithmetic that suppresses a commanded manoeuvre. It predicted a large
+standardised residual with a low whitened ratio. **Measured, the lost events are
+4.4 times smaller in the raw standardised length before any whitening happens.**
+Nothing is being divided out. They are weak events, and they peak at a quarter of
+the threshold.
+
+What that leaves is unglamorous and worth more than the hypothesis was: the two
+rules differ in **sensitivity**, not in what they can see, and the likely reason
+is that one thresholds locally and the other globally -- which is the same
+asymmetry D13 was written about, arriving from the other side.
+
+The pattern across all four is the one this section keeps recording. Each
+hypothesis was cheap to test, each would have been comfortable to assume, and the
+one that survived is the one nobody proposed.
+
 **The project's headline claim measured itself from a start it never reached.**
 Objective.md section 2 promises warning *before* an event, and every lead-time
 figure this repository publishes is measured from the start of an alarm range.

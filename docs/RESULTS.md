@@ -636,6 +636,50 @@ already on record: group 8 renders these events as sub-grid-cell spikes
 **The aggregate holds and the explanation does not**, and that distinction should
 travel with the number.
 
+**Four hypotheses for the losses, measured and refuted, 2026-08-28.**
+Artifacts `runs/m1-g8.9.10/_forensics/2026-08-28T03*-{pruning,discriminator}.json`.
+
+| Hypothesis | Verdict |
+|---|---|
+| single-channel events the joint test cannot see | **refuted** -- every lost event touches 5 to 12 channels; `0/11` and `0/20` |
+| lower channel count | **refuted** -- lost and kept have the same counts within each set |
+| shorter footprint | **refuted** -- lost median 51 against kept 42 on the gate set; identical on the subset |
+| pruning discarding real detections | **refuted on the gate set** -- disabling it leaves 27/46 and 21/32 unchanged. **Real on the subset**: recall 18/42 to 23/42 and MVGS 15/31 to **18/31**, for six extra alarm ranges and **no** false-alarm cost |
+| in-pattern excursions the whitening divides out | **refuted** -- see below |
+
+**What does separate them: the lost events are simply weak, in every view.**
+
+```
+  m1-g8.9.10   n    peak ||z||   peak whitened   ratio   reach (peak/threshold)
+    kept       27        16.41           38.21   2.429                    1.933
+    lost       19         3.76            5.85   1.449                    0.240
+  m1-ss5
+    kept       22        16.62           29.75   1.144                    1.867
+    lost       20         3.41            6.42   1.257                    0.380
+```
+
+The in-pattern hypothesis predicted a **large** standardised length with a **low**
+ratio -- a big excursion travelling along a learned direction, divided out by the
+whitening. The opposite is measured: the lost events are **4.4 times smaller in
+`||z||` before any whitening is applied**. Their residual is small in the raw
+view too, so nothing is being divided out. `lstm-whitened` is not blind to them
+in principle; it is **less sensitive** than `lstm-telemanom` and they fall below
+it.
+
+**And they are not marginal.** Median reach is **0.240** -- the lost events peak
+at a quarter of the threshold. Recovering them by loosening would mean roughly a
+fourfold reduction, which is not a tweak and would take the 2/48 with it.
+
+**The likely mechanism, stated as a hypothesis and not measured.**
+`lstm-telemanom` thresholds each channel against a **local** window of 2,170
+errors, so it adapts to a quiet stretch and fires on a small excursion inside
+one. `lstm-whitened` thresholds a joint score against **one global quantile** of
+the whole nominal pool. That is the same asymmetry `docs/DECISIONS.md` D13 was
+written about, and it predicts exactly what is seen: excellent precision (39/40)
+and poor sensitivity to small events. Whether a *locally* referenced whitened
+length recovers the eleven without reintroducing the collapse is the obvious next
+question and is **not** answered here.
+
 **(!) An open question that should be answered before this is adopted or
 rejected.** The six-channel set loses **far more** recall than the twelve-channel
 one, 14 events against 7. That is the opposite of what a relationship test should
