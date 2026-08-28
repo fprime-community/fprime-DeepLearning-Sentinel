@@ -212,6 +212,27 @@ def test_alarm_shaping_is_telemanoms_so_the_comparison_isolates_the_rule():
     """error_buffer and pruning are held identical -- docs/DECISIONS.md D21."""
     config = whiten.Config()
     assert config.error_buffer == telemanom.ERROR_BUFFER
-    assert config.pruning_p == telemanom.PRUNING_P
     assert config.smoothing_window == telemanom.Config().smoothing_window
     assert config.error_window == telemanom.Config().error_window
+
+
+def test_pruning_is_disabled_and_that_is_deliberate():
+    """telemanom's ladder was derived against per-channel absolute errors.
+
+    Measured on identical residuals, 0.13 against 0.0: m1-g8.9.10 unchanged at
+    27/46 and 21/32, m1-ss5 improved 18/42 to 23/42 and 15/31 to 18/31, rare-event
+    rate 2/48 at both. Free or better on both sets, so it is one global choice.
+    """
+    assert whiten.Config().pruning_p == 0.0
+
+
+def test_disabling_pruning_keeps_every_sequence():
+    """p = 0 must actually disable it, not merely weaken it.
+
+    The ladder's relative steps are non-negative, so `relative < 0` is never true
+    and nothing is ever dropped. Pinned because the whole re-derivation rests on
+    it.
+    """
+    e_s = np.array([1.0, 9.0, 1.0, 5.0, 1.0, 3.0], dtype=np.float32)
+    sequences = [(1, 2), (3, 4), (5, 6)]
+    assert all(telemanom.prune(e_s, sequences, 2.0, 0.0))

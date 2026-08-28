@@ -101,7 +101,24 @@ class Config:
                                 * telemanom.ERROR_WINDOW_COUNT
                                 * telemanom.SMOOTHING_PERC)
     error_buffer: int = telemanom.ERROR_BUFFER
-    pruning_p: float = telemanom.PRUNING_P
+
+    #: **Disabled, and it is a re-derivation rather than a tuning.**
+    #: telemanom's pruning sorts the sequence peaks and discards everything below
+    #: the last normalised step-drop greater than ``p``. That ladder was derived
+    #: against **per-channel absolute errors**; this rule feeds it one joint
+    #: whitened length, whose distribution has no reason to share the shape
+    #: ``p = 0.13`` was chosen for.
+    #:
+    #: Measured at 0.13 against 0.0 on identical residuals: `m1-g8.9.10` is
+    #: **unchanged** -- 27/46 and 21/32 either way, 40 alarm ranges against 43 --
+    #: and `m1-ss5` **improves**, recall 18/42 to 23/42 and headline cell 15/31 to
+    #: **18/31**, for six extra ranges and **no** change to the rare-event rate,
+    #: 2/48 at both settings. Free or better on both sets, so this is one global
+    #: choice and not a per-set dial.
+    #:
+    #: Intermediate values were **not** swept. The claim is that a filter built
+    #: for another quantity does not apply here, not that 0.0 is optimal.
+    pruning_p: float = 0.0
     admission_rate: float = ADMISSION_RATE
     shrinkage: float = SHRINKAGE
     sample_stride: int = SAMPLE_STRIDE

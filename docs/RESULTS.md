@@ -644,7 +644,16 @@ Artifacts `runs/m1-g8.9.10/_forensics/2026-08-28T03*-{pruning,discriminator}.jso
 | single-channel events the joint test cannot see | **refuted** -- every lost event touches 5 to 12 channels; `0/11` and `0/20` |
 | lower channel count | **refuted** -- lost and kept have the same counts within each set |
 | shorter footprint | **refuted** -- lost median 51 against kept 42 on the gate set; identical on the subset |
-| pruning discarding real detections | **refuted on the gate set** -- disabling it leaves 27/46 and 21/32 unchanged. **Real on the subset**: recall 18/42 to 23/42 and MVGS 15/31 to **18/31**, for six extra alarm ranges and **no** false-alarm cost |
+| pruning discarding real detections | **refuted on the gate set** -- disabling it leaves 27/46 and 21/32 unchanged. **Real on the subset**: recall 18/42 to 23/42 and MVGS 15/31 to **18/31**, for six extra alarm ranges and **no** false-alarm cost. **Adopted 2026-08-28** -- see below |
+
+**Pruning is now disabled for this rule** (`whiten.Config.pruning_p = 0.0`), and
+it is a re-derivation rather than a tuning: telemanom's ladder was built for
+per-channel absolute errors and this rule feeds it one joint whitened length.
+Free or better on **both** sets, so it is a single global choice and not a per-set
+dial. Intermediate values were not swept -- the claim is that a filter built for
+another quantity does not apply, not that 0.0 is optimal. The tables in this
+section are at `p = 0.13` and authoritative scored numbers for the new default
+arrive with section 6e.
 | in-pattern excursions the whitening divides out | **refuted** -- see below |
 
 **What does separate them: the lost events are simply weak, in every view.**
