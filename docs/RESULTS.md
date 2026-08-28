@@ -817,6 +817,48 @@ because for them a crossing is the emission. `lstm-quantile`'s -122 and `mavg`'s
 D9's disqualifications should be revisited on the honest figures before the
 architecture gate, and that is **not** done here.
 
+## 6g. The frozen decision layer, settled: `lstm-quantile`
+
+`docs/DECISIONS.md` **D25**, superseding D24. Both detectors on post-fix weights,
+honest lead-time reading, both channel sets. Artifacts
+`runs/m1-g8.9.10/lstm-{whitened,quantile}/2026-08-28T1*Z-*.json` and
+`runs/m1-g8.9.10/_forensics/2026-08-28T184844Z-head-to-head.json`.
+
+| `m1-g8.9.10` | F0.5 | recall | MVGS | precision | rare-FA | nom-step FA | honest lead |
+|---|---|---|---|---|---|---|---|
+| `lstm-whitened` | 0.848 | 27/46 | **21/32** | 41/43 | 2/48 | 0.028% | **-41.5** |
+| **`lstm-quantile`** | 0.838 | 26/46 | **21/32** | 40/42 | 2/48 | **0.002%** | **+0.0** |
+
+| `m1-ss5` | F0.5 | recall | MVGS | precision | rare-FA | nom-step FA | honest lead |
+|---|---|---|---|---|---|---|---|
+| `lstm-whitened` | 0.853 | 23/42 | 18/31 | 118/119 | 2/48 | 0.319% | **-51.0** |
+| **`lstm-quantile`** | **0.885** | **27/42** | **21/31** | 127/130 | 2/48 | 0.293% | **+0.0** |
+
+**The detections are nested on both sets, in opposite directions, with no
+crossing.** On `m1-g8.9.10` quantile is a strict subset of whitened, differing by
+one event (`id_132`); on `m1-ss5` whitened is a strict subset of quantile,
+differing by four (`id_149`, `id_165`, `id_186`, `id_187`). **All five have a
+footprint of 1.** The rules are ordered rather than complementary, so an
+OR-combination equals the superset and buys nothing.
+
+**(!) And the finding that outranks the choice.** `lstm-quantile` is **also
+channel-blind** -- a maximum over per-channel smoothed errors against one global
+threshold -- and it reaches the **same 2/48** the relationship test does.
+
+> **The false-alarm gain came from having a high global threshold, not from
+> testing the relationship. Whitening bought nothing measurable that a global
+> quantile did not.**
+
+`docs/DECISIONS.md` D23's observation -- the decision layer cannot see
+relationships -- is unchanged and still true. The causal claim built on it, that
+the false-alarm problem lives in that gap, is refuted. The false alarms came from
+telemanom's **local** threshold adapting downward until it fired constantly, and
+any sufficiently high global cut removes them.
+
+**What this does not fix.** `lstm-quantile`'s honest median lead is **+0.0**: it
+fires *at* the labelled event boundary, not before it. The metric is no longer
+negative, which is not the same as warning early. Objective.md 1.1 stands.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and

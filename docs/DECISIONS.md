@@ -1390,3 +1390,72 @@ improvement on twelve channels read one at a time. And **not that the lead-time
 figures above are comparable**: D21 measured the reported +26 as almost entirely
 `error_buffer` dilation, and until that metric is honest the +29.0 here means
 only *no worse than the arm it is compared with*.
+
+---
+
+## D25. The decision layer is `lstm-quantile`. Supersedes D24
+
+**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate
+
+**CONTEXT.** D24 froze `lstm-whitened` without ever comparing it against
+`lstm-quantile` on post-fix weights, because D13 had closed that branch -- on
+one-epoch models, evidence now superseded. The comparison D24 should have had is
+below.
+
+**EVIDENCE. Every axis, both sets, post-fix weights, honest lead-time reading.**
+
+| `m1-g8.9.10` | F0.5 | recall | MVGS | precision | rare-FA | nominal-step FA | honest lead |
+|---|---|---|---|---|---|---|---|
+| `lstm-whitened` | 0.848 | 27/46 | **21/32** | 41/43 | 2/48 | 0.028% | **-41.5** |
+| `lstm-quantile` | 0.838 | 26/46 | **21/32** | 40/42 | 2/48 | **0.002%** | **+0.0** |
+
+| `m1-ss5` | F0.5 | recall | MVGS | precision | rare-FA | nominal-step FA | honest lead |
+|---|---|---|---|---|---|---|---|
+| `lstm-whitened` | 0.853 | 23/42 | 18/31 | 118/119 | 2/48 | 0.319% | **-51.0** |
+| `lstm-quantile` | **0.885** | **27/42** | **21/31** | 127/130 | 2/48 | 0.293% | **+0.0** |
+
+**And the detections are NESTED on both sets, in opposite directions -- there is
+no crossing anywhere.**
+
+```
+  m1-g8.9.10   both 26   only whitened 1 (id_132)          only quantile 0
+  m1-ss5       both 23   only whitened 0                   only quantile 4
+                                                (id_149, id_165, id_186, id_187)
+```
+
+Every one of those five events has a **footprint of 1**. The two rules are
+**ordered, not complementary**: on each set one strictly contains the other, so
+an OR-combination equals the superset and buys nothing a single rule does not
+already have. That closes the combination question without needing it scoped.
+
+**ALTERNATIVES.** Keep `lstm-whitened` per D24. Combine the two. Keep
+`lstm-telemanom`.
+
+**Against each.** `lstm-whitened` is worse on `m1-ss5` by four events and three
+headline-cell events, has a nominal-step alarm rate fourteen times higher on the
+gate set, and its honest lead is **-41.5 against +0.0**. Combining is pointless
+under nesting. `lstm-telemanom` alarms on 30 of 48 commanded manoeuvres.
+
+**And the flight argument, which decides what the numbers leave close.**
+
+| | `lstm-quantile` | `lstm-whitened` |
+|---|---|---|
+| per cycle | C EWMA updates, a max, one compare | C EWMA updates, C normalisations, **C^2 = 144 MACs**, a sqrt, one compare |
+| `model.bin` | ~2 floats | **169 floats** (mean, scale, C x C precision, threshold) |
+| failure mode | a wrong threshold is obvious | **a corrupted or ill-conditioned precision matrix yields plausible garbage** -- measured at condition 4.3e8 during development |
+
+Both are fixed-time with no allocation and trivially bounded WCET. `lstm-quantile`
+is simpler on every axis and its decision -- *this channel exceeded its threshold*
+-- is directly auditable where a quadratic form is not.
+
+**CONSEQUENCE. `lstm-quantile` is the decision layer**, identical across LSTM,
+GRU and TCN at the architecture gate. `lstm-whitened` is **retained, not
+deleted**: it is the measured proof that a relationship stage adds nothing at
+this threshold on this data, which is a result in its own right and the evidence
+behind `docs/NARRATIVE.md`'s entry on the mechanism this project preferred.
+
+**(!) What freezing this does NOT fix.** `lstm-quantile`'s honest median lead is
+**+0.0** -- it fires *at* the labelled event boundary, not before it. The metric
+is no longer negative; that is not the same as warning early. Objective.md 1.1
+stands unchanged: the retired claim stays retired, and the break-to-limit-trip
+lead remains a Phase 3 measurement.
