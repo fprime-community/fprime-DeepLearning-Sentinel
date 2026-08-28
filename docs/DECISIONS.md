@@ -1092,9 +1092,53 @@ weights and the same bundle load. The difference is the buffer's contribution,
 per detector, per fold, per channel set. It changes no published number -- it
 adds a second reading of one -- and both are then reported side by side.
 
+**MEASURED 2026-08-28, and the second reach is worse than the caveat allowed
+for.** `scripts/event_forensics.py`, per caught event, both channel sets, cached
+weights. Lead time taken twice: from the dilated alarm range's start, as this
+project reports it, and from the **first actual threshold crossing inside that
+range**.
+
+```
+  m1-g8.9.10  n=38        median    p25     p75    positive
+    as reported (dilated)  +26.0  +15.2   +46.8      34/38
+    from the crossing       +0.0   -6.0    +0.0       3/38
+    inflation              +27.5    +16     +40   max  +63
+
+  m1-ss5      n=37
+    as reported (dilated)  +27.0  +16.0   +47.0      35/37
+    from the crossing       +0.0   -3.0    +0.0       1/37
+    inflation              +32.0    +17     +47   max  +63
+```
+
+> **The reported +26 is the buffer. Measured from the moment the detector
+> actually crosses its threshold, the median lead is ZERO, and the detector warns
+> in advance in 3 of 38 events rather than 34 of 38.**
+
+In **31 of 38** cases on the gate set and **34 of 37** on the subset, the entire
+positive lead is the dilation: the crossing is at or after the event start and
+only the backward widening puts the range's start before it.
+
+**Why this is a correctness question and not a presentational one.** The `+/-99`
+dilation widens a range *backwards from a crossing that has already happened*. A
+flight component emits when it detects, not retroactively, so no operator
+receives anything at the dilated start. Crediting lead time from there credits
+warning that was never given. And the raw figure is itself optimistic: it ignores
+the fixed 70-step batching latency (`docs/MODELS.md` 1.1), so operational lead is
+lower again.
+
+**What it invalidates.** Lead time is a gate metric with a disqualifying rule
+(D9), and it has been compared across detectors that do not all receive the
+dilation. `lstm-quantile` and the trivial baselines run through paths with **no
+`error_buffer`** (D13's revision), so `+26` against `mavg`'s `0` and
+`lstm-quantile`'s `-122` was never like-for-like -- one side carried a median
+`+27.5` the other did not. Every lead-time figure in `docs/RESULTS.md` inherits
+this, including the ones that disqualified `rstd`, `mavg` and `lstm-quantile`.
+
 **CONSEQUENCE.** Held at 100 while D20's threshold is measured, so the two do not
 confound. Decided afterwards, with the threshold frozen, against both reaches at
-once. **Also carried into work items 5 and 6**: `error_buffer` is why the
+once. **And the lead-time metric cannot be used to compare architectures until
+this is resolved** -- the Phase 1 gate turns on it, and it currently measures the
+buffer more than the detector. **Also carried into work items 5 and 6**: `error_buffer` is why the
 persistence filter measured as subsumed on this detector (Objective.md 7.1), so
 the GRU and the TCN inherit all three couplings unexamined unless this is settled
 first.

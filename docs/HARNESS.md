@@ -55,7 +55,17 @@ on every scorecard, in every `docs/RESULTS.md` row, and as a primary column in
 every sweep rather than a footnote. Work items 5 and 6 report it for the GRU and
 the TCN.
 
-**(!) OPEN, 2026-08-27: an unmeasured additive term in this metric.**
+**(!) MEASURED 2026-08-28, and it is worse than the open note below allowed.**
+Taken from the first actual threshold crossing rather than the dilated range
+start, `lstm-telemanom`'s median lead is **+0.0** on both channel sets, not +26.0
+and +27.0, and it leads in **3 of 38** events rather than 34 of 38. The median
+inflation is **+27.5** and **+32.0**, reaching +63. In 31 of 38 cases the entire
+positive lead is the buffer. **This metric currently measures `error_buffer` more
+than it measures the detector**, it is not comparable across detectors that do
+not all receive the dilation, and it must be resolved before it is used to
+compare architectures. `docs/DECISIONS.md` D21.
+
+**(!) The original open note, 2026-08-27, kept:**
 Lead time is `event_start - start of the earliest alarm range overlapping the
 event`. telemanom's `error_buffer = 100` dilates every exceeded timestep by
 +/-99 before those ranges are formed, so **an alarm range can start up to 99

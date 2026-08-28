@@ -159,8 +159,14 @@ By taxonomy cell, `lstm-telemanom`: **+41** median on
 `Multivariate/Global/Point` (n=9), **+21** on `Multivariate/Global/Subsequence`
 (n=28).
 
-**(!) Every figure in this section has an unmeasured additive term, found
-2026-08-27.** `error_buffer = 100` widens each exceedance by +/-99 timesteps
+**(!) MEASURED 2026-08-28: the term is the whole of the number.** From the first
+actual threshold crossing, `lstm-telemanom`'s median lead is **+0.0** on both
+sets against the **+26.0** and **+27.0** reported here, and it leads in **3 of
+38** events rather than 34 of 38. Median inflation **+27.5** and **+32.0**, max
++63; in 31 of 38 cases the buffer is the entire lead. The rows below are retained
+and are **not** a measure of early warning. `docs/DECISIONS.md` D21.
+
+**(!) The original note, 2026-08-27, kept:** `error_buffer = 100` widens each exceedance by +/-99 timesteps
 before alarm ranges are formed, and lead time is measured from a range's start.
 So an alarm can begin up to **99 timesteps** before the exceedance that caused
 it, against a reported median of **+26**. Not measured, not claimed to be an
@@ -602,6 +608,33 @@ margin, against the `rstd` floor of 0.250, and it clears the lead-time rule at
 explicit that recall and precision are read together, and giving up seven
 cross-channel events is a decision about what the component is for rather than a
 number to optimise.
+
+**(!) The 21/32 is not what it looked like, and neither is the 15/31. Measured
+per event 2026-08-28** (`runs/m1-g8.9.10/_forensics/2026-08-28T022324Z-events.json`):
+
+* **No lost event is single-channel.** Every one touches 5 to 12 of the channels
+  in view -- `0/11` and `0/20` single-channel. The hypothesis that `lstm-whitened`
+  is structurally blind to single-channel faults, and therefore needs a second
+  detection path beside it, is **refuted**. There is no such path to build.
+* **`lstm-whitened` catches nothing `lstm-telemanom` misses.** `whitened-only` is
+  **0** on both sets, so its detections are a strict subset. It is a filter on
+  telemanom's detections, not a different view of the data.
+* **Neither channel count nor footprint separates lost from kept.** On
+  `m1-g8.9.10`, lost events touch a median of 10 channels against 12 kept, and
+  have a median footprint of 51 against 42 -- lost events are not shorter. On
+  `m1-ss5` both are identical at 6 channels and a footprint of 1. **Why these
+  particular events are lost is not established by this measurement.**
+
+**On six channels versus twelve.** The loss rate is 11/38 on twelve channels and
+20/38 on six, so the rule does perform better on the wider set. But the mechanism
+usually offered for that -- low-channel-count events being the ones lost -- is
+**not** what the data shows: within each set, lost and kept events have the same
+channel counts, and on `m1-ss5` every event touches all six, so the comparison
+cannot be made there at all. The `m1-ss5` figure is also confounded by a defect
+already on record: group 8 renders these events as sub-grid-cell spikes
+(`docs/HARNESS.md` section 7), and 17 of its 20 losses have a footprint of 1.
+**The aggregate holds and the explanation does not**, and that distinction should
+travel with the number.
 
 **(!) An open question that should be answered before this is adopted or
 rejected.** The six-channel set loses **far more** recall than the twelve-channel

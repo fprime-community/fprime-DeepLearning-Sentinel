@@ -111,9 +111,9 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Ten times now, a cheap measurement has changed a decision that
-looked settled without it -- and the tenth withdrew the reasoning behind a
-decision this project had already published and built on twice. Two of the last three refuted a hypothesis rather
+produced. Eleven times now, a cheap measurement has changed a decision that
+looked settled without it. The eleventh took the project's headline claim -- warning
+before the event -- from +26 timesteps to zero. Two of the last three refuted a hypothesis rather
 than replacing one, which is the harder thing for a measurement to be able to
 do -- and one of them refuted the *instrument*, which is harder still.
 
@@ -195,6 +195,31 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+**The project's headline claim measured itself from a start it never reached.**
+Objective.md section 2 promises warning *before* an event, and every lead-time
+figure this repository publishes is measured from the start of an alarm range.
+telemanom's `error_buffer` widens each range by +/-99 timesteps **backwards from
+a crossing that has already happened**. Measured from the crossing itself,
+`lstm-telemanom`'s median lead is **+0.0** rather than +26.0, and it warns in
+advance in **3 of 38** events rather than 34 of 38. In 31 of 38 the entire
+positive lead is the widening.
+
+A flight component emits when it detects, not retroactively, so nothing reaches
+an operator at the dilated start. The metric was crediting warning that was never
+given -- and the raw figure is *still* optimistic, because it ignores the fixed
+70-step batching latency the detector also carries.
+
+**It is a gate metric with a disqualifying rule, and it had been compared across
+detectors that do not all receive the dilation.** `lstm-quantile` and the trivial
+baselines run through paths with no `error_buffer` at all, so +26 against
+`mavg`'s 0 and `lstm-quantile`'s -122 was never like-for-like: one side carried a
+median +27.5 that the other did not. Two detectors were disqualified on that
+comparison.
+
+The check cost one subtraction per caught event -- the first threshold crossing
+instead of the range start -- on data already in memory. It had never been made
+because the number it produced looked like the number the project wanted.
 
 **Twenty-five minutes of finished analysis thrown away by a bookkeeping write,
 because the bookkeeping came first.** Every script in `scripts/` committed the
