@@ -111,7 +111,7 @@ suppression), intensive-care monitoring (alarm delays), and extreme-value theory
 ## 6. The measurements that changed conclusions
 
 This is the through-line, and it is the most transferable thing the project has
-produced. Eleven times now, a cheap measurement has changed a decision that
+produced. Twelve times now, a cheap measurement has changed a decision that
 looked settled without it. The eleventh took the project's headline claim -- warning
 before the event -- from +26 timesteps to zero. Two of the last three refuted a hypothesis rather
 than replacing one, which is the harder thing for a measurement to be able to
@@ -195,6 +195,38 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+**The project's own preferred mechanism, refuted by its own scoreboard.** The
+decision layer was found to be channel-blind -- twelve univariate detectors and a
+vote, with the one cross-channel stage testing co-occurrence rather than
+relationship -- and the conclusion drawn was that *the false-alarm problem lives
+in that gap*. A relationship test was designed, built and measured, and it did
+take rare-event false alarms from 30/48 to 2/48.
+
+Then a detector that had been closed on superseded evidence was re-measured on
+the same weights, and reached **the same 2/48** -- while being **also
+channel-blind**, a plain maximum over per-channel smoothed errors against one
+global threshold.
+
+> **The false-alarm gain came from having a high global threshold, not from
+> testing the relationship. Whitening bought nothing measurable that a global
+> quantile did not.**
+
+The observation that the layer cannot see relationships is unchanged and still
+true. What is refuted is the *causal* claim built on it. The false alarms came
+from telemanom's **local** threshold adapting downward until it fired constantly,
+and any sufficiently high global cut removes them -- with or without the
+covariance, the sign, or the joint direction.
+
+That is the most expensive kind of wrong to be: a mechanism that is real, elegant,
+matches the project's thesis, and is not what was happening. It survived because
+it was measured against the detector it was designed to beat and never against
+the simpler thing sitting in the repository with a closed-branch label on it.
+
+**Every closed branch inherits the obligations of every later correctness fix.**
+`lstm-quantile` was disqualified on one-epoch weights; when the training defect
+was fixed, nothing re-opened it. **A disqualification made on buggy weights is
+not a disqualification**, and the re-check costs one run.
 
 **Four explanations for one gap, each plausible, each refuted by a cheap
 measurement.** `lstm-whitened` loses eleven anomalies that `lstm-telemanom`

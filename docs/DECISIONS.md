@@ -469,6 +469,31 @@ post-processing asymmetry.
   `lstm-quantile`'s threshold was always fitted on genuinely nominal scores. This
   correction is independent of that bug.
 
+**(!) SUPERSEDED BY MEASUREMENT, 2026-08-28. The conclusion does not stand
+either.** Everything above was measured on **pre-fix weights** -- the one-epoch
+models produced by the `min_delta` defect (D17). `lstm-quantile` had never been
+scored on properly trained weights until now. Re-measured, on post-fix weights
+and the honest lead-time reading:
+
+```
+  m1-g8.9.10   F0.5 0.838   recall 26/46   MVGS 21/32   rare-FA 2/48   lead  +0.0
+  m1-ss5       F0.5 0.885   recall 27/42   MVGS 21/31   rare-FA 2/48   lead  +0.0
+```
+
+Against the branch's recorded 0.421, 6/46, 6/32 and **-122**. The recall that
+"agreement cannot change when the detector fires 21 times in eleven million
+timesteps" is now 26 of 46, and the lateness the branch was closed for is gone:
+`lstm-quantile` neither batches nor dilates, so its honest reading equals its
+reported one.
+
+**The general obligation, which is the part worth carrying forward.** This branch
+was closed in good faith on numbers that were correct for the weights they were
+measured on, and those weights were later found to be defective. **A
+disqualification made on buggy weights is not a disqualification.** Every closed
+branch inherits the obligations of every later correctness fix, and nothing in
+this repository re-opened D13 when D17 landed -- it took a separate investigation
+stumbling into it. `docs/NARRATIVE.md` carries the lesson.
+
 **CONSEQUENCE.** D13's conclusion stands and its reasoning is withdrawn. Nothing
 built on the sentence *a global rule cannot warn early* may continue to rest on
 it -- including D20, whose whole design was a local term added because a global
@@ -1345,6 +1370,18 @@ one. The case for it is Objective.md 11 rule 2 -- a detector that alarms at most
 manoeuvres is muted, and a muted detector catches nothing at all. The case
 against it is that seven of the events given up are exactly the class the project
 exists to catch, and nobody should pretend otherwise.
+
+**(!) SUSPENDED 2026-08-28, before the architecture gate.** This entry froze
+`lstm-whitened` without ever comparing it against `lstm-quantile` on post-fix
+weights, because D13 had closed that branch -- on evidence now superseded. The
+head-to-head is in `docs/RESULTS.md`; on `m1-g8.9.10` the two are the same
+detector by every measure that matters (**headline cell identical at 21/32**,
+recall differing by one event, rare-event rate identical at 2/48), and on
+`m1-ss5` `lstm-quantile` is strictly better. Its nominal-step alarm rate is
+**fourteen times lower** and its honest lead is **+0.0 against -41.5**.
+
+**The decision layer is not frozen until that is settled**, and this entry does
+not bind until then.
 
 **What is not claimed.** Not that the eleven are unrecoverable -- four hypotheses
 are refuted and the fifth failed, which is not the same as exhausting the space.
