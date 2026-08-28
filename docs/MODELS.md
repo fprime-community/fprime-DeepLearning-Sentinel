@@ -1541,3 +1541,114 @@ is adjudicated in 14.8.2. Everything from here is reported and nothing is
 decided: which cell goes forward is Objective.md 8's five criteria, read
 together with the TCN row that does not exist yet, and that is a decision for
 the record and not for this section.
+
+---
+
+## 15. Pre-registration: the LSTM's fold 0, reseeded
+
+**Written and committed before the fit.** Section 14's headline is seven weak
+events recovered on fold 0, and 14.8.1 says why that is two readings and not
+one. This is the one fit that separates them.
+
+### 15.1 The question
+
+On fold 0 the LSTM's banked fit (seed 0, fitted on an A40) stopped at epoch 14
+with its best at epoch 3, validation MSE 1.691e-4 -- forty times worse than its
+own folds 1 and 2 -- and a noise floor of 0.14681. The GRU's fit on the same
+fold ran to the cap, best at 34, 4.628e-6, floor 0.01324. Every recovered
+event was recovered by that floor (14.8.2). **Was fold 0's transformation the
+cell, or that one optimisation path?**
+
+One fit answers it: `lstm-quantile` with `Hyper(seed=1)` -- the seed is the only
+field changed; window, layers, dropout, loss, optimiser, batch, epoch cap,
+patience, relative stopping rule, sampler and validation pinning are the
+published protocol, and the fold, the data and the frozen decision layer are
+identical. Scored on fold 0 through `harness._score_fold`, the referee's own
+path, on both channel sets from one bundle load.
+
+**One confound, stated.** The reseed is fitted on the M5 (CPU, four threads);
+the seed-0 fit was made on an A40. D15 measured that the same seed on different
+hardware gives different weights, so this run changes the optimisation path
+twice over. That is the question being asked -- *was it that path* -- and it
+does not need to isolate the seed from the box to answer it. It cannot say
+which of the two mattered, and does not claim to.
+
+**Cost, and why local.** A fold-0 LSTM fit is 20,064 sequences per epoch at
+18.9 s/epoch on the M5 (D15): at most 11 minutes if it runs to the cap, plus
+about four minutes of NumPy scoring per set. 15 Class B, 1 Class A. A pod's
+setup alone cost 25 minutes on 2026-08-28.
+
+### 15.2 Anchors
+
+Fold 0, from `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json`,
+`.../gru-quantile/2026-08-28T222635Z-6d146f5d.json`, both fit reports, and
+`_forensics/2026-08-28T223610Z-head-to-head.json`.
+
+| fold 0 | val-MSE | epochs (best) | floor | recall | MVGS | precision | rare-FA | nominal-step | honest lead |
+|---|---|---|---|---|---|---|---|---|---|
+| `m1-g8.9.10` LSTM seed 0 | 1.691e-4 | 14 (3) | 0.14681 | 4/15 | 4/11 | 7/8 | 1/12 | 0 / 3,569,953 | -77.0 (n=4) |
+| `m1-g8.9.10` GRU | 4.628e-6 | 35 (34) | 0.01324 | 11/15 | 8/11 | 13/31 | 1/12 | 79 | +0.0 (n=11) |
+| `m1-ss5` LSTM seed 0 | 3.441e-5 | 22 (11) | 0.10195 | 4/13 | 4/10 | 13/15 | 1/12 | 121 / 3,644,798 | -41.0 (n=4) |
+| `m1-ss5` GRU | 4.968e-6 | 35 (32) | 0.00878 | 11/13 | 8/10 | 19/89 | 2/12 | 958 | +0.0 (n=11) |
+
+The seven (`id_107, id_109, id_110, id_114, id_12, id_90, id_93`), fold 0,
+`m1-g8.9.10`: raw peak score (reach times threshold) **0.0216-0.0265 under the
+stalled LSTM**, 0.0163-0.0170 under the GRU. The stalled LSTM's peaks already
+exceed the GRU's floor. `id_89` peaks at 0.0163 under the LSTM and 0.0052 under
+the GRU (reach 0.393) and is not expected back under either.
+
+### 15.3 PREDICTED
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P21** | **The reseed does not stall**: `epochs_run >= 25`, `best_epoch >= 15`, validation MSE **<= 1.0e-5** on `m1-g8.9.10` fold 0 | The GRU fitted this fold to 4.6e-6; the LSTM fits folds 1 and 2, whose data contain fold 0's, to 3.5e-6 and 4.1e-6. A best epoch at 3 with patience exhausted at 14 is the signature of one poor optimisation path, not of a data limit |
+| **P22** | Noise floor **0.010-0.020** (0.75x-1.5x the GRU's 0.01324) | On this fold the floor followed the fit for the GRU; P21 says the fit will be there |
+| **P23** | **At least five of the seven** are caught by the reseeded LSTM on fold 0 at reach >= 1; `id_89` stays missed | Their peaks under a fitted model land near the GRU's 0.016-0.017 and clear a floor near 0.013. If the floor is there and the events are not, the peaks fell with the fit -- see the mechanism condition |
+| **P24** | Fold-0 rare-event false alarms **<= 2/12**; nominal-step alarms **20-300** (from 0) | A fitted floor admits 0.1% in-sample by construction and more out of sample; the GRU's 79 is the anchor |
+| **P25** | **The verdict rule, set now.** P21-P23 all hold: fold 0's transformation was the fit, and the GRU's fold-0 advantage over the *banked* LSTM is not a property of the cell. The reseed stalls (val-MSE > 5e-5 with `best_epoch <= 5`): it is the cell, and the LSTM stalls on this fold where the GRU does not. Anything between -- fitted but the floor did not follow, or the floor there and fewer than three of the seven -- is reported without a verdict | Written before the number so the number is read against it |
+
+**Not predicted.** Fold-0 F0.5 and precision (n < 20 both). Lead time. `m1-ss5`
+is fitted and reported in the same run at no extra operations, and reads the
+same rules; the verdict is taken on the gate set.
+
+### 15.4 Mechanism condition, harder than the outcome
+
+The outcome is P23. The mechanism claimed is *the floor follows the fit*, and it
+is read from the training curve and the threshold **before** any event is
+looked at:
+
+1. `best_epoch > 0` (the guard raises otherwise).
+2. **The floor and the MSE move together or the mechanism has failed**: val-MSE
+   <= 1e-5 with a floor above 0.05, or a floor below 0.02 with val-MSE above
+   5e-5, fails this condition whatever P23 says -- it would be section 14's
+   fold-1 finding again, the floor and the loss moving independently.
+3. **Nominal-step alarms on the fold-0 test window <= 3x the GRU's 79** (237).
+   Above that, the recoveries were bought with alarms and the comparison with
+   the GRU's fold 0 is not like for like.
+
+### 15.5 Stop and report
+
+1. The reseed stalls (P25's second branch). Report; the cell is implicated and
+   the gate reads differently.
+2. The reseed catches **more than the seven** the GRU recovered on fold 0.
+3. More than 50 operations in the run.
+
+### 15.6 What this run does not do
+
+It moves no published row. `lstm-quantile`'s record is the seed-0 fit and stays
+as scored. If the fit is the cause, whether the LSTM's banked fold-0 weights
+should be refitted for the gate is a **decision** -- it changes the LSTM's row --
+and it is recorded as one before anything is refitted, not done here. Held-back
+sets untouched.
+
+### 15.7 The run
+
+`scripts/reseed_fold.py --task m1-g8.9.10 --detector lstm-quantile --seed 1 --fold 0 --both`
+-- one bundle load, fold 0 of both sets, the harness's `_score_fold`, per-event
+reach, artifact `runs/m1-g8.9.10/_forensics/<stamp>-reseed-lstm-quantile-seed1.json`
+written before the ledger commit. The weight store must gain exactly one file
+per set.
+
+### 15.8 OBSERVED
+
+*Filled in after the run, beside the predictions.*
