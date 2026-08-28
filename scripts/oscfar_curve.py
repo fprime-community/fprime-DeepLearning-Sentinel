@@ -188,11 +188,6 @@ def main(argv=None) -> int:
         return 6
     print(f"\n  weight store unchanged at {after} files -- nothing was fitted")
 
-    if budget is not None:
-        cfg, ledger = state
-        ops.commit(client, cfg.bucket, ledger, budget)
-        print()
-        print(budget.report())
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     folder = C.PROJECT_ROOT / "runs" / primary.id / "_curve"
@@ -206,6 +201,21 @@ def main(argv=None) -> int:
         "sets": results,
     }, indent=2, default=str) + "\n")
     print(f"\n  wrote {path.relative_to(C.PROJECT_ROOT)}")
+
+    # Artifact first, ledger second, and the order is load-bearing: a
+    # transient RequestTimeTooSkewed on the ledger PutObject once destroyed
+    # twenty-five minutes of completed analysis held in memory. The result is
+    # the expensive thing; the ledger is bookkeeping and can be retried.
+    try:
+        if budget is not None:
+            cfg, ledger = state
+            ops.commit(client, cfg.bucket, ledger, budget)
+            print()
+            print(budget.report())
+    except Exception as failure:
+        print(f"\n  (!) LEDGER NOT COMMITTED: {failure}")
+        print("      the operations were spent and are NOT recorded; "
+              "the artifact above is safe.")
     return 0
 
 

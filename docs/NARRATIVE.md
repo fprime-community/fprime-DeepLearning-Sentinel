@@ -196,6 +196,28 @@ shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
 
+**Twenty-five minutes of finished analysis thrown away by a bookkeeping write,
+because the bookkeeping came first.** Every script in `scripts/` committed the
+operations ledger and *then* wrote its artifact -- the house pattern, copied from
+the first one. A run completed its whole analysis, held it in memory, and died
+on the ledger `PutObject` with `RequestTimeTooSkewed`: the laptop's clock had
+drifted past the signing tolerance mid-run, most likely by suspending. Measured
+afterwards the skew was **+1 second**, so it was transient and unreproducible.
+The result was gone anyway.
+
+Nothing about it was subtle once seen. **The artifact is the expensive,
+unrepeatable thing and the ledger is bookkeeping that can be retried**, so the
+order was exactly backwards in all five scripts. Artifact first now, and the
+ledger commit wrapped so a failure is reported loudly rather than taking the
+result with it -- the operations were genuinely spent, and a ledger that does not
+record them understates real usage against a hard ceiling.
+
+The transferable part is not the ordering. It is that **the failure had nothing
+to do with the work**: no data problem, no modelling error, no bad number. A
+correct result was destroyed by an unrelated network write on the way out, and
+the design made that possible. Worth asking of anything long-running: *if the
+last line fails, what have I lost?*
+
 **A structural claim that was really a configuration, quoted forward into two
 designs before anyone rechecked it.** `docs/DECISIONS.md` D13 closed the quantile
 branch on a generalisation rather than on its numbers: *a global threshold
