@@ -13,6 +13,26 @@ The detection method is JPL's published reference approach (telemanom); onboard 
 demonstrated in orbit by ESA's OPS-SAT. **The reusable F' packaging is this project's original
 contribution.**
 
+## How to review this repository
+
+The commit history is complete and unrewritten; the milestone view is the
+[Releases page](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases),
+one release per Phase 1 work item (`wi1` to `wi5`), each a short summary with the
+headline numbers and links into the documents. Reading order:
+
+1. [Objective.md section 1.1](Objective.md) - what is claimed and what has been
+   retired, before any figure elsewhere is quoted. Then the rest of the objective.
+2. [docs/RESULTS.md](docs/RESULTS.md) - the scorecard record: every detector, both
+   channel sets, `k/n` throughout, both numbers wherever a correction moved one.
+3. [docs/NARRATIVE.md](docs/NARRATIVE.md) - what happened in order, mistakes included,
+   and the measurements that changed conclusions.
+4. [docs/DECISIONS.md](docs/DECISIONS.md) - D1 to D26: why, what else was considered,
+   what evidence settled it. Superseded entries are marked, never deleted.
+
+`docs/HARNESS.md` is the referee's contract and `docs/MODELS.md` the players'
+pre-registrations, each preserved beside what actually happened. No number in any
+document was written without an artifact under `runs/` to read it from.
+
 ## Why
 
 Onboard fault protection today is per-channel limit checking. Hundman et al. (KDD 2018) found
@@ -23,11 +43,12 @@ No amount of limit tuning catches that class.
 ## Status
 
 **Phase 1 - Python, pre-flight-code.** Proving the mathematics before any flight code is
-written. The evaluation harness is built and the trivial baselines are scored -- the referee
-before the players. See [docs/HARNESS.md](docs/HARNESS.md) for what it measures and
-[docs/RESULTS.md](docs/RESULTS.md) for the floor the models must clear. The current task is
-reproducing telemanom's detection method with a multivariate LSTM forecaster - see
-[docs/MODELS.md](docs/MODELS.md).
+written. The harness is built and closed, telemanom's method is reproduced with a multivariate
+LSTM and the decision layer is frozen (`docs/DECISIONS.md` D25), and the GRU is scored beside
+it on identical terms (`docs/RESULTS.md` section 6h, 2026-08-28). Two stop-and-report rules
+fired on the GRU row; the next measurement is a reseeded LSTM fit on fold 0, before the TCN.
+See [docs/HARNESS.md](docs/HARNESS.md) for what is measured and
+[docs/MODELS.md](docs/MODELS.md) for the pre-registrations.
 
 | Phase | Scope | Gate |
 |---|---|---|
