@@ -465,3 +465,135 @@ def test_the_fitting_window_and_the_scored_window_do_not_collide():
 
     scored = detector.score(values, None, _context(3, window=(3000, 6000)))
     assert np.isfinite(scored[3000:]).any(), "the scored window produced nothing"
+
+
+# -- the LSTM's identity is pinned, so adding an architecture cannot move it ---
+#: What `Hyper().as_dict()` emitted on the day the twelve production LSTM fits
+#: were banked. The weight-cache key (`ForecastDetector.fit`) and every published
+#: artifact fingerprint derive from it, so a field added to `Hyper` for another
+#: architecture must leave this untouched -- D14: an optional field at its null
+#: value leaves the hash unmoved. If this test fails, every banked weight file
+#: under runs/_weights/ has just become unreachable and every fingerprint in
+#: docs/RESULTS.md has silently changed.
+LSTM_HYPER_KEYS = ["window", "hidden", "dropout", "n_predictions", "batch_size",
+                   "max_epochs", "patience", "min_improvement", "validation_fraction",
+                   "learning_rate", "seed", "sequence_budget_divisor",
+                   "max_validation_sequences", "restore_best"]
+LSTM_HYPER_KEY_TUPLE = (
+    ("batch_size", 70), ("dropout", 0.3), ("hidden", (80, 80)), ("learning_rate", 0.001),
+    ("max_epochs", 35), ("max_validation_sequences", 2000), ("min_improvement", 0.001),
+    ("n_predictions", 10), ("patience", 10), ("restore_best", True), ("seed", 0),
+    ("sequence_budget_divisor", 180), ("validation_fraction", 0.2), ("window", 250),
+)
+
+
+def test_the_lstm_hyper_dict_is_byte_identical_to_the_banked_generation():
+    assert list(Hyper().as_dict()) == LSTM_HYPER_KEYS
+    assert Hyper().as_dict_key() == LSTM_HYPER_KEY_TUPLE
+
+
+def test_the_lstm_cache_digest_is_unmoved():
+    """A synthetic cache key in the shape `fit` builds, hashed before the change."""
+    key = (Hyper().as_dict_key(), ("a", "b"), 0, (0, 10), (10, 2), "x", "y", None)
+    assert D._digest(key) == "cc91392d878abda97c881ed8d4f26c56"
+
+
+def test_the_published_fingerprints_are_unmoved():
+    """The suffixes of the banked artifacts:
+    runs/m1-g8.9.10/lstm-telemanom/2026-08-27T185132Z-6b9ebb0d.json and
+    runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json."""
+    assert D.ForecastDetector().fingerprint() == "6b9ebb0d"
+    assert D.TelemanomQuantile().fingerprint() == "2717441a"
+    assert D.TelemanomSmoke().fingerprint() == "9d5cca78"
+
+
+# -- work item 5: the GRU through the same detector -----------------------------
+def _tiny_gru(**kwargs) -> D.GRUForecastDetector:
+    hyper = Hyper(window=40, hidden=(12, 12), n_predictions=3, batch_size=16,
+                  max_epochs=2, sequence_budget_divisor=8, max_validation_sequences=64,
+                  cell="gru", **kwargs.pop("hyper", {}))
+    return D.GRUForecastDetector(
+        hyper=hyper,
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300, **kwargs)
+
+
+def test_the_cell_is_the_only_thing_in_the_key_that_differs():
+    assert "cell" not in Hyper().as_dict(), "the LSTM's dict must not grow a field"
+    assert Hyper(cell="gru").as_dict()["cell"] == "gru"
+    assert Hyper(cell="gru").as_dict_key() != Hyper().as_dict_key()
+    assert dict(Hyper(cell="gru").as_dict_key()) | {"cell": "lstm"} == \
+        dict(Hyper().as_dict_key()) | {"cell": "lstm"}
+
+
+def test_gru_and_lstm_fingerprints_differ():
+    assert D.GRUForecastDetector().fingerprint() != D.ForecastDetector().fingerprint()
+    assert D.GRUQuantile().fingerprint() != D.TelemanomQuantile().fingerprint()
+    assert D.GRUSmoke().fingerprint() != D.TelemanomSmoke().fingerprint()
+
+
+def test_a_detector_refuses_the_other_cell():
+    with pytest.raises(ReferenceError, match="cell"):
+        D.ForecastDetector(hyper=Hyper(cell="gru"))
+    with pytest.raises(ReferenceError, match="cell"):
+        D.GRUForecastDetector(hyper=Hyper())
+    with pytest.raises(ReferenceError, match="cell"):
+        Hyper(cell="tcn")
+
+
+def test_the_registry_builds_the_gru_arms():
+    from sentinel_models import registry
+
+    for name, mode in (("gru-telemanom", D.NDT), ("gru-quantile", D.QUANTILE),
+                       ("gru-smoke", D.NDT)):
+        built = registry.build(name)
+        assert (built.name, built.mode, built.cell, built.hyper.cell) == (name, mode, "gru", "gru")
+    assert registry.build("gru-smoke").hyper == D.GRUSmoke().hyper
+    assert D.GRUSmoke().hyper.window == D.TelemanomSmoke().hyper.window
+
+
+def test_the_gru_fits_and_scores_through_the_same_path():
+    values, usable = _data()
+    detector = _tiny_gru()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    assert detector._weights.cell == "gru"
+    assert detector._weights.layers[0].w_ih.shape == (36, 3)
+    assert detector.report["best_epoch"] >= 0
+    scored = detector.score(values, None, _context(3, window=(3000, 6000)))
+    assert scored.shape == (STEPS,) and np.isfinite(scored[3000:]).any()
+
+
+def test_the_two_cells_do_not_share_a_cache_entry():
+    """Same data, same fold, same everything but the cell: two fits, two entries."""
+    values, usable = _data()
+    _tiny().fit(values[:3000], usable[:3000], _context(3))
+    _tiny_gru().fit(values[:3000], usable[:3000], _context(3))
+    shapes = sorted(w.layers[0].w_ih.shape[0] for w, _ in D._WEIGHTS.values())
+    assert shapes == [36, 48], f"expected one GRU (3x12) and one LSTM (4x12) entry, got {shapes}"
+
+
+def test_gru_weights_survive_the_round_trip_and_the_file_says_what_it_is(tmp_path, monkeypatch):
+    """Written with `cell`, read back; read without it (an older file); refused when wrong."""
+    monkeypatch.setattr(D, "WEIGHT_STORE", tmp_path / "_weights")
+    values, usable = _data()
+    detector = _tiny_gru()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    fitted = detector._weights
+    path, = (tmp_path / "_weights").glob("*.npz")
+    digest = path.stem
+
+    D.clear_caches()
+    reloaded = D._load_weights(digest)
+    assert reloaded is not None and reloaded[0].cell == "gru"
+    assert np.array_equal(reloaded[0].layers[0].w_hh, fitted.layers[0].w_hh)
+    with np.load(path, allow_pickle=False) as blob:
+        assert str(blob["cell"]) == "gru"
+        arrays = {name: blob[name] for name in blob.files}
+
+    del arrays["cell"]                                   # a file from before the field
+    np.savez(path, **arrays)
+    older = D._load_weights(digest)
+    assert older is not None and older[0].cell == "gru", "the arrays say what it is"
+
+    np.savez(path, **arrays, cell=np.array("lstm"))      # a file that lies
+    assert D._load_weights(digest) is None, "a declared cell that disagrees with the arrays"

@@ -557,6 +557,14 @@ Recorded because the failure is invisible by construction. Nothing errors, nothi
 warns, and the only symptom is a run that takes longer than it should -- which is
 easy to attribute to the machine.
 
+**(!) 2026-08-28, work item 5.** The GRU's field was added the way this entry
+prescribes and not the way the incident above happened: `Hyper.cell` is emitted
+into the dict, the key and the fingerprint **only when it is not the default**,
+so the twelve banked LSTM fits and every published fingerprint are unmoved --
+pinned by `tests/test_lstm_detector.py` against the literal pre-change tuple,
+digest and fingerprints (D26). The full named, versioned key this entry calls
+for is still outstanding; the status stays open.
+
 ---
 
 ## D15. Fitting is portable because the arithmetic is asserted, not because the environments match
@@ -1459,3 +1467,87 @@ behind `docs/NARRATIVE.md`'s entry on the mechanism this project preferred.
 is no longer negative; that is not the same as warning early. Objective.md 1.1
 stands unchanged: the retired claim stays retired, and the break-to-limit-trip
 lead remains a Phase 3 measurement.
+
+---
+
+## D26. The GRU is a field of the LSTM's `Hyper`, and the LSTM's hash does not move
+
+**DATE** 2026-08-28 | **STATUS** resolved
+
+**CONTEXT.** Work item 5 adds the GRU as the second player at the architecture
+gate. `docs/MODELS.md` section 1 is unconditional -- items 5 and 6 "have to
+differ from this by architecture alone or the gate compares data pipelines
+instead of architectures" -- and D25 froze the decision layer as identical
+across LSTM, GRU and TCN. So the only permitted difference is the recurrent
+cell, and the question is where that one difference lives.
+
+Two things constrained the answer. The weight cache is keyed by a positional
+tuple built from `Hyper.as_dict_key()` plus data digests (D14, still open), and
+twelve production LSTM fits are banked under it; a GRU fitted with the same
+`Hyper` on the same fold would otherwise hash to the **same file** and be served
+LSTM weights. And nothing in the trainer, the reference or the weight file said
+which cell a set of arrays was.
+
+**ALTERNATIVES.** A separate `gru.py` with its own module and trainer. A ninth
+positional element in the key. D14's named, versioned key, implemented now.
+Leaving the cell out of the key and trusting the detector class.
+
+**EVIDENCE against each.** A second trainer duplicates the fit loop, so every
+shared line -- the seeding, the sampler, the relative stopping rule, the guard
+that raises on `best_epoch == 0` -- becomes a place for the two cells to drift,
+and the gate would then compare training loops as well as cells; it also
+closes an import cycle with `lstm.py`, and a module that imports `DEVICE` by
+value freezes `"cpu"` while `scripts/fit_folds.py` rebinds it to `"cuda"` at
+run time. A ninth positional element is the D14 incident again: every banked
+fit orphaned, silently. Implementing D14 now orphans the same twelve fits for a
+reason unrelated to the GRU, and would put two changes in one comparison.
+Trusting the class collides in the store: measured, `Hyper()` and a hypothetical
+`Hyper(cell="gru")` without the field produce the same digest, and a GRU
+detector would then load a 4-gate file and score the wrong architecture with
+no error -- `reference.forward` runs whatever arrays it is handed.
+
+**What was built.**
+
+* `Hyper.cell`, default `"lstm"`, refused unless it names a known cell.
+  `as_dict()` emits it **only when it is not the default** -- D14's rule, an
+  optional field at its null value leaves the hash unmoved. `tests/
+  test_lstm_detector.py` pins the LSTM's fourteen keys, its literal key tuple,
+  a cache digest (`cc91392d...`) and the fingerprints of the banked artifacts
+  (`6b9ebb0d`, `2717441a`, `9d5cca78`); the test passed before the change and
+  after it, and every one of the 57 files under `runs/_weights/` loads through
+  the new loader with its cell inferred.
+* One torch module, `TelemanomRNN`, whose only cell-specific line is which of
+  `nn.LSTM` / `nn.GRU` it builds; `TelemanomLSTM` and `TelemanomGRU` are the two
+  by name. `train()` is untouched apart from constructing it, so the GRU is
+  fitted by the same seeds, sampler, loss, optimiser, stopping rule and guard
+  by construction.
+* `reference.py` gains `gru_cell` and `gru_layer` beside the LSTM's, and the
+  cell of a `Weights` is **derived from its arrays' gate count** -- 4H rows is
+  an LSTM, 3H a GRU -- never stored as a claim. The weight file writes `cell`
+  anyway, and the loader verifies it against the arrays, inferring it for files
+  that predate the field; a file that declares one cell and holds the other is
+  refused. The state is `(h, c)` for an LSTM and `(h,)` for a GRU, one tuple
+  per layer; a GRU does not carry a dead cell vector, because the flight state
+  is exactly what the reference lists.
+* Detectors declare their cell on the class and refuse a `Hyper` of the other
+  one, so a GRU detector handed the fixture-scale `Hyper(...)` the tests pass
+  around cannot silently become an LSTM. `gru-telemanom`, `gru-quantile` (the
+  gate arm) and `gru-smoke` are registered beside their LSTM twins.
+
+**Measured.** 71,160 parameters at the flown configuration, 278.0 KiB float32,
+against the LSTM's 91,640 -- 22.35% fewer overall, exactly 25% fewer in the
+recurrent layers, the head being shared. torch-vs-NumPy agreement at 12
+channels, 2x80, 250 steps: **1.19e-07** for the GRU (4.1e-08 for the LSTM),
+unchanged on a 4,096-step chunk; `tests/test_reference_equivalence.py` holds
+both cells at 1e-5 through the same parametrised tests.
+
+**A format consequence, recorded in docs/MODELS.md section 3.** The GRU's third
+recurrent bias `b_hn` sits *inside* the reset product,
+`n = tanh(W_in x + b_in + r * (W_hn h + b_hn))`, so it cannot be pre-summed with
+`b_in` the way an LSTM's two bias vectors can. The model file must store both
+bias vectors unsummed for a GRU, and a loader written from the LSTM habit is
+wrong on exactly that gate. Two tests pin it: folding the biases diverges in
+general and agrees once the reset gate is saturated open.
+
+**CONSEQUENCE.** The GRU is a value of one field, and the LSTM is that field's
+default. D14 remains open and is annotated. Nothing in `sentinel_eval` changed.

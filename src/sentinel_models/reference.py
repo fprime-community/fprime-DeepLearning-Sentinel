@@ -18,10 +18,12 @@ suite fails.
 
 **The cell is a named function.** :func:`lstm_cell` is exactly the arithmetic one
 rate-group tick performs -- four gates, two state vectors, no allocation that
-depends on the data. The C++ is a transcription of it. :func:`lstm_layer` exists
-only to batch that cell efficiently on a laptop, and hoists the input projection
-out of the loop; the flight code has no batch and computes it per tick, which is
-the same arithmetic in a different order of evaluation.
+depends on the data. :func:`gru_cell` is the same for work item 5's cell --
+three gates, one state vector. The C++ is a transcription of whichever the
+architecture gate selects. :func:`lstm_layer` and :func:`gru_layer` exist only
+to batch that cell efficiently on a laptop, and hoist the input projection out
+of the loop; the flight code has no batch and computes it per tick, which is the
+same arithmetic in a different order of evaluation.
 
 **State is explicit, in and out.** Scoring 14.7 million timesteps one at a time
 in Python is not viable, so a window is cut into chunks that run as a batch, each
@@ -34,7 +36,10 @@ the flight component runs -- one state, forever, updated per tick.
 The dataclass is plain arrays with an explicit gate order, not a Python object
 graph, because Objective.md 14.2 must freeze a *file format* and a format cannot
 be defined by a class definition. What we learn writing it is recorded in
-docs/MODELS.md and feeds that decision.
+docs/MODELS.md and feeds that decision. **A file does not say which cell it
+holds by declaration alone: the gate count in its arrays says it**, 4H rows for
+an LSTM and 3H for a GRU, and a declared cell that disagrees with the arrays is
+refused.
 """
 from __future__ import annotations
 
@@ -46,6 +51,18 @@ import numpy as np
 #: the C++ loader will have to expect. Named here once so that a reader of the
 #: file format never has to infer it from a slice index.
 GATES = ("input", "forget", "cell", "output")
+
+#: The GRU's, likewise PyTorch's order: `w_ih` is `(W_ir | W_iz | W_in)` stacked
+#: along axis 0. The third gate is the one a loader gets wrong -- see
+#: :func:`gru_cell` for where its recurrent bias sits.
+GRU_GATES = ("reset", "update", "new")
+
+#: How many gate blocks each cell stacks, and how many state vectors it carries.
+#: The gate count is what the arrays themselves say, so it is the identity a
+#: reader trusts; the cell name is derived from it, never the other way round.
+N_GATES = {"lstm": len(GATES), "gru": len(GRU_GATES)}
+CELL_BY_GATES = {n: cell for cell, n in N_GATES.items()}
+N_STATE = {"lstm": 2, "gru": 1}
 
 DTYPE = np.float32
 
@@ -61,12 +78,13 @@ class ReferenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class LayerWeights:
-    """One LSTM layer. Gates stacked in :data:`GATES` order along axis 0."""
+    """One recurrent layer. Gates stacked along axis 0 in :data:`GATES` order
+    for an LSTM (``4H`` rows) or :data:`GRU_GATES` order for a GRU (``3H``)."""
 
-    w_ih: np.ndarray          # (4H, n_in)
-    w_hh: np.ndarray          # (4H, H)
-    b_ih: np.ndarray          # (4H,)
-    b_hh: np.ndarray          # (4H,)
+    w_ih: np.ndarray          # (G*H, n_in)
+    w_hh: np.ndarray          # (G*H, H)
+    b_ih: np.ndarray          # (G*H,)
+    b_hh: np.ndarray          # (G*H,)
 
     @property
     def hidden(self) -> int:
@@ -76,13 +94,34 @@ class LayerWeights:
     def n_in(self) -> int:
         return self.w_ih.shape[1]
 
+    @property
+    def n_gates(self) -> int:
+        """Read from the arrays, so it cannot disagree with them."""
+        return self.w_hh.shape[0] // max(self.hidden, 1)
+
+    @property
+    def cell(self) -> str:
+        try:
+            return CELL_BY_GATES[self.n_gates]
+        except KeyError:
+            raise ReferenceError(
+                f"w_hh is {self.w_hh.shape}: {self.n_gates} gate blocks of {self.hidden}, "
+                f"which is neither an LSTM (4) nor a GRU (3)"
+            ) from None
+
+    @property
+    def n_state(self) -> int:
+        return N_STATE[self.cell]
+
     def validate(self) -> None:
-        h = self.hidden
-        if self.w_ih.shape != (4 * h, self.n_in):
-            raise ReferenceError(f"w_ih is {self.w_ih.shape}, expected {(4 * h, self.n_in)}")
-        for name, array, shape in (("w_hh", self.w_hh, (4 * h, h)),
-                                   ("b_ih", self.b_ih, (4 * h,)),
-                                   ("b_hh", self.b_hh, (4 * h,))):
+        h, g = self.hidden, self.n_gates
+        if self.w_hh.shape != (g * h, h):
+            raise ReferenceError(f"w_hh is {self.w_hh.shape}, expected {(g * h, h)}")
+        self.cell                                   # refuses a gate count of neither 3 nor 4
+        if self.w_ih.shape != (g * h, self.n_in):
+            raise ReferenceError(f"w_ih is {self.w_ih.shape}, expected {(g * h, self.n_in)}")
+        for name, array, shape in (("b_ih", self.b_ih, (g * h,)),
+                                   ("b_hh", self.b_hh, (g * h,))):
             if array.shape != shape:
                 raise ReferenceError(f"{name} is {array.shape}, expected {shape}")
 
@@ -113,6 +152,11 @@ class Weights:
             raise ReferenceError("a model with no layers cannot forecast")
         for layer in self.layers:
             layer.validate()
+        cells = {layer.cell for layer in self.layers}
+        if len(cells) != 1:
+            raise ReferenceError(
+                f"layers disagree on the cell: {[layer.cell for layer in self.layers]}"
+            )
         if self.layers[0].n_in != self.n_inputs:
             raise ReferenceError(
                 f"layer 0 takes {self.layers[0].n_in} inputs but the model declares "
@@ -124,6 +168,11 @@ class Weights:
                 f"head is {self.head_w.shape}, expected "
                 f"{(expected, self.layers[-1].hidden)}"
             )
+
+    @property
+    def cell(self) -> str:
+        """Derived from the arrays' gate count. Not stored, so it cannot lie."""
+        return self.layers[0].cell
 
     @property
     def n_inputs(self) -> int:
@@ -146,18 +195,21 @@ class Weights:
 
     def describe(self) -> str:
         commanded = f"+{self.n_exogenous}cmd" if self.n_exogenous else ""
-        return (f"LSTM {self.n_channels}ch{commanded} -> {list(self.hidden)} -> "
+        return (f"{self.cell.upper()} {self.n_channels}ch{commanded} -> {list(self.hidden)} -> "
                 f"{self.n_predictions}x{self.n_channels}   "
                 f"{self.n_parameters:,} parameters, {self.nbytes() / 1024:.1f} KiB float32")
 
 
-#: Zero state for one layer: ``(h, c)``, each ``(batch, hidden)``.
-State = tuple[np.ndarray, np.ndarray]
+#: State for one layer: ``(h, c)`` for an LSTM, ``(h,)`` for a GRU, each array
+#: ``(batch, hidden)``. One tuple per layer, whatever its length -- a GRU does
+#: not carry a dead cell vector to look like an LSTM, because the flight
+#: component's state is exactly what is listed here and nothing more.
+State = tuple[np.ndarray, ...]
 
 
 def zero_state(weights: Weights, batch: int) -> list[State]:
-    return [(np.zeros((batch, layer.hidden), dtype=DTYPE),
-             np.zeros((batch, layer.hidden), dtype=DTYPE))
+    return [tuple(np.zeros((batch, layer.hidden), dtype=DTYPE)
+                  for _ in range(layer.n_state))
             for layer in weights.layers]
 
 
@@ -171,6 +223,7 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     return out
 
 
+# -- the LSTM -----------------------------------------------------------------
 def lstm_cell(projected: np.ndarray, h: np.ndarray, c: np.ndarray,
               w_hh: np.ndarray, bias: np.ndarray) -> State:
     """One tick. ``projected`` is ``x @ w_ih.T`` for this timestep.
@@ -196,10 +249,13 @@ def lstm_layer(x: np.ndarray, layer: LayerWeights, state: State) -> tuple[np.nda
     The input projection is hoisted out of the loop as a single GEMM. That is a
     laptop optimisation and changes no arithmetic: the flight code computes the
     same product one tick at a time, because it only ever has one tick.
+
+    Both bias vectors enter the same pre-activation, so for the LSTM they are
+    summed once here. **That is not true of the GRU** -- see :func:`gru_layer`.
     """
     batch, steps, _ = x.shape
     projected = x.reshape(-1, layer.n_in) @ layer.w_ih.T
-    projected = projected.reshape(batch, steps, 4 * layer.hidden)
+    projected = projected.reshape(batch, steps, layer.n_gates * layer.hidden)
     bias = layer.b_ih + layer.b_hh
 
     h, c = state
@@ -208,6 +264,59 @@ def lstm_layer(x: np.ndarray, layer: LayerWeights, state: State) -> tuple[np.nda
         h, c = lstm_cell(projected[:, t], h, c, layer.w_hh, bias)
         out[:, t] = h
     return out, (h, c)
+
+
+# -- the GRU ------------------------------------------------------------------
+def gru_cell(projected: np.ndarray, h: np.ndarray,
+             w_hh: np.ndarray, b_hh: np.ndarray) -> State:
+    """One tick. ``projected`` is ``x @ w_ih.T + b_ih`` for this timestep.
+
+    PyTorch's GRU, which is what the weights were fitted as:
+
+        r  = sigmoid(W_ir x + b_ir + W_hr h + b_hr)
+        z  = sigmoid(W_iz x + b_iz + W_hz h + b_hz)
+        n  = tanh   (W_in x + b_in + r * (W_hn h + b_hn))
+        h' = (1 - z) * n + z * h
+
+    **The recurrent bias of the third gate, ``b_hn``, sits inside the reset
+    product.** It cannot be pre-summed with ``b_in`` the way an LSTM's two bias
+    vectors can, and a loader that folds the biases together will be wrong on
+    exactly this gate and nowhere else -- which is why the recurrent product
+    below keeps its bias and the input projection keeps its own. The file
+    format must store both bias vectors unsummed for a GRU (docs/MODELS.md
+    section 3).
+
+    One matrix-vector product, one add, three elementwise nonlinearities, one
+    state update. Fixed shapes, fixed cost, no branch on the data.
+    """
+    hidden = h.shape[1]
+    recurrent = h @ w_hh.T + b_hh
+    r = _sigmoid(projected[:, 0:hidden] + recurrent[:, 0:hidden])
+    z = _sigmoid(projected[:, hidden:2 * hidden] + recurrent[:, hidden:2 * hidden])
+    n = np.tanh(projected[:, 2 * hidden:3 * hidden] + r * recurrent[:, 2 * hidden:3 * hidden])
+    return ((h - n) * z + n,)            # ATen's form of (1 - z) * n + z * h
+
+
+def gru_layer(x: np.ndarray, layer: LayerWeights, state: State) -> tuple[np.ndarray, State]:
+    """Run one GRU layer over ``(batch, steps, n_in)``, returning every hidden state.
+
+    The input projection **including ``b_ih``** is hoisted as one GEMM, as torch
+    does; ``b_hh`` stays with the recurrent product inside the loop, because the
+    third of it is multiplied by the reset gate (see :func:`gru_cell`).
+    """
+    batch, steps, _ = x.shape
+    projected = x.reshape(-1, layer.n_in) @ layer.w_ih.T + layer.b_ih
+    projected = projected.reshape(batch, steps, layer.n_gates * layer.hidden)
+
+    (h,) = state
+    out = np.empty((batch, steps, layer.hidden), dtype=DTYPE)
+    for t in range(steps):
+        (h,) = gru_cell(projected[:, t], h, layer.w_hh, layer.b_hh)
+        out[:, t] = h
+    return out, (h,)
+
+
+_LAYER = {"lstm": lstm_layer, "gru": gru_layer}
 
 
 def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
@@ -240,11 +349,17 @@ def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
         raise ReferenceError(
             f"state carries {len(state)} layers, the model has {len(weights.layers)}"
         )
+    for i, (layer, layer_state) in enumerate(zip(weights.layers, state)):
+        if len(layer_state) != layer.n_state:
+            raise ReferenceError(
+                f"layer {i} is a {layer.cell.upper()} and carries {layer.n_state} state "
+                f"vector(s); the state handed in has {len(layer_state)}"
+            )
 
     activations = x
     out_state: list[State] = []
     for layer, layer_state in zip(weights.layers, state):
-        activations, next_state = lstm_layer(activations, layer, layer_state)
+        activations, next_state = _LAYER[layer.cell](activations, layer, layer_state)
         out_state.append(next_state)
 
     if last_only:

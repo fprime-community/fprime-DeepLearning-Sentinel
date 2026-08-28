@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from sentinel_eval import harness, splits, tasks
 from sentinel_eval.metrics.counts import Count
@@ -40,16 +41,18 @@ def test_it_is_absent_rather_than_null():
     assert "training" not in _bare_fold().as_dict()
 
 
-def test_a_training_report_reaches_the_scorecard(loaded, split):
+@pytest.mark.parametrize("cell", ("lstm", "gru"))
+def test_a_training_report_reaches_the_scorecard(loaded, split, cell):
     from sentinel_models import detectors as D
     from sentinel_models.lstm import Hyper
     from sentinel_models.telemanom import Config
 
     D.clear_caches()
-    detector = D.ForecastDetector(
+    kind = {"lstm": D.ForecastDetector, "gru": D.GRUForecastDetector}[cell]
+    detector = kind(
         hyper=Hyper(window=30, hidden=(8, 8), n_predictions=2, batch_size=16,
                     max_epochs=3, patience=2, sequence_budget_divisor=8,
-                    max_validation_sequences=32),
+                    max_validation_sequences=32, cell=cell),
         config=Config(error_window=300, stride=60, smoothing_window=15, error_buffer=10),
         chunks=4, chunk_steps=300)
     record = harness.evaluate(loaded, split, [detector], tasks.get("synthetic"),

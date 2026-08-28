@@ -3,8 +3,10 @@
 `sentinel_eval` knows one thing about a model -- ``fit`` and ``score``
 (`sentinel_eval.detector`). This module is where telemanom's forecaster
 (`lstm.py`, scored through `reference.py`) meets telemanom's thresholding
-(`telemanom.py`) and comes out the other side as that contract. Items 5 and 6
-replace the first half and keep the second.
+(`telemanom.py`) and comes out the other side as that contract. Item 5's GRU
+arrives through the same class -- the cell is a field of `Hyper`, and the
+detector's `cell` attribute declares which one it is -- so the two players share
+every line here; item 6 replaces the first half and keeps the second.
 
 Three things the harness's shape forces, none of them optional:
 
@@ -34,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -129,6 +132,12 @@ def _save_weights(key: str, weights: Weights, report: dict) -> None:
                     "n_predictions": np.int64(weights.n_predictions),
                     "n_exogenous": np.int64(weights.n_exogenous),
                     "n_layers": np.int64(len(weights.layers)),
+                    # The cell is derivable from the gate count in the arrays,
+                    # and is written anyway so the file says what it is -- a
+                    # format that has to be inferred by a reader is not a format.
+                    # Verified on load, never merely read: a field that is
+                    # written and not checked is D16 again.
+                    "cell": np.array(weights.cell),
                     "head_w": weights.head_w, "head_b": weights.head_b,
                     "report": np.array(json.dumps(report))}
     for i, layer in enumerate(weights.layers):
@@ -162,6 +171,13 @@ def _load_weights(key: str) -> tuple[Weights, dict] | None:
                               window=int(blob["window"]),
                               n_predictions=int(blob["n_predictions"]),
                               n_exogenous=exogenous)
+            # Files older than the field carry no `cell`; their gate count says
+            # what they are. Files that carry one must agree with their arrays.
+            if "cell" in blob.files and str(blob["cell"]) != weights.cell:
+                raise ReferenceError(
+                    f"{path.name} says {str(blob['cell'])!r} but its arrays are "
+                    f"{weights.cell!r}"
+                )
             return weights, json.loads(str(blob["report"]))
     except Exception:
         # A truncated or unreadable file is a cache miss, never a wrong answer:
@@ -201,6 +217,13 @@ class ForecastDetector(Detector):
 
     name = "lstm-telemanom"
 
+    #: Which recurrent cell this detector is. Declared on the class and checked
+    #: against `hyper.cell` at construction, so a GRU detector handed an LSTM
+    #: `Hyper` (or the reverse) is refused rather than silently becoming the
+    #: other architecture -- the fixture-scale `Hyper(...)` the tests pass in
+    #: would otherwise do exactly that.
+    cell = "lstm"
+
     #: Whether this detector wants telecommands supplied. The composition root
     #: reads it *before* loading, so the bundle knows whether to spend the two
     #: Class B on fetching them. False here: `lstm-telemanom` is the control arm
@@ -220,7 +243,12 @@ class ForecastDetector(Detector):
                 f"agreement must be between 1 and {MAX_AGREEMENT}, got {agreement}"
             )
         self.agreement = int(agreement)
-        self.hyper = hyper or Hyper()
+        self.hyper = hyper if hyper is not None else Hyper(cell=self.cell)
+        if self.hyper.cell != self.cell:
+            raise ReferenceError(
+                f"{self.name} is a {self.cell!r} detector and was handed "
+                f"Hyper(cell={self.hyper.cell!r})"
+            )
         self.config = config or telemanom.Config()
         self.mode = mode
         self.chunks = int(chunks)
@@ -809,6 +837,16 @@ class TelemanomCommanded(ForecastDetector):
     wants_commands = True
 
 
+#: The deliberately tiny configuration the smoke detectors run on the fixture.
+#: One definition, so the LSTM and the GRU smoke arms differ by the cell alone.
+SMOKE_HYPER = Hyper(window=60, hidden=(24, 24), n_predictions=5, batch_size=32,
+                    max_epochs=8, patience=3, sequence_budget_divisor=4,
+                    max_validation_sequences=256)
+SMOKE_CONFIG = telemanom.Config(error_window=420, stride=14, smoothing_window=21,
+                                error_buffer=20)
+SMOKE_CHUNKING = dict(chunk_steps=420, chunks=16)
+
+
 class TelemanomSmoke(ForecastDetector):
     """A deliberately tiny configuration for the fixture and for development.
 
@@ -820,10 +858,48 @@ class TelemanomSmoke(ForecastDetector):
     name = "lstm-smoke"
 
     def __init__(self, **kwargs) -> None:
-        super().__init__(
-            hyper=Hyper(window=60, hidden=(24, 24), n_predictions=5, batch_size=32,
-                        max_epochs=8, patience=3, sequence_budget_divisor=4,
-                        max_validation_sequences=256),
-            config=telemanom.Config(error_window=420, stride=14, smoothing_window=21,
-                                    error_buffer=20),
-            chunk_steps=420, chunks=16, **kwargs)
+        super().__init__(hyper=SMOKE_HYPER, config=SMOKE_CONFIG, **SMOKE_CHUNKING,
+                         **kwargs)
+
+
+# -- work item 5: the GRU ----------------------------------------------------
+class GRUForecastDetector(ForecastDetector):
+    """The same detector with the GRU cell. Nothing else differs.
+
+    `Hyper(cell="gru")` is the whole of the difference: the same window, layers,
+    dropout, loss, optimiser, batch, epoch cap, patience, relative stopping rule
+    and seeds, fitted by the same `lstm.train` and scored through the same
+    detection stack. Its weights are keyed apart from the LSTM's by that one
+    field and cannot collide with them (docs/DECISIONS.md D26).
+
+    This is telemanom's decision stack on a GRU forecast -- the reproduction
+    reading beside `lstm-telemanom`. It is **not** the gate arm; that is
+    `gru-quantile`, on the frozen decision layer (D25).
+    """
+
+    name = "gru-telemanom"
+    cell = "gru"
+
+
+class GRUQuantile(GRUForecastDetector):
+    """The gate arm. The frozen decision layer (D25) on the GRU's residuals.
+
+    Identical to `lstm-quantile` in every stage after the forecast -- per-channel
+    EWMA, max across channels, one label-free quantile of the fitting window's
+    scores -- so the row it produces differs from the LSTM's by the cell alone.
+    """
+
+    name = "gru-quantile"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(mode=QUANTILE, **kwargs)
+
+
+class GRUSmoke(GRUForecastDetector):
+    """`lstm-smoke` with the GRU cell. Fixture and development only; never a result."""
+
+    name = "gru-smoke"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(hyper=replace(SMOKE_HYPER, cell="gru"), config=SMOKE_CONFIG,
+                         **SMOKE_CHUNKING, **kwargs)

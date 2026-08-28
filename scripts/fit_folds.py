@@ -22,6 +22,13 @@ files as proof the hit happened.
 
     python scripts/fit_folds.py --task m1-g8.9.10 --detector lstm-telemanom \\
                                --detector lstm-commanded --device cuda
+    python scripts/fit_folds.py --task m1-g8.9.10 --detector gru-quantile --device cuda
+
+**The report is written before the ledger is committed.** The weights are on
+disk the moment each fit ends, so a ledger failure never costs a fit; but a
+ledger failure used to cost the timing report, which is the one record of what
+the pod actually did. Artifact first, bookkeeping second, the same order every
+analysis script keeps (commit 75cc846).
 """
 from __future__ import annotations
 
@@ -111,6 +118,8 @@ def main() -> int:
           f"{'   +telecommands' if wants else ''}")
 
     primary = tasks.get(args.task)
+    if primary.id in ("m1-g3", "m2-ss1"):
+        print(f"  REFUSED: {primary.id} is held back."); return 2
     loaded, labels, catalog, client, budget, state = load(
         primary, args.telecommand_priority if wants else None)
     print(loaded.describe())
@@ -123,17 +132,14 @@ def main() -> int:
                 print(f"    [{task.id}] {name} fold {fold.index}: "
                       f"fit {fold.train_steps:,} ...", flush=True)
                 info = fit_fold(view, fold, detector)
+                info["device"] = args.device
+                info["cell"] = detector.hyper.cell
                 report[f"{task.id}/{name}/{fold.index}"] = info
                 print(f"      {info['seconds'] / 60:.1f} min   "
                       f"{info.get('epochs_run', 0)} epochs   "
                       f"best epoch {info.get('best_epoch', -1)}   "
                       f"val MSE {info.get('best_validation_mse', float('nan')):.3e}",
                       flush=True)
-
-    cfg, ledger = state
-    ops.commit(client, cfg.bucket, ledger, budget)
-    print()
-    print(budget.report())
 
     total = sum(v["seconds"] for v in report.values())
     print(f"\n  {len(report)} fits in {total / 60:.1f} min")
@@ -144,6 +150,14 @@ def main() -> int:
     out = C.PROJECT_ROOT / "runs" / "_weights" / "fit_report.json"
     out.write_text(json.dumps(report, indent=2, default=str) + "\n")
     print(f"  wrote {out}")
+
+    try:
+        cfg, ledger = state
+        ops.commit(client, cfg.bucket, ledger, budget)
+        print(); print(budget.report())
+    except Exception as failure:
+        print(f"\n  (!) LEDGER NOT COMMITTED: {failure}")
+        print("      operations spent and NOT recorded; the weights and the report above are safe.")
     return 0
 
 

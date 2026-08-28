@@ -1,4 +1,9 @@
-"""telemanom's forecaster: two LSTM layers of 80 units, trained with PyTorch.
+"""telemanom's forecaster: two recurrent layers of 80 units, trained with PyTorch.
+
+The cell is a field of :class:`Hyper` -- telemanom's LSTM by default, or the GRU
+work item 5 adds as the second player at the architecture gate. One class,
+:class:`TelemanomRNN`, builds both, so they differ by the cell and by nothing
+else; :class:`TelemanomLSTM` and :class:`TelemanomGRU` are the two by name.
 
 Hundman et al. (KDD 2018) is the reference method this whole project is built on
 (Objective.md 3), and this module reproduces its forecaster. The published
@@ -25,7 +30,7 @@ to score by accident.
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import torch
@@ -58,6 +63,11 @@ DEVICE = "cpu"
 #: given, so the fast cores end up waiting on the slow ones: 127 GFLOP/s on four
 #: threads against 103 on ten, for this shape. More cores is slower here.
 THREADS = 4
+
+#: The recurrent cells the trainer can build. telemanom's is the LSTM; the GRU is
+#: work item 5's player at the architecture gate. A TCN is not a cell and will
+#: not arrive through this table.
+CELLS = ("lstm", "gru")
 
 
 @dataclass(frozen=True)
@@ -123,6 +133,23 @@ class Hyper:
     #: estimator and is recorded rather than assumed.
     restore_best: bool = True
 
+    #: Which recurrent cell. NOT a telemanom setting -- telemanom is an LSTM.
+    #: Work item 5 adds the GRU as the second player at the architecture gate,
+    #: and it must differ from the LSTM by the cell alone; so the cell is a field
+    #: on the *same* `Hyper`, and every other value above is shared by
+    #: construction rather than by copying.
+    #:
+    #: Emitted by `as_dict` only when it is not the default. The weight-cache key
+    #: and every artifact fingerprint derive from that dict, and the twelve banked
+    #: LSTM fits were keyed before this field existed: docs/DECISIONS.md D14 --
+    #: an optional field at its null value must leave the hash unmoved.
+    #: `tests/test_lstm_detector.py` pins the LSTM's dict, key and fingerprints.
+    cell: str = "lstm"
+
+    def __post_init__(self) -> None:
+        if self.cell not in CELLS:
+            raise ReferenceError(f"unknown cell {self.cell!r}; expected one of {CELLS}")
+
     def sequences_per_epoch(self, usable_steps: int) -> int:
         return max(self.batch_size, int(round(usable_steps / self.sequence_budget_divisor)))
 
@@ -133,7 +160,7 @@ class Hyper:
         ))
 
     def as_dict(self) -> dict:
-        return {
+        out = {
             "window": self.window, "hidden": list(self.hidden), "dropout": self.dropout,
             "n_predictions": self.n_predictions, "batch_size": self.batch_size,
             "max_epochs": self.max_epochs, "patience": self.patience,
@@ -144,6 +171,9 @@ class Hyper:
             "max_validation_sequences": self.max_validation_sequences,
             "restore_best": self.restore_best,
         }
+        if self.cell != "lstm":
+            out["cell"] = self.cell          # absent for the LSTM: D14, hash unmoved
+        return out
 
 
 @dataclass
@@ -176,25 +206,38 @@ class TrainingReport:
         }
 
 
-class TelemanomLSTM(nn.Module):
-    """LSTM(80) -> dropout -> LSTM(80) -> dropout -> Dense(l_p * channels).
+class TelemanomRNN(nn.Module):
+    """RNN(80) -> dropout -> RNN(80) -> dropout -> Dense(l_p * channels).
 
-    telemanom's Keras model puts a dropout after *each* LSTM, including the last.
-    ``nn.LSTM`` only drops between layers, so the final one is explicit below --
-    a difference of one line that would otherwise have been a silent deviation.
+    The cell is ``hyper.cell``: telemanom's LSTM, or the GRU work item 5 adds
+    beside it. **Everything else is this one class** -- the same head, the same
+    dropout placement, the same forward -- so the two architectures differ by
+    the cell alone, which is what lets the gate compare cells rather than
+    pipelines (docs/MODELS.md section 1: "items 5 and 6 have to differ from
+    this by architecture alone").
+
+    telemanom's Keras model puts a dropout after *each* recurrent layer,
+    including the last. ``nn.LSTM`` and ``nn.GRU`` only drop between layers, so
+    the final one is explicit below -- a difference of one line that would
+    otherwise have been a silent deviation.
     """
+
+    #: torch's modules share the parameter naming (`weight_ih_l{i}`, ...) and the
+    #: stacking convention; only the gate count differs, 4 against 3.
+    CELLS = {"lstm": nn.LSTM, "gru": nn.GRU}
 
     def __init__(self, n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> None:
         super().__init__()
         if len(set(hyper.hidden)) != 1:
             raise ReferenceError(
-                f"nn.LSTM requires one hidden size for all layers, got {hyper.hidden}. "
-                f"The reference implementation supports unequal layers; the trainer does not."
+                f"nn.{hyper.cell.upper()} requires one hidden size for all layers, got "
+                f"{hyper.hidden}. The reference implementation supports unequal layers; "
+                f"the trainer does not."
             )
         self.hyper = hyper
         self.n_channels = n_channels
         self.n_exogenous = int(n_exogenous)
-        self.lstm = nn.LSTM(
+        self.rnn = self.CELLS[hyper.cell](
             input_size=n_channels + self.n_exogenous, hidden_size=hyper.hidden[0],
             num_layers=len(hyper.hidden), batch_first=True,
             dropout=hyper.dropout if len(hyper.hidden) > 1 else 0.0,
@@ -202,8 +245,12 @@ class TelemanomLSTM(nn.Module):
         self.drop = nn.Dropout(hyper.dropout)
         self.head = nn.Linear(hyper.hidden[-1], hyper.n_predictions * n_channels)
 
+    @property
+    def cell(self) -> str:
+        return self.hyper.cell
+
     def forward(self, x: torch.Tensor, *, last_only: bool = True) -> torch.Tensor:
-        out, _ = self.lstm(x)
+        out, _ = self.rnn(x)
         if last_only:
             out = out[:, -1:]
         y = self.head(self.drop(out))
@@ -211,7 +258,29 @@ class TelemanomLSTM(nn.Module):
         return y[:, 0] if last_only else y
 
 
-def to_weights(model: TelemanomLSTM) -> Weights:
+class TelemanomLSTM(TelemanomRNN):
+    """telemanom's cell, by name. The class declares the cell; the `Hyper` follows."""
+
+    def __init__(self, n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> None:
+        super().__init__(n_channels, replace(hyper, cell="lstm"), n_exogenous)
+
+    @property
+    def lstm(self) -> nn.LSTM:
+        return self.rnn
+
+
+class TelemanomGRU(TelemanomRNN):
+    """Work item 5's cell, by name. Three gates, one state vector, the same everything else."""
+
+    def __init__(self, n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> None:
+        super().__init__(n_channels, replace(hyper, cell="gru"), n_exogenous)
+
+    @property
+    def gru(self) -> nn.GRU:
+        return self.rnn
+
+
+def to_weights(model: TelemanomRNN) -> Weights:
     """Extract plain float32 arrays. The whole of what a `model.bin` must carry.
 
     Dropout contributes nothing: it is identity at inference, so it has no
@@ -226,12 +295,12 @@ def to_weights(model: TelemanomLSTM) -> Weights:
 
     layers = tuple(
         LayerWeights(
-            w_ih=array(getattr(model.lstm, f"weight_ih_l{i}")),
-            w_hh=array(getattr(model.lstm, f"weight_hh_l{i}")),
-            b_ih=array(getattr(model.lstm, f"bias_ih_l{i}")),
-            b_hh=array(getattr(model.lstm, f"bias_hh_l{i}")),
+            w_ih=array(getattr(model.rnn, f"weight_ih_l{i}")),
+            w_hh=array(getattr(model.rnn, f"weight_hh_l{i}")),
+            b_ih=array(getattr(model.rnn, f"bias_ih_l{i}")),
+            b_hh=array(getattr(model.rnn, f"bias_hh_l{i}")),
         )
-        for i in range(model.lstm.num_layers)
+        for i in range(model.rnn.num_layers)
     )
     return Weights(
         layers=layers,
@@ -290,7 +359,10 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
 
     # Two features per command -- the impulse, and how recently it fired.
     n_exogenous = 0 if impulses is None else 2 * impulses.shape[1]
-    model = TelemanomLSTM(values.shape[1], hyper, n_exogenous).to(DEVICE)
+    # Built here, not at import: `DEVICE` is a module global that
+    # scripts/fit_folds.py rebinds at run time, and the cell is read from `hyper`
+    # so the LSTM and the GRU share every line of this function.
+    model = TelemanomRNN(values.shape[1], hyper, n_exogenous).to(DEVICE)
     report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
     loss_fn = nn.MSELoss()
@@ -377,7 +449,7 @@ def _refuse_a_stopping_rule_that_rejects_everything(report: "TrainingReport",
     )
 
 
-def _validate(model: TelemanomLSTM, validation, loss_fn, chunk: int = 256) -> float:
+def _validate(model: TelemanomRNN, validation, loss_fn, chunk: int = 256) -> float:
     inputs, targets = validation
     model.eval()
     total, seen = 0.0, 0

@@ -124,8 +124,13 @@ def test_the_tripwire_threshold_is_stated_rather_than_buried():
 
 
 # -- end to end -------------------------------------------------------------
-def test_a_real_fit_now_improves_past_its_first_epoch(loaded):
-    """The defect, at the scale it actually occurred: a fit on real fixture data."""
+@pytest.mark.parametrize("cell", ("lstm", "gru"))
+def test_a_real_fit_now_improves_past_its_first_epoch(loaded, cell):
+    """The defect, at the scale it actually occurred: a fit on real fixture data.
+
+    Both cells: the GRU is fitted by the same `train`, so the relative rule and
+    the guard protect it by construction -- and that is asserted, not assumed.
+    """
     from sentinel_models.lstm import train
 
     values = loaded.values[:6000]
@@ -133,7 +138,8 @@ def test_a_real_fit_now_improves_past_its_first_epoch(loaded):
     _, report = train(values, usable,
                       Hyper(window=30, hidden=(16, 16), n_predictions=3,
                             batch_size=32, max_epochs=12, patience=6,
-                            sequence_budget_divisor=6, max_validation_sequences=128))
+                            sequence_budget_divisor=6, max_validation_sequences=128,
+                            cell=cell))
     assert report.best_validation_mse < 1e-2, "loss scale is far below the old 3e-4 bar"
     assert report.best_epoch > 0, (
         f"kept epoch 1 of {report.epochs_run}; the stopping rule is rejecting "

@@ -16,6 +16,13 @@ eleven anomalies `lstm-telemanom` catches, and whether `lstm-quantile` recovers
 any of them is not deducible from a recall count.
 
 Cached weights, no refit, both channel sets, all folds.
+
+**Reach**, added for work item 5: per event, the peak score inside the event
+span as a fraction of the detector's threshold -- ``>= 1`` is caught, and how far
+below 1 a miss sits is the only per-event quantity in the decision layer's own
+units. The GRU pre-registration is anchored on `lstm-quantile`'s reaches, and
+whether a GRU recovery came from a lower noise floor is read from how the reach
+moved. Additive: the boolean columns are unchanged.
 """
 from __future__ import annotations
 
@@ -76,7 +83,10 @@ def context_for(view, fold, window):
 
 
 def alarms(name, view, fold):
-    """One detector's alarm mask over a fold's test window. The harness's own path."""
+    """One detector's alarm mask over a fold's test window, its scores and threshold.
+
+    The harness's own path, step for step.
+    """
     train_lo, train_hi = fold.train
     test_lo, test_hi = fold.test
     usable = train_mask(fold, view.truth)[train_lo:train_hi]
@@ -94,10 +104,20 @@ def alarms(name, view, fold):
     raw = det.score(view.values[window_lo:test_hi],
                     view.valid[window_lo:test_hi], scored)
     scores, _ = reduce_scores(raw, test_hi - window_lo)
-    predicted = np.asarray(scores[warmup:] >= threshold, dtype=bool)
+    scores = scores[warmup:]
+    predicted = np.asarray(scores >= threshold, dtype=bool)
     scorable = np.asarray(view.truth.scorable[test_lo:test_hi], dtype=bool)
     D.clear_caches()
-    return predicted & scorable
+    return predicted & scorable, np.where(scorable, scores, -np.inf), threshold
+
+
+def reach(scores, threshold, lo, hi):
+    """Peak score over ``[lo, hi)`` as a fraction of the threshold; None if nothing scorable."""
+    peak = scores[lo:hi]
+    peak = peak[np.isfinite(peak)]
+    if peak.size == 0 or threshold is None or threshold <= 0:
+        return None
+    return float(peak.max() / threshold)
 
 
 def main(argv=None) -> int:
@@ -123,7 +143,8 @@ def main(argv=None) -> int:
         rows = []
         for fold in split.folds:
             test_lo, test_hi = fold.test
-            masks = {n: alarms(n, view, fold) for n in (args.a, args.b)}
+            runs = {n: alarms(n, view, fold) for n in (args.a, args.b)}
+            masks = {n: runs[n][0] for n in runs}
             for event in view.truth.events:
                 if event.category != ANOMALY or event.event_id not in view.truth.spans:
                     continue
@@ -138,6 +159,8 @@ def main(argv=None) -> int:
                     "footprint": int(hi - lo),
                     args.a: bool(masks[args.a][a_:b_].any()),
                     args.b: bool(masks[args.b][a_:b_].any()),
+                    f"{args.a}_reach": reach(runs[args.a][1], runs[args.a][2], a_, b_),
+                    f"{args.b}_reach": reach(runs[args.b][1], runs[args.b][2], a_, b_),
                 })
             print(f"    {task.id} fold {fold.index} done", flush=True)
         results[task.id] = rows

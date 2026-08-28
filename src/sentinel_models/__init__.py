@@ -8,8 +8,10 @@ LSTM, GRU and TCN here without touching a line of the harness.
 
     baselines    the floor, the ceiling, and the one that must lose
     windows      cutting telemetry into sequences; shared by items 4-6
-    lstm         telemanom's 2x80 forecaster, trained with PyTorch
-    reference    the plain-NumPy forward pass -- the Phase 2 C++ blueprint
+    lstm         the 2x80 forecaster, trained with PyTorch -- telemanom's LSTM
+                 cell, or the GRU (work item 5), selected by `Hyper.cell`
+    reference    the plain-NumPy forward pass -- the Phase 2 C++ blueprint,
+                 both cells
     telemanom    smoothed errors, the dynamic threshold, pruning
     detectors    the two halves wired together as one `Detector`
     registry     name -> detector, resolved only at the composition root

@@ -145,7 +145,8 @@ categorical -- no interpreter goes to space -- so the flight component is C++
 reading a file of numbers. If both training and scoring ran through PyTorch's
 fused LSTM kernel, the C++ port would have no reference to check itself against
 and every discrepancy would be guesswork. The NumPy path is a line-by-line
-blueprint instead: `lstm_cell` is exactly the arithmetic of one rate-group tick.
+blueprint instead: `lstm_cell` is exactly the arithmetic of one rate-group tick,
+and since work item 5 `gru_cell` is the same for the other candidate.
 
 The two are held together by `tests/test_reference_equivalence.py`, a **hard
 assertion at 1e-5 in float32**, covering the production configuration, a trained
@@ -156,11 +157,13 @@ scoring depends on.
 
 | Case | max abs difference |
 |---|---|
-| 2x80, 12 channels, 250-step window | **4.1e-08** |
-| 2x80, 12 channels, 4,096-step chunk | **5.2e-08** |
+| LSTM 2x80, 12 channels, 250-step window | **4.1e-08** |
+| LSTM 2x80, 12 channels, 4,096-step chunk | **5.2e-08** |
+| GRU 2x80, 12 channels, 250-step window (2026-08-28) | **1.2e-07** |
+| GRU 2x80, 12 channels, 4,096-step chunk | **1.2e-07** |
 
 It does not grow with sequence length, so the 1e-5 tolerance carries about two
-orders of magnitude of headroom. That margin is deliberate: it means a failure of
+orders of magnitude of headroom for either cell. That margin is deliberate: it means a failure of
 this test is a structural defect -- a swapped gate, a dropped bias, a transposed
 weight -- and never float32 noise on a bad day.
 
@@ -195,6 +198,41 @@ adds both. Mathematically one summed vector suffices and the file format should
 store one, but that is a *decision* the format has to state, because a loader
 that keeps only `b_ih` is wrong and nothing about the arithmetic announces it.
 A test asserts the difference is detectable.
+
+**(!) AMENDED 2026-08-28, by the GRU.** The sentence above -- one summed vector
+suffices -- is true of the LSTM and **false of the GRU**. The GRU's third gate
+is `n = tanh(W_in x + b_in + r * (W_hn h + b_hn))`: its recurrent bias sits
+inside the reset product and cannot be folded into `b_in`. So the format must
+store **both bias vectors unsummed** whenever the cell is a GRU, and the loader
+must add `b_hh` to the recurrent product before the reset multiplication. That
+is the mistake a C++ author with the LSTM in their hands is most likely to make,
+and `tests/test_reference_equivalence.py` pins it two-sided: folding the biases
+diverges in general and agrees exactly once the reset gate is saturated open.
+The original sentence is kept because it records the LSTM decision correctly.
+
+### The GRU, measured the same way (work item 5, 2026-08-28)
+
+The same configuration with the other cell is **71,160 parameters, 278.0 KiB
+as float32** -- 22.35% below the LSTM overall, and exactly 25% in the recurrent
+layers, the head being identical:
+
+```
+  layer 0   w_ih (240, 12)   w_hh (240, 80)   b_ih (240)   b_hh (240)
+  layer 1   w_ih (240, 80)   w_hh (240, 80)   b_ih (240)   b_hh (240)
+  head      w (120, 80)      b (120)
+```
+
+Three gates stacked along axis 0 as `reset, update, new` -- PyTorch's order,
+named `reference.GRU_GATES`. **One state vector**, `h`, where the LSTM carries
+`h` and `c`; the reference lists a GRU layer's state as `(h,)` and refuses an
+`(h, c)` handed to it, because the flight state is exactly what is listed and a
+dead vector carried for symmetry would be a place for a fault to hide. **A file
+says which cell it is by its arrays**: 4H rows per gate block is an LSTM, 3H a
+GRU; the file also writes `cell`, and the loader verifies the claim against the
+arrays rather than trusting it (`docs/DECISIONS.md` D26).
+
+Objective.md section 8 estimated "~25% fewer parameters". Measured: 25% in the
+recurrent layers, 22.35% of the whole model.
 
 **Dropout has no line in the file.** It is identity at inference, exports no
 parameters, and a flight component that dropped a random 30% of hidden units per
