@@ -1270,3 +1270,63 @@ to any artifact. **Naming a channel is not naming a relationship**, and
 Objective.md 11 rule 4 -- every warning explainable -- rests on that difference.
 It was assumed built because the objective says so, which is the same failure as
 D17's missing entry in a different register.
+
+---
+
+## D24. The decision layer freezes as `lstm-whitened`, and the eleven are the price
+
+**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate
+
+**CONTEXT.** Four hypotheses for the events `lstm-whitened` loses were measured
+and refuted, and a fifth -- a locally-referenced threshold -- was pre-registered
+and run. It did not recover them. The pre-registered rule for that outcome was
+that the rule as it stands freezes and the loss is recorded as measured, which is
+what this entry does.
+
+**EVIDENCE.** `docs/MODELS.md` 13.5. Against `lstm-telemanom` on `m1-g8.9.10`:
+
+```
+                        rare-FA     MVGS     precision   nominal-step FA
+  lstm-telemanom          30/48    28/32    75/3,548             4.972%
+  lstm-whitened            2/48    21/32        41/43             0.028%
+  lstm-whitened-local      0/48    20/32        26/26             0.024%
+```
+
+The local reference made recall **worse** and the rule quieter, with its
+calibration correct to four significant figures on every fold -- a clean negative
+rather than a broken one.
+
+**ALTERNATIVES.** Keep `lstm-telemanom`. Adopt the local reference. Loosen the
+global threshold. Combine the two rules.
+
+**EVIDENCE against each.** `lstm-telemanom` alarms on 30 of 48 commanded
+manoeuvres and 4.97% of nominal timesteps; Objective.md 11 rule 2 says a detector
+doing that is muted within a week. The local reference is measured and worse.
+Loosening needs roughly a fourfold cut -- the lost events peak at a median 0.240
+of the threshold -- which takes the 2/48 with it. Combining was scoped and
+abandoned when the forensics showed **no lost event is single-channel** and
+`lstm-whitened` catches nothing `lstm-telemanom` misses: there is no second view
+to combine, only a stricter and a looser rule.
+
+**CONSEQUENCE. `lstm-whitened` is the decision layer**, with the global
+reference and pruning disabled, and it is **identical across LSTM, GRU and TCN**
+at the architecture gate -- Objective.md 10.2's argument, that changing two
+things at once makes the comparison unattributable.
+
+> **The price is stated rather than absorbed: seven headline-cell events on the
+> gate set and eleven anomalies overall, given up to take commanded-manoeuvre
+> false alarms from 30/48 to 2/48 and nominal-step alarms from 4.97% to 0.028%.**
+
+That trade is a judgement about what the component is for, and it is recorded as
+one. The case for it is Objective.md 11 rule 2 -- a detector that alarms at most
+manoeuvres is muted, and a muted detector catches nothing at all. The case
+against it is that seven of the events given up are exactly the class the project
+exists to catch, and nobody should pretend otherwise.
+
+**What is not claimed.** Not that the eleven are unrecoverable -- four hypotheses
+are refuted and the fifth failed, which is not the same as exhausting the space.
+Not that whitening is the best relationship test, only that it is a measured
+improvement on twelve channels read one at a time. And **not that the lead-time
+figures above are comparable**: D21 measured the reported +26 as almost entirely
+`error_buffer` dilation, and until that metric is honest the +29.0 here means
+only *no worse than the arm it is compared with*.

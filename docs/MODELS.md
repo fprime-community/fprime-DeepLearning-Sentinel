@@ -1120,4 +1120,54 @@ held at 100:
 
 ### 13.5 OBSERVED
 
-*Not yet run. Filled in beside the predictions, never in place of them.*
+Beside the predictions, never in place of them. Artifacts
+`runs/m1-g8.9.10/lstm-whitened{,-local}/2026-08-28T0500*Z-*.json`.
+
+| `m1-g8.9.10` | rare-FA | **MVGS** | recall | precision | F0.5 | lead | nominal-step FA |
+|---|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 30/48 | **28/32** | 38/46 | 75/3,548 | 0.026 | +26.0 | 4.972% |
+| `lstm-whitened` (global) | 2/48 | **21/32** | 27/46 | 41/43 | 0.848 | +29.0 | 0.028% |
+| `lstm-whitened-local` | **0/48** | **20/32** | 25/46 | 26/26 | 0.856 | +29.0 | 0.024% |
+
+| `m1-ss5` | rare-FA | **MVGS** | recall | precision | F0.5 | lead |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 33/48 | **29/31** | 38/42 | 42/1,475 | 0.035 | +26.5 |
+| `lstm-whitened` (global) | 2/48 | **18/31** | 23/42 | 118/119 | 0.853 | +27.0 |
+| `lstm-whitened-local` | **0/48** | **17/31** | 21/42 | 22/22 | 0.833 | +29.0 |
+
+**P11 REFUTED, and in the wrong direction.** Predicted headline cell of 23/32 to
+25/32; measured **20/32**, which is *below* the 21/32 it started from. The local
+reference did not recover a single one of the eleven. It made the rule **quieter**
+-- 26 alarm ranges against 43 -- rather than more sensitive, which is the opposite
+of what a locally-adaptive threshold was supposed to do.
+
+**P12 held trivially** -- `id_89` and `id_20` did not return, but neither did
+anything else, so it tested nothing.
+
+**P13 is moot.** There was no recovery to concentrate anywhere.
+
+**P14 held.** Rare-event false alarms 0/48 on both sets, against a ceiling of
+4/48.
+
+**The collapse signature did not fire, and that is informative rather than
+merely reassuring.** Measured nominal admission was 0.0010040, 0.0010033,
+0.0010008 on `m1-g8.9.10` and 0.0010042, 0.0010015, 0.0010020 on `m1-ss5`,
+against a target of 0.001 -- correct to four significant figures on every fold.
+**The rule is calibrated exactly as intended and simply does not help.** That is
+a cleaner negative than a broken one: nothing here is a bug to fix.
+
+**Why it went the wrong way -- a hypothesis, not a finding.** The local reference
+is a trailing quantile over a window that **includes the segment being judged**,
+which is the same guard-cell violation deviation 6 records for telemanom. A
+sustained event raises its own reference and therefore the bar it must clear, and
+the fitted multipliers are large -- 6.2 to 12.0 -- so the bar moves with it. That
+would explain a rule that gets quieter exactly where an event is. **It is not
+measured**, and it is the obvious first thing to check if this direction is ever
+reopened.
+
+**Also settled here, with authoritative scored numbers.** The `lstm-whitened`
+column is at `pruning_p = 0` and confirms section 6d's free win: `m1-ss5`
+headline cell **18/31** against 15/31 at `p = 0.13`, recall 23/42 against 18/42,
+rare-event rate unmoved at 2/48. `m1-g8.9.10` is unchanged at 21/32 as measured
+before. Precision on the gate set reads 41/43 rather than 39/40, which is the
+three extra alarm ranges pruning had been removing.

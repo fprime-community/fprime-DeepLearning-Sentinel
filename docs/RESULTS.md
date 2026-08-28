@@ -701,6 +701,48 @@ whitened length 1.71 to 2.63 against `sqrt(12) = 3.46`, condition numbers 83 to
 129. The first attempt produced 25.7 to 36.3 and condition numbers to 4.3e8 and
 **scored anyway, silently**; `whiten.Accumulator.finish` now refuses both.
 
+## 6e. The frozen decision layer
+
+`docs/DECISIONS.md` **D24**. `lstm-whitened` -- the whitened-residual relationship
+test, global reference, pruning disabled -- is the decision layer, held identical
+across LSTM, GRU and TCN at the architecture gate. Artifacts
+`runs/m1-g8.9.10/lstm-whitened/2026-08-28T050007Z-e51a6453.json` and
+`runs/m1-g8.9.10/lstm-whitened-local/2026-08-28T050015Z-29053248.json`.
+
+**GATE -- `m1-g8.9.10`**
+
+| Detector | **rare-event FA** | **MVGS** | recall | precision | nominal-step FA | F0.5 | lead |
+|---|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 30/48 (0.625) | **28/32** | 38/46 | 75/3,548 | 4.972% | 0.026 | +26.0 |
+| **`lstm-whitened`** | **2/48 (0.042)** | **21/32** | 27/46 | 41/43 | **0.028%** | 0.848 | +29.0 |
+| `lstm-whitened-local` | 0/48 | 20/32 | 25/46 | 26/26 | 0.024% | 0.856 | +29.0 |
+
+**`m1-ss5`**
+
+| Detector | **rare-event FA** | **MVGS** | recall | precision | F0.5 | lead |
+|---|---|---|---|---|---|---|
+| `lstm-telemanom` | 33/48 (0.688) | **29/31** | 38/42 | 42/1,475 | 0.035 | +26.5 |
+| **`lstm-whitened`** | **2/48 (0.042)** | **18/31** | 23/42 | 118/119 | 0.853 | +27.0 |
+| `lstm-whitened-local` | 0/48 | 17/31 | 21/42 | 22/22 | 0.833 | +29.0 |
+
+**The trade, stated and not absorbed.** Commanded-manoeuvre false alarms fall
+from **30/48 to 2/48** and nominal-step alarms from **4.972% to 0.028%** -- a
+factor of 178 -- and alarm ranges from 3,548 to 43 at 41/43 precision. It is paid
+for in **seven headline-cell events on the gate set**, 28/32 to 21/32, and eleven
+anomalies overall.
+
+Objective.md 11 rule 2 is the case for it: a detector alarming at 30 of 48
+commanded manoeuvres is muted within a week in orbit, and a muted detector
+catches nothing at all. The case against it is that the seven given up are
+exactly the class the project exists to catch. **Both are true and the decision is
+recorded as a judgement, not as an optimisation.**
+
+**(!) The lead-time column is not comparable in absolute terms.** `docs/DECISIONS.md`
+D21 measured the reported +26 as almost entirely `error_buffer` dilation: from
+the first actual threshold crossing the median is **+0.0**, and the detector
+leads in 3 of 38 events rather than 34 of 38. `+29.0` here means *no worse than
+the arm beside it*, nothing more, until that metric is made honest.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
