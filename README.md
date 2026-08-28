@@ -46,7 +46,9 @@ No amount of limit tuning catches that class.
 written. The harness is built and closed, telemanom's method is reproduced with a multivariate
 LSTM and the decision layer is frozen (`docs/DECISIONS.md` D25), and the GRU is scored beside
 it on identical terms (`docs/RESULTS.md` section 6h, 2026-08-28). Two stop-and-report rules
-fired on the GRU row; the next measurement is a reseeded LSTM fit on fold 0, before the TCN.
+fired on the GRU row; a reseeded LSTM fit on fold 0 (`docs/RESULTS.md` section 6i) settled
+that the LSTM's fold-0 stall was one optimisation path and still left it short of the GRU, and
+returned no verdict by its own pre-registered rule. The next step is a decision, not a run.
 See [docs/HARNESS.md](docs/HARNESS.md) for what is measured and
 [docs/MODELS.md](docs/MODELS.md) for the pre-registrations.
 

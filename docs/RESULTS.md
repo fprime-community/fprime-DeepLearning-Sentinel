@@ -1047,6 +1047,55 @@ refit of the LSTM on fold 0 with a different seed has not been run; that is the
 obvious control and it is one pod fit. Not that lead time improved: +0.0 is
 the boundary, on both cells. And every figure remains telemanom-minus-commands.
 
+## 6i. The LSTM's fold 0, reseeded: not the stall, and still not the GRU
+
+`docs/MODELS.md` section 15, pre-registered (commit `664b1c6`) before the fit.
+`lstm-quantile` with `Hyper(seed=1)` and nothing else changed, fold 0 of both
+sets, fitted on the M5 and scored through `harness._score_fold`. Artifact
+`runs/m1-g8.9.10/_forensics/2026-08-28T232538Z-reseed-lstm-quantile-seed1.json`.
+15 Class B, 1 Class A. **No published row moves**; the gate row remains the
+seed-0 fit.
+
+| fold 0 | val-MSE | epochs (best) | floor | recall | MVGS | precision | rare-FA | nominal-step | honest lead |
+|---|---|---|---|---|---|---|---|---|---|
+| `m1-g8.9.10` LSTM seed 0 (the row) | 1.691e-4 | 14 (3) | 0.14681 | 4/15 | 4/11 | 7/8 | 1/12 | 0 / 3,569,953 | -77.0 (n=4) |
+| `m1-g8.9.10` LSTM seed 1 | 1.986e-5 | 35 (34) | 0.02220 | 4/15 | 4/11 | 7/18 | 2/12 | 0 | -4.0 (n=4) |
+| `m1-g8.9.10` GRU | 4.628e-6 | 35 (34) | 0.01324 | 11/15 | 8/11 | 13/31 | 1/12 | 79 | +0.0 (n=11) |
+| `m1-ss5` LSTM seed 0 (the row) | 3.441e-5 | 22 (11) | 0.10195 | 4/13 | 4/10 | 13/15 | 1/12 | 121 / 3,644,798 | -41.0 (n=4) |
+| `m1-ss5` LSTM seed 1 | 3.462e-5 | 22 (11) | 0.10172 | 4/13 | 4/10 | 13/15 | 1/12 | 121 | -41.0 (n=4) |
+| `m1-ss5` GRU | 4.968e-6 | 35 (32) | 0.00878 | 11/13 | 8/10 | 19/89 | 2/12 | 958 | +0.0 (n=11) |
+
+All fold-0 denominators are under 20, UNDERPOWERED.
+
+**The seven weak events the GRU recovered, under the reseeded LSTM: none
+caught, at reach 0.80-0.93 on the gate set** (`id_109` 0.933, `id_90` 0.921,
+`id_12` 0.921, `id_93` 0.917, `id_114` 0.890, `id_110` 0.870, `id_107` 0.796)
+and 0.17-0.21 on `m1-ss5`. The banked fit had them at 0.15-0.18.
+
+**Three things the run settles.** The banked fold-0 stall (best epoch 3,
+stopped at 14) was that one optimisation path: a second seed ran to the cap and
+landed 8.5x better with the floor 6.6x lower. A second LSTM path is still 4.3x
+worse than the GRU in MSE and 1.7x higher in floor on this fold, and on `m1-ss5`
+the second path reproduced the first to three significant figures -- stopped
+at epoch 22, best at 11, floor 0.1017 against 0.1020. And the seven sit just
+under the escaped path's bar: a floor away, not a cell away.
+
+**Why, from the training curves.** The gate-set history is a plateau at
+1.2e-04-3.6e-04 from epoch 6 to 23 and a fall to 2.4e-5 at epoch 24. The
+published `patience = 10` ended seed 0 at epoch 14 on that plateau; seed 1's
+small improvements kept resetting it until the fall. `m1-ss5` never left its
+plateau on either seed. **The LSTM's fold-0 optimisation is plateau-prone under
+the published protocol; the GRU's on the same data was not** (best epoch at the
+cap, 4.6e-6 and 5.0e-6).
+
+**The pre-registered verdict rule returned no verdict** (MODELS.md 15.8, P25's
+middle branch): the reseed neither stalled nor reached the GRU. What follows
+from it is a decision and is recorded as open: whether the gate row's fold 0
+should be the seed-1 fit (same detections, floor 0.022, honest lead -4.0
+against -77.0), and whether `patience` and the epoch cap -- published constants
+that bind both cells -- are the right protocol on the data-poor fold. Neither
+is done here. Trigger 3 from section 6h stands as noted.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and

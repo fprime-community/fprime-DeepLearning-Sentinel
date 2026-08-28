@@ -1651,4 +1651,68 @@ per set.
 
 ### 15.8 OBSERVED
 
-*Filled in after the run, beside the predictions.*
+Beside the predictions. Artifact
+`runs/m1-g8.9.10/_forensics/2026-08-28T232538Z-reseed-lstm-quantile-seed1.json`
+(`device: cpu`, M5, four threads; weight store 69 -> 71, one new fit per set;
+15 Class B, 1 Class A; fingerprint `fe33b0f3`). Banked rows untouched.
+
+| fold 0 | val-MSE | epochs (best) | floor | recall | MVGS | precision | rare-FA | nominal-step | honest lead |
+|---|---|---|---|---|---|---|---|---|---|
+| `m1-g8.9.10` LSTM seed 0 (banked) | 1.691e-4 | 14 (3) | 0.14681 | 4/15 | 4/11 | 7/8 | 1/12 | 0 | -77.0 (n=4) |
+| **`m1-g8.9.10` LSTM seed 1** | **1.986e-5** | **35 (34)** | **0.02220** | **4/15** | 4/11 | 7/18 | 2/12 | **0** | -4.0 (n=4) |
+| `m1-g8.9.10` GRU | 4.628e-6 | 35 (34) | 0.01324 | 11/15 | 8/11 | 13/31 | 1/12 | 79 | +0.0 (n=11) |
+| `m1-ss5` LSTM seed 0 (banked) | 3.441e-5 | 22 (11) | 0.10195 | 4/13 | 4/10 | 13/15 | 1/12 | 121 | -41.0 (n=4) |
+| **`m1-ss5` LSTM seed 1** | **3.462e-5** | **22 (11)** | **0.10172** | **4/13** | 4/10 | 13/15 | 1/12 | 121 | -41.0 (n=4) |
+| `m1-ss5` GRU | 4.968e-6 | 35 (32) | 0.00878 | 11/13 | 8/10 | 19/89 | 2/12 | 958 | +0.0 (n=11) |
+
+**The seven, under the reseeded LSTM** -- reach on `m1-g8.9.10` / `m1-ss5`:
+`id_109` 0.933 / 0.207, `id_90` 0.921 / 0.203, `id_12` 0.921 / 0.203, `id_93`
+0.917 / 0.200, `id_114` 0.890 / 0.196, `id_110` 0.870 / 0.194, `id_107` 0.796 /
+0.173. **None caught on either set.** The four caught on each set are the four
+the banked fit catches (`id_10, id_101, id_102, id_103`, reach 8.1-8.2 and
+1.77). `id_89` 0.607 / 0.140.
+
+| # | Predicted | Observed | Verdict |
+|---|---|---|---|
+| **P21** | no stall: >= 25 epochs, best >= 15, val-MSE <= 1.0e-5 | 35 epochs, best 34, **1.986e-5** | **Refuted on the number, held on the shape.** It ran to the cap and was still improving; it reached 2x the band's edge and 4.3x the GRU |
+| **P22** | floor 0.010-0.020 | **0.02220** | **Refuted, narrowly** -- 11% above the band, 1.68x the GRU's |
+| **P23** | >= 5 of the seven caught | **0 of 7**, at reach 0.80-0.93 | **Refuted.** Every one of them is within 7-20% of the bar |
+| **P24** | rare-FA <= 2/12; nominal-step 20-300 | 2/12; **0** | Held on rare-FA; **refuted on nominal-step** -- a floor of 0.022 admitted nothing on 3.57M nominal steps where the GRU's 0.013 admitted 79 |
+| **P25** | verdict rule | fitted but short of the GRU; floor followed; none of the seven | **The pre-registered "between" branch: no verdict.** |
+
+**Mechanism condition (15.4): held on all three.** `best_epoch` 34 and 11; the
+floor moved with the MSE on both sets (gate: MSE 8.5x better, floor 6.6x
+lower; `m1-ss5`: both unchanged to 1%); nominal-step alarms 0 and 121, under
+237. **Stop and report (15.5): none fired** -- no stall by the rule's
+definition, not more than seven, 16 operations.
+
+**What the run establishes, without the verdict it was built to give.**
+
+1. **The banked fold-0 fit's stall was that path.** Seed 1 did not stop at
+   epoch 14; it reached 1.99e-5, 8.5x better, and its floor fell 6.6x.
+2. **And a second path still lands well short of the GRU on this fold.** The
+   validation history is the mechanism: `4.2e-04, 1.9e-04, 2.4e-04, 1.9e-04, 2.9e-04, 2.6e-04, 2.1e-04, 2.0e-04, 3.3e-04, 2.0e-04, 2.7e-04, 3.6e-04, 2.4e-04, 1.8e-04, 2.0e-04, 2.1e-04, 1.8e-04, 2.0e-04, 3.3e-04, 1.8e-04, 1.6e-04, 1.8e-04, 1.2e-04, 3.9e-05, 2.4e-05, 2.6e-05, 4.1e-05, 2.2e-05, 3.9e-05, 2.5e-05, 2.2e-05, 4.1e-05, 2.4e-05, 2.1e-05, 2.0e-05`. A plateau at
+   1.2e-04-3.6e-04 from epoch 6 to epoch 23, then a fall to 2.4e-5 at epoch
+   24. Seed 0's best was at epoch 3 and the published patience of 10 ended it
+   at 14, *on* that plateau; seed 1's small improvements along the plateau kept
+   resetting patience until the fall. On `m1-ss5` neither seed left the plateau:
+   `2.7e-04, 3.4e-04, 3.7e-05, 1.7e-04, 1.5e-04, 9.2e-05, 6.4e-05, 6.0e-05, 1.6e-04, 6.2e-05, 3.5e-05, 3.5e-05, 4.9e-05, 7.3e-05, 4.4e-05, 3.7e-05, 3.5e-05, 5.7e-05, 3.5e-05, 3.5e-05, 3.6e-05, 3.5e-05` -- stopped at 22 with the best at 11, twice, to three
+   significant figures. **The LSTM's fold-0 optimisation is plateau-prone under
+   the published protocol and the GRU's, on the same data, was not**: 4.6e-6
+   and 5.0e-6 with the best epoch at the cap.
+3. **The seven are a floor away, not a cell away.** Under the escaped LSTM path
+   they sit at 0.80-0.93 of a floor of 0.0222; the GRU's floor is 0.0132. Their
+   raw peaks under the reseed (reach times floor, 0.0177-0.0207) are above the
+   GRU's floor and below the LSTM's.
+
+**What it does not establish, stated so it is not read in.** Not that the cell
+is the cause: two LSTM paths and one GRU path is not a distribution, and the
+hardware differed (15.1). Not that a longer patience or a higher epoch cap
+would carry the LSTM to the GRU's level -- both are published constants
+(`patience = 10`, `epochs = 35`, section 1) and changing them is a protocol
+change to both cells, a decision rather than a run. Not that `m1-ss5`'s
+plateau would ever break. And nothing here moves a published row: the gate row
+stays the seed-0 fit, and whether it should be the seed-1 fit -- which would
+change `lstm-quantile`'s fold 0 from 4/15 at 0.147 to 4/15 at 0.022 and its
+honest lead from -77.0 to -4.0, and nothing else -- is the decision this run
+was meant to inform, recorded as open.

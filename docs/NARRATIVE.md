@@ -636,3 +636,14 @@ events predicted not to return did -- and the work stops here**, with the rows
 written and the decision unmade. The obvious next measurement is not the TCN;
 it is the LSTM's fold 0 refitted, because until that is run the recovery can
 be read as a better cell or as a luckier fit and the documents must not choose.
+
+**Addendum, the same evening: the reseed.** The one fit that could separate
+the cell from the path was pre-registered and run before anything else. The
+banked stall was the path -- a second seed ran to the cap and its floor fell
+6.6x -- and it was still 4.3x short of the GRU on the same fold, with the seven
+weak events at 0.80-0.93 of its bar and none caught; on `m1-ss5` the second
+seed reproduced the first to three figures. The training curves say why: a
+plateau at ~4e-04 that the published patience of 10 cuts one path off on and
+lets another escape at epoch 24. The verdict rule set before the number
+returned no verdict, and that is what was written. What is decided next -- the
+row, the protocol, or the TCN -- is a decision and not a run.
