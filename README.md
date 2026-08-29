@@ -50,7 +50,10 @@ fired on the GRU row; a reseeded LSTM fit on fold 0 (`docs/RESULTS.md` section 6
 that the LSTM's fold-0 stall was one optimisation path and still left it short of the GRU, and
 returned no verdict by its own pre-registered rule. The TCN is scored beside both
 (`docs/RESULTS.md` section 6j, 2026-08-29): MVGS 9/32, a noise floor above both cells' on every
-fold. All three rows exist; the architecture gate is now a decision, not a run.
+fold. **Phase 1 closed 2026-08-29**: the gate selected the GRU (D28); the held-back sets were
+scored once -- on an independent spacecraft the recipe alarmed on 4 of 424 rare events and no
+nominal timestep; on a later period of Mission 1 its calibration collapsed on two folds of three
+(D29, `docs/RESULTS.md` section 6k). What the C++ phase inherits is in [docs/PHASE2.md](docs/PHASE2.md).
 See [docs/HARNESS.md](docs/HARNESS.md) for what is measured and
 [docs/MODELS.md](docs/MODELS.md) for the pre-registrations.
 

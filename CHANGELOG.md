@@ -38,11 +38,25 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   cached weights, not built -- not nested; an OR reaches 25/32 at 2/48 on the gate set; a combined
   score recovers no gate-set solo event. Post-gate, its own decision if ever.
 
+### Phase 1 closed - 2026-08-29
+
+- D28: the architecture gate selects the GRU on Objective.md section 8's criteria; the LSTM stays
+  the published baseline, the TCN rows the stateless answer. `lstm-gru-or`, the union as a
+  detector, so the closure could score it through the one tested path.
+- The held-back sets scored once, on a GO, with MODELS.md section 18's predictions committed
+  first. `m2-ss1`: 4/424, 4/424, 6/424 rare-event false alarms and 0 nominal-step alarms for the
+  LSTM, GRU and TCN; the floors 84/424 and 122/424. `m1-g3`: fold 0 clean; folds 1-2 a
+  calibration collapse -- the noise floor fixed on the past sat under 87% of a later window.
+- D29: `gru-quantile` flies alone; the union is not adopted (its cost failed on Mission 2, its
+  edge evaporated on m1-g3); the calibration's transfer is what Phase 2 inherits. `docs/PHASE2.md`.
+
 ### Planned - Phase 1 work items, in order
 
 - Reproduce telemanom's detection method with a multivariate LSTM forecaster (done).
 - Train and score GRU (done, 2026-08-28; two stop-and-report rules fired, see RESULTS.md 6h).
 - Train and score TCN (done, 2026-08-29; see RESULTS.md 6j).
+- Pass the architecture selection gate and score the held-back sets (done, 2026-08-29; D28, D29,
+  RESULTS.md 6k). Phase 1 closed.
 - Pass the architecture selection gate. Scores `m2-ss1` as well, across LSTM, GRU, TCN, `rstd`
   and `mavg` together, so the adoption number on an independent spacecraft is a comparison
   rather than a lone figure.

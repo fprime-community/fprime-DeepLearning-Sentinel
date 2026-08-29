@@ -792,7 +792,7 @@ work** while the design is revisited. **Nothing gets coded around.**
 
 ```
   +------------------------------------------------------------------+
-  |  PHASE 1  <-- WE ARE HERE                          Python        |
+  |  PHASE 1  CLOSED 2026-08-29 (D28, D29; docs/PHASE2.md)  Python   |
   |  Prove the mathematics                                           |
   |  GATE: match or beat a telemanom baseline reproduced on this     |
   |        harness, plus evidence-based architecture selection.      |
@@ -874,10 +874,14 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
          report rules fired and the next step is a decision, not the TCN)
   6. OK  Train + score TCN   (2026-08-29; docs/RESULTS.md 6j -- MVGS 9/32, the
          floor above both cells' on every fold; the gate is now a decision)
-  7. --  Pass the architecture selection gate. Scores m2-ss1 as well,
-         across LSTM, GRU, TCN, rstd and mavg together, so the adoption
-         number on an independent spacecraft is a comparison and not a
-         lone figure
+  7. OK  Pass the architecture selection gate (D28: the GRU, 2026-08-29).
+         m2-ss1 scored once across LSTM, GRU, TCN, rstd and mavg, and the
+         union: 4/424, 4/424, 6/424, 84/424, 122/424, 8/424 rare-event
+         false alarms, 0 nominal-step alarms for every forecaster -- the
+         adoption number on an independent spacecraft is a comparison and
+         not a lone figure. m1-g3 scored once: fold 0 clean, folds 1-2 a
+         calibration collapse (87% of one window alarmed) -- the finding
+         Phase 2 inherits (D29, docs/RESULTS.md 6k). PHASE 1 CLOSED
   8. --  Post-gate: injected-fault sensitivity study
 ```
 

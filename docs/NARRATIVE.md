@@ -692,3 +692,40 @@ six-channel subset the same mean recovers all fifteen and beats both cells,
 which says what that regime is and nothing about the gate set. Recorded as
 an OR and nothing cleverer, priced at 1.78x the multiplies and two reference
 paths, and left for a decision after Phase 1 closes.
+
+## 10. Phase 1 closes: the exam, and what it examined
+
+**2026-08-29.** The two held-back sets nominated before any decision-layer
+tuning began were scored once each, on a GO, with the commands and twelve
+predictions committed first (`docs/MODELS.md` 18). Nothing was described,
+swept, refitted or run twice.
+
+**On a spacecraft nothing here had ever seen, the recipe held.** Fit on a
+third of Mission 2's history, calibrate on your own nominal residual with no
+label and no tuning: four rare events alarmed in 424, and not one nominal
+timestep in four million, for the LSTM, the GRU and the TCN alike. The
+per-channel floors did not hold -- `rstd` alarmed on a sixth of nominal time
+-- which is the cross-channel claim of Objective.md 1.1 answered on
+independent data. That is the adoption number.
+
+**On a later period of the same spacecraft, the floor did not hold.** On
+`m1-g3` fold 1 the threshold calibrated on the first half of the history sat
+under 87% of the next window's nominal residual, for both cells identically;
+the recall it "scored" is a window-long alarm cut into pieces, and the
+harness's own rule says a recall bought that way is not a finding. The
+pre-registration had asked how far recall and rare alarms would move; it had
+not asked whether the noise floor would still be the noise floor. Nothing was
+re-tuned. The finding went into D29 and into what Phase 2 inherits: a
+threshold is a parameter with a provenance, recalibrated in orbit, not a
+constant fixed in the past.
+
+**The union's edge did not survive either exam.** Its Mission-1 economy -- the
+GRU's rare alarm hiding inside the LSTM's -- was a coincidence: on Mission 2
+the two cells' four rare alarms each were eight different events. `gru-quantile`
+flies alone (D29).
+
+**Thirteen measurements changed a conclusion in this project; the fourteenth
+changed the question.** Every earlier one asked which detector, which
+threshold, which cell. This one asked whether a floor measured yesterday is
+still the floor today, and on one subsystem in three folds the answer was no
+twice. That is the question the flight component is built around.

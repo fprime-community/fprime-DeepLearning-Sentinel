@@ -1713,3 +1713,89 @@ set that destroys it (`docs/MODELS.md` 6).
    this entry.
 
 Objective.md decision 14.1 is resolved by this entry.
+
+---
+
+## D29. `gru-quantile` flies alone; the union is not adopted; the calibration's transfer is the finding
+
+**DATE** 2026-08-29 | **STATUS** resolved -- Phase 1 closed on this entry.
+D28 is not reopened.
+
+**CONTEXT.** The held-back sets were scored once, on a GO, with the commands
+and predictions of `docs/MODELS.md` 18 committed before the seal broke:
+`m2-ss1` (Mission 2, 424 rare events test-side, recall disabled) and `m1-g3`
+(Mission 1 group 3, 11 anomalies and 13 rare events test-side, three folds).
+Section 18.6 set the rule for this entry in advance: the union is the
+recommended configuration if its edge survives (R3) and its cost holds (T4);
+otherwise `gru-quantile` alone.
+
+**EVIDENCE.** `runs/m2-ss1/<detector>/2026-08-29T204415Z-*.json`,
+`runs/m1-g3/<detector>/2026-08-29T223625Z-*.json`; `docs/RESULTS.md` 6k;
+`docs/MODELS.md` 18.8.
+
+*The union.* On `m2-ss1` its rare-event alarms were 8/424 -- the LSTM's 4 and
+the GRU's 4, **disjoint** -- against a pre-registered fail line of 1.5x the
+larger member: **T4 failed.** On `m1-g3` its headline-cell recall was 9/10,
+the LSTM's 9/10: **R3 evaporated**, at the GRU's rare-FA of 10/13. Either
+alone selects the GRU alone; both did. The Mission-1 economy -- the GRU's one
+rare alarm sitting inside the LSTM's two -- did not transfer.
+
+*The recipe, on an independent spacecraft.* `lstm-quantile` 4/424, `gru-quantile`
+4/424, `tcn-quantile` 6/424 rare-event false alarms; **0 nominal-step alarms in
+4,155,841** for all three; the per-channel floors 84/424 with 17.3% of nominal
+time (`rstd`) and 122/424 (`mavg`). T1, T2, T6 held; T3 held on the ordering.
+That is the number that goes in front of a mission.
+
+*The recipe, on a later period of the same spacecraft.* `m1-g3` fold 0 held as
+the gate set did -- 0 nominal-step alarms, rare-FA 1/3. **Folds 1 and 2 did
+not**: thresholds of 0.0109 and 0.0111, calibrated on the first 7.36M steps,
+sat under **86.7% of the fold-1 test window's nominal residual** for both
+cells (3,095,318 of 3,570,272 steps), and under 4.4% / 0.7% of fold 2's.
+Pooled nominal-step FA 29.9% and 28.7%, rare-FA 8/13 and 10/13. Six fits, no
+stall, validation MSE in the gate set's range: the forecaster fitted; the
+frozen rule's premise did not hold.
+
+**ALTERNATIVES.** Adopt the union anyway on Mission 1's +4/32. Recalibrate on
+`m1-g3`'s later window and re-score. Reopen D28 on the `m1-g3` numbers.
+
+**Against each.** The union's Mission-1 edge was the pre-registered claim
+under test and it did not survive either exam; adopting it on the evidence
+it failed is the tuning-to-the-test the held-back sets exist to prevent.
+Recalibrating and re-scoring is the one thing `docs/MODELS.md` 6 forbids in
+as many words -- a disappointing held-back result is the finding, not a
+problem to fix -- and the value of the sealed data was spent in one
+transaction. D28 was decided before the seal broke precisely so that this
+result could not choose the architecture; and the `m1-g3` collapse is not an
+architecture result -- both cells collapsed identically, by the same
+mechanism, on the same window.
+
+**CONSEQUENCE.**
+
+1. **`gru-quantile` is the recommended deployment configuration, alone.** The
+   union is not adopted; it stays measured (`docs/MODELS.md` 17, `docs/RESULTS.md`
+   6k) as a configuration to revisit only if a future decision layer makes
+   the two cells' alarms overlap again.
+2. **The transfer evidence is split, and both halves are reported.** On an
+   independent spacecraft the recipe -- fit on a third of the history,
+   calibrate on your own nominal residual, no labels, no tuning -- alarms on
+   one rare event in a hundred and on no nominal step. On a later period of a
+   second subsystem of Mission 1, the same recipe's floor was under 87% of the
+   window. The first is the adoption number; the second is the limit of a
+   floor fixed in the past.
+3. **What Phase 2 inherits from the second half.** D25's rule stays the Phase 1
+   decision layer; its premise -- one global quantile of the fitting window is
+   the noise floor of what follows -- is now measured to fail across a regime
+   change. Objective.md 10.2 fix 4 and 14.10 already require thresholds to be
+   recalibrated in orbit and stored outside the weights; `m1-g3` fold 1 is the
+   measured case, and how the flight component recalibrates without learning
+   a degradation as normal (Objective.md 11 rule 1) is Phase 2's first
+   decision on the decision layer. Hypothesis, unmeasured, recorded as the
+   first thing to look at: the residual's scale in group 3 changes after the
+   seed window; a local threshold would have followed it and would have fired
+   constantly on the gate set (D17, D18) -- the same asymmetry from the other
+   side.
+4. **Phase 1 is closed.** Its gate -- match or beat a telemanom baseline
+   reproduced on this harness, plus evidence-based architecture selection --
+   is passed on the gate set (`docs/RESULTS.md` 6e-6h, D28), and the
+   transfer experiment the design protected since day one is spent and
+   written. No held-back set remains.

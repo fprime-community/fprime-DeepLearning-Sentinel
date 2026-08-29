@@ -1287,6 +1287,117 @@ stall on `m1-ss5` fold 2 is the architecture rather than the seed -- section
 6i's lesson applies and one refit would say. And every figure remains
 telemanom-minus-commands.
 
+## 6k. Phase 1 closure: the held-back sets, scored once
+
+`docs/MODELS.md` section 18 (pre-registered, commit `0c5fbfb`) and section
+18.8; `docs/DECISIONS.md` D28 (the gate, decided before the seal broke) and
+D29 (the deployment configuration, decided on these numbers). Each set was
+loaded once, through `python -m sentinel_eval run`, with the section-18.1
+commands verbatim: no `describe`, no sweep, no second attempt, nothing
+refitted. Settings as frozen: the published protocol per cell, seed 0 + fold,
+the D25 decision layer with each detector's own label-free 99.9th percentile
+of its own anomaly-masked fitting window. Artifacts
+`runs/m2-ss1/<detector>/2026-08-29T204415Z-*.json` (git `0c5fbfb`, 15 Class B,
+2 Class A) and `runs/m1-g3/<detector>/2026-08-29T223625Z-*.json` (11 Class B, 2 Class A).
+
+### 6k.1 `m2-ss1` -- the adoption number on a spacecraft nothing here was tuned on
+
+Mission 2, `subsystem_1` groups 5/8/9/10, 12 channels (`channel_9`-`channel_20`),
+**6,129,598 steps at 18 s** (timesteps, never hours). One chronological fold:
+train the first 1,838,879 steps (1,835,997 usable after 2,882 anomaly steps
+and 179 rare events are removed), test the last 4,290,719, holding **424 rare
+nominal events** and 3 anomalies. Recall is disabled on this task by design;
+the scorecard is the adoption number and the nominal-step rate.
+
+| Detector | **rare-event FA** | nominal-step FA | alarm ranges on nominal time | threshold | training (epochs, best, val-MSE) |
+|---|---|---|---|---|---|
+| `rstd` | 84/424 (0.198) | **718,831 / 4,155,841 (17.30%)** | 73 | 3.690 | -- |
+| `mavg` | **122/424 (0.288)** | 0 / 4,155,841 | 0 | 25.14 | -- |
+| `lstm-quantile` | **4/424 (0.009)** | **0** | 0 | 0.2100 | 35, 29, 6.218e-5 |
+| `gru-quantile` | **4/424 (0.009)** | **0** | 0 | 0.4368 | 19, 8, 7.161e-5 |
+| `tcn-quantile` | 6/424 (0.014) | **0** | 0 | 0.3085 | 26, 15, 6.889e-5 |
+| `lstm-gru-or` | 8/424 (0.019) | **0** | 0 | 1.0 | its members' |
+
+Resolution 1/424 = 0.24%. The three forecasters alarm on **one rare event in
+a hundred and on no nominal timestep**; the per-channel floors do not
+transfer -- `rstd` alarms on a sixth of nominal time and a fifth of the rare
+events, `mavg` on more than a quarter. **The union's 8 is exactly 4 + 4: the
+two cells' rare alarms on Mission 2 are disjoint**, where on Mission 1 the
+GRU's one sat inside the LSTM's two. The thresholds are 10-30x the Mission-1
+floors because Mission 2's groups are scaled differently and its grid period
+is 18 s; a floor is a quantile of that spacecraft's own residual, and the
+comparison that matters is within the row, not across missions. No fit
+stalled; the GRU stopped earliest (19 epochs, best 8) and the LSTM fitted
+best -- the reverse of Mission 1's fold 0.
+
+### 6k.2 `m1-g3` -- the recall exam, underpowered by construction
+
+Mission 1 `subsystem_6` group 3, 8 channels (`channel_12, 13, 19, 20, 27, 28,
+36, 37`), 14,728,319 steps at 30 s, forward chaining at 25% seed in three
+folds. Test-side: **11 anomalies, 10 headline-cell, 13 rare events** (folds
+6 / 4 / 1, 6 / 4 / 0, 3 / 8 / 2) -- four of the nomination's fourteen headline
+events fell in the seed window. **Every denominator is under 20; every figure
+here is UNDERPOWERED.**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | **nominal-step FA** | honest lead |
+|---|---|---|---|---|---|---|---|
+| `rstd` | 0.029 | 3/11 | 3/10 | 12/499 | 0/13 | 332,245 / 10,881,882 (3.05%) | -45.0 (n=3) |
+| `mavg` | 0.021 | 5/11 | 5/10 | 58/3,367 | 0/13 | 270,203 (2.48%) | -1,272.0 (n=5) |
+| `lstm-quantile` | 0.679 | 10/11 | 9/10 | 6,002/9,406 | **8/13** | **3,256,485 (29.93%)** | -86.5 (n=10) |
+| `gru-quantile` | 0.835 | 9/11 | 8/10 | 4,819/5,740 | **10/13** | **3,122,203 (28.69%)** | -26.0 (n=9) |
+| `lstm-gru-or` | 0.657 | 10/11 | 9/10 | 6,042/9,835 | 10/13 | 3,274,525 (30.09%) | -37.5 (n=10) |
+
+Per fold (`docs/MODELS.md` 18.8.2 carries the full block): **fold 0 is
+clean** -- 0 nominal-step alarms in 3,643,618, rare-FA 1/3, recall 5/6 (LSTM)
+and 4/6 (GRU), floors 0.0115 and 0.0091, no stall. **Fold 1 is a calibration
+collapse**: floors of 0.0109 and 0.0111, calibrated on the first 7.36M steps,
+sit below **86.7% of the test window's nominal residual** (3,095,318 of
+3,570,272 steps alarmed by both cells), so the alarm is the window, cut into
+14-19 ranges, and 4/4 recall, 7/8 rare events and a "+129,270-step lead" are
+what a window-long alarm scores. Fold 2 repeats it at 4.4% and 0.7% of
+nominal time. Six fits, no stall (best epochs 16, 9, 28 and 13, 12, 17;
+validation MSE 8.5e-6 to 1.2e-5). **The recall and F0.5 columns for the
+cells are bought the way `mavg` bought 29/31 on the gate set (section 1,
+`docs/HARNESS.md` 1) and are not findings; the nominal-step column is.**
+
+### 6k.3 The pre-registration, adjudicated
+
+`docs/MODELS.md` 18.8 carries every prediction beside its band. On `m2-ss1`:
+**T1, T2, T6 held; T3 held on the ordering and refuted on `rstd`; T5 held on
+the rule and refuted on its sub-prediction (the LSTM fitted best); T4 --
+the union's cost -- FAILED** (2.0x the larger member, against a fail line of
+1.5x). On `m1-g3`: **R1 and R5 held on the letter and are void in substance (recall
+bought with 29-30% of nominal time alarmed); R2 FAILED (8/13 and 10/13); R3 --
+the union's edge -- EVAPORATED (+0 over the LSTM at the GRU's cost); R4 failed
+for the LSTM (-86.5) and returned no verdict for the GRU (-26.0); R6 held (no
+stall).** The pre-registration asked how far recall and rare alarms would
+move and did not ask whether the floor measured on the first half of the
+history would still be the floor of the second; on `m2-ss1` it was, on `m1-g3`
+fold 1 it was not. Not re-tuned; the finding.
+
+### 6k.4 What the closure decides -- D29
+
+`docs/DECISIONS.md` **D29. `gru-quantile` flies alone; the union is not
+adopted; and the calibration's transfer is the finding Phase 2 inherits.**
+
+By the rule set in 18.6 before the seal broke: the union's cost failed T4 on
+`m2-ss1` (its 8/424 is the members' 4 + 4, disjoint) and its edge evaporated
+on R3 (+0). Either alone selects `gru-quantile` alone; both did.
+
+The transfer evidence, in one place. On **an independent spacecraft** the
+recipe held: 4/424 rare events, 0 nominal steps in 4.16M, for both cells and
+the TCN, with the per-channel floors failing (17% and 29%). On **a second
+subsystem of the same spacecraft**, one fold in three held the same way and
+two did not: the noise floor calibrated on the past was under 87% of a
+later window. The forecaster is not what failed -- six clean fits, MSE in
+the gate set's range -- the frozen rule's premise is: *one global quantile of
+the fitting window's residual is the noise floor of everything after it.*
+That premise is what D25 froze, what Objective.md 14.10 already says must be
+replaceable in orbit, and what the C++ component must be designed to
+recalibrate. Recorded, not reopened: D28 stands, D25 stands as the Phase 1
+layer, and the recalibration question is Phase 2's first decision on the
+decision layer.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
