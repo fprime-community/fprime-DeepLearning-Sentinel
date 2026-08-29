@@ -2131,4 +2131,111 @@ is reported without a verdict.
 
 ### 17.6 OBSERVED
 
-*Filled in after the pass, beside the predictions.*
+Artifact `runs/m1-g8.9.10/_forensics/2026-08-29T170340Z-combination-scope.json`;
+cached weights, weight store unchanged at 77, 15 Class B, 1 Class A. Every
+rule is the referee's own metric code on a mask; `k/n` throughout; all
+per-fold denominators under 20.
+
+**`m1-g8.9.10`**
+
+| rule | recall | MVGS | rare-FA | nominal-step FA | alarm ranges |
+|---|---|---|---|---|---|
+| `lstm-quantile` | 26/46 | 21/32 | 2/48 | 214 / 10,675,488 (0.0020%) | 42 |
+| `gru-quantile` | 27/46 | 22/32 | 1/48 | 142 (0.0013%) | 157 |
+| **OR** | **33/46** | **25/32** | **2/48** | **293 (0.0027%)** | 60 |
+| AND | 20/46 | 18/32 | 1/48 | 63 (0.0006%) | 139 |
+| MEAN | 20/46 | 18/32 | 2/48 | 129 (0.0012%) | 49 |
+
+**`m1-ss5`**
+
+| rule | recall | MVGS | rare-FA | nominal-step FA | alarm ranges |
+|---|---|---|---|---|---|
+| `lstm-quantile` | 27/42 | 21/31 | 2/48 | 31,829 / 10,875,689 (0.293%) | 130 |
+| `gru-quantile` | 26/42 | 21/31 | 3/48 | 1,536 (0.014%) | 172 |
+| **OR** | **34/42** | **25/31** | 3/48 | 33,025 (0.304%) | 162 |
+| AND | 19/42 | 17/31 | 2/48 | 340 (0.003%) | 140 |
+| **MEAN** | **34/42** | **25/31** | **2/48** | 25,983 (0.239%) | 148 |
+
+#### 17.6.1 The per-event union (question 1)
+
+**Gate set: OR catches thirteen events neither incumbent catches alone** --
+the GRU's seven on fold 0 (`id_107, id_109, id_110, id_114, id_12, id_90,
+id_93`; four headline-cell) and the LSTM's six on fold 1 (`id_122, id_124,
+id_129, id_130, id_140, id_142`; two headline-cell) -- for 33/46 and 25/32.
+**The honest cost of the plain OR: rare-event FA 2/48, unchanged** -- the
+GRU's one rare alarm (`id_1`, footprint 20,190, both models over their bars:
+LSTM 1.38, GRU 3.21) is one of the LSTM's two; the other (`id_34`, LSTM 4.07,
+GRU 0.92) is the LSTM's alone -- and **nominal-step alarms 293 against 214
+and 142**, 0.0027%: more than either, less than their sum by the 63 they
+share. Sixty alarm ranges against 42 and 157.
+
+**`m1-ss5`: OR catches fifteen solo events** (the same seven, plus the
+LSTM's eight on fold 1 including `id_132` and `id_145`) for 34/42 and 25/31,
+at **rare-FA 3/48** -- the GRU's third (`id_17`, GRU 1.22, LSTM 0.30) comes
+through -- and 33,025 nominal steps, 0.30%, almost all of it the LSTM's fold
+1.
+
+#### 17.6.2 The agreement reading (question 2)
+
+Concurrence read at the moment of each solo catch's own peak:
+
+```
+  m1-g8.9.10   the GRU's seven (fold 0):  GRU peak 1.23-1.29   LSTM at that moment 0.15-0.18
+               the LSTM's six (fold 1):   LSTM peak 1.09-1.21  GRU at that moment  0.60-0.62
+  m1-ss5       the GRU's seven (fold 0):  GRU peak 1.87-1.92   LSTM at that moment 0.17-0.21
+               the LSTM's eight (fold 1): LSTM peak 1.27-2.05  GRU at that moment  0.88-0.99
+```
+
+The peaks coincide with the banked per-model peaks in every case -- these are
+footprint-1 and short events, and both models peak on the same step -- so the
+banked reaches were already the concurrence.
+
+**On the gate set, agreement is a fantasy.** At the moment the GRU catches
+the seven, the LSTM is at a sixth of its own bar; at the moment the LSTM
+catches the six, the GRU is at three fifths of its. **MEAN catches none of
+the thirteen** (20/46, 18/32 -- the intersection with two rare alarms), and
+AND is the intersection by construction. No combined score built from these
+two series recovers a solo event on the gate set without lowering a bar,
+which is the loosening D24 already priced at the rare-event rate.
+
+**On `m1-ss5`, agreement is real, and it is the better rule there.** The GRU
+is at 0.88-0.99 of its bar on every one of the LSTM's eight, and its own
+peaks on the seven are 1.9, so **MEAN catches all fifteen solo events -- 34/42,
+25/31 -- at 2/48 and 0.239% nominal, better than both incumbents on every
+axis of that set**. The six-channel view is a different regime
+(`docs/HARNESS.md` section 2): the same events register as spikes both
+models see at once. It does not transfer to the twelve-channel gate set, on
+which the project's claim rests.
+
+#### 17.6.3 Flight cost beside the recall gained (question 3)
+
+Section 17.3: 1.78x the multiplies per tick, 636 KiB of weights, 480 floats
+of state in two shapes, two thresholds, two reference paths and two
+equivalence tests, plus a combination rule with its own constant. For that,
+on the gate set: **+7 events and +4 headline-cell (21/32 to 25/32) at the
+same 2/48 and 79 more nominal-step alarms in ten million** -- as an OR, and
+only as an OR.
+
+#### 17.6.4 The expectations
+
+| # | Predicted | Observed | Verdict |
+|---|---|---|---|
+| **E1** | OR 33/46, 25/32; 34/42, 25/31 | exactly | **Held** -- the pass reproduces the banked catches |
+| **E2** | OR rare-FA 2-3/48 gate, 3-5/48 `m1-ss5`; nominal at most the sum and above the larger | 2/48 and 3/48; 293 (sum 356, larger 214) and 33,025 (sum 33,365, larger 31,829) | **Held** |
+| **E3** | AND = intersection, no solo event; rare-FA at most the smaller | 20/46, 19/42; 1/48, 2/48 | **Held** |
+| **E4** | MEAN catches none of the thirteen on the gate set; on `m1-ss5` most but fewer than fifteen | none; **all fifteen** | **Held on the gate set, refuted on `m1-ss5`** -- the peaks coincide, so the upper bound was the value |
+| **E5** | LSTM below 0.25 at the GRU's seven; GRU below 0.7 at the LSTM's six | 0.15-0.18; 0.60-0.62 | **Held** |
+
+**Verdict, by the rule set in 17.4: on the gate set the combination is an OR
+and nothing cleverer.** Its recall is the union and its cost is the union's
+false alarms -- which, measured, is the LSTM's own rare-event rate and a
+third more nominal-step alarms -- and a combined score has no concurrence to
+exploit on the events that matter. `m1-ss5`'s MEAN result is recorded as
+what it is: a real agreement effect in the regime where both models see the
+same spike, and not the gate set's.
+
+**What this does not decide.** Whether +4 headline-cell events on one
+spacecraft are worth 1.78x the flight compute and a second reference path is
+Objective.md 8's criteria 2 to 5 against criterion 1, and it is a decision
+for after Phase 1 closes, taken on the held-back transfer numbers that do not
+yet exist. Nothing is built. Stop rules: none fired (E1 held; 16 operations).

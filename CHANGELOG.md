@@ -34,6 +34,9 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 - MODELS.md section 16: the `tcn-quantile` pre-registration and its outcome. RESULTS.md 6j: the
   TCN beside both cells -- MVGS 9/32 on the gate set, a floor above both incumbents' on every
   fold, one stalled fit. Three rows exist; the gate is a decision.
+- MODELS.md section 17 and `scripts/combination_scope.py`: the LSTM+GRU combination scoped on
+  cached weights, not built -- not nested; an OR reaches 25/32 at 2/48 on the gate set; a combined
+  score recovers no gate-set solo event. Post-gate, its own decision if ever.
 
 ### Planned - Phase 1 work items, in order
 

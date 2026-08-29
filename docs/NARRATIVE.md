@@ -679,3 +679,16 @@ cuDNN.
 
 **Three rows now exist.** The gate is a decision with all its inputs on the
 table, and the documents stop where the measurements stop.
+
+**Addendum: the combination, scoped and not built.** With three rows on the
+table, the two-forecaster question banked in section 14 was measured on
+cached weights in one pass, expectations first. Not nested -- six and seven
+events apart -- so the whitened precedent did not close it. An OR of the two
+cells reaches 33/46 and 25/32 on the gate set at the LSTM's own 2/48 and a
+third more nominal-step alarms; a mean of the two normalised scores recovers
+none of the thirteen solo catches there, because at the moment one model
+catches an event the other is at a sixth or three fifths of its bar. On the
+six-channel subset the same mean recovers all fifteen and beats both cells,
+which says what that regime is and nothing about the gate set. Recorded as
+an OR and nothing cleverer, priced at 1.78x the multiplies and two reference
+paths, and left for a decision after Phase 1 closes.
