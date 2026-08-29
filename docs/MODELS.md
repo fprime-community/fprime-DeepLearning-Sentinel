@@ -2239,3 +2239,164 @@ spacecraft are worth 1.78x the flight compute and a second reference path is
 Objective.md 8's criteria 2 to 5 against criterion 1, and it is a decision
 for after Phase 1 closes, taken on the held-back transfer numbers that do not
 yet exist. Nothing is built. Stop rules: none fired (E1 held; 16 operations).
+
+---
+
+## 18. The Phase 1 closure: the held-back sets, scored once
+
+**Proposed and committed before any seal breaks; executed only on an explicit
+GO, in so many words, after the predictions in 18.4 have been reviewed.**
+Nothing in this section has loaded, listed, described or consulted `m2-ss1`
+or `m1-g3`. The architecture is decided (D28) on Mission 1 evidence before
+this runs, so that what follows is an exam and not a tuning set.
+
+### 18.1 What runs, exactly once, settings as they stand today
+
+```
+python -m sentinel_eval --verbose run m2-ss1 --detector rstd --detector mavg \
+    --detector lstm-quantile --detector gru-quantile --detector tcn-quantile \
+    --detector lstm-gru-or --no-sweep
+
+python -m sentinel_eval --verbose run m1-g3 --detector rstd --detector mavg \
+    --detector lstm-quantile --detector gru-quantile --detector lstm-gru-or --no-sweep
+```
+
+- `m2-ss1`: all five detectors Objective.md section 13 item 7 names, plus
+  the union -- "so the adoption number on an independent spacecraft is a
+  comparison and not a lone figure". The TCN's row here is the
+  independent-spacecraft verdict on the stateless question, one cheap fold.
+- `m1-g3`: the two cells, the union, and the two free floor rows. No TCN
+  on the recall exam: its Mission-1 rows closed that question (6j).
+- One bundle load per set; `paired_with` returns each id alone, `partial`
+  is False, the artifacts are not barred. `--no-sweep`: the oracle stays
+  refused (section 7). **No `describe`** -- it loads a bundle and has no
+  held-back guard. No second run, no variant, no second attempt.
+- The union is listed after its members so its fits are cache hits inside
+  the process; it is the OR mask of section 17 and nothing cleverer
+  (`detectors.UnionQuantile`, pinned on the fixture by
+  `tests/test_union_detector.py`).
+
+### 18.2 What is fitted, and how -- the recipe as a mission would run it
+
+Every setting is the frozen one: the published telemanom protocol for each
+cell (section 1), `Hyper(seed=0)` plus the fold index, the frozen decision
+layer (D25) with its label-free 99.9th percentile of each detector's own
+anomaly-masked fitting window, persistence 1, agreement 1.
+
+| set | channels | grid | split | fits per trained detector | calibration |
+|---|---|---|---|---|---|
+| `m2-ss1` | 12: `channel_9`-`channel_20`, Mission 2 `subsystem_1`, groups 5/8/9/10 | ~6.13M steps at **18 s** (timesteps, never hours; the grid period differs from Mission 1's 30 s) | `chronological(fraction=0.30)`: one fold, train the first ~1.84M steps, test the last ~4.29M | 1 each (LSTM, GRU, TCN) | each detector's own fitting window |
+| `m1-g3` | 8: `channel_12, 13, 19, 20, 27, 28, 36, 37`, Mission 1 `subsystem_6` group 3 | 14,728,316 steps at 30 s | `forward_chaining(seed 0.25, 3 folds)`: train 3.68M / 7.36M / 11.05M | 3 each (LSTM, GRU) | per fold, as on the gate set |
+
+`m2-ss1` has recall disabled at the task level: its scorecard carries the
+rare-event false-alarm rate, the nominal-step rate, alarms per 1,000 nominal
+timesteps and the training blocks; F0.5, lead time and VUS-PR are absent by
+design (`harness._pool`). `m1-g3` carries the full scorecard. `check()`
+refuses `m1-g3` after the load if fewer than five anomalies fall test-side
+(`splits.MIN_TEST_ANOMALY_EVENTS`); that refusal would be the finding.
+
+**Every headline-cell figure on `m1-g3` is UNDERPOWERED by the project's own
+rule**: 14 events, `n < 20`. The powered exam is `m2-ss1`'s adoption number,
+~600 rare events. The plan says so before the numbers exist.
+
+### 18.3 Cost, and why local
+
+| run | Class B | Class A | wall clock on the M5 |
+|---|---|---|---|
+| `m2-ss1` | 16 (manifest, labels, 12 channels, ledger) | 1 | ~35-45 min: three fits on ~1.84M steps (~5 min each), scoring ~6.1M steps for five arms, the union reading cached errors |
+| `m1-g3` | 11 (manifest, labels, 8 channels, ledger) | 1 | ~2.5-3 h: six fits (LSTM ~11 / 25 / 35 min, GRU similar), then scoring -- overnight |
+| **total** | **27** | **2** | |
+
+No pod, no credential exposure, no flag lifted on any held-back guard: the
+fits happen inside the scoring run, through the one tested path. `cli.py`
+reads the ledger at run start and commits it at run end -- before the
+artifact is written, a known ordering (harness territory, D8); the weights
+are on disk inside `fit`, so a ledger failure could cost the scorecard but
+never a fit. Operations are reported from the artifact.
+
+### 18.4 PREDICTED -- committed before the run, reviewed before GO
+
+Anchors, all Mission 1: rare-event FA `rstd` 1/48, `mavg` 10/48, LSTM 2/48,
+GRU 1/48, TCN 3/48, union 2/48; nominal-step FA LSTM 0.002%, GRU 0.001%,
+TCN 0.00002%, union 0.0027%, `mavg` 1.796 alarms per 1,000 nominal steps;
+headline-cell recall LSTM 21/32, GRU 22/32, union 25/32; honest lead +0.0 for
+both cells; the stall record (6i: LSTM fold 0; 6j: TCN `m1-ss5` fold 2);
+`docs/RESULTS.md` 2, 6h, 6i, 6j and section 17.6.
+
+**`m2-ss1` -- the adoption number on a spacecraft nothing here was tuned on**
+
+| # | Prediction | Holds | Fails | No verdict |
+|---|---|---|---|---|
+| **T1** | Each trained detector's rare-event FA rate transfers: LSTM 2-8%, GRU 1-6%, TCN 1-6% | rate <= 12.5% (3x the Mission-1 rate, floored at 2/48) | rate > 20.8% -- `mavg`'s Mission-1 rate, the "muted within a week" line (Objective.md 11 rule 2; section 4 trigger 3) | 12.5% to 20.8% |
+| **T2** | Nominal-step FA: LSTM, GRU, TCN each <= 0.05% | <= 0.05% (25x the Mission-1 rates) | > 0.5% -- the collapse level of 6d/6e | between |
+| **T3** | The floor rows keep their Mission-1 order: `rstd` rare-FA <= 5%, `mavg` 15-35% and worse than every forecaster | `mavg` worse than all three cells on rare-FA | `mavg` at or better than any cell -- the Mission-1 ordering did not transfer, reported first | -- |
+| **T4** | The union's cost transfers: rare-FA of `lstm-gru-or` <= 1.25x max(LSTM, GRU), and nominal-step <= LSTM + GRU | both | rare-FA > 1.5x max(LSTM, GRU) | between. (Its recall edge cannot be read here; that is R3) |
+| **T5** | Trainability on new data: no fit with `best_epoch <= 5` after 10 or more epochs. The training window, ~1.84M steps, is half of Mission-1 fold 0's, the regime where the LSTM plateaued: GRU and TCN predicted clean; LSTM predicted to land >= 3x the GRU's validation MSE without a hard stall | no stall in any of the three | a stall in the GRU | an LSTM or TCN stall -- **reported as the finding, never refit** |
+| **T6** | The stateless question on an independent spacecraft: TCN rare-FA and nominal-step within 3x the GRU's | both | either above 10x | between 3x and 10x |
+
+**`m1-g3` -- the recall exam, underpowered by construction (14 headline-cell events)**
+
+| # | Prediction | Holds | Fails | No verdict |
+|---|---|---|---|---|
+| **R1** | Headline-cell recall transfers: LSTM and GRU each 8-11/14 (Mission-1 rates 0.66-0.69) | each >= 8/14 | either < 6/14 | 6-7/14 |
+| **R2** | Rare-event FA on `m1-g3`'s rare events (n unknown until scored): both cells <= 12.5% | <= 12.5% | > 20.8% | between |
+| **R3** | **The union's edge -- the specific claim under test (+4/32 on the gate set).** Union headline-cell >= max(LSTM, GRU) + 1 at rare-FA <= max(LSTM, GRU) + 1 event | survives | union headline-cell = max(LSTM, GRU): evaporates | anything else. **At n = 14 the resolution is one event in fourteen; the verdict is written UNDERPOWERED** |
+| **R4** | Honest lead, median: LSTM and GRU >= -10 | >= -10 | < -50, the D9 zone | between |
+| **R5** | Event-wise F0.5: LSTM >= 0.6, GRU >= 0.5 (Mission-1 0.838, 0.804) | both | either < 0.3 | between |
+| **R6** | Trainability: GRU no stall on any fold; LSTM fold 0 (3.68M steps, the stall regime) is not predicted either way | GRU clean | a GRU stall | an LSTM stall -- reported, never refit |
+
+**Deliberately not predicted.** Point recall. VUS-PR. Anything about a spike
+regime on `m1-g3`: it has zero sub-grid-cell events by its nomination.
+
+### 18.5 The standing rule, verbatim (section 6)
+
+> **Both sets are run once, at the end, with every setting already frozen. If the
+> result disappoints, we do not go back and re-tune.**
+>
+> Tuning against a held-back set converts it into another training set and
+> destroys the only clean evidence the project has. There is no version of "we
+> adjusted it slightly after seeing the held-back number" that preserves the
+> guarantee.
+>
+> **A disappointing held-back result is the finding, not a problem to fix.** It
+> would mean the tuning fitted 46 events rather than building a better detector --
+> which is worth knowing, and worth publishing, and is the entire reason for
+> nominating a set in advance.
+
+Restated for this run: one run per set; no adjusted threshold; no refit of a
+stalled fold; no second seed; no "just checking one thing"; no `describe`. A
+`SplitTooThin` refusal on `m1-g3` is the finding too. The value of the sealed
+data is spent in one transaction and cannot be refunded.
+
+### 18.6 What the result decides, and the one thing it does not
+
+- **It does not reopen D28.** The architecture was decided on Mission 1
+  evidence before the seal broke, precisely so that this stays an exam.
+- **It decides the recommended deployment configuration -- D29.** If the
+  union's edge survives (R3) and its cost holds (T4), the union is the
+  recommended configuration at its stated cost (1.78x the multiplies, 636
+  KiB, two thresholds, two reference paths). If the edge evaporates or the
+  cost fails, `gru-quantile` flies alone. A no-verdict outcome is written as
+  one, and D29 says which evidence is missing and that R3 was underpowered.
+- **It is the transfer evidence for the whole recipe** -- the number that
+  goes in front of a mission when they ask how we know it works on a
+  spacecraft we never saw. T1 is that number.
+
+### 18.7 After GO
+
+`m2-ss1` first, then `m1-g3` overnight. Then, in order: `docs/RESULTS.md`
+6k with every row of both sets, per fold and pooled, `k/n`, UNDERPOWERED
+stamped, a provenance row (git commit, device M5, torch 2.13.0, seed 0,
+operations read from the artifacts); 18.8 OBSERVED with every prediction
+beside its outcome; D29 in the same commit as the decision; `docs/NARRATIVE.md`
+10; CHANGELOG; Objective.md section 13 item 7 and the Phase 1 gate line; the
+`wi7` tag and Release, "Phase 1 closed"; and the Phase 2 inheritance note --
+both reference blueprints (LSTM, GRU) at 1e-5, the format facts (gate
+orders, the GRU's unsummed bias vectors, one state vector against two,
+thresholds outside the weights per Objective.md 14.10), the frozen decision
+layer and its calibration recipe, the union's status per D29, and the
+decisions still open (D14, D21's first reach, D23).
+
+### 18.8 OBSERVED
+
+*Filled in after the run, beside the predictions -- once.*
