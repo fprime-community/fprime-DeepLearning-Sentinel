@@ -156,12 +156,13 @@ def main() -> int:
                     finally:
                         D.set_caching(True)
                     first, second = detector._weights, again._weights
+                    # Every array of either player, by name: the RNN's gates or
+                    # the TCN's kernels. The first version of this compared
+                    # `w_ih` by attribute and raised on a TCN after both fits.
                     identical = (
-                        np.array_equal(first.head_w, second.head_w)
-                        and np.array_equal(first.head_b, second.head_b)
-                        and all(np.array_equal(getattr(a, n), getattr(b, n))
-                                for a, b in zip(first.layers, second.layers)
-                                for n in ("w_ih", "w_hh", "b_ih", "b_hh"))
+                        [n for n, _ in first.arrays()] == [n for n, _ in second.arrays()]
+                        and all(np.array_equal(a, b)
+                                for (_, a), (_, b) in zip(first.arrays(), second.arrays()))
                     )
                     info["bit_identical_refit"] = identical
                     info["refit_seconds"] = twice["seconds"]
