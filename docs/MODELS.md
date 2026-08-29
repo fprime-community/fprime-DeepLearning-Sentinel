@@ -1740,3 +1740,163 @@ change `lstm-quantile`'s fold 0 from 4/15 at 0.147 to 4/15 at 0.022 and its
 honest lead from -77.0 to -4.0, and nothing else -- is the decision this run
 was meant to inform, recorded as open.
 
+
+---
+
+## 16. Pre-registration: `tcn-quantile` (work item 6)
+
+**Written and committed before any fit.** Sections 14 and 15 are the template
+and the record this is read against.
+
+### 16.1 What is being tested, and the shape
+
+The architecture, and nothing else. `tcn-quantile` is the frozen decision
+layer (D25) on a temporal convolutional forecast: `Hyper(cell="tcn",
+hidden=(50,)*6, kernel=3)`, every other field telemanom's and shared with both
+cells -- 12 channels, 250-step training windows, `l_p = 10`, MSE, Adam 1e-3,
+batch 70, up to 35 epochs, patience 10, `min_improvement = 0.001`, seed
+`0 + fold`, the same sampler, validation pinning and guard, fitted by the same
+`train` (D27).
+
+**The shape, and why.** Bai, Kolter and Koltun's standard form: six residual
+blocks of two causal dilated convolutions each, kernel 3, dilations 1, 2, 4, 8,
+16, 32, ReLU and dropout 0.3 after each convolution, a 1x1 shortcut on the
+first block, a final dropout before the same head. Receptive field
+`1 + 2(k-1)(2^L - 1) = 253` -- the first standard shape at or past `l_s = 250`
+(k=5, L=5 gives 249). Width 50 gives **91,670 parameters** against the LSTM's
+91,640; 49 and 51 give 88,222 and 95,184. No weight normalisation (folded at
+export; the file never carries it). PyTorch's default initialisation. **The
+TCN is size-matched to the LSTM; the GRU was not** (71,160), and criterion 2
+of Objective.md 8 is read with that in mind.
+
+**The stateless contract, designed rather than inherited.** The forecast at
+`t` is a function of inputs `t-252 .. t` and nothing else. `reference.forward`
+refuses a state for `ConvWeights` and returns an empty one; the flight
+component holds the last 252 inputs in a ring buffer that is zero-filled at
+boot, and the causal zero padding in every convolution is that buffer. The
+harness's chunked scoring warms every chunk with `window = 250` real steps and
+carries nothing across chunks -- so the three steps a 253-field reaches past
+the prefix are zero-filled at every chunk start, exactly as they are in every
+250-step training window. Training and scoring see the same arithmetic; a
+chunk warmed by 252 real steps reproduces the uncut stream to 1e-5 by test.
+
+**Measured before the fit.** torch-vs-NumPy 4.8e-07 at the flown shape,
+6.0e-07 on a 4,096-step chunk; the field pinned at exactly 253 by
+perturbation; the future cannot reach the past; the LSTM's and GRU's
+fingerprints and keys unmoved.
+
+**What does not move.** The harness, folds, bundle, decision layer,
+`error_buffer` (D21, irrelevant to the gate arm), `k`-of-`n` (D23), the
+held-back sets. `tcn-telemanom` is scored in the same run from the same
+weights as the non-gate reproduction reading.
+
+### 16.2 Anchors
+
+From `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json`,
+`.../gru-quantile/2026-08-28T222635Z-6d146f5d.json`, both fit reports,
+`_forensics/2026-08-28T205347Z-head-to-head.json` (LSTM reaches),
+`_forensics/2026-08-28T223610Z-head-to-head.json` (GRU reaches) and
+`_forensics/2026-08-28T232538Z-reseed-lstm-quantile-seed1.json`.
+
+| fold | LSTM val-MSE / floor | LSTM seed 1 (fold 0 only) | GRU val-MSE / floor | LSTM recall, MVGS | GRU recall, MVGS |
+|---|---|---|---|---|---|
+| `m1-g8.9.10` 0 | 1.691e-4 / 0.14681 | 1.986e-5 / 0.02220 | 4.628e-6 / 0.01324 | 4/15, 4/11 | 11/15, 8/11 |
+| `m1-g8.9.10` 1 | 3.552e-6 / 0.01563 | -- | 3.378e-6 / 0.02827 | 10/15, 7/9 | 4/15, 4/9 |
+| `m1-g8.9.10` 2 | 4.089e-6 / 0.01178 | -- | 3.468e-6 / 0.01455 | 12/16, 10/12 | 12/16, 10/12 |
+| `m1-ss5` 0 | 3.441e-5 / 0.10195 | 3.462e-5 / 0.10172 | 4.968e-6 / 0.00878 | 4/13, 4/10 | 11/13, 8/10 |
+| `m1-ss5` 1 | 5.205e-6 / 0.01243 | -- | 5.169e-6 / 0.01710 | 11/14, 7/9 | 3/14, 3/9 |
+| `m1-ss5` 2 | 8.096e-6 / 0.01545 | -- | 6.120e-6 / 0.01022 | 12/15, 10/12 | 12/15, 10/12 |
+
+Pooled: LSTM 26/46, 21/32, 2/48, 0.002%; GRU 27/46, 22/32, 1/48, 0.001%;
+honest lead +0.0 both.
+
+**The twelve `lstm-quantile` misses on `m1-g8.9.10`, and what the reach
+arithmetic says a TCN needs.** Raw peak = reach x floor.
+
+```
+  fold  event    LSTM reach  GRU reach   LSTM-s1 reach   raw peak under LSTM-s0 / LSTM-s1 / GRU
+  0     id_107   0.158       1.286       0.796           0.0232 / 0.0177 / 0.0170     the seven: back if the
+  0     id_109   0.172       1.271       0.933           0.0253 / 0.0207 / 0.0168     fold-0 floor lands at
+  0     id_110   0.181       1.233       0.870           0.0265 / 0.0193 / 0.0163     or below ~0.017-0.020
+  0     id_114   0.147       1.275       0.890           0.0216 / 0.0198 / 0.0169
+  0     id_12    0.168       1.269       0.921           0.0247 / 0.0204 / 0.0168
+  0     id_90    0.168       1.269       0.921           0.0247 / 0.0204 / 0.0168
+  0     id_93    0.150       1.249       0.917           0.0221 / 0.0204 / 0.0165
+  0     id_89    0.111       0.393       0.607           0.0163 / 0.0135 / 0.0052     needs a floor below ~0.005-0.013
+  1     id_132   0.995       0.553       --              0.0156 / -- / 0.0156         the coin toss, at the LSTM's floor
+  1     id_138   0.480       0.181       --              0.0075 / -- / 0.0051         needs a fold-1 floor below ~0.006
+  1     id_20    0.209       0.130       --              0.0033 / -- / 0.0037         needs a fold-1 floor below ~0.0035
+  2     id_157   0.307       0.238       --              0.0036 / -- / 0.0035         needs a fold-2 floor below ~0.0036
+```
+
+**And the six the GRU lost on fold 1** (`id_122, id_124, id_129, id_130,
+id_140, id_142`): LSTM reach 1.087-1.207 at floor 0.01563 -- raw peaks
+0.0170-0.0189 -- caught by any fold-1 floor at or below ~0.017.
+
+### 16.3 PREDICTED
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **P26** | **91,670 parameters** (87,410 on six channels), receptive field 253 | Measured before the fit (16.1); recorded so criterion 2 was stated first |
+| **P27** | **Training shape: no plateau.** On fold 0 of both sets `best_epoch >= 20` and validation MSE **<= 1.0e-5**; on every fold `best_epoch > 5` | Residual convolutional stacks have no recurrent state to saturate and their gradients reach every input tap at the same depth; the LSTM's fold-0 plateau (section 15) is a recurrent phenomenon the GRU did not show either. Trainability is now a recorded gate consideration (`docs/RESULTS.md` 6i) and this is the prediction that tests it |
+| **P28** | **Validation MSE within 0.5x-2.0x of the GRU's on every fold, both sets** | Objective.md 8's hypothesis that TCNs equal recurrent models at this scale, with a wider band than P16's because a 253-step window and a recurrent memory are different instruments and the direction is not known |
+| **P29** | **Noise floor: fold 0 within 0.7x-1.5x of the GRU's** (0.01324 / 0.00878); **folds 1 and 2 within 0.7x-1.5x of the LSTM's** (0.01563, 0.01178 / 0.01243, 0.01545) | Fold 0's floor followed the fit for both a GRU and a reseeded LSTM; on folds 1 and 2 the GRU's rise was a tail property of that cell's residual, and there is no reason on record to expect the TCN's tail to be the heavier one -- so the LSTM's floors are the anchor there |
+| **P30** | `m1-g8.9.10`: **MVGS 21/32 to 25/32**, rare-event FA **<= 4/48** both sets, nominal-step FA **<= 0.006%**, pooled honest lead **+0.0** both sets. `m1-ss5` MVGS 19/31 to 24/31 | If P29 holds, the seven return (fold 0) and the GRU's six fold-1 losses do not recur: 21 + 4 headline from the seven = 25 at the top; losses elsewhere take it down |
+| **P31** | **Per event, by the arithmetic in 16.2**: **five to seven of the seven return** on both sets (P29's fold-0 floor at or below their ~0.017-0.020 peaks); **`id_89`, `id_138`, `id_20`, `id_157` do not**; **`id_132`** predicted neither way; **at least four of the GRU's six fold-1 losses are caught** (a fold-1 floor near the LSTM's clears their 0.017-0.019 peaks) | Every clause is a reach against a predicted floor; each can fail on its own and says which floor moved |
+| **P32** | **The floor follows the MSE across folds**: on every fold where the TCN's floor differs from the GRU's by more than 1.5x, its validation MSE differs in the same direction | Section 14 showed the two can decouple (fold 1). This is the claim that, for this architecture, they do not -- and it is the one most likely to be wrong |
+
+**Not predicted.** Point recall, VUS-PR, `tcn-telemanom`'s numbers (reported
+beside `lstm-telemanom` and `gru-telemanom`, not the gate).
+
+### 16.4 Outcome condition, and mechanism conditions that are harder
+
+**Outcome condition (parity with the better incumbent on each axis):** MVGS
+>= 22/32 and rare-event FA <= 1/48 on `m1-g8.9.10`.
+
+**Mechanism conditions -- read from the fit reports and the thresholds before
+any event is scored; ANY failing is reported whatever the detection numbers
+say:**
+
+1. **No plateau**: no fold with `best_epoch <= 5` after ten or more epochs, on
+   either set. A stall is P27's failure and the trainability finding of 6i
+   recurring; it can coexist with a fine pooled row (the LSTM's did).
+2. **The floor tracks the fit** (P32 as a condition): any fold whose floor is
+   more than 1.5x from the GRU's must have its validation MSE on the same side
+   of the GRU's. Failing it means a recovery or a loss on that fold is a tail
+   effect, not a forecast effect, and 14.8.2's reading applies.
+3. **Nominal-step alarms on the test window <= 3x the higher of the two
+   incumbents' on every fold** (floored at 0.001% of the fold's nominal
+   steps). Recoveries bought with alarms the 48 rare events cannot see are
+   reported as such.
+4. **Every recovered event is recovered by the floor**: its raw peak under the
+   TCN divided by the TCN's floor is at least 1 on a fold whose floor is below
+   the event's raw peak under the LSTM -- the same test 14.4's condition 2
+   made, which every GRU recovery passed.
+
+### 16.5 The run
+
+| Step | What | Cost |
+|---|---|---|
+| Fit, rented GPU | `scripts/fit_folds.py --task m1-g8.9.10 --detector tcn-quantile --device cuda --threads 1 --determinism-check`, after `pod_setup.sh` and a green suite on the box; the `m1-ss5` fold-0 refit must be bit-identical (cuDNN convolutions under `use_deterministic_algorithms(True)`, not measured before) | ~16 operations |
+| Verify, M5 | every file through the loader, `cell == "tcn"`, `best_epoch > 0`, torch-vs-NumPy on the real weights at 1e-5; the scoring run's fold 0 must hit the cache with refits refused before the pod is destroyed | 0 |
+| Score, M5 | `run m1-g8.9.10 --detector tcn-quantile --detector tcn-telemanom --no-sweep`, one bundle load, both sets, all folds | 15 Class B, 1 Class A |
+| Per event | `head_to_head.py --a lstm-quantile --b tcn-quantile` and `--a gru-quantile --b tcn-quantile` | 2 x (15 B, 1 A) |
+
+Held-back sets untouched. Nothing refitted for the incumbents.
+
+### 16.6 Stop and report
+
+1. `tests/test_reference_equivalence.py` short of 1e-5 on the fitting box: no
+   fit is banked.
+2. **Any of the twelve returns** -- the headline, reported before anything
+   else, with 16.4's condition 4 read beside it. (P31 predicts this will fire.)
+3. **TCN MVGS at or above either incumbent's** -- 21/32 or 22/32 -- report and
+   wait.
+4. A fold with `best_epoch <= 5` after ten epochs: the trainability finding,
+   reported as such.
+5. Any fold's validation MSE above 3x the worse incumbent's.
+6. More than 50 operations in any run.
+
+### 16.7 OBSERVED
+
+*Filled in after the run, beside the predictions.*
