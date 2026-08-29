@@ -156,7 +156,7 @@ _register(Task(
     split_params=(("seed_fraction", 0.25), ("folds", 3)),
     headline="HELD BACK -- recall. Run once, at the end, settings frozen",
     note=("8 channels, Mission1 group 3. Nominated as a held-back recall set BEFORE "
-          "any decision-layer tuning began (docs/MODELS.md section 5), and untouched "
+          "any decision-layer tuning began (docs/MODELS.md section 6), and untouched "
           "since: no result has ever been computed on it. 14 headline-cell events, "
           "median footprint 3,594 timesteps and ZERO sub-grid-cell events -- the "
           "opposite of the group 8 problem that forced the primary set's promotion. "
@@ -180,7 +180,7 @@ _register(Task(
           "carry a comparison. Also HELD BACK by construction -- nothing has ever been "
           "scored on it, so it is the clean test of whether decision-layer tuning "
           "reduced false alarms or merely fitted the 48 rare events on m1-g8.9.10. "
-          "Run once, at the end, settings frozen. See docs/MODELS.md section 5."),
+          "Run once, at the end, settings frozen. See docs/MODELS.md section 6."),
     limitation="Recall is not defined on this task by design; see note.",
 ))
 

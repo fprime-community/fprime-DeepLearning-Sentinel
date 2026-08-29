@@ -41,7 +41,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sentinel_eval.detector import Detector
+from sentinel_eval.detector import Detector, reduce_scores
 
 from . import oscfar, reference, telemanom, whiten
 from .lstm import Hyper, train
@@ -968,3 +968,73 @@ class TCNSmoke(TCNForecastDetector):
     def __init__(self, **kwargs) -> None:
         super().__init__(hyper=replace(SMOKE_HYPER, cell="tcn", hidden=(16,) * 5, kernel=3),
                          config=SMOKE_CONFIG, **SMOKE_CHUNKING, **kwargs)
+
+
+# -- the deployment configuration D28 named, scoped in docs/MODELS.md 17 -----
+class UnionQuantile(Detector):
+    """`lstm-quantile OR gru-quantile`: a union of two alarm streams, and nothing cleverer.
+
+    Each member is fitted and calibrated exactly as it is alone -- its own
+    weights, its own label-free 99.9th percentile of its own anomaly-masked
+    fitting window (`harness.py:157`) -- and its score is divided by that
+    threshold, so 1.0 is the bar each member already uses. The union's score is
+    the larger of the two normalised scores and its cut is a fixed 1.0, which
+    makes the alarm mask ``max(r_L, r_G) >= 1``: byte for byte the OR mask
+    `scripts/combination_scope.py` measured in
+    `runs/m1-g8.9.10/_forensics/2026-08-29T170340Z-combination-scope.json`
+    (docs/MODELS.md 17.6). No weighting, no agreement, no mean, no fitted
+    constant: the scoping showed that on the gate set a combined score has no
+    concurrence to exploit, so the only honest combination is the union with
+    the union's false alarms.
+
+    Exists so the configuration can be scored through the one tested path,
+    `python -m sentinel_eval run`, beside its members. Its members' fits are
+    cache hits when the same run scored them first. Not a gate contestant
+    (D28): its adoption is D29, on the held-back transfer result.
+    """
+
+    name = "lstm-gru-or"
+    wants_commands = False
+
+    def __init__(self, *, members: tuple[Detector, ...] | None = None) -> None:
+        self.members = tuple(members) if members is not None else (TelemanomQuantile(), GRUQuantile())
+        if len(self.members) < 2:
+            raise ReferenceError("a union needs at least two members")
+        super().__init__(members={m.name: m.params for m in self.members})
+        self._thresholds: list[float] | None = None
+        self.report: dict | None = None
+        self.last_attribution = None
+        self.last_emission = None            # quantile path: the crossing is the emission
+
+    @property
+    def warmup_steps(self) -> int:
+        return max(m.warmup_steps for m in self.members)
+
+    def fit(self, values, usable, context) -> None:
+        """Fit every member as itself, then read each one's own bar off the fitting window."""
+        usable = np.asarray(usable, dtype=bool)
+        thresholds = []
+        for member in self.members:
+            member.fit(values, usable, context)
+            raw = member.score(values, None, context)
+            scores, _ = reduce_scores(raw, np.asarray(values).shape[0])
+            threshold = member.threshold_from(scores[usable] if usable.any() else scores)
+            if threshold is None or not threshold > 0:
+                raise ReferenceError(f"{member.name} produced no usable threshold on the fitting window")
+            thresholds.append(float(threshold))
+        self._thresholds = thresholds
+        self.report = {member.name: member.report for member in self.members}
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if self._thresholds is None:
+            raise ReferenceError("score() before fit(); the harness always fits first")
+        n = np.asarray(values).shape[0]
+        reaches = []
+        for member, threshold in zip(self.members, self._thresholds):
+            scores, _ = reduce_scores(member.score(values, valid, context), n)
+            reaches.append(np.where(np.isfinite(scores), scores / threshold, -np.inf))
+        return np.max(np.stack(reaches), axis=0)
+
+    def threshold_from(self, train_scores):
+        """The members already chose their bars; the union's cut is 1.0, whatever it is handed."""
+        return 1.0

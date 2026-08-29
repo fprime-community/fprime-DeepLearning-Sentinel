@@ -152,6 +152,8 @@ def main() -> int:
         print("  --no-cache: refitting from cold, persisted weights ignored")
 
     primary = tasks.get(args.task)
+    if primary.id in ("m1-g3", "m2-ss1"):
+        print(f"  REFUSED: {primary.id} is held back."); return 2
     print(f"  DECISION GRID   {primary.id}   mode {args.mode}   "
           f"persistence {args.persistence} x agreement {args.agreement}")
     loaded, labels, catalog, client, budget, state = load(primary, args)

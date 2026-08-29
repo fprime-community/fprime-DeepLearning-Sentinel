@@ -1348,5 +1348,5 @@ measured post-hoc. The claim that the choice was made a priori is forfeit; both
 sets are reported permanently in consequence.
 
 **Two held-back sets exist and are not in this document.** `m2-ss1` and `m1-g3`
-were nominated before decision-layer tuning began (`docs/MODELS.md` section 5)
+were nominated before decision-layer tuning began (`docs/MODELS.md` section 6)
 and have never been scored. They are run once, at the end, with settings frozen.

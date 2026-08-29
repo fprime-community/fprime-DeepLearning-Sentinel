@@ -53,6 +53,7 @@ BUILDERS = {
     "tcn-telemanom": _trained("TCNForecastDetector"),
     "tcn-quantile": _trained("TCNQuantile"),
     "tcn-smoke": _trained("TCNSmoke"),
+    "lstm-gru-or": _trained("UnionQuantile"),
 }
 
 
