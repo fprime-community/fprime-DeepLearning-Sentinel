@@ -61,6 +61,7 @@ GRU_GATES = ("reset", "update", "new")
 #: The gate count is what the arrays themselves say, so it is the identity a
 #: reader trusts; the cell name is derived from it, never the other way round.
 N_GATES = {"lstm": len(GATES), "gru": len(GRU_GATES)}
+#: The TCN has no gates and no state; see :class:`ConvWeights`.
 CELL_BY_GATES = {n: cell for cell, n in N_GATES.items()}
 N_STATE = {"lstm": 2, "gru": 1}
 
@@ -199,6 +200,183 @@ class Weights:
                 f"{self.n_predictions}x{self.n_channels}   "
                 f"{self.n_parameters:,} parameters, {self.nbytes() / 1024:.1f} KiB float32")
 
+    def arrays(self) -> list[tuple[str, np.ndarray]]:
+        """Every array, named as the weight file stores it, in a fixed order."""
+        out = []
+        for i, layer in enumerate(self.layers):
+            for name in ("w_ih", "w_hh", "b_ih", "b_hh"):
+                out.append((f"l{i}_{name}", getattr(layer, name)))
+        out += [("head_w", self.head_w), ("head_b", self.head_b)]
+        return out
+
+
+# -- the TCN ------------------------------------------------------------------
+@dataclass(frozen=True)
+class ConvBlockWeights:
+    """One residual block: two causal dilated convolutions and, when the width
+    changes, a 1x1 shortcut. Kernels are ``(out, in, k)`` as PyTorch stores them,
+    tap ``j`` reading the input ``(k - 1 - j) * dilation`` steps back."""
+
+    w1: np.ndarray            # (H, n_in, k)
+    b1: np.ndarray            # (H,)
+    w2: np.ndarray            # (H, H, k)
+    b2: np.ndarray            # (H,)
+    res_w: np.ndarray | None  # (H, n_in, 1), only when n_in != H
+    res_b: np.ndarray | None  # (H,)
+    dilation: int
+
+    @property
+    def hidden(self) -> int:
+        return self.w1.shape[0]
+
+    @property
+    def n_in(self) -> int:
+        return self.w1.shape[1]
+
+    @property
+    def kernel(self) -> int:
+        return self.w1.shape[2]
+
+    @property
+    def reach(self) -> int:
+        """Steps of history this block adds to the receptive field."""
+        return 2 * (self.kernel - 1) * self.dilation
+
+    def validate(self) -> None:
+        h, k = self.hidden, self.kernel
+        if self.dilation < 1:
+            raise ReferenceError(f"dilation must be positive, got {self.dilation}")
+        for name, array, shape in (("b1", self.b1, (h,)), ("w2", self.w2, (h, h, k)),
+                                   ("b2", self.b2, (h,))):
+            if array.shape != shape:
+                raise ReferenceError(f"{name} is {array.shape}, expected {shape}")
+        if (self.res_w is None) != (self.n_in == h):
+            raise ReferenceError(
+                f"a block from {self.n_in} to {h} channels "
+                f"{'needs' if self.n_in != h else 'must not carry'} a 1x1 shortcut"
+            )
+        if self.res_w is not None:
+            if self.res_w.shape != (h, self.n_in, 1) or self.res_b is None or self.res_b.shape != (h,):
+                raise ReferenceError(f"shortcut is {self.res_w.shape}, expected {(h, self.n_in, 1)}")
+
+
+@dataclass(frozen=True)
+class ConvWeights:
+    """A TCN's payload. Plain arrays, and **no state**.
+
+    The forecast at ``t`` is a function of the last ``receptive_field`` inputs
+    and nothing else. That is the flight-code shape Objective.md section 8
+    lists for this candidate -- identical compute every cycle, nothing to
+    corrupt, a clean restart -- and it is a different contract from the two
+    cells: :func:`forward` refuses a state for these weights and returns an
+    empty one, and the harness's chunked scoring, which warms every chunk with
+    ``window`` real steps and carries nothing across chunks, is exactly how a
+    ring buffer of ``receptive_field - 1`` inputs behaves after a cold start.
+    """
+
+    blocks: tuple[ConvBlockWeights, ...]
+    head_w: np.ndarray        # (n_predictions * n_channels, H)
+    head_b: np.ndarray        # (n_predictions * n_channels,)
+    n_channels: int
+    window: int
+    n_predictions: int
+    n_exogenous: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.blocks:
+            raise ReferenceError("a model with no blocks cannot forecast")
+        for block in self.blocks:
+            block.validate()
+        if self.blocks[0].n_in != self.n_inputs:
+            raise ReferenceError(
+                f"block 0 takes {self.blocks[0].n_in} inputs but the model declares "
+                f"{self.n_channels} channels + {self.n_exogenous} exogenous"
+            )
+        for a, b in zip(self.blocks, self.blocks[1:]):
+            if b.n_in != a.hidden:
+                raise ReferenceError(f"block widths do not chain: {a.hidden} -> {b.n_in}")
+        expected = self.n_predictions * self.n_channels
+        if self.head_w.shape != (expected, self.blocks[-1].hidden):
+            raise ReferenceError(
+                f"head is {self.head_w.shape}, expected {(expected, self.blocks[-1].hidden)}"
+            )
+
+    cell = "tcn"
+
+    @property
+    def n_inputs(self) -> int:
+        return self.n_channels + self.n_exogenous
+
+    @property
+    def hidden(self) -> tuple[int, ...]:
+        return tuple(block.hidden for block in self.blocks)
+
+    @property
+    def kernel(self) -> int:
+        return self.blocks[0].kernel
+
+    @property
+    def receptive_field(self) -> int:
+        return 1 + sum(block.reach for block in self.blocks)
+
+    @property
+    def layers(self) -> tuple[ConvBlockWeights, ...]:
+        """The blocks, under the name the two cells use, for code that only counts."""
+        return self.blocks
+
+    def arrays(self) -> list[tuple[str, np.ndarray]]:
+        out = []
+        for i, block in enumerate(self.blocks):
+            out += [(f"b{i}_w1", block.w1), (f"b{i}_b1", block.b1),
+                    (f"b{i}_w2", block.w2), (f"b{i}_b2", block.b2)]
+            if block.res_w is not None:
+                out += [(f"b{i}_res_w", block.res_w), (f"b{i}_res_b", block.res_b)]
+        out += [("head_w", self.head_w), ("head_b", self.head_b)]
+        return out
+
+    @property
+    def n_parameters(self) -> int:
+        return int(sum(a.size for _, a in self.arrays()))
+
+    def nbytes(self) -> int:
+        return self.n_parameters * 4
+
+    def describe(self) -> str:
+        commanded = f"+{self.n_exogenous}cmd" if self.n_exogenous else ""
+        return (f"TCN {self.n_channels}ch{commanded} -> {len(self.blocks)}x{self.blocks[0].hidden} "
+                f"k{self.kernel} rf{self.receptive_field} -> {self.n_predictions}x{self.n_channels}   "
+                f"{self.n_parameters:,} parameters, {self.nbytes() / 1024:.1f} KiB float32")
+
+
+def causal_conv1d(x: np.ndarray, w: np.ndarray, b: np.ndarray, dilation: int) -> np.ndarray:
+    """``(batch, steps, n_in)`` -> ``(batch, steps, out)``, reading only the past.
+
+    Tap ``j`` of the kernel multiplies the input ``(k - 1 - j) * dilation`` steps
+    back; the ``(k - 1) * dilation`` steps before the sequence are zero -- the
+    ring buffer at boot. Per tick this is ``k`` matrix-vector products and an
+    add, on inputs the flight component already holds.
+    """
+    batch, steps, _ = x.shape
+    out_channels, _, k = w.shape
+    pad = (k - 1) * dilation
+    padded = np.concatenate([np.zeros((batch, pad, x.shape[2]), dtype=DTYPE), x], axis=1)
+    out = np.broadcast_to(b, (batch, steps, out_channels)).astype(DTYPE)
+    for j in range(k):
+        start = j * dilation
+        out = out + padded[:, start:start + steps] @ w[:, :, j].T
+    return out
+
+
+def tcn_block(x: np.ndarray, block: ConvBlockWeights) -> np.ndarray:
+    """One residual block: conv, ReLU, conv, ReLU, add the shortcut, ReLU.
+
+    Dropout has no line here: identity at inference (see :func:`forward`).
+    """
+    y = np.maximum(causal_conv1d(x, block.w1, block.b1, block.dilation), 0)
+    y = np.maximum(causal_conv1d(y, block.w2, block.b2, block.dilation), 0)
+    shortcut = x if block.res_w is None else x @ block.res_w[:, :, 0].T + block.res_b
+    return np.maximum(y + shortcut, 0)
+
 
 #: State for one layer: ``(h, c)`` for an LSTM, ``(h,)`` for a GRU, each array
 #: ``(batch, hidden)``. One tuple per layer, whatever its length -- a GRU does
@@ -319,7 +497,7 @@ def gru_layer(x: np.ndarray, layer: LayerWeights, state: State) -> tuple[np.ndar
 _LAYER = {"lstm": lstm_layer, "gru": gru_layer}
 
 
-def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
+def forward(weights: Weights | ConvWeights, x: np.ndarray, state: list[State] | None = None,
             *, last_only: bool = False) -> tuple[np.ndarray, list[State]]:
     """Forecast from ``(batch, steps, n_channels)``.
 
@@ -328,6 +506,10 @@ def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
     the state after the final step, so the next chunk can continue from here.
     ``last_only`` collapses the time axis to the final step, which is the shape
     telemanom trains on: one window in, one block of future values out.
+
+    **Three contracts for state, one per player.** An LSTM's is ``(h, c)`` per
+    layer, a GRU's ``(h,)``, and a TCN's is **nothing**: `ConvWeights` refuse a
+    state and return an empty list, because their history is the input itself.
 
     No dropout. Dropout exists only during training; a flight component that
     dropped a random 30% of its hidden units every cycle would violate
@@ -343,6 +525,22 @@ def forward(weights: Weights, x: np.ndarray, state: list[State] | None = None,
             f"{weights.n_inputs} ({weights.n_channels} telemetry + "
             f"{weights.n_exogenous} exogenous)"
         )
+
+    if isinstance(weights, ConvWeights):
+        if state is not None:
+            raise ReferenceError(
+                "a TCN carries no state: its history is the input window, and a state "
+                "handed to it would be a claim the arithmetic cannot honour"
+            )
+        activations = x
+        for block in weights.blocks:
+            activations = tcn_block(activations, block)
+        if last_only:
+            activations = activations[:, -1:]
+        batch, steps, hidden = activations.shape
+        flat = activations.reshape(-1, hidden) @ weights.head_w.T + weights.head_b
+        y = flat.reshape(batch, steps, weights.n_predictions, weights.n_channels)
+        return (y[:, 0] if last_only else y), []
 
     state = zero_state(weights, x.shape[0]) if state is None else list(state)
     if len(state) != len(weights.layers):

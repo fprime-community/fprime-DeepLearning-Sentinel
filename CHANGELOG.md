@@ -22,6 +22,16 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   refused. `scripts/head_to_head.py` records each event's reach beside the booleans.
 - MODELS.md section 14: the `gru-quantile` pre-registration and its outcome. RESULTS.md 6h.
 
+### Added - work item 6, 2026-08-29
+
+- `Hyper.cell = "tcn"` with a TCN-only `kernel` field, emitted only for a TCN; `hidden` reused as
+  the width of each residual block. `TelemanomTCN` (Bai et al. 2018 blocks, no weight norm) built
+  by `build_model`, the one place the architecture is chosen; `train()` unchanged.
+- `reference.ConvWeights`, `causal_conv1d`, `tcn_block`: the TCN blueprint, stateless by
+  contract -- `forward` refuses a state and returns none. Receptive field 253, 91,670 parameters
+  at the flown shape. Weight files carry `cell = "tcn"` with their own keys.
+- Detectors `tcn-telemanom`, `tcn-quantile` (the gate arm) and `tcn-smoke`. D27.
+
 ### Planned - Phase 1 work items, in order
 
 - Reproduce telemanom's detection method with a multivariate LSTM forecaster (done).

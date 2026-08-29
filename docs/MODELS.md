@@ -234,6 +234,29 @@ arrays rather than trusting it (`docs/DECISIONS.md` D26).
 Objective.md section 8 estimated "~25% fewer parameters". Measured: 25% in the
 recurrent layers, 22.35% of the whole model.
 
+### The TCN, measured the same way (work item 6, 2026-08-29)
+
+Six residual blocks of 50 channels, kernel 3, dilations 1 to 32 -- receptive
+field **253**, the first standard shape past `l_s = 250` -- is **91,670
+parameters, 358.1 KiB as float32** against the LSTM's 91,640 (87,410 on six
+channels):
+
+```
+  block 0   w1 (50, 12, 3)   b1 (50)   w2 (50, 50, 3)   b2 (50)   res_w (50, 12, 1)   res_b (50)
+  blocks 1-5   w1 (50, 50, 3)   b1 (50)   w2 (50, 50, 3)   b2 (50)   -- no shortcut weights: the width does not change
+  head      w (120, 50)   b (120)
+```
+
+**Kernels are `(out, in, k)` as PyTorch stores them, and tap `j` reads the
+input `(k - 1 - j) * dilation` steps back.** A loader that reverses the taps
+produces a model that runs and is wrong; the reference names the convention and
+a perturbation test pins the field at exactly 253. **No weight normalisation**
+and no batch normalisation: nothing in the file but kernels, biases and the
+head. **No state**: the file carries no state shape at all, and the flight
+component holds the last 252 inputs in a ring buffer, zero-filled at boot --
+which is what the causal zero padding in every convolution *is*
+(`docs/DECISIONS.md` D27).
+
 **Dropout has no line in the file.** It is identity at inference, exports no
 parameters, and a flight component that dropped a random 30% of hidden units per
 cycle would violate Objective.md 11 rule 5 outright.
@@ -1716,3 +1739,4 @@ stays the seed-0 fit, and whether it should be the seed-1 fit -- which would
 change `lstm-quantile`'s fold 0 from 4/15 at 0.147 to 4/15 at 0.022 and its
 honest lead from -77.0 to -4.0, and nothing else -- is the decision this run
 was meant to inform, recorded as open.
+

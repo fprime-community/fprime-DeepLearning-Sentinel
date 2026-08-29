@@ -45,7 +45,7 @@ from sentinel_eval.detector import Detector
 
 from . import oscfar, reference, telemanom, whiten
 from .lstm import Hyper, train
-from .reference import LayerWeights, ReferenceError, Weights
+from .reference import ConvBlockWeights, ConvWeights, LayerWeights, ReferenceError, Weights
 from .windows import DEFAULT_DECAY_STEPS, aggregate_predictions, command_features
 
 #: How the score is turned into an alarm. ``ndt`` folds telemanom's moving
@@ -126,23 +126,22 @@ def _store_path(key: str) -> Path:
     return WEIGHT_STORE / f"{key}.npz"
 
 
-def _save_weights(key: str, weights: Weights, report: dict) -> None:
+def _save_weights(key: str, weights: Weights | ConvWeights, report: dict) -> None:
     arrays: dict = {"n_channels": np.int64(weights.n_channels),
                     "window": np.int64(weights.window),
                     "n_predictions": np.int64(weights.n_predictions),
                     "n_exogenous": np.int64(weights.n_exogenous),
                     "n_layers": np.int64(len(weights.layers)),
-                    # The cell is derivable from the gate count in the arrays,
-                    # and is written anyway so the file says what it is -- a
-                    # format that has to be inferred by a reader is not a format.
-                    # Verified on load, never merely read: a field that is
-                    # written and not checked is D16 again.
+                    # The cell is derivable from the arrays -- the gate count for
+                    # the two cells, the kernel axis for the TCN -- and is written
+                    # anyway so the file says what it is: a format that has to be
+                    # inferred by a reader is not a format. Verified on load,
+                    # never merely read: a field written and not checked is D16.
                     "cell": np.array(weights.cell),
-                    "head_w": weights.head_w, "head_b": weights.head_b,
                     "report": np.array(json.dumps(report))}
-    for i, layer in enumerate(weights.layers):
-        for name in ("w_ih", "w_hh", "b_ih", "b_hh"):
-            arrays[f"l{i}_{name}"] = getattr(layer, name)
+    arrays.update(dict(weights.arrays()))
+    if isinstance(weights, ConvWeights):
+        arrays["dilations"] = np.asarray([b.dilation for b in weights.blocks], dtype=np.int64)
     WEIGHT_STORE.mkdir(parents=True, exist_ok=True)
     np.savez(_store_path(key), **arrays)
 
@@ -153,6 +152,8 @@ def _load_weights(key: str) -> tuple[Weights, dict] | None:
         return None
     try:
         with np.load(path, allow_pickle=False) as blob:
+            if "cell" in blob.files and str(blob["cell"]) == "tcn":
+                return _load_conv_weights(blob), json.loads(str(blob["report"]))
             layers = tuple(
                 LayerWeights(*(blob[f"l{i}_{name}"]
                                for name in ("w_ih", "w_hh", "b_ih", "b_hh")))
@@ -190,6 +191,25 @@ def _load_weights(key: str) -> tuple[Weights, dict] | None:
         return None
 
 
+def _load_conv_weights(blob) -> ConvWeights:
+    """A TCN file, by its own keys. Raises on anything malformed; the caller
+    turns that into a cache miss."""
+    dilations = [int(d) for d in blob["dilations"]]
+    blocks = tuple(
+        ConvBlockWeights(
+            w1=blob[f"b{i}_w1"], b1=blob[f"b{i}_b1"], w2=blob[f"b{i}_w2"], b2=blob[f"b{i}_b2"],
+            res_w=blob[f"b{i}_res_w"] if f"b{i}_res_w" in blob.files else None,
+            res_b=blob[f"b{i}_res_b"] if f"b{i}_res_b" in blob.files else None,
+            dilation=dilations[i],
+        )
+        for i in range(int(blob["n_layers"]))
+    )
+    return ConvWeights(blocks=blocks, head_w=blob["head_w"], head_b=blob["head_b"],
+                       n_channels=int(blob["n_channels"]), window=int(blob["window"]),
+                       n_predictions=int(blob["n_predictions"]),
+                       n_exogenous=int(blob["n_exogenous"]))
+
+
 def _digest(*parts) -> str:
     hasher = hashlib.blake2b(digest_size=16)
     for part in parts:
@@ -206,10 +226,8 @@ def _sample_digest(values: np.ndarray, stride: int = 997) -> str:
     return _digest(values.shape, values.dtype.str, values[::stride], values[:1], values[-1:])
 
 
-def _weights_digest(weights: Weights) -> str:
-    arrays = [a for layer in weights.layers
-              for a in (layer.w_ih, layer.w_hh, layer.b_ih, layer.b_hh)]
-    return _digest(*arrays, weights.head_w, weights.head_b)
+def _weights_digest(weights: Weights | ConvWeights) -> str:
+    return _digest(*(a for _, a in weights.arrays()))
 
 
 class ForecastDetector(Detector):
@@ -258,7 +276,7 @@ class ForecastDetector(Detector):
         super().__init__(mode=mode, agreement=self.agreement,
                          **self.hyper.as_dict(), **self.config.as_dict())
 
-        self._weights: Weights | None = None
+        self._weights: Weights | ConvWeights | None = None
         self._fill: np.ndarray | None = None
         self._impulses: np.ndarray | None = None
         self._fit_window: tuple[int, int] | None = None
@@ -903,3 +921,50 @@ class GRUSmoke(GRUForecastDetector):
     def __init__(self, **kwargs) -> None:
         super().__init__(hyper=replace(SMOKE_HYPER, cell="gru"), config=SMOKE_CONFIG,
                          **SMOKE_CHUNKING, **kwargs)
+
+
+# -- work item 6: the TCN ----------------------------------------------------
+#: The flown TCN shape: six residual blocks of 50 channels, kernel 3, dilations
+#: 1 to 32 -- receptive field 253, the first standard shape past l_s = 250, at
+#: 91,670 parameters against the LSTM's 91,640 (docs/MODELS.md section 16).
+#: Everything else is telemanom's configuration, shared with both cells.
+TCN_HYPER = Hyper(cell="tcn", hidden=(50,) * 6, kernel=3)
+
+
+class TCNForecastDetector(ForecastDetector):
+    """The same detector on a temporal convolutional forecaster. Nothing else differs.
+
+    Stateless by construction: every forecast reads the last 253 inputs and
+    nothing before them, which is what the chunked scoring path already
+    provides -- a 250-step warm prefix per chunk and no carried state. The
+    three steps a 253-step field reaches past that prefix are zero-filled, as
+    they are in training and as a ring buffer is at boot.
+
+    telemanom's decision stack on the TCN forecast: the reproduction reading
+    beside `lstm-telemanom`, not the gate arm.
+    """
+
+    name = "tcn-telemanom"
+    cell = "tcn"
+
+    def __init__(self, *, hyper: Hyper | None = None, **kwargs) -> None:
+        super().__init__(hyper=hyper if hyper is not None else TCN_HYPER, **kwargs)
+
+
+class TCNQuantile(TCNForecastDetector):
+    """The gate arm: the frozen decision layer (D25) on the TCN's residuals."""
+
+    name = "tcn-quantile"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(mode=QUANTILE, **kwargs)
+
+
+class TCNSmoke(TCNForecastDetector):
+    """`lstm-smoke` shaped for the TCN. Fixture and development only; never a result."""
+
+    name = "tcn-smoke"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(hyper=replace(SMOKE_HYPER, cell="tcn", hidden=(16,) * 5, kernel=3),
+                         config=SMOKE_CONFIG, **SMOKE_CHUNKING, **kwargs)

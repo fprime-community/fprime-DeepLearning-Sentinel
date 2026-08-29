@@ -36,7 +36,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from .reference import DTYPE, LayerWeights, ReferenceError, Weights
+from .reference import (DTYPE, ConvBlockWeights, ConvWeights, LayerWeights,
+                        ReferenceError, Weights)
 from .windows import (DEFAULT_DECAY_STEPS, SequenceSampler, split_runs,
                       usable_runs)
 
@@ -64,10 +65,15 @@ DEVICE = "cpu"
 #: threads against 103 on ten, for this shape. More cores is slower here.
 THREADS = 4
 
-#: The recurrent cells the trainer can build. telemanom's is the LSTM; the GRU is
-#: work item 5's player at the architecture gate. A TCN is not a cell and will
-#: not arrive through this table.
-CELLS = ("lstm", "gru")
+#: The architectures the trainer can build. telemanom's is the LSTM; the GRU is
+#: work item 5's player and the TCN work item 6's. "cell" is kept as the field's
+#: name although a TCN has no cell: it is the one field that says which player.
+CELLS = ("lstm", "gru", "tcn")
+
+#: Bai, Kolter and Koltun (2018): kernel 3, residual blocks at dilations 1, 2, 4,
+#: ... -- the receptive field is ``1 + 2 (k - 1) (2^L - 1)``, so six blocks of
+#: kernel 3 see 253 steps, the first shape past telemanom's ``l_s = 250``.
+DEFAULT_KERNEL = 3
 
 
 @dataclass(frozen=True)
@@ -146,9 +152,24 @@ class Hyper:
     #: `tests/test_lstm_detector.py` pins the LSTM's dict, key and fingerprints.
     cell: str = "lstm"
 
+    #: TCN only: the convolution kernel. ``hidden`` is reused as the width of
+    #: each residual block, so ``(50,) * 6`` is six blocks of 50 channels at
+    #: dilations 1 to 32. Emitted by `as_dict` only for a TCN, for the reason
+    #: `cell` is emitted only when it is not the default.
+    kernel: int = DEFAULT_KERNEL
+
     def __post_init__(self) -> None:
         if self.cell not in CELLS:
             raise ReferenceError(f"unknown cell {self.cell!r}; expected one of {CELLS}")
+        if self.kernel < 2:
+            raise ReferenceError(f"kernel must be at least 2, got {self.kernel}")
+
+    @property
+    def receptive_field(self) -> int:
+        """How far back one forecast can see. The window for a recurrent cell."""
+        if self.cell != "tcn":
+            return self.window
+        return 1 + 2 * (self.kernel - 1) * (2 ** len(self.hidden) - 1)
 
     def sequences_per_epoch(self, usable_steps: int) -> int:
         return max(self.batch_size, int(round(usable_steps / self.sequence_budget_divisor)))
@@ -173,6 +194,8 @@ class Hyper:
         }
         if self.cell != "lstm":
             out["cell"] = self.cell          # absent for the LSTM: D14, hash unmoved
+        if self.cell == "tcn":
+            out["kernel"] = self.kernel
         return out
 
 
@@ -280,7 +303,95 @@ class TelemanomGRU(TelemanomRNN):
         return self.rnn
 
 
-def to_weights(model: TelemanomRNN) -> Weights:
+class TelemanomTCN(nn.Module):
+    """Six residual blocks of causal dilated convolutions, then Dense(l_p * channels).
+
+    Bai, Kolter and Koltun, *An Empirical Evaluation of Generic Convolutional
+    and Recurrent Networks for Sequence Modeling* (2018): each block is two
+    causal convolutions of kernel ``k`` at dilation ``2^i``, each followed by
+    ReLU and dropout, added to a 1x1 projection of the block's input and passed
+    through a final ReLU. No weight normalisation -- it is an optimisation aid
+    that is folded into plain weights at export, so the file format never sees
+    it, and leaving it out keeps the parameter count exact.
+
+    **Nothing is carried between timesteps.** The forecast at ``t`` is a
+    function of inputs ``t - receptive_field + 1 .. t`` and nothing else; a
+    flight component holds that many inputs in a ring buffer, zero-filled at
+    boot, and there is no state to corrupt or restore (Objective.md section 8).
+    Causal padding here is that zero-filled buffer: ``(k - 1) * d`` zeros on the
+    left of every convolution, never on the right.
+
+    The head, the final dropout and ``forward``'s contract are the recurrent
+    module's, so the three players differ in the block that reads the history
+    and in nothing after it.
+    """
+
+    def __init__(self, n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> None:
+        super().__init__()
+        if hyper.cell != "tcn":
+            raise ReferenceError(f"TelemanomTCN needs Hyper(cell='tcn'), got {hyper.cell!r}")
+        if len(set(hyper.hidden)) != 1:
+            raise ReferenceError(
+                f"the TCN uses one width for all blocks, got {hyper.hidden}"
+            )
+        self.hyper = hyper
+        self.n_channels = n_channels
+        self.n_exogenous = int(n_exogenous)
+        width, k = hyper.hidden[0], hyper.kernel
+        blocks, c_in = [], n_channels + self.n_exogenous
+        for i in range(len(hyper.hidden)):
+            blocks.append(_TCNBlock(c_in, width, k, 2 ** i, hyper.dropout))
+            c_in = width
+        self.blocks = nn.ModuleList(blocks)
+        self.drop = nn.Dropout(hyper.dropout)
+        self.head = nn.Linear(width, hyper.n_predictions * n_channels)
+
+    @property
+    def cell(self) -> str:
+        return "tcn"
+
+    @property
+    def receptive_field(self) -> int:
+        return self.hyper.receptive_field
+
+    def forward(self, x: torch.Tensor, *, last_only: bool = True) -> torch.Tensor:
+        y = x.transpose(1, 2)                       # (batch, channels, steps)
+        for block in self.blocks:
+            y = block(y)
+        y = y.transpose(1, 2)                       # (batch, steps, width)
+        if last_only:
+            y = y[:, -1:]
+        y = self.head(self.drop(y))
+        y = y.reshape(y.shape[0], y.shape[1], self.hyper.n_predictions, self.n_channels)
+        return y[:, 0] if last_only else y
+
+
+class _TCNBlock(nn.Module):
+    """One residual block: two causal dilated convolutions and a 1x1 shortcut."""
+
+    def __init__(self, c_in: int, width: int, kernel: int, dilation: int, dropout: float) -> None:
+        super().__init__()
+        self.pad = (kernel - 1) * dilation
+        self.conv1 = nn.Conv1d(c_in, width, kernel, dilation=dilation)
+        self.conv2 = nn.Conv1d(width, width, kernel, dilation=dilation)
+        self.drop1 = nn.Dropout(dropout)
+        self.drop2 = nn.Dropout(dropout)
+        self.res = nn.Conv1d(c_in, width, 1) if c_in != width else None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = self.drop1(torch.relu(self.conv1(nn.functional.pad(x, (self.pad, 0)))))
+        y = self.drop2(torch.relu(self.conv2(nn.functional.pad(y, (self.pad, 0)))))
+        return torch.relu(y + (x if self.res is None else self.res(x)))
+
+
+def build_model(n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> nn.Module:
+    """The one place the architecture is chosen. Everything in `train` is shared."""
+    if hyper.cell == "tcn":
+        return TelemanomTCN(n_channels, hyper, n_exogenous)
+    return TelemanomRNN(n_channels, hyper, n_exogenous)
+
+
+def to_weights(model: nn.Module):
     """Extract plain float32 arrays. The whole of what a `model.bin` must carry.
 
     Dropout contributes nothing: it is identity at inference, so it has no
@@ -288,6 +399,33 @@ def to_weights(model: TelemanomRNN) -> Weights:
     because it is the first concrete thing work item 4 establishes about
     Objective.md decision 14.2.
     """
+    if isinstance(model, TelemanomTCN):
+        return _conv_weights(model)
+    return _rnn_weights(model)
+
+
+def _conv_weights(model: TelemanomTCN) -> ConvWeights:
+    def array(tensor: torch.Tensor) -> np.ndarray:
+        return np.ascontiguousarray(tensor.detach().cpu().numpy(), dtype=DTYPE)
+
+    blocks = tuple(
+        ConvBlockWeights(
+            w1=array(b.conv1.weight), b1=array(b.conv1.bias),
+            w2=array(b.conv2.weight), b2=array(b.conv2.bias),
+            res_w=None if b.res is None else array(b.res.weight),
+            res_b=None if b.res is None else array(b.res.bias),
+            dilation=b.conv1.dilation[0],
+        )
+        for b in model.blocks
+    )
+    return ConvWeights(
+        blocks=blocks, head_w=array(model.head.weight), head_b=array(model.head.bias),
+        n_channels=model.n_channels, window=model.hyper.window,
+        n_predictions=model.hyper.n_predictions, n_exogenous=model.n_exogenous,
+    )
+
+
+def _rnn_weights(model: TelemanomRNN) -> Weights:
     def array(tensor: torch.Tensor) -> np.ndarray:
         """Off the device and into a plain array. This is what makes a fit
         portable: what leaves here has no tie to the machine that produced it."""
@@ -323,7 +461,7 @@ def configure_determinism(seed: int) -> None:
 def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0,
           impulses: np.ndarray | None = None,
           decay_steps: int = DEFAULT_DECAY_STEPS, log=None
-          ) -> tuple[Weights, TrainingReport]:
+          ) -> tuple[Weights | ConvWeights, TrainingReport]:
     """Fit on nominal data only and return plain arrays plus what the fit did.
 
     ``values`` is the training window, ``usable`` the harness's mask over it:
@@ -367,7 +505,7 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     # Built here, not at import: `DEVICE` is a module global that
     # scripts/fit_folds.py rebinds at run time, and the cell is read from `hyper`
     # so the LSTM and the GRU share every line of this function.
-    model = TelemanomRNN(values.shape[1], hyper, n_exogenous).to(DEVICE)
+    model = build_model(values.shape[1], hyper, n_exogenous).to(DEVICE)
     report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
     loss_fn = nn.MSELoss()
@@ -454,7 +592,7 @@ def _refuse_a_stopping_rule_that_rejects_everything(report: "TrainingReport",
     )
 
 
-def _validate(model: TelemanomRNN, validation, loss_fn, chunk: int = 256) -> float:
+def _validate(model: nn.Module, validation, loss_fn, chunk: int = 256) -> float:
     inputs, targets = validation
     model.eval()
     total, seen = 0.0, 0

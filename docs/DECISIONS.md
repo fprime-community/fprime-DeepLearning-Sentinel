@@ -1551,3 +1551,73 @@ general and agrees once the reset gate is saturated open.
 
 **CONSEQUENCE.** The GRU is a value of one field, and the LSTM is that field's
 default. D14 remains open and is annotated. Nothing in `sentinel_eval` changed.
+
+---
+
+## D27. The TCN is the third value of the same field, and its state is nothing
+
+**DATE** 2026-08-29 | **STATUS** resolved
+
+**CONTEXT.** Work item 6 adds the temporal convolutional network, the third
+player Objective.md section 8 names. The rule is D26's: the architecture is
+the only permitted difference, so it must travel through the same `Hyper`,
+the same `train`, the same detector and the same decision layer. A TCN is not
+a recurrent cell, and it has no state, so two of D26's arrangements had to be
+extended rather than reused.
+
+**ALTERNATIVES.** A separate module and trainer for the TCN. A second field
+for the architecture beside `cell`. Carrying a dummy state through `forward`
+so the three players share one signature. A receptive field of exactly 250.
+
+**EVIDENCE against each.** A separate trainer is the drift D26 refused: every
+shared line becomes a place for the players to diverge. A second field is a
+second thing to keep out of the LSTM's hash; one field with a third value,
+emitted only when it is not the default, keeps the twelve banked LSTM fits and
+every fingerprint unmoved -- the identity pin from D26 passes unchanged. A
+dummy state is a lie in the flight blueprint: Objective.md 8 lists *no state
+to corrupt* as the TCN's reason to exist, and a `(h,)` of zeros carried for
+symmetry would be exactly the kind of thing a C++ port reads as a requirement.
+A receptive field of exactly 250 is not a standard shape -- `1 + 2(k-1)(2^L-1)`
+gives 249 at k=5, L=5 and 253 at k=3, L=6 -- and the brief asks for at least
+250; 253 is the first standard shape past it.
+
+**What was built.**
+
+* `Hyper.cell = "tcn"`, with one TCN-only field, `kernel`, emitted by
+  `as_dict` only for a TCN. `hidden` is reused as the width of each residual
+  block, so the flown shape is `hidden=(50,)*6, kernel=3`: dilations 1 to 32,
+  receptive field **253**, **91,670 parameters** against the LSTM's 91,640 --
+  the closest the shape allows (49 gives 88,222; 51 gives 95,184). The GRU was
+  not size-matched (71,160), and Objective.md 8's criterion 2 is read with
+  that in mind.
+* `TelemanomTCN`: Bai, Kolter and Koltun's block -- two causal dilated
+  convolutions, ReLU and dropout after each, a 1x1 shortcut where the width
+  changes, a final ReLU -- with the recurrent module's head, final dropout and
+  `forward` contract. **No weight normalisation**: it is an optimisation aid
+  folded into plain weights at export, so the file format never carries it,
+  and leaving it out keeps the count exact. `build_model` is the one place the
+  architecture is chosen; `train` is otherwise untouched, so the TCN is fitted
+  by the same seeds, sampler, loss, optimiser, stopping rule and guard.
+* `reference.ConvWeights`, `causal_conv1d`, `tcn_block`: the blueprint. A
+  kernel tap `j` reads the input `(k-1-j)*dilation` steps back; the
+  `(k-1)*dilation` steps before the sequence are zero -- **the ring buffer at
+  boot**. `forward` **refuses a state** for these weights and returns an empty
+  one: the third contract, beside `(h, c)` and `(h,)`. The harness's chunked
+  scoring already warms every chunk with `window = 250` real steps and carries
+  nothing across chunks, which is exactly a 252-input ring buffer after a cold
+  start; the three steps a 253-field reaches past that prefix are zero-filled,
+  as they are in every 250-step training window, so training and scoring see
+  the same arithmetic.
+* The weight file writes `cell = "tcn"` with its own keys (`b{i}_w1 ... `,
+  `dilations`), verified on load; the two cells' files and the loader's path
+  for them are byte-for-byte what they were. `tcn-telemanom`, `tcn-quantile`
+  (the gate arm) and `tcn-smoke` are registered.
+
+**Measured before any fit.** torch-vs-NumPy at the flown shape **4.8e-07**
+(6.0e-07 on a 4,096-step chunk); the field pinned by perturbation -- 252 steps
+back moves the forecast, 253 does not; a chunk warmed by 252 real steps equals
+the uncut stream to 1e-5; the future cannot reach the past.
+
+**CONSEQUENCE.** Three players, one field, one trainer, one detector, one
+decision layer. What differs is the block that reads the history and the
+shape of what it carries between ticks: two vectors, one, none.

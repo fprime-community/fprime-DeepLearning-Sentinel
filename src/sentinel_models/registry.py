@@ -31,7 +31,7 @@ def _trained(class_name: str):
 
 #: Names are lowercase and hyphenated, `<architecture>-<decision rule>`. Item 5's
 #: `gru-*` entries reuse `detectors.ForecastDetector` with the other cell and the
-#: same detection stack; item 6's `tcn-*` will do the same with a different
+#: same detection stack; item 6's `tcn-*` do the same with a convolutional
 #: forecaster -- so the gate compares architectures and not pipelines.
 BUILDERS = {
     "mavg": baselines.MovingAverage,
@@ -50,6 +50,9 @@ BUILDERS = {
     "gru-telemanom": _trained("GRUForecastDetector"),
     "gru-quantile": _trained("GRUQuantile"),
     "gru-smoke": _trained("GRUSmoke"),
+    "tcn-telemanom": _trained("TCNForecastDetector"),
+    "tcn-quantile": _trained("TCNQuantile"),
+    "tcn-smoke": _trained("TCNSmoke"),
 }
 
 

@@ -41,14 +41,15 @@ def test_it_is_absent_rather_than_null():
     assert "training" not in _bare_fold().as_dict()
 
 
-@pytest.mark.parametrize("cell", ("lstm", "gru"))
+@pytest.mark.parametrize("cell", ("lstm", "gru", "tcn"))
 def test_a_training_report_reaches_the_scorecard(loaded, split, cell):
     from sentinel_models import detectors as D
     from sentinel_models.lstm import Hyper
     from sentinel_models.telemanom import Config
 
     D.clear_caches()
-    kind = {"lstm": D.ForecastDetector, "gru": D.GRUForecastDetector}[cell]
+    kind = {"lstm": D.ForecastDetector, "gru": D.GRUForecastDetector,
+            "tcn": D.TCNForecastDetector}[cell]
     detector = kind(
         hyper=Hyper(window=30, hidden=(8, 8), n_predictions=2, batch_size=16,
                     max_epochs=3, patience=2, sequence_budget_divisor=8,

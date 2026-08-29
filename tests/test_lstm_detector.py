@@ -538,7 +538,7 @@ def test_a_detector_refuses_the_other_cell():
     with pytest.raises(ReferenceError, match="cell"):
         D.GRUForecastDetector(hyper=Hyper())
     with pytest.raises(ReferenceError, match="cell"):
-        Hyper(cell="tcn")
+        Hyper(cell="transformer")
 
 
 def test_the_registry_builds_the_gru_arms():
@@ -597,3 +597,73 @@ def test_gru_weights_survive_the_round_trip_and_the_file_says_what_it_is(tmp_pat
 
     np.savez(path, **arrays, cell=np.array("lstm"))      # a file that lies
     assert D._load_weights(digest) is None, "a declared cell that disagrees with the arrays"
+
+
+# -- work item 6: the TCN through the same detector -----------------------------
+def _tiny_tcn(**kwargs) -> D.TCNForecastDetector:
+    hyper = Hyper(window=40, hidden=(12, 12, 12), n_predictions=3, batch_size=16,
+                  max_epochs=2, sequence_budget_divisor=8, max_validation_sequences=64,
+                  cell="tcn", kernel=3, **kwargs.pop("hyper", {}))
+    return D.TCNForecastDetector(
+        hyper=hyper,
+        config=Config(error_window=300, stride=30, smoothing_window=15, error_buffer=10),
+        chunks=8, chunk_steps=300, **kwargs)
+
+
+def test_the_tcn_key_carries_its_kernel_and_the_cells_do_not():
+    assert "kernel" not in Hyper().as_dict() and "kernel" not in Hyper(cell="gru").as_dict()
+    assert Hyper(cell="tcn").as_dict()["kernel"] == 3
+    assert Hyper(cell="tcn").as_dict_key() != Hyper(cell="gru").as_dict_key()
+    assert Hyper(cell="tcn", kernel=2).as_dict_key() != Hyper(cell="tcn").as_dict_key()
+    with pytest.raises(ReferenceError, match="kernel"):
+        Hyper(cell="tcn", kernel=1)
+
+
+def test_the_registry_builds_the_tcn_arms():
+    from sentinel_models import registry
+
+    for name, mode in (("tcn-telemanom", D.NDT), ("tcn-quantile", D.QUANTILE), ("tcn-smoke", D.NDT)):
+        built = registry.build(name)
+        assert (built.name, built.mode, built.cell, built.hyper.cell) == (name, mode, "tcn", "tcn")
+    assert registry.build("tcn-quantile").hyper == D.TCN_HYPER
+    assert D.TCN_HYPER.receptive_field == 253 and D.TCN_HYPER.hidden == (50,) * 6
+    assert D.TCNQuantile().fingerprint() != D.GRUQuantile().fingerprint() != D.TelemanomQuantile().fingerprint()
+    with pytest.raises(ReferenceError, match="cell"):
+        D.TCNForecastDetector(hyper=Hyper())
+
+
+def test_the_tcn_fits_and_scores_through_the_same_path():
+    values, usable = _data()
+    detector = _tiny_tcn()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    assert detector._weights.cell == "tcn"
+    assert detector._weights.receptive_field == 1 + 2 * 2 * 7
+    assert detector.report["best_epoch"] >= 0
+    scored = detector.score(values, None, _context(3, window=(3000, 6000)))
+    assert scored.shape == (STEPS,) and np.isfinite(scored[3000:]).any()
+
+
+def test_the_three_players_do_not_share_a_cache_entry():
+    values, usable = _data()
+    _tiny().fit(values[:3000], usable[:3000], _context(3))
+    _tiny_gru().fit(values[:3000], usable[:3000], _context(3))
+    _tiny_tcn().fit(values[:3000], usable[:3000], _context(3))
+    cells = sorted(w.cell for w, _ in D._WEIGHTS.values())
+    assert cells == ["gru", "lstm", "tcn"], cells
+
+
+def test_tcn_weights_survive_the_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setattr(D, "WEIGHT_STORE", tmp_path / "_weights")
+    values, usable = _data()
+    detector = _tiny_tcn()
+    detector.fit(values[:3000], usable[:3000], _context(3))
+    fitted = detector._weights
+    path, = (tmp_path / "_weights").glob("*.npz")
+    D.clear_caches()
+    reloaded = D._load_weights(path.stem)
+    assert reloaded is not None and reloaded[0].cell == "tcn"
+    assert reloaded[0].receptive_field == fitted.receptive_field
+    assert all(np.array_equal(a, b) for (_, a), (_, b) in zip(reloaded[0].arrays(), fitted.arrays()))
+    assert [b.dilation for b in reloaded[0].blocks] == [1, 2, 4]
+    with np.load(path, allow_pickle=False) as blob:
+        assert str(blob["cell"]) == "tcn" and "b0_res_w" in blob.files and "b1_res_w" not in blob.files

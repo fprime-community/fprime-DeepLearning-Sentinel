@@ -124,7 +124,7 @@ def test_the_tripwire_threshold_is_stated_rather_than_buried():
 
 
 # -- end to end -------------------------------------------------------------
-@pytest.mark.parametrize("cell", ("lstm", "gru"))
+@pytest.mark.parametrize("cell", ("lstm", "gru", "tcn"))
 def test_a_real_fit_now_improves_past_its_first_epoch(loaded, cell):
     """The defect, at the scale it actually occurred: a fit on real fixture data.
 
