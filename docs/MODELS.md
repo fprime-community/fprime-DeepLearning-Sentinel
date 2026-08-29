@@ -2022,3 +2022,113 @@ Trigger 1 did not fire (9.5e-07). **Trigger 4 fired** (`m1-ss5` fold 2) and
 7.5x); both were reported from the fit reports before any scoring. Trigger 3
 did not fire. Trigger 2 is adjudicated in 16.7.2. Trigger 6 did not fire (16
 operations per run). Nothing is decided here.
+
+
+---
+
+## 17. Scoping the two-forecaster combination (post-gate; scope, not build)
+
+**Written and committed before the numbers are computed.** Section 14.7 banked
+this question with two preconditions: all three rows exist, and the gate
+leaves events on the table. Both hold (sections 6h, 6i, 6j of
+`docs/RESULTS.md`). This is a scoping measurement on cached weights and
+banked artifacts, run after the architecture gate and never inside it. It
+lands, if it ever lands, as its own decision after Phase 1 closes. Nothing
+here is a detector; no registry entry, no arm, no published row moves.
+Held-back sets untouched.
+
+### 17.1 The nesting check, first
+
+The whitened precedent (D25): two rules that are nested close the combination
+question by inspection, because an OR equals the superset. Read from
+`_forensics/2026-08-28T223610Z-head-to-head.json`:
+
+```
+  m1-g8.9.10   both 20   only lstm-quantile 6   only gru-quantile 7   neither 13   NOT NESTED
+  m1-ss5       both 19   only lstm-quantile 8   only gru-quantile 7   neither  8   NOT NESTED
+```
+
+Six and seven, eight and seven: the two cells catch different events. The
+question is open, and the rest of this section is what it costs.
+
+### 17.2 What is computed, and from what
+
+One local pass, cached weights, one bundle load, both sets, all folds, both
+detectors scored through the harness's own path. For every timestep the two
+**normalised** scores `r_L = score_L / threshold_L` and `r_G = score_G /
+threshold_G` -- reach as a series, 1.0 the bar each rule already uses. Three
+combination rules, each a one-line function of the two series and nothing
+else, each scored by the referee's own metric code on its alarm mask:
+
+| rule | mask | what it is |
+|---|---|---|
+| **OR** | `max(r_L, r_G) >= 1` | both alarm streams pass through: the plain union, and its whole false-alarm exposure |
+| **AND** | `min(r_L, r_G) >= 1` | agreement: both over their own bars at the same moment |
+| **MEAN** | `(r_L + r_G) / 2 >= 1` | a combined score: one can carry the other part of the way |
+
+Per anomaly: caught by each rule; each model's peak reach in the span; and
+**the other model's reach at the moment of this model's peak** -- the
+concurrence reading, which the banked per-model peaks cannot give because two
+peaks need not coincide. Per rare nominal event: the same two reaches and
+which rules alarm on it. Per fold: recall, headline-cell recall, rare-event
+FA, nominal-step FA and alarm-range count for every rule, `k/n`.
+
+**Not a mission-available quantity, said plainly.** The three rules reuse
+each model's own calibrated bar and add no fitted constant, so a mission
+could compute them; what a mission could not do is *choose among them* on
+these 46 events, and this section chooses nothing.
+
+### 17.3 Flight cost, stated before the recall (facts, not predictions)
+
+From the array shapes in section 3, per rate-group tick, multiply-accumulates
+of the recurrence and head:
+
+```
+                     LSTM      GRU       both      ratio to LSTM alone
+  MAC / tick        90,240   70,080   160,320     1.78x
+  parameters        91,640   71,160   162,800   1.78x
+  float32 payload   358.0 KiB  278.0 KiB  636.0 KiB
+  carried state     2 x 80 x 2 = 320 floats   2 x 80 = 160   480
+  EWMA state        12         12        24 (one per channel per model)
+  thresholds        1          1         2, plus the rule's own constant (1.0 -- none fitted)
+```
+
+`model.bin` carries two weight sets, two gate orders, two state shapes and two
+calibrated thresholds; the verification surface is two reference paths (both
+exist, both held at 1e-5), two equivalence tests, and the combination rule.
+Objective.md 8's criteria 2 to 5 are all worse than either cell alone by
+construction; whatever recall is gained is bought against that.
+
+### 17.4 PREDICTED
+
+From the banked head-to-head and scorecards
+(`lstm-quantile/2026-08-28T171349Z-2717441a.json`,
+`gru-quantile/2026-08-28T222635Z-6d146f5d.json`):
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **E1** | **OR: recall 33/46, MVGS 25/32 on `m1-g8.9.10`; 34/42, 25/31 on `m1-ss5`** -- exactly the union of the banked catches | By construction of the masks; a departure means a scoring difference from the banked runs and is reported as a defect |
+| **E2** | **OR rare-event FA: 2/48 or 3/48 on the gate set** (LSTM 2, GRU 1; the GRU's one is likely among the LSTM's two), **3/48 to 5/48 on `m1-ss5`**; **OR nominal-step: at most the sum**, 356 of 10,675,488 on the gate set (0.0033%) and 33,365 on `m1-ss5`, and above the larger of the two on every fold where both fire | Alarm sets union; the exact overlap is what the pass measures |
+| **E3** | **AND: recall 20/46 on the gate set, 19/42 on `m1-ss5` -- the intersection, and no solo event**; rare-event FA at most the smaller incumbent's (1/48; 2/48) | Agreement can only lose events; it buys precision |
+| **E4** | **MEAN on the gate set catches none of the thirteen solo events.** The GRU's seven sit at 0.15-0.18 under the LSTM (mean at most 0.73); the LSTM's six at 0.60-0.62 under the GRU (mean at most 0.91). **On `m1-ss5` MEAN catches most of the fifteen solo events** -- the banked peak-reach means are all above 1 -- **but fewer than fifteen once concurrence is read at the same timestep** | The peak-reach mean is an upper bound: the two peaks need not coincide |
+| **E5** | **Concurrence, gate set: at the LSTM's peak on the GRU's seven, the LSTM's own reach is below 0.25; at the GRU's peak on the LSTM's six, the GRU's own reach is below 0.7.** Each solo catch is invisible or half-visible to the other model at the moment it matters | If concurrence is higher than the banked peaks say, a combined score has something to use; if lower, it has less |
+
+**The verdict rule, set now.** If E4 and E5 hold on the gate set, the
+combination is **an OR and nothing cleverer** -- its recall is the union and
+its cost is the union's false alarms, and a combined score has no concurrence
+to exploit on the events that matter. If MEAN catches five or more of the
+thirteen gate-set solo events while its rare-event FA stays at or below the
+LSTM's 2/48, a combined score is real and is scoped further. Anything between
+is reported without a verdict.
+
+### 17.5 Stop and report
+
+1. E1 fails -- the pass does not reproduce the banked catches. A scoring
+   defect; nothing downstream is readable.
+2. More than 50 operations.
+3. Anything that would touch a published row, the frozen layer or the
+   held-back sets.
+
+### 17.6 OBSERVED
+
+*Filled in after the pass, beside the predictions.*
