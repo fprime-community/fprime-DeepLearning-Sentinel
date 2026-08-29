@@ -54,7 +54,7 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 | # | Decision | Deadline |
 |---|---|---|
-| 1 | Architecture selection - LSTM vs GRU vs TCN | End of Phase 1 |
+| 1 | Architecture selection - LSTM vs GRU vs TCN | **Resolved 2026-08-29: the GRU (D28)** |
 | 2 | Model-file format freeze - quantized self-describing FlatBuffer, TFLite-Micro compatible; normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) | Before Phase 2 starts |
 | 3 | Channel-ingestion mechanism - telemetry-path tap vs direct port wiring | Early Phase 2 |
 | 4 | Target F' version pin | Early Phase 2 |

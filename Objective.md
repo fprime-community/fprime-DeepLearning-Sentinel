@@ -895,7 +895,7 @@ replacing either.
 
 | # | Decision | Deadline | Why it matters |
 |---|---|---|---|
-| 1 | **Architecture selection** - LSTM vs GRU vs TCN | End of Phase 1 | Criteria in section 8 |
+| 1 | **Architecture selection** - LSTM vs GRU vs TCN | Was: end of Phase 1 | **RESOLVED 2026-08-29 - the GRU** (docs/DECISIONS.md D28), on section 8's criteria: criterion 1 a tie at the harness's resolution, criteria 2-5 and trainability to the GRU; the LSTM retained as the published baseline, the TCN rows retained as the stateless answer. The LSTM leads on event-wise F0.5, and D28 says so |
 | 2 | **Model-file format freeze** | **Before Phase 2 starts** | It is the contract between the Python toolkit and the C++ loader. The format implication is recorded in 14.10; empirical findings from the work item 4 weight extraction are in `docs/MODELS.md` |
 | 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Resolve against the pinned F' version |
 | 4 | **Target F' version pin** | Early Phase 2 | Everything downstream depends on it |

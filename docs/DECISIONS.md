@@ -1621,3 +1621,95 @@ the uncut stream to 1e-5; the future cannot reach the past.
 **CONSEQUENCE.** Three players, one field, one trainer, one detector, one
 decision layer. What differs is the block that reads the history and the
 shape of what it carries between ticks: two vectors, one, none.
+
+---
+
+## D28. The architecture gate selects the GRU; the LSTM stays the baseline, the TCN the answer to "why not stateless"
+
+**DATE** 2026-08-29 | **STATUS** resolved -- the gate. Not reopened by the
+held-back transfer result (D29), by construction.
+
+**CONTEXT.** Objective.md section 8 set five criteria in priority order before
+any model existed; D3 and D9 refined what "detection performance" is measured
+by. Three players now hold rows on the same referee, the same data, the same
+folds and the same frozen decision layer (D25): `docs/RESULTS.md` 6h (GRU), 6i
+(the LSTM reseed), 6j (TCN), with the combination scoped in `docs/MODELS.md`
+17. The architecture is decided here, on Mission 1 evidence, **before** the
+held-back sets are scored -- so that the transfer scoring stays an exam and
+does not become another tuning set.
+
+**EVIDENCE, criterion by criterion.** Artifacts:
+`runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json`,
+`runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json`,
+`runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json`,
+`runs/m1-g8.9.10/_forensics/2026-08-28T223610Z-head-to-head.json`,
+`runs/m1-g8.9.10/_forensics/2026-08-28T232538Z-reseed-lstm-quantile-seed1.json`,
+`runs/m1-g8.9.10/_forensics/2026-08-29T170340Z-combination-scope.json`, and
+the fit reports under `runs/_weights_pod/`.
+
+| criterion | LSTM | GRU | TCN | reading |
+|---|---|---|---|---|
+| **1** detection, as section 8 wrote it: contextual recall first, rare-event FA second -- `m1-g8.9.10` / `m1-ss5` | 26/45, 2/48 / **27/41, 2/48** | **27/45, 1/48** / 26/41, 3/48 | 9/45, 3/48 / 16/41, 3/48 | LSTM and GRU one event apart on each axis, in opposite directions on the two sets: **a tie at the resolution 1/n the harness itself refuses to read as a finding** (`docs/HARNESS.md` 1). The TCN is out |
+| 1, as D3 reads it: event-wise F0.5 | **0.838** / **0.885** | 0.804 / 0.593 | 0.411 / 0.649 | **The LSTM leads on both sets.** On the gate set the gap is one alarm range's worth of precision (40/42 against 139/157); on `m1-ss5` it is 0.29, from precision 127/130 against 101/172 |
+| 1, as D9 reads it: honest lead | +0.0 | +0.0 | -4.0 | nothing is disqualified |
+| headline cell, `m1-g8.9.10` | 21/32 | **22/32** | 9/32 | one event, resolution 1/32 |
+| **2** parameters | 91,640 | **71,160** | 91,670 | GRU 22.35% smaller, 25% in the recurrence |
+| **3** inference cost, MAC per tick from the section-3 shapes | 90,240 | **70,080** | 90,900 | GRU 0.78x |
+| **4** C++ implementation and verification | four gates, two state vectors; the two bias vectors may be summed | **three gates, one state vector**; `b_hn` sits inside the reset product and is the one place a loader written from the LSTM is wrong (`docs/MODELS.md` 3, tested two-sided) | no state, one tap-order convention; the simplest of the three -- and out on criterion 1 | GRU over LSTM |
+| **5** determinism and restart | bit-identical on a box (D15); restores two vectors | bit-identical (D26); **restores one** | bit-identical (D27); restores nothing | GRU over LSTM |
+| trainability -- a recorded gate consideration since `docs/RESULTS.md` 6i | **stalled** on fold 0, seed 0: 14 epochs, best 3, 1.691e-4; the reseed reached 1.986e-5 and was still 4.3x the GRU | **no stall on any fold of either set**, six fits, all to or near the cap | **stalled** on `m1-ss5` fold 2: 13 epochs, best 2, 6.059e-5 | GRU alone |
+
+**The sentence a reader is owed.** On the gate metric D3 named, event-wise
+F0.5, the LSTM is ahead on both sets, and **a reader weighing that metric
+alone would pick the LSTM.** The selection does not rest there. Criterion 1
+as section 8 wrote it is a tie inside the resolution the harness refuses to
+call a finding; section 8 wrote its own outcome for that case -- *"LSTM
+retained as the published-comparison baseline, with GRU or TCN selected for
+flight if it matches"* -- and the GRU matches; and on every criterion below
+the first, and on the one criterion the gate learned it needed after it was
+written, the GRU is the smaller, cheaper, simpler, single-state cell that
+did not stall.
+
+**The price, stated in the entry and not footnoted.** Six events lost on fold
+1 for seven gained on fold 0 (`_forensics/2026-08-28T223610Z-head-to-head.json`)
+-- the fold-1 noise floor rose 1.81x with the validation MSE unchanged to 5%,
+the floor being a tail statistic and the loss a mean. Precision 139/157
+against 40/42 on the gate set and 101/172 against 127/130 on `m1-ss5`. F0.5
+0.593 on `m1-ss5`. Those numbers travel with the decision.
+
+**ALTERNATIVES.** Keep the LSTM. Select the TCN. Defer the gate to the
+held-back transfer result.
+
+**Against each.** The LSTM's F0.5 lead on the gate set is one alarm range of
+precision, and the LSTM is the cell that stalled on the data-poor fold under
+the published protocol and, reseeded, still landed 4.3x short. The TCN
+catches nine of forty-six on the gate set and its floor sat above both cells'
+on every fold; criteria 4 and 5 do not outrank criterion 1. Deferring would
+let the exam set choose the architecture, which is the one use of a held-back
+set that destroys it (`docs/MODELS.md` 6).
+
+**CONSEQUENCE.**
+
+1. **`gru-quantile` is the flight architecture.** The GRU reference
+   (`reference.gru_cell`, held at 1e-5) is the Phase 2 blueprint.
+2. **The LSTM is retained** as the published-reproduction baseline -- the
+   telemanom lineage row, and half of the union below. Its published row
+   stays the seed-0 fit; the reseed (`docs/RESULTS.md` 6i) is evidence on
+   trainability, not a row, and the question of refitting the row is closed
+   with this entry.
+3. **The TCN rows are retained** as the measured answer to "why not
+   stateless": strict-subset catches, a forecast 1.3-9.9x worse than the
+   GRU's, one stalled fit -- at the published protocol and the size-matched,
+   lookback-matched shape, which is all that was tested.
+4. **The union `lstm-quantile OR gru-quantile` is a post-gate deployment
+   configuration, not a gate contestant.** Measured (`_forensics/2026-08-29T170340Z-combination-scope.json`):
+   33/46 and **25/32 at 2/48** on `m1-g8.9.10`, 34/42 and 25/31 at 3/48 on
+   `m1-ss5`. The gate question is *which architecture*; the union is a
+   configuration built from two answers. Its flight cost is on the record --
+   1.78x the multiplies per tick, 636 KiB of weights, two thresholds, two
+   reference paths, two equivalence tests: a doubled verification surface.
+   **Its adoption is a separate decision, D29, taken after the held-back
+   transfer result exists and nowhere else.** That result does not reopen
+   this entry.
+
+Objective.md decision 14.1 is resolved by this entry.
