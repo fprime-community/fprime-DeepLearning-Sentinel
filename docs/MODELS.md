@@ -1899,4 +1899,126 @@ Held-back sets untouched. Nothing refitted for the incumbents.
 
 ### 16.7 OBSERVED
 
-*Filled in after the run, beside the predictions.*
+Beside the predictions. Artifacts
+`runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json`,
+`runs/m1-g8.9.10/tcn-telemanom/2026-08-29T162030Z-4c35b17a.json`,
+`runs/_weights_pod/tcn-2026-08-29/fit_report.json`, and the two head-to-heads
+in 16.7.2. Tables: `docs/RESULTS.md` 6j.
+
+**The run.** Six fits on an A40-2Q slice in 3.5 minutes of GPU; the first
+attempt crashed in the determinism *comparison* after both `m1-ss5` fold-0
+fits had run (my code compared recurrent gates by attribute; fixed, commit
+`f258762`, and 15 Class B from that attempt's bundle load are unrecorded
+because the crash preceded the ledger commit); the rerun found the four
+banked fits in the cache, refitted `m1-ss5` fold 0 once more **bit-identical**
+under cuDNN convolutions, and fitted the last two. Every file loaded on the
+M5, `cell == "tcn"`, receptive field 253, torch-vs-NumPy at most 9.5e-07;
+scored with refits refused, weight store unchanged at 77.
+
+#### 16.7.1 The predictions
+
+| # | Predicted | Observed | Verdict |
+|---|---|---|---|
+| **P26** | 91,670 / 87,410 parameters, field 253 | as predicted | **Held** |
+| **P27** | no plateau: fold 0 `best_epoch >= 20` and val-MSE <= 1e-5 both sets; `best_epoch > 5` everywhere | fold 0: 35 (33) at **1.972e-5** and 35 (33) at 7.501e-6; **`m1-ss5` fold 2: 13 epochs, best 2, 6.059e-5** | **Refuted twice** -- the gate-set fold 0 missed the band by 2x and one fold stalled outright |
+| **P28** | val-MSE 0.5x-2x the GRU's, every fold | 4.26x / 1.66x / 3.91x; 1.51x / 1.25x / **9.90x** | **Refuted on four of six** |
+| **P29** | fold-0 floor 0.7x-1.5x the GRU's; folds 1-2 0.7x-1.5x the LSTM's | fold 0 **1.63x** / **1.62x** the GRU's; fold 1 **2.49x** / 1.53x the LSTM's; fold 2 **2.18x** / **3.39x** the LSTM's | **Refuted on five of six** -- above the band every time it left it |
+| **P30** | `m1-g8.9.10` MVGS 21-25/32; rare-FA <= 4/48; nominal-step <= 0.006%; honest lead +0.0 both sets; `m1-ss5` MVGS 19-24/31 | **9/32**; 3/48 and 3/48; 0.00002%; **-4.0** and -0.5; **13/31** | **Refuted on MVGS and lead**; held on rare-FA and nominal-step, which a high floor makes easy |
+| **P31** | five to seven of the seven back, both sets; `id_89`, `id_138`, `id_20`, `id_157` not; `id_132` neither way; >= 4 of the GRU's six fold-1 losses caught | see 16.7.2 | see 16.7.2 |
+| **P32** | the floor follows the MSE across folds | MSE above the GRU's on all six folds and the floor above the GRU's on all six; on the gate set 4.3x/1.7x/3.9x against 1.6x/1.4x/1.8x | **Held on every fold** -- the one written as most likely to be wrong |
+
+**Not predicted, reported:** point recall 0/11 and 3/11; VUS-PR 0.367 and
+0.607 (the second the highest of the three); `tcn-telemanom` in
+`docs/RESULTS.md` 6j.4, where the TCN's residuals carry **30/32** under the
+local rule at 4,085 ranges and 29/48.
+
+**Why, as far as the artifacts say.** The TCN forecast this telemetry worse
+than the GRU on every fold and its floor rose with the error, on every fold,
+in proportion: for this architecture the tail quantile and the mean square
+did not decouple. So the recoveries the GRU bought with a floor of 0.013 on
+fold 0 were not available at 0.0215, and the six fold-1 events the LSTM catches
+at 0.0156 were not available at 0.039. The size-matched, lookback-matched TCN
+is a worse forecaster of this data than either cell at the published
+protocol, and the row says so. Whether a larger or differently shaped
+convolutional stack would not be is untested and is not claimed either way.
+
+#### 16.7.2 The per-event line
+
+Artifacts `runs/m1-g8.9.10/_forensics/2026-08-29T162907Z-head-to-head.json`
+(`lstm-quantile` vs `tcn-quantile`) and `.../2026-08-29T162813Z-head-to-head.json`
+(`gru-quantile` vs `tcn-quantile`); cached weights, weight store unchanged at
+77, 15 Class B each. Reach is the peak score in the event span over the fold's
+threshold.
+
+**`m1-g8.9.10`: the TCN's nine are a strict subset of both incumbents' --
+only-TCN 0 against both.** None of the twelve returns:
+
+```
+  fold  event    LSTM reach   GRU reach   TCN reach
+  0     id_109   0.172        1.271       0.951      the seven, at 0.82-0.95 of a floor of 0.0215:
+  0     id_90    0.168        1.269       0.940      the reseeded LSTM's 0.80-0.93 at 0.0222, again.
+  0     id_12    0.168        1.269       0.940      Their raw peaks under the TCN, 0.018-0.020,
+  0     id_93    0.150        1.249       0.927      are the GRU's 0.016-0.017 and the reseed's
+  0     id_110   0.181        1.233       0.908      0.018-0.021; only the GRU's floor got under them
+  0     id_114   0.147        1.275       0.868
+  0     id_107   0.158        1.286       0.823
+  0     id_89    0.111        0.393       0.556
+  1     id_132   0.995        0.553       0.438
+  1     id_138   0.480        0.181       0.291
+  1     id_20    0.209        0.130       0.122
+  2     id_157   0.307        0.238       0.258
+```
+
+Against the LSTM the TCN loses seventeen: the GRU's six on fold 1
+(`id_122, id_124, id_129, id_130, id_140, id_142`, LSTM reach 1.09-1.21, TCN
+0.43-0.52 -- a floor 2.5x higher) and **eleven on fold 2** (`id_149, id_150,
+id_160, id_165, id_172, id_176, id_177, id_183, id_184, id_186, id_187`, LSTM
+reach 1.38-1.48, TCN 0.67-0.85 -- a floor 2.2x higher). Against the GRU it
+loses eighteen: the seven and the same eleven. **Trigger 2 did not fire on
+the gate set.**
+
+**`m1-ss5`: the seven return -- the same seven, at reach 1.17-1.23 against a
+floor of 0.0142** (`id_107` 1.234, `id_109` 1.217, `id_12` 1.215, `id_90`
+1.215, `id_93` 1.193, `id_110` 1.174, `id_114` 1.174; LSTM 0.17-0.21). That
+floor is below their raw peaks under the LSTM (0.018-0.021), so 16.4's
+condition 4 holds: **a recovery by the floor, on the one fold-and-set where
+the TCN's floor got under them**, and the same events the GRU recovered
+(14.8.2) -- nothing the GRU did not already reach. `id_89` (0.546),
+`id_138`, `id_157` and `id_132` (0.870) do not return.
+
+Two more only-TCN catches on `m1-ss5`, both fold 1, both **not by the
+floor**: `id_142` (GRU 0.986 -> 1.022, the bar's edge) and `id_145` (GRU
+0.884 -> **3.491**, footprint 6,300). The TCN's floor on that fold is above
+the LSTM's, so these are residuals that grew under the event -- a forecast
+effect, reported as such and not as support for the mechanism. And on
+`m1-ss5` fold 2 the stalled fit loses all twelve the incumbents catch
+(`id_149 ... id_187`, TCN reach 0.34-0.39 at a floor of 0.052).
+
+**P31, adjudicated.** *Five to seven of the seven return on both sets*:
+**refuted on the gate set (0 of 7), held on `m1-ss5` (7 of 7)**. *`id_89`,
+`id_138`, `id_20`, `id_157` do not return*: **held**. *`id_132`*: neither way,
+missed. *At least four of the GRU's six fold-1 losses caught*: **refuted** --
+none on the gate set, one (`id_142`) on `m1-ss5`. **Trigger 2: fired on
+`m1-ss5` by the letter -- seven of the eleven -- and they are the GRU's seven,
+recovered by the same mechanism on the same fold; not fired on the gate set,
+where the twelve are defined.**
+
+#### 16.7.3 The conditions
+
+**Outcome condition (parity): FAILED** -- MVGS 9/32 against 22/32, rare-FA
+3/48 against 1/48.
+
+**Mechanism condition 1, no plateau: FAILED** on `m1-ss5` fold 2 (best epoch
+2, stopped at 13). **Condition 2, the floor tracks the fit: HELD** on every
+fold. **Condition 3, nominal-step alarms within 3x the higher incumbent's:
+HELD** on every fold (2 / 1 / 1 and 788 / 31,473 / 0 against caps of 237 /
+207 / 435 and 2,874 / 94,821 / 1,380). **Condition 4, recovery by the
+floor:** read per event in 16.7.2.
+
+#### 16.7.4 Stop and report
+
+Trigger 1 did not fire (9.5e-07). **Trigger 4 fired** (`m1-ss5` fold 2) and
+**trigger 5 fired** (gate fold 2 at 3.3x the LSTM's MSE; `m1-ss5` fold 2 at
+7.5x); both were reported from the fit reports before any scoring. Trigger 3
+did not fire. Trigger 2 is adjudicated in 16.7.2. Trigger 6 did not fire (16
+operations per run). Nothing is decided here.

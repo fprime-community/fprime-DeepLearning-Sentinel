@@ -872,7 +872,8 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
          multivariate LSTM forecaster
   5. OK  Train + score GRU   (2026-08-28; docs/RESULTS.md 6h -- two stop-and-
          report rules fired and the next step is a decision, not the TCN)
-  6. --  Train + score TCN
+  6. OK  Train + score TCN   (2026-08-29; docs/RESULTS.md 6j -- MVGS 9/32, the
+         floor above both cells' on every fold; the gate is now a decision)
   7. --  Pass the architecture selection gate. Scores m2-ss1 as well,
          across LSTM, GRU, TCN, rstd and mavg together, so the adoption
          number on an independent spacecraft is a comparison and not a

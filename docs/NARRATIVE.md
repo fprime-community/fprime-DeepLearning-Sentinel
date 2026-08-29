@@ -647,3 +647,35 @@ plateau at ~4e-04 that the published patience of 10 cuts one path off on and
 lets another escape at epoch 24. The verdict rule set before the number
 returned no verdict, and that is what was written. What is decided next -- the
 row, the protocol, or the TCN -- is a decision and not a run.
+
+## 9. Work item 6: the third player, and the floor that followed the fit
+
+**2026-08-29.** The TCN arrived the way the GRU did -- a third value of the
+same field, one trainer, one detector, the frozen decision layer -- with a
+contract the two cells do not have: no state at all. Six residual blocks of
+causal dilated convolutions, receptive field 253, size-matched to the LSTM at
+91,670 parameters. The reference gained a forward pass that refuses a state
+and returns none, pinned by perturbation to see exactly 253 steps.
+
+**The pre-registration was the most specific yet, and the most wrong.** Seven
+predictions anchored on both incumbents and the reseed; five refuted, most of
+them in the same direction. The TCN forecast worse than the GRU on every fold
+-- 1.3x to 9.9x -- and its noise floor rose with the error on every fold, in
+proportion. The one prediction written as most likely to fail, that the floor
+would follow the fit, was the one that held everywhere. The gate row is 9 of
+46 events, 9 of 32 headline-cell, against 26 and 27, and it is quiet for the
+wrong reason: a bar too high to reach.
+
+**And one fit stalled, on a fold where neither cell had.** `m1-ss5` fold 2
+stopped at epoch 13 with its best at 2; section 6i's trainability finding,
+recorded for the LSTM, now has a convolutional instance. Whether it is the
+architecture or the seed is one refit away and unclaimed.
+
+**A crash of my own, recorded.** The determinism check compared recurrent
+gates by attribute and raised on the TCN after both of its fits had run; ten
+minutes, a second bundle load whose fifteen operations went unrecorded, and a
+one-line fix. The check itself did its job on the rerun: bit-identical under
+cuDNN.
+
+**Three rows now exist.** The gate is a decision with all its inputs on the
+table, and the documents stop where the measurements stop.

@@ -1096,6 +1096,197 @@ against -77.0), and whether `patience` and the epoch cap -- published constants
 that bind both cells -- are the right protocol on the data-poor fold. Neither
 is done here. Trigger 3 from section 6h stands as noted.
 
+## 6j. Work item 6: the TCN beside both cells
+
+`docs/MODELS.md` section 16 (pre-registered 2026-08-29, commit `3f6e6fa`,
+before any fit) and `docs/DECISIONS.md` D27. **The architecture is the only
+variable**: `Hyper(cell="tcn", hidden=(50,)*6, kernel=3)` -- six residual
+blocks of causal dilated convolutions, receptive field 253, **91,670
+parameters** against the LSTM's 91,640 -- every other field the LSTM's, the
+frozen `lstm-quantile` decision layer (D25) unchanged, stateless by contract.
+Fitted on a rented A40 slice (six fits, 3.5 minutes of GPU, the `m1-ss5`
+fold-0 refit bit-identical under cuDNN), scored on the M5 through the NumPy
+reference with refits refused. Artifacts
+`runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json`,
+`runs/m1-g8.9.10/tcn-telemanom/2026-08-29T162030Z-4c35b17a.json`,
+`runs/_weights_pod/tcn-2026-08-29/fit_report.json`; per event, section 6j.3.
+15 Class B, 1 Class A per run.
+
+### 6j.1 The gate row
+
+**GATE -- `m1-g8.9.10`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | nom-step FA | point | VUS-PR | **honest lead** |
+|---|---|---|---|---|---|---|---|---|---|
+| `lstm-quantile` | **0.838** | 26/46 | 21/32 | **40/42** | 2/48 | 0.002% | 5/11 | 0.343 | +0.0 (n=26) |
+| `gru-quantile` | 0.804 | **27/46** | **22/32** | 139/157 | **1/48** | 0.001% | 5/11 | **0.374** | +0.0 (n=27) |
+| **`tcn-quantile`** | 0.411 | 9/46 | **9/32** | 21/37 | 3/48 | **0.00002%** | 0/11 | 0.367 | **-4.0** (n=9) |
+
+**`m1-ss5`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | nom-step FA | point | VUS-PR | **honest lead** |
+|---|---|---|---|---|---|---|---|---|---|
+| `lstm-quantile` | **0.885** | **27/42** | **21/31** | **127/130** | **2/48** | 0.293% | 6/11 | 0.604 | +0.0 (n=27) |
+| `gru-quantile` | 0.593 | 26/42 | **21/31** | 101/172 | 3/48 | **0.014%** | 5/11 | 0.591 | +0.0 (n=26) |
+| **`tcn-quantile`** | 0.649 | 16/42 | 13/31 | 108/137 | 3/48 | 0.297% | 3/11 | **0.607** | -0.5 (n=16) |
+
+Point recall is over eleven events; treat it as a coverage check. Honest lead
+is the crossing itself on this path; 9 of 9 and 8 of 16 are negative.
+
+**The TCN catches nine of forty-six on the gate set, against twenty-six and
+twenty-seven.** It is quieter than either cell -- two nominal-step alarms in
+ten million, 21/37 alarm ranges -- and it is quiet because its noise floor is
+higher than both incumbents' on every fold but the LSTM's stalled fold 0. The
+gate reads it as the third of three; trigger 3 did not fire.
+
+### 6j.2 Per fold: a higher floor everywhere, and one stalled fit
+
+**`m1-g8.9.10`**, TCN against GRU and LSTM (threshold is the fold's noise floor):
+
+| fold | val-MSE TCN / GRU / LSTM | threshold TCN / GRU / LSTM | recall T / G / L | MVGS T / G / L | precision T | rare-FA T | nom-step T / G / L | honest lead T | TCN epochs (best) |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | 1.972e-5 / 4.628e-6 / 1.691e-4 | **0.02152** / 0.01324 / 0.14681 | 4/15 / 11/15 / 4/15 | 4/11 / 8/11 / 4/11 | 7/22 | 2/12 | 0 / 79 / 0 | -4.0 (n=4) | 35 (33) |
+| 1 | 5.620e-6 / 3.378e-6 / 3.552e-6 | **0.03899** / 0.02827 / 0.01563 | 4/15 / 4/15 / 10/15 | 4/9 / 4/9 / 7/9 | 13/14 | 1/21 | 1 / 0 / 69 | -24.5 (n=4) | 35 (34) |
+| 2 | 1.356e-5 / 3.468e-6 / 4.089e-6 | **0.02564** / 0.01455 / 0.01178 | **1/16** / 12/16 / 12/16 | 1/12 / 10/12 / 10/12 | 1/1 | 0/15 | 1 / 63 / 145 | -1.0 (n=1) | 26 (15) |
+
+**`m1-ss5`**:
+
+| fold | val-MSE TCN / GRU / LSTM | threshold TCN / GRU / LSTM | recall T / G / L | MVGS T / G / L | precision T | rare-FA T | nom-step T / G / L | honest lead T | TCN epochs (best) |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | 7.501e-6 / 4.968e-6 / 3.441e-5 | 0.01420 / 0.00878 / 0.10195 | **11/13** / 11/13 / 4/13 | **8/10** / 8/10 / 4/10 | 19/48 | 2/12 | 788 / 958 / 121 | +0.0 (n=11) | 35 (33) |
+| 1 | 6.437e-6 / 5.169e-6 / 5.205e-6 | 0.01908 / 0.01710 / 0.01243 | 5/14 / 3/14 / 11/14 | 5/9 / 3/9 / 7/9 | 89/89 | 1/21 | 31,473 / 118 / 31,607 | -1.0 (n=5) | 35 (28) |
+| 2 | **6.059e-5** / 6.120e-6 / 8.096e-6 | **0.05238** / 0.01022 / 0.01545 | **0/15** / 12/15 / 12/15 | 0/12 / 10/12 / 10/12 | 0/0 | 0/15 | 0 / 460 / 101 | -- (n=0) | **13 (2)** |
+
+Every fold denominator is under 20 and UNDERPOWERED.
+
+**The floor followed the fit, and the fit was worse.** On the gate set the
+TCN's validation MSE is 4.3x, 1.7x and 3.9x the GRU's and its floor 1.6x,
+1.4x and 1.8x -- higher on every fold, in the same direction as the MSE on
+every fold (P32 held). The forecast is worse and the residual's tail is
+heavier with it, and a floor that is a tail quantile rises. That is the
+opposite of section 6h's fold-1 finding for the GRU, where MSE and floor
+decoupled; for this architecture they moved together.
+
+**One fit stalled.** `m1-ss5` fold 2 stopped at epoch 13 with its best at 2,
+validation MSE 6.06e-5 -- 9.9x the GRU's and 7.5x the LSTM's -- after a
+history of 1.7e-4, 7.0e-5, 6.1e-5 and then eleven epochs between 6.5e-5 and
+9.2e-5. Its floor of 0.0524 catches nothing: 0/15. The pre-registration's
+P27 -- *no plateau, the convolutional stack trains clean* -- is refuted on
+that fold, and section 6i's trainability finding now has an instance on the
+TCN as well as the LSTM. The other five fits ran to or near the cap without
+one.
+
+**Fold 0 of the gate set is the reseeded LSTM again.** 1.97e-5 against seed
+1's 1.99e-5, a floor of 0.0215 against 0.0222, 4/15 against 4/15: two
+architectures, two seeds, one number. The GRU's 4.6e-6 and 0.0132 on the same
+fold remain the only fit that got below the seven's peaks.
+
+### 6j.3 Per event
+
+Artifacts `runs/m1-g8.9.10/_forensics/2026-08-29T162907Z-head-to-head.json`
+(`lstm-quantile` vs `tcn-quantile`) and `.../2026-08-29T162813Z-head-to-head.json`
+(`gru-quantile` vs `tcn-quantile`); cached weights, weight store unchanged at
+77, 15 Class B each. Reach is the peak score in the event span over the fold's
+threshold.
+
+**`m1-g8.9.10`: the TCN's nine are a strict subset of both incumbents' --
+only-TCN 0 against both.** None of the twelve returns:
+
+```
+  fold  event    LSTM reach   GRU reach   TCN reach
+  0     id_109   0.172        1.271       0.951      the seven, at 0.82-0.95 of a floor of 0.0215:
+  0     id_90    0.168        1.269       0.940      the reseeded LSTM's 0.80-0.93 at 0.0222, again.
+  0     id_12    0.168        1.269       0.940      Their raw peaks under the TCN, 0.018-0.020,
+  0     id_93    0.150        1.249       0.927      are the GRU's 0.016-0.017 and the reseed's
+  0     id_110   0.181        1.233       0.908      0.018-0.021; only the GRU's floor got under them
+  0     id_114   0.147        1.275       0.868
+  0     id_107   0.158        1.286       0.823
+  0     id_89    0.111        0.393       0.556
+  1     id_132   0.995        0.553       0.438
+  1     id_138   0.480        0.181       0.291
+  1     id_20    0.209        0.130       0.122
+  2     id_157   0.307        0.238       0.258
+```
+
+Against the LSTM the TCN loses seventeen: the GRU's six on fold 1
+(`id_122, id_124, id_129, id_130, id_140, id_142`, LSTM reach 1.09-1.21, TCN
+0.43-0.52 -- a floor 2.5x higher) and **eleven on fold 2** (`id_149, id_150,
+id_160, id_165, id_172, id_176, id_177, id_183, id_184, id_186, id_187`, LSTM
+reach 1.38-1.48, TCN 0.67-0.85 -- a floor 2.2x higher). Against the GRU it
+loses eighteen: the seven and the same eleven. **Trigger 2 did not fire on
+the gate set.**
+
+**`m1-ss5`: the seven return -- the same seven, at reach 1.17-1.23 against a
+floor of 0.0142** (`id_107` 1.234, `id_109` 1.217, `id_12` 1.215, `id_90`
+1.215, `id_93` 1.193, `id_110` 1.174, `id_114` 1.174; LSTM 0.17-0.21). That
+floor is below their raw peaks under the LSTM (0.018-0.021), so 16.4's
+condition 4 holds: **a recovery by the floor, on the one fold-and-set where
+the TCN's floor got under them**, and the same events the GRU recovered
+(14.8.2) -- nothing the GRU did not already reach. `id_89` (0.546),
+`id_138`, `id_157` and `id_132` (0.870) do not return.
+
+Two more only-TCN catches on `m1-ss5`, both fold 1, both **not by the
+floor**: `id_142` (GRU 0.986 -> 1.022, the bar's edge) and `id_145` (GRU
+0.884 -> **3.491**, footprint 6,300). The TCN's floor on that fold is above
+the LSTM's, so these are residuals that grew under the event -- a forecast
+effect, reported as such and not as support for the mechanism. And on
+`m1-ss5` fold 2 the stalled fit loses all twelve the incumbents catch
+(`id_149 ... id_187`, TCN reach 0.34-0.39 at a floor of 0.052).
+
+**P31, adjudicated.** *Five to seven of the seven return on both sets*:
+**refuted on the gate set (0 of 7), held on `m1-ss5` (7 of 7)**. *`id_89`,
+`id_138`, `id_20`, `id_157` do not return*: **held**. *`id_132`*: neither way,
+missed. *At least four of the GRU's six fold-1 losses caught*: **refuted** --
+none on the gate set, one (`id_142`) on `m1-ss5`. **Trigger 2: fired on
+`m1-ss5` by the letter -- seven of the eleven -- and they are the GRU's seven,
+recovered by the same mechanism on the same fold; not fired on the gate set,
+where the twelve are defined.**
+
+### 6j.4 `tcn-telemanom`, reported and not the gate
+
+| set | Detector | F0.5 | recall | MVGS | precision | rare-FA | nom-step FA | lead as reported | honest lead |
+|---|---|---|---|---|---|---|---|---|---|
+| `m1-g8.9.10` | `lstm-telemanom` | 0.026 | 38/46 | 28/32 | 75/3,548 | 30/48 | 4.972% | +26.0 (n=38) | -43.0 (n=23) |
+| | `gru-telemanom` | 0.019 | 40/46 | 29/32 | 97/6,206 | 39/48 | 8.782% | +26.0 (n=40) | -43.0 (n=24) |
+| | `tcn-telemanom` | 0.026 | **41/46** | **30/32** | 85/4,085 | 29/48 | 5.559% | +26.0 (n=41) | -43.0 (n=28) |
+| `m1-ss5` | `lstm-telemanom` | 0.035 | 38/42 | 29/31 | 42/1,475 | 33/48 | -- | +26.5 (n=38) | -53.0 (n=11) |
+| | `gru-telemanom` | 0.019 | 39/42 | 30/31 | 43/2,801 | 40/48 | 3.987% | +26.0 (n=39) | -53.5 (n=10) |
+| | `tcn-telemanom` | 0.059 | 37/42 | 28/31 | 41/852 | 31/48 | 1.096% | +29.0 (n=37) | -53.0 (n=11) |
+
+Under telemanom's local threshold the TCN's residuals carry **30 of 32**
+headline-cell events -- the most of the three -- at 4,085 alarm ranges and
+29/48. The signal is in the residual; the frozen global quantile is what does
+not reach it on this architecture. Recorded as the reproduction reading;
+nothing about the gate is read from it.
+
+### 6j.5 The pre-registration, adjudicated
+
+`docs/MODELS.md` 16.7 carries every prediction beside its outcome. In brief:
+P26 held (91,670); **P27 refuted** (one stalled fold, and fold 0 at 1.97e-5
+against a predicted <= 1e-5); **P28 refuted** on four of six folds (the MSE
+1.5x to 9.9x the GRU's, three of them past 2x); **P29 refuted** on five of six
+(floors above the band on every fold but `m1-ss5` fold 1); **P30 refuted** --
+MVGS 9/32 against a predicted 21-25; P31 adjudicated in 6j.3; **P32 held on
+all six folds** -- the one prediction written as most likely to be wrong. The
+outcome condition (parity with the better incumbent) **failed**. Mechanism
+conditions: no-plateau **failed** (`m1-ss5` fold 2); floor-tracks-fit
+**held**; nominal-step **held**; recovery-by-floor is read in 6j.3.
+
+**Stop rules 4 and 5 fired on the training reports and were reported before
+scoring; trigger 3 did not fire; trigger 2 is read in 6j.3.** Nothing is
+decided here. The three rows now exist and the gate is a decision for the
+record.
+
+### 6j.6 What is not claimed
+
+Not that a TCN cannot forecast this telemetry: under telemanom's local rule
+its residuals carry 30 of 32 headline events. Not that the shape is the only
+shape -- 253 steps and 50 channels were chosen to match the LSTM's lookback
+and size, and a wider or deeper stack was not tried, by design. Not that the
+stall on `m1-ss5` fold 2 is the architecture rather than the seed -- section
+6i's lesson applies and one refit would say. And every figure remains
+telemanom-minus-commands.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and
@@ -1132,6 +1323,7 @@ real multi-hour extent.
 | **(!) correction** | This row read "early stopping at ~19 of 35 epochs". **It was never true.** Every cached fit behind the section 2 tables records `epochs_run = 11` and `best_epoch = 0` -- the defect in D17. The figure was written from expectation rather than read from a training report, which is the rule `docs/HARNESS.md` states and which nothing was reading at the time. Corrected here rather than deleted |
 | Seeds | 0; the trivial baselines are deterministic and use none |
 | **Operations measured** | **15 Class B, 1 Class A** for both sets and all five detectors |
+| **TCN (section 6j)** | `Hyper(cell="tcn", hidden=(50,)*6, kernel=3)`, receptive field 253, 91,670 parameters, dropout 0.3, Adam 1e-3, seed 0+fold; fitted on an NVIDIA A40-2Q slice (Ubuntu 24.04, Python 3.12.3, torch 2.13.0+cu126, 1 thread, `CUBLAS_WORKSPACE_CONFIG=:4096:8`), `m1-ss5` fold-0 refit bit-identical under cuDNN; scored on the M5 (NumPy reference, refits refused); git `f258762` |
 | **GRU (section 6h)** | `Hyper(cell="gru")`, 2x80, l_s=250, l_p=10, dropout 0.3, Adam 1e-3, seed 0+fold; fitted on an NVIDIA A40-2Q slice (Ubuntu 24.04, Python 3.12.3, torch 2.13.0+cu126, 1 thread -- the six reports record `torch_threads: 4`, the module default, because the field was read at class definition; corrected in `lstm.train` afterwards and immaterial to CUDA arithmetic), `m1-ss5` fold-0 refit bit-identical; scored on the M5 (torch 2.13.0, NumPy reference) with `detectors.train` replaced by a function that raises, so a cache miss would have failed rather than refitted; git `aeade73` |
 
 `quiet` is not a candidate. It is the harness checking its own floor: a detector

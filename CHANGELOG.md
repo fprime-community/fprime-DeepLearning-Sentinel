@@ -31,12 +31,15 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   contract -- `forward` refuses a state and returns none. Receptive field 253, 91,670 parameters
   at the flown shape. Weight files carry `cell = "tcn"` with their own keys.
 - Detectors `tcn-telemanom`, `tcn-quantile` (the gate arm) and `tcn-smoke`. D27.
+- MODELS.md section 16: the `tcn-quantile` pre-registration and its outcome. RESULTS.md 6j: the
+  TCN beside both cells -- MVGS 9/32 on the gate set, a floor above both incumbents' on every
+  fold, one stalled fit. Three rows exist; the gate is a decision.
 
 ### Planned - Phase 1 work items, in order
 
 - Reproduce telemanom's detection method with a multivariate LSTM forecaster (done).
 - Train and score GRU (done, 2026-08-28; two stop-and-report rules fired, see RESULTS.md 6h).
-- Train and score TCN.
+- Train and score TCN (done, 2026-08-29; see RESULTS.md 6j).
 - Pass the architecture selection gate. Scores `m2-ss1` as well, across LSTM, GRU, TCN, `rstd`
   and `mavg` together, so the adoption number on an independent spacecraft is a comparison
   rather than a lone figure.

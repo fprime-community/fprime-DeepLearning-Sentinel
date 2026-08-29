@@ -48,7 +48,9 @@ LSTM and the decision layer is frozen (`docs/DECISIONS.md` D25), and the GRU is 
 it on identical terms (`docs/RESULTS.md` section 6h, 2026-08-28). Two stop-and-report rules
 fired on the GRU row; a reseeded LSTM fit on fold 0 (`docs/RESULTS.md` section 6i) settled
 that the LSTM's fold-0 stall was one optimisation path and still left it short of the GRU, and
-returned no verdict by its own pre-registered rule. The next step is a decision, not a run.
+returned no verdict by its own pre-registered rule. The TCN is scored beside both
+(`docs/RESULTS.md` section 6j, 2026-08-29): MVGS 9/32, a noise floor above both cells' on every
+fold. All three rows exist; the architecture gate is now a decision, not a run.
 See [docs/HARNESS.md](docs/HARNESS.md) for what is measured and
 [docs/MODELS.md](docs/MODELS.md) for the pre-registrations.
 
