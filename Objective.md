@@ -59,7 +59,7 @@ statistic finds 3. Nothing else in an F' deployment is watching for them at all.
 
 **The break-to-limit-trip lead is a Phase 3 deliverable and is unmeasured.**
 ESA-ADB carries no dictionary limits and its timestamps are anonymised and
-scaled, so the quantity cannot be computed on this data at all (section 9.5,
+scaled, so the quantity cannot be computed on this data at all (section 9.1,
 `docs/HARNESS.md` section 4). It is measured on the F' Ref deployment, on a real
 clock, against real limits.
 
@@ -519,7 +519,7 @@ engineers who actually flew these missions. Zenodo, CC BY 3.0 IGO.
 | Benchmark subset (2 missions) | 176 channels, ~1.55 billion data points, 17.5 mission-years, 844 annotated events of which **690** are rare nominal events |
 | Anomaly density | ~1.80% (Mission1), ~0.57% (Mission2) - realistic |
 | Taxonomy | 54 event classes by dimensionality / locality / length |
-| Size | ~11.6 GB |
+| Size | ~11.6 GB (11.53 GB measured at ingest, CHANGELOG 0.2.0) |
 
 Note that **1430 counts every annotated event across all four categories**, not
 anomalies. Anomalies number **157 dataset-wide** - 51 on the group-8 channel set,
@@ -608,7 +608,7 @@ with SHA-256 checksums and a manifest recording provenance. Streamed into memory
 experiments. **Never committed to the repository** - code and docs only, with a gitignored local
 `data/` staging path.
 
-(!) **Sizing note:** ESA-ADB is ~11.6 GB vs telemanom's 272 MB - roughly **40x more data** through
+(!) **Sizing note:** ESA-ADB is ~11.6 GB (11.53 GB measured at ingest) vs telemanom's 272 MB - roughly **40x more data** through
 the ingest. Not a blocker, but the ingest, parquet conversion and streaming approach must be
 sized for it **before** the harness is written against it.
 
@@ -641,7 +641,7 @@ detumble, first sun acquisition, first eclipse. Every value is transient and unp
 **Human operators do not know what is normal either; that is what commissioning is for.** A
 detector claiming full confidence during LEOP is lying.
 
-### 10.2 Five fixes - all adopted
+### 10.2 Five fixes - all adopted - and a sixth (3a) added 2026-08-28
 
 **[x] 1. Data-sufficiency report - the key move.**
 The training toolkit does not just produce a model. It **grades the mission's data before
@@ -903,12 +903,14 @@ replacing either.
 | 2 | **Model-file format freeze** | **Before Phase 2 starts** | It is the contract between the Python toolkit and the C++ loader. The format implication is recorded in 14.10; empirical findings from the work item 4 weight extraction are in `docs/MODELS.md` |
 | 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Resolve against the pinned F' version |
 | 4 | **Target F' version pin** | Early Phase 2 | Everything downstream depends on it |
-| 5 | **Harness base** - build on TimeEval or standalone | Now | TimeEval gives ESA-ADB-comparable metrics for free |
-| 6 | **R2 ingest sizing** for 11.6 GB | Before item 3 | 40x the previous data volume |
-| 7 | **Second independent scoring set** | Before item 7 | **Open.** No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
+| 5 | **Harness base** - build on TimeEval or standalone | Was: now | **RESOLVED 2026-08-25 - standalone** (CHANGELOG 0.3.0, Decided). TimeEval would have given ESA-ADB-comparable metrics for free; external comparability is out of Phase 1's scope (section 12) |
+| 6 | **R2 ingest sizing** for 11.6 GB | Was: before item 3 | **RESOLVED 2026-08-24** - 11.53 GB as zstd parquet in 234 objects under a 90 MiB ceiling, four channels sharded (CHANGELOG 0.2.0). 40x the previous data volume |
+| 7 | **Second independent scoring set** | Was: before item 7 | **RESOLVED in practice, and spent 2026-08-29** (docs/RESULTS.md 6k): Mission 2 carried the adoption number (4/424 rare events, 0 nominal-step alarms) and Mission 1 group 3 the recall exam. No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
 | 8 | **Normalisation policy** | Was: before the loader | **RESOLVED - identity.** ESA min-max scaled within each channel group, so amplitude ratios between related channels survive. Cross-group spanning is acceptable: those offsets are fixed, invertible and uninformative, and a model absorbs them. Per-channel rescaling is refused, because it erases the ratios and no model can recover them. Enforced at a chokepoint and by `tests/test_no_per_channel_scaler.py` |
 | 9 | **SatNOGS as subsystem-prior corpus** | Post-gate | Open. Feeds section 10.2 fix 5 - a generic power-subsystem base model that each mission fine-tunes on its own small dataset |
 | 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN.** One C++ loader, one file format, three capability tiers. Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. Detail in 14.10 |
+
+Rows of this table are cited elsewhere as `Objective.md 14.N` - decision N of the table; only 14.10 has a subsection of its own, below.
 
 ### 14.10 Tiered capability architecture (decision 10, OPEN)
 

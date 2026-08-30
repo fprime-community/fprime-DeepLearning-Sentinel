@@ -667,7 +667,7 @@ would follow the fit, was the one that held everywhere. The gate row is 9 of
 wrong reason: a bar too high to reach.
 
 **And one fit stalled, on a fold where neither cell had.** `m1-ss5` fold 2
-stopped at epoch 13 with its best at 2; section 6i's trainability finding,
+stopped at epoch 13 with its best at 2; `docs/RESULTS.md` 6i's trainability finding,
 recorded for the LSTM, now has a convolutional instance. Whether it is the
 architecture or the seed is one refit away and unclaimed.
 
@@ -681,7 +681,7 @@ cuDNN.
 table, and the documents stop where the measurements stop.
 
 **Addendum: the combination, scoped and not built.** With three rows on the
-table, the two-forecaster question banked in section 14 was measured on
+table, the two-forecaster question banked in `docs/MODELS.md` 14.7 was measured on
 cached weights in one pass, expectations first. Not nested -- six and seven
 events apart -- so the whitened precedent did not close it. An OR of the two
 cells reaches 33/46 and 25/32 on the gate set at the LSTM's own 2/48 and a

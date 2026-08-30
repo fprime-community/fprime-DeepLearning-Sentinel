@@ -1,5 +1,7 @@
 # The threshold-selector investigation
 
+*D1, D2 and D3 below name this document's three diagnostics; they are not `docs/DECISIONS.md` entries. The decisions this measurement produced are D17 and D18 there.*
+
 Work item 4. Three diagnostics on telemanom's nonparametric dynamic threshold,
 reported together, with no threshold chosen and no source changed.
 

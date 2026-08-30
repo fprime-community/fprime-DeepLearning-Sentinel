@@ -179,8 +179,8 @@ gaps and 156 invalid segments would hand it free specificity.
 | `m1-g8.9.10` | **GATE -- primary recall** | 12 channels, groups 8+9+10, one spacecraft. 46 anomalies, 32 headline cell, **11/11 point** |
 | `m1-ss5` | point-anomaly coverage, fast iteration | the 6 channels of group 8. Demoted, retained, always reported |
 | `m1-ss5-cv3` | point-anomaly coverage, folded | same channels, forward-chaining |
-| `m2-ss1` | **GATE -- adoption** | mission2, 12 channels, ~600 rare events. **Recall disabled at the task level**. **Held back**: run once, at the end, settings frozen (docs/MODELS.md section 6) |
-| `m1-g3` | **HELD BACK -- recall** | mission1 group 3, 8 channels, 14 headline-cell events, zero sub-grid-cell events. Nominated before decision-layer tuning began (docs/MODELS.md section 6); run once, at the end, settings frozen |
+| `m2-ss1` | **GATE -- adoption** | mission2, 12 channels, **424 rare events test-side** (~600 dataset-wide at nomination). **Recall disabled at the task level**. **Held back and spent**: scored once, 2026-08-29 (docs/MODELS.md section 6, docs/RESULTS.md 6k) |
+| `m1-g3` | **HELD BACK -- recall** | mission1 group 3, 8 channels, **11 anomalies, 10 headline-cell, 13 rare events test-side** (14 headline-cell at nomination, four of them in the seed window), zero sub-grid-cell events. Nominated before decision-layer tuning began (docs/MODELS.md section 6); scored once, 2026-08-29 (docs/RESULTS.md 6k) |
 | `synthetic` | fixture | generated data, zero R2 operations |
 
 ### The primary set was promoted post-hoc. Say so.

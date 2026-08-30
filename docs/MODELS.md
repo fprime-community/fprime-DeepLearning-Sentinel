@@ -169,7 +169,7 @@ weight -- and never float32 noise on a bad day.
 
 ---
 
-## 3. What this establishes for Objective.md decision 14.2
+## 3. What this establishes for Objective.md 14.2 (the model-file format)
 
 The model-file format must freeze before Phase 2. Extracting the weights turned
 several parts of that decision from theory into measurement.
@@ -797,13 +797,13 @@ segment included whatever its measured effect.
 
 ---
 
-## 10.8 The retest: what ran was not what was designed
+### 10.8 The retest: what ran was not what was designed
 
 **Written before the retest runs.** Section 10.7 records the first result and is
 not edited. This section says what is being retested and why the first attempt
 does not settle the design.
 
-### 10.8.1 The first run failed on an arithmetic error of mine, not on the design
+#### 10.8.1 The first run failed on an arithmetic error of mine, not on the design
 
 `lstm-oscfar` reproduced `lstm-quantile` exactly -- **recall 6/46, headline cell
 6/32, point 0/11, identical in all three** -- at median lead **-196.5**, worse
@@ -823,7 +823,7 @@ So **the design has not been tested.** D20 is refuted *as run* and retested *as
 intended*; both outcomes stay in the record, and if the corrected form also fails
 D20 closes on two pieces of evidence rather than one.
 
-### 10.8.2 Three arms
+#### 10.8.2 Three arms
 
 | Arm | What it is | Why |
 |---|---|---|
@@ -831,7 +831,7 @@ D20 closes on two pieces of evidence rather than one.
 | `joint` | both terms fitted so **the maximum** admits the target | the design as intended. The honest retest |
 | `local_only` | the local order statistic **with no floor** | **it has never operated.** The floor dominated every window of the first run, so there is not one measurement of the local term |
 
-### 10.8.3 PREDICTED, and `local_only` is a new arm so it is pre-registered like one
+#### 10.8.3 PREDICTED, and `local_only` is a new arm so it is pre-registered like one
 
 | # | Prediction | Reasoning |
 |---|---|---|
@@ -845,14 +845,14 @@ not ours, and no operating point is recommended from these numbers. Selecting th
 best-scoring cell would be the oracle sweep section 7 already refused, and it
 stays refused.
 
-### 10.8.4 What is reported
+#### 10.8.4 What is reported
 
 Every arm, at every admission rate, **per fold, per channel set**, `k/n`
 throughout: **binding rate** first, then recall, headline-cell recall, point
 recall, precision, rare-event false alarms, alarm ranges, and **lead time**.
 `lstm-telemanom` is the control and is unchanged.
 
-### 10.8.5 Stop and report
+#### 10.8.5 Stop and report
 
 1. **`joint` also collapses to the global rule.** That closes D20, and the next
    step is a decision rather than another variant.
@@ -863,7 +863,7 @@ recall, precision, rare-event false alarms, alarm ranges, and **lead time**.
 4. **Non-monotonic response to the admission rate.** The calibration is not doing
    what it claims and nothing downstream of it can be read.
 
-### 10.8.6 OBSERVED -- the retest
+#### 10.8.6 OBSERVED -- the retest
 
 Artifacts `runs/m1-g8.9.10/_curve/2026-08-27T2011*Z-{independent,joint,local_only}.json`.
 Nine cells, three calibrations across three admission rates, both channel sets,
@@ -917,7 +917,7 @@ different design from the one proposed and **nothing is decided here**.
 rule rather than a preference. Every other cell lands +24.0 to +34.5, all under
 10.6a's caveat.
 
-### 10.8.7 (!) The falsification condition was badly designed, and that is the finding
+#### 10.8.7 (!) The falsification condition was badly designed, and that is the finding
 
 Section 10.3 said: *if the local term binds in fewer than 10% of segments, the
 floor is doing all the work and this has collapsed back to `lstm-quantile`.*
@@ -1046,9 +1046,9 @@ co-variation scores low **even when large**, and one orthogonal to it scores hig
   direction of `S` and is down-weighted -- exactly where k-of-n rewards it.
 - *Cost:* keeping the sign, and a new detector. Both additive.
 - *Limit:* it tests **linear** co-variation and it names nothing. It would
-  improve detection without satisfying section 11 rule 4.
+  improve detection without satisfying Objective.md section 11 rule 4.
 
-**B. Lagged pair map -- the explanation layer section 7 promises.** For each pair
+**B. Lagged pair map -- the explanation layer Objective.md section 7 promises.** For each pair
 and each lag, the nominal relationship; at runtime, compare a windowed estimate
 against it and name the pair whose agreement broke.
 
@@ -1113,7 +1113,7 @@ D13's asymmetry arriving from the other side.
 reference: the whitened length `d` is compared against a **trailing local
 quantile of `d` itself**, with the multiplier calibrated on nominal residuals to
 the same noise floor. Nothing else moves -- same covariance, same smoothing, same
-`error_buffer`, pruning disabled as in section 6d.
+`error_buffer`, pruning disabled as in `docs/RESULTS.md` 6d.
 
 **And it is the design most likely to reintroduce the failure this work item
 began with.** A locally-referenced threshold is exactly what collapsed onto the
@@ -1176,7 +1176,7 @@ held at 100:
 
 | Arm | Why |
 |---|---|
-| `lstm-whitened` | the global rule at `pruning_p = 0`, giving authoritative scored numbers for the default adopted in section 6d rather than paying for a separate pass |
+| `lstm-whitened` | the global rule at `pruning_p = 0`, giving authoritative scored numbers for the default adopted in `docs/RESULTS.md` 6d rather than paying for a separate pass |
 | `lstm-whitened-local` | the local reference |
 
 ### 13.5 OBSERVED
@@ -1227,7 +1227,7 @@ measured**, and it is the obvious first thing to check if this direction is ever
 reopened.
 
 **Also settled here, with authoritative scored numbers.** The `lstm-whitened`
-column is at `pruning_p = 0` and confirms section 6d's free win: `m1-ss5`
+column is at `pruning_p = 0` and confirms `docs/RESULTS.md` 6d's free win: `m1-ss5`
 headline cell **18/31** against 15/31 at `p = 0.13`, recall 23/42 against 18/42,
 rare-event rate unmoved at 2/48. `m1-g8.9.10` is unchanged at 21/32 as measured
 before. Precision on the gate set reads 41/43 rather than 39/40, which is the

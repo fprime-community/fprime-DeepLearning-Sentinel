@@ -1662,8 +1662,8 @@ the fit reports under `runs/_weights_pod/`.
 **The sentence a reader is owed.** On the gate metric D3 named, event-wise
 F0.5, the LSTM is ahead on both sets, and **a reader weighing that metric
 alone would pick the LSTM.** The selection does not rest there. Criterion 1
-as section 8 wrote it is a tie inside the resolution the harness refuses to
-call a finding; section 8 wrote its own outcome for that case -- *"LSTM
+as Objective.md section 8 wrote it is a tie inside the resolution the harness refuses to
+call a finding; Objective.md section 8 wrote its own outcome for that case -- *"LSTM
 retained as the published-comparison baseline, with GRU or TCN selected for
 flight if it matches"* -- and the GRU matches; and on every criterion below
 the first, and on the one criterion the gate learned it needed after it was
@@ -1712,7 +1712,7 @@ set that destroys it (`docs/MODELS.md` 6).
    transfer result exists and nowhere else.** That result does not reopen
    this entry.
 
-Objective.md decision 14.1 is resolved by this entry.
+Objective.md 14.1 (row 1 of the open-decisions table) is resolved by this entry.
 
 ---
 

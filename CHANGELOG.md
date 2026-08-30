@@ -8,6 +8,60 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
+### Planned - Phase 2, and after
+
+- Phase 2: the deterministic C++ flight component from the GRU reference blueprint - FPP model,
+  static memory, no exceptions, model-file loader with Level 1 as its safe failure mode,
+  thresholds carried as recalibratable parameters outside the weights. See docs/PHASE2.md.
+- Post-gate: injected-fault sensitivity study - controlled drifts and decouplings injected into
+  real ESA-ADB telemetry, for a detection sensitivity curve and lead-time measurement. Never a
+  headline number; see Objective.md section 13.
+
+### Open decisions, and those resolved
+
+| # | Decision | Deadline |
+|---|---|---|
+| 1 | Architecture selection - LSTM vs GRU vs TCN | **Resolved 2026-08-29: the GRU (D28)** |
+| 2 | Model-file format freeze - quantized self-describing FlatBuffer, TFLite-Micro compatible; normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) | Before Phase 2 starts |
+| 3 | Channel-ingestion mechanism - telemetry-path tap vs direct port wiring | Early Phase 2 |
+| 4 | Target F' version pin | Early Phase 2 |
+| 5 | Harness base - build on TimeEval or standalone | **Resolved 2026-08-25: standalone** (0.3.0) |
+| 6 | R2 ingest sizing for 11.6 GB | **Resolved 2026-08-24: 11.53 GB in 234 objects** (0.2.0) |
+| 7 | Second independent scoring set | **Resolved in practice and spent 2026-08-29**: Mission 2 the adoption number, Mission 1 group 3 the recall exam (RESULTS.md 6k) |
+| 9 | SatNOGS as subsystem-prior corpus | Post-gate |
+| 10 | Tiered capability architecture - Level 1 / 2 / 3, one loader, one file format. Level 1 is the loader's mandatory safe failure mode | Before Phase 2 |
+
+Decision 8, normalisation policy, is **resolved**: identity. See Objective.md 14.
+
+## [0.4.0] - 2026-08-29 - Phase 1 closed (tag wi7)
+
+Phase 1 complete: the detection mathematics proven on the harness, the architecture gate passed, and the held-back transfer sets scored once. Work items 4 to 7; tags wi4 to wi7 and their Releases.
+
+### Added - work item 4, 2026-08-25 to 2026-08-28 - telemanom reproduced with a multivariate LSTM
+
+- `src/sentinel_models/lstm.py`, `reference.py`, `telemanom.py`, `detectors.py`: telemanom's
+  detection method driven by one multivariate 2x80 LSTM over the channel set (91,640 parameters,
+  358.0 KiB), trained in PyTorch and scored through a plain-NumPy reference held to 1e-5
+  (4.1e-08 measured) - the Phase 2 C++ blueprint. Every deviation from the published
+  configuration in MODELS.md section 1's ledger, ten rows.
+- The floor cleared and the thesis held: 28/32 headline-cell events on `m1-g8.9.10` against
+  `rstd`'s 3/32 (RESULTS.md 2). Fitting moved to a rented GPU, twelve fits in 15.9 minutes,
+  certified by the equivalence assertion rather than a matching environment (D15, D16).
+- D17: telemanom's published `min_delta = 3e-4` had silently disabled training for every fit in
+  the project - one epoch kept, up to 8.8x better weights discarded. Replaced by a relative
+  `min_improvement`; the forecast improved about fortyfold and the published threshold collapsed
+  from 182 to 3,548 alarm ranges (RESULTS.md 6a). Thresholds belong to the model, not the method.
+- The selection criterion measured over 5,684,580 reference windows: 92.6% chose the range
+  minimum (D18, THRESHOLD.md). OS-CFAR pre-registered, run, retested and refuted (D20, D22).
+  `lstm-whitened` built and measured - 2/48 rare-event false alarms at 21/32 (RESULTS.md 6d, D24).
+- Lead time measured from a moment the detector could reach: the reported +26 was the batching
+  latency counted backwards, the honest median is 0.0 (D21, RESULTS.md 6f); Objective.md 1.1
+  retires the early-warning claim and keeps the cross-channel one.
+- D25: the decision layer frozen as `lstm-quantile` - F0.5 0.838, recall 26/46, 21/32, 2/48,
+  nominal-step 0.002%, honest lead +0.0 on `m1-g8.9.10` (RESULTS.md 6g), identical across every
+  architecture at the gate. Telecommands wired as model inputs (`lstm-commanded`, D6, D7); the
+  ablation on post-fix weights not yet run, so every figure remains telemanom-minus-commands.
+
 ### Added - work item 5, 2026-08-28
 
 - `Hyper.cell`: the recurrent cell as a field of the LSTM's configuration, emitted only when
@@ -38,7 +92,7 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   cached weights, not built -- not nested; an OR reaches 25/32 at 2/48 on the gate set; a combined
   score recovers no gate-set solo event. Post-gate, its own decision if ever.
 
-### Phase 1 closed - 2026-08-29
+### Added - work item 7, 2026-08-29 - the gate and the held-back sets; Phase 1 closed
 
 - D28: the architecture gate selects the GRU on Objective.md section 8's criteria; the LSTM stays
   the published baseline, the TCN rows the stateless answer. `lstm-gru-or`, the union as a
@@ -50,35 +104,14 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 - D29: `gru-quantile` flies alone; the union is not adopted (its cost failed on Mission 2, its
   edge evaporated on m1-g3); the calibration's transfer is what Phase 2 inherits. `docs/PHASE2.md`.
 
-### Planned - Phase 1 work items, in order
+### Phase 1 work items, in order - all complete
 
 - Reproduce telemanom's detection method with a multivariate LSTM forecaster (done).
 - Train and score GRU (done, 2026-08-28; two stop-and-report rules fired, see RESULTS.md 6h).
 - Train and score TCN (done, 2026-08-29; see RESULTS.md 6j).
-- Pass the architecture selection gate and score the held-back sets (done, 2026-08-29; D28, D29,
-  RESULTS.md 6k). Phase 1 closed.
-- Pass the architecture selection gate. Scores `m2-ss1` as well, across LSTM, GRU, TCN, `rstd`
-  and `mavg` together, so the adoption number on an independent spacecraft is a comparison
-  rather than a lone figure.
-- Post-gate: injected-fault sensitivity study - controlled drifts and decouplings injected into
-  real ESA-ADB telemetry, for a detection sensitivity curve and lead-time measurement. Never a
-  headline number; see Objective.md section 13.
-
-### Open decisions
-
-| # | Decision | Deadline |
-|---|---|---|
-| 1 | Architecture selection - LSTM vs GRU vs TCN | **Resolved 2026-08-29: the GRU (D28)** |
-| 2 | Model-file format freeze - quantized self-describing FlatBuffer, TFLite-Micro compatible; normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) | Before Phase 2 starts |
-| 3 | Channel-ingestion mechanism - telemetry-path tap vs direct port wiring | Early Phase 2 |
-| 4 | Target F' version pin | Early Phase 2 |
-| 5 | Harness base - build on TimeEval or standalone | Now |
-| 6 | R2 ingest sizing for 11.6 GB | Before the ingest |
-| 7 | Second independent scoring set | Before item 7 |
-| 9 | SatNOGS as subsystem-prior corpus | Post-gate |
-| 10 | Tiered capability architecture - Level 1 / 2 / 3, one loader, one file format. Level 1 is the loader's mandatory safe failure mode | Before Phase 2 |
-
-Decision 8, normalisation policy, is **resolved**: identity. See Objective.md 14.
+- Pass the architecture selection gate, and score `m2-ss1` across LSTM, GRU, TCN, `rstd` and
+  `mavg` together so the adoption number on an independent spacecraft is a comparison rather
+  than a lone figure (done, 2026-08-29; D28, D29, RESULTS.md 6k). Phase 1 closed.
 
 ## [0.3.0] - 2026-08-25
 
@@ -202,7 +235,8 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases/tag/v0.1.0
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...dev
+[0.4.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi3...wi7
+[0.3.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi2...wi3
+[0.2.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi1...wi2
+[0.1.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases/tag/wi1
