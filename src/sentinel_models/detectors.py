@@ -1,0 +1,1040 @@
+"""The detector the harness actually holds: forecaster plus detection stack.
+
+`sentinel_eval` knows one thing about a model -- ``fit`` and ``score``
+(`sentinel_eval.detector`). This module is where telemanom's forecaster
+(`lstm.py`, scored through `reference.py`) meets telemanom's thresholding
+(`telemanom.py`) and comes out the other side as that contract. Item 5's GRU
+arrives through the same class -- the cell is a field of `Hyper`, and the
+detector's `cell` attribute declares which one it is -- so the two players share
+every line here; item 6 replaces the first half and keeps the second.
+
+Three things the harness's shape forces, none of them optional:
+
+**A fit must rebuild everything.** `cli.py` constructs one detector object and
+reuses it across three folds *and* both paired channel sets -- twelve channels,
+then six. Carrying anything over would either crash on the width change or,
+far worse, score fold 2 with fold 1's model.
+
+**A score must survive an eleven-million-step window.** The harness scores the
+whole training window as well, to derive an operating point, so this runs over
+33.1M timesteps per channel set. It is done in blocks whose width is a whole
+number of telemanom error windows, so blocking changes no arithmetic, and each
+block's forecast is computed as a batch of chunks warmed by a 250-step prefix --
+which is precisely the history telemanom's own windowed inference sees.
+
+**A score must be one-dimensional.** The contract permits ``(T, C)``, and
+`reduce_scores` would then cast it to float64: over an 11M-step window that is a
+gigabyte, allocated twice. So the reduction across channels happens here, and the
+attribution -- which channel diverged, the thing Objective.md 7's explanation
+layer needs -- is kept beside it as one byte per step rather than eight.
+
+Weights are cached in memory and keyed by content, so scoring `lstm-telemanom`
+and `lstm-quantile` in one invocation trains once rather than twice. Nothing
+touches disk: Rule 1, and `tests/test_no_local_persistence.py`.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
+
+from sentinel_eval.detector import Detector, reduce_scores
+
+from . import oscfar, reference, telemanom, whiten
+from .lstm import Hyper, train
+from .reference import ConvBlockWeights, ConvWeights, LayerWeights, ReferenceError, Weights
+from .windows import DEFAULT_DECAY_STEPS, aggregate_predictions, command_features
+
+#: How the score is turned into an alarm. ``ndt`` folds telemanom's moving
+#: threshold into the score so the harness's fixed cut reproduces it; ``quantile``
+#: hands the harness the raw smoothed error and lets it pick the 99.9th
+#: percentile of training scores, exactly as the trivial baselines are treated.
+NDT = "ndt"
+QUANTILE = "quantile"
+
+#: Sub-chunks run as one batch, each covering this many steps. The product is the
+#: block size, and the chunk length is a whole number of error windows so that
+#: forecasting and thresholding tile the timeline identically.
+DEFAULT_CHUNKS = 64
+DEFAULT_CHUNK_STEPS = telemanom.ERROR_WINDOW_BATCH * telemanom.ERROR_WINDOW_COUNT
+
+#: Smoothed errors are cached only while they fit in this much memory, so a
+#: 10.8M-step training window does not sit in RAM beside the resident bundle.
+ERROR_CACHE_BYTES = 256 * 1024 * 1024
+
+#: Per-channel ratios reduced to their top few, cached across a whole run rather
+#: than one window at a time. A decision-layer sweep re-scores the same folds
+#: once per grid point while changing nothing upstream of the reduction, so
+#: without this the forecaster and the dynamic threshold would be recomputed for
+#: every point in the grid -- hours, to answer a question about post-processing.
+#: Budgeted rather than counted, because windows differ by a factor of three.
+TOPS_CACHE_BYTES = 640 * 1024 * 1024
+
+#: How many channels may be required to agree. Fixed so one pass answers the
+#: whole sweep; k above this would need a deeper reduction, not a bigger cache.
+MAX_AGREEMENT = 3
+
+#: Where trained weights persist between processes. Rule 1 as stated in
+#: docs/HARNESS.md: telemetry never touches this disk, outputs under `runs/` may.
+#: A fit costs minutes and a run repeats six of them, so an experiment that only
+#: changes the decision layer should not pay for the forecaster again.
+#:
+#: The stale-checkpoint risk is closed by construction rather than by care: the
+#: filename *is* the content digest -- hyperparameters, channel set, fold window
+#: and a strided sample of the data -- so weights fitted on anything else cannot
+#: be found. `--no-cache` refuses them entirely, and no result enters
+#: docs/RESULTS.md until it has been reproduced that way.
+WEIGHT_STORE = Path(__file__).resolve().parents[2] / "runs" / "_weights"
+
+#: Set False by `--no-cache`. Reproduce from cold before publishing.
+_CACHING = True
+
+
+def set_caching(enabled: bool) -> None:
+    """Turn the weight cache off for a run that must be reproducible from cold."""
+    global _CACHING
+    _CACHING = bool(enabled)
+
+
+def caching() -> bool:
+    return _CACHING
+
+
+#: How many fits to keep. `harness.evaluate` loops detectors outermost, so by the
+#: time a second detector reaches fold 0 the first has already worked through
+#: fold 2 -- a single-entry cache would have been evicted and every fold retrained.
+#: Weights are 358 KiB at the production configuration, so holding a run's worth
+#: is free and halves the only expensive part of a paired run.
+WEIGHT_CACHE_ENTRIES = 8
+
+_WEIGHTS: dict[tuple, tuple[Weights, dict]] = {}
+_ERRORS: dict[tuple, np.ndarray] = {}
+_TOPS: dict[tuple, tuple[np.ndarray, np.ndarray]] = {}
+
+
+def clear_caches() -> None:
+    """Drop everything held between detectors. Called by tests, never by a run."""
+    _WEIGHTS.clear()
+    _ERRORS.clear()
+    _TOPS.clear()
+
+
+def _store_path(key: str) -> Path:
+    return WEIGHT_STORE / f"{key}.npz"
+
+
+def _save_weights(key: str, weights: Weights | ConvWeights, report: dict) -> None:
+    arrays: dict = {"n_channels": np.int64(weights.n_channels),
+                    "window": np.int64(weights.window),
+                    "n_predictions": np.int64(weights.n_predictions),
+                    "n_exogenous": np.int64(weights.n_exogenous),
+                    "n_layers": np.int64(len(weights.layers)),
+                    # The cell is derivable from the arrays -- the gate count for
+                    # the two cells, the kernel axis for the TCN -- and is written
+                    # anyway so the file says what it is: a format that has to be
+                    # inferred by a reader is not a format. Verified on load,
+                    # never merely read: a field written and not checked is D16.
+                    "cell": np.array(weights.cell),
+                    "report": np.array(json.dumps(report))}
+    arrays.update(dict(weights.arrays()))
+    if isinstance(weights, ConvWeights):
+        arrays["dilations"] = np.asarray([b.dilation for b in weights.blocks], dtype=np.int64)
+    WEIGHT_STORE.mkdir(parents=True, exist_ok=True)
+    np.savez(_store_path(key), **arrays)
+
+
+def _load_weights(key: str) -> tuple[Weights, dict] | None:
+    path = _store_path(key)
+    if not path.exists():
+        return None
+    try:
+        with np.load(path, allow_pickle=False) as blob:
+            if "cell" in blob.files and str(blob["cell"]) == "tcn":
+                return _load_conv_weights(blob), json.loads(str(blob["report"]))
+            layers = tuple(
+                LayerWeights(*(blob[f"l{i}_{name}"]
+                               for name in ("w_ih", "w_hh", "b_ih", "b_hh")))
+                for i in range(int(blob["n_layers"]))
+            )
+            n_channels = int(blob["n_channels"])
+            # Inferred when absent, because the field postdates the first files
+            # written: the input width is in the weights themselves, so this is
+            # exact rather than a guess. A file saved before the exogenous count
+            # existed describes a model with none, and one saved after says so.
+            exogenous = (int(blob["n_exogenous"]) if "n_exogenous" in blob.files
+                         else layers[0].n_in - n_channels)
+            weights = Weights(layers=layers, head_w=blob["head_w"],
+                              head_b=blob["head_b"],
+                              n_channels=n_channels,
+                              window=int(blob["window"]),
+                              n_predictions=int(blob["n_predictions"]),
+                              n_exogenous=exogenous)
+            # Files older than the field carry no `cell`; their gate count says
+            # what they are. Files that carry one must agree with their arrays.
+            if "cell" in blob.files and str(blob["cell"]) != weights.cell:
+                raise ReferenceError(
+                    f"{path.name} says {str(blob['cell'])!r} but its arrays are "
+                    f"{weights.cell!r}"
+                )
+            return weights, json.loads(str(blob["report"]))
+    except Exception:
+        # A truncated or unreadable file is a cache miss, never a wrong answer:
+        # the filename is a content digest, so refitting reproduces it exactly.
+        #
+        # That safety is also how a real defect stayed quiet: `n_exogenous` was
+        # not being written, so every commanded model failed to reconstruct here
+        # and was silently refitted. Correct, and an hour of wasted fitting. A
+        # cache that fails safe still has to be checked.
+        return None
+
+
+def _load_conv_weights(blob) -> ConvWeights:
+    """A TCN file, by its own keys. Raises on anything malformed; the caller
+    turns that into a cache miss."""
+    dilations = [int(d) for d in blob["dilations"]]
+    blocks = tuple(
+        ConvBlockWeights(
+            w1=blob[f"b{i}_w1"], b1=blob[f"b{i}_b1"], w2=blob[f"b{i}_w2"], b2=blob[f"b{i}_b2"],
+            res_w=blob[f"b{i}_res_w"] if f"b{i}_res_w" in blob.files else None,
+            res_b=blob[f"b{i}_res_b"] if f"b{i}_res_b" in blob.files else None,
+            dilation=dilations[i],
+        )
+        for i in range(int(blob["n_layers"]))
+    )
+    return ConvWeights(blocks=blocks, head_w=blob["head_w"], head_b=blob["head_b"],
+                       n_channels=int(blob["n_channels"]), window=int(blob["window"]),
+                       n_predictions=int(blob["n_predictions"]),
+                       n_exogenous=int(blob["n_exogenous"]))
+
+
+def _digest(*parts) -> str:
+    hasher = hashlib.blake2b(digest_size=16)
+    for part in parts:
+        if isinstance(part, np.ndarray):
+            hasher.update(str(part.shape).encode())
+            hasher.update(np.ascontiguousarray(part).tobytes())
+        else:
+            hasher.update(repr(part).encode())
+    return hasher.hexdigest()
+
+
+def _sample_digest(values: np.ndarray, stride: int = 997) -> str:
+    """Cheap content fingerprint. Strided, because hashing 530 MB per call is not."""
+    return _digest(values.shape, values.dtype.str, values[::stride], values[:1], values[-1:])
+
+
+def _weights_digest(weights: Weights | ConvWeights) -> str:
+    return _digest(*(a for _, a in weights.arrays()))
+
+
+class ForecastDetector(Detector):
+    """A forecaster plus telemanom's detection stack, as one scoreable object."""
+
+    name = "lstm-telemanom"
+
+    #: Which recurrent cell this detector is. Declared on the class and checked
+    #: against `hyper.cell` at construction, so a GRU detector handed an LSTM
+    #: `Hyper` (or the reverse) is refused rather than silently becoming the
+    #: other architecture -- the fixture-scale `Hyper(...)` the tests pass in
+    #: would otherwise do exactly that.
+    cell = "lstm"
+
+    #: Whether this detector wants telecommands supplied. The composition root
+    #: reads it *before* loading, so the bundle knows whether to spend the two
+    #: Class B on fetching them. False here: `lstm-telemanom` is the control arm
+    #: of the ablation and must see exactly what it has always seen.
+    wants_commands = False
+
+    def __init__(self, *, hyper: Hyper | None = None,
+                 config: telemanom.Config | None = None, mode: str = NDT,
+                 agreement: int = 1,
+                 chunks: int = DEFAULT_CHUNKS, chunk_steps: int = DEFAULT_CHUNK_STEPS,
+                 decay_steps: int = DEFAULT_DECAY_STEPS,
+                 reuse_weights: bool = True) -> None:
+        if mode not in (NDT, QUANTILE):
+            raise ReferenceError(f"unknown mode {mode!r}; expected {NDT!r} or {QUANTILE!r}")
+        if not 1 <= int(agreement) <= MAX_AGREEMENT:
+            raise ReferenceError(
+                f"agreement must be between 1 and {MAX_AGREEMENT}, got {agreement}"
+            )
+        self.agreement = int(agreement)
+        self.hyper = hyper if hyper is not None else Hyper(cell=self.cell)
+        if self.hyper.cell != self.cell:
+            raise ReferenceError(
+                f"{self.name} is a {self.cell!r} detector and was handed "
+                f"Hyper(cell={self.hyper.cell!r})"
+            )
+        self.config = config or telemanom.Config()
+        self.mode = mode
+        self.chunks = int(chunks)
+        self.chunk_steps = int(chunk_steps)
+        self.reuse_weights = reuse_weights
+        self.decay_steps = int(decay_steps)
+        super().__init__(mode=mode, agreement=self.agreement,
+                         **self.hyper.as_dict(), **self.config.as_dict())
+
+        self._weights: Weights | ConvWeights | None = None
+        self._fill: np.ndarray | None = None
+        self._impulses: np.ndarray | None = None
+        self._fit_window: tuple[int, int] | None = None
+        self.report: dict | None = None
+        self.last_attribution: np.ndarray | None = None
+        #: Where this detector could actually speak -- see `sentinel_eval.detector`.
+        self.last_emission: np.ndarray | None = None
+
+    # -- contract ----------------------------------------------------------
+    @property
+    def warmup_steps(self) -> int:
+        """Enough history for both the recurrence and the first error window.
+
+        A fold scored from its first timestep would otherwise open with a cold
+        LSTM state *and* a threshold derived from errors that do not exist yet,
+        and a fold boundary would look exactly like an anomaly.
+        """
+        return self.hyper.window + self.config.error_window
+
+    def fit(self, values, usable, context) -> None:
+        """Learn normality from the window the harness stripped of anomalies.
+
+        ``usable`` is intersected with what is actually observed. That should be
+        redundant -- `sentinel_eval.bundle.load` folds unobserved steps into
+        `truth.unscorable`, and `splits.train_mask` removes them -- but
+        `Bundle.subset` rebuilds its truth from the labels alone and never reads
+        `self.valid`, so a subset's mask marks gap timesteps usable. The trivial
+        baselines never noticed: they are NaN-tolerant by construction. A
+        forecaster is not, and a NaN entering the recurrence makes every
+        subsequent state NaN.
+
+        Intersecting here is right on its own terms regardless of that: *usable*
+        can only mean what the model is able to learn from, and a 1-D mask cannot
+        express which of C channels went missing. See docs/MODELS.md section 5.
+        """
+        self._weights = self._fill = self.report = None
+        values = np.asarray(values)
+        usable = np.asarray(usable, dtype=bool) & np.isfinite(values).all(axis=1)
+
+        impulses = context.commands if self.wants_commands else None
+        if self.wants_commands and impulses is None:
+            raise ReferenceError(
+                f"{self.name} needs telecommands and the bundle carries none. The "
+                f"composition root supplies them when a detector asks; a script "
+                f"calling the harness directly must pass telecommands= to "
+                f"bundle.load"
+            )
+
+        key = (self.hyper.as_dict_key(), context.channels, context.fold,
+               context.window, values.shape, _sample_digest(values),
+               _digest(usable[::997]),
+               None if impulses is None else _sample_digest(impulses))
+        reuse = self.reuse_weights and caching()
+        digest = _digest(key)
+        cached = (_WEIGHTS.get(key) or _load_weights(digest)) if reuse else None
+        if cached is None:
+            weights, report = train(values, usable, self.hyper, fold=context.fold,
+                                    impulses=impulses)
+            cached = (weights, report.as_dict())
+            if reuse:
+                _save_weights(digest, *cached)
+        if reuse:
+            while len(_WEIGHTS) >= WEIGHT_CACHE_ENTRIES:
+                _WEIGHTS.pop(next(iter(_WEIGHTS)))          # oldest first
+            _WEIGHTS[key] = cached
+
+        self._weights, self.report = cached
+        self._impulses = impulses
+        self._fit_window = context.window
+        rows = values[usable] if usable.any() else values
+        with np.errstate(invalid="ignore"):
+            self._fill = np.nanmean(rows, axis=0).astype(np.float32)
+        self._fill = np.nan_to_num(self._fill, nan=0.0)
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if self._weights is None:
+            raise ReferenceError("score() before fit(); the harness always fits first")
+        values = np.asarray(values)
+        if self.wants_commands:
+            # This window's commands, not the fit window's. The harness slices
+            # them exactly as it slices the values, warm-up included.
+            self._impulses = context.commands
+
+        if self.mode == QUANTILE:
+            # Through the cache, exactly as NDT mode is. Reducing straight from
+            # `_smoothed_errors` here would recompute the forecast and the
+            # smoothing for every point of a decision-layer grid, which is the
+            # cost the cache exists to avoid -- and quantile mode is the branch
+            # the next grid sweeps.
+            top, self.last_attribution, self.last_emission = self._tops(values, context)
+            combined = top[self.agreement - 1]
+        elif context.window == self._fit_window:
+            # The harness scores the *fitting* window too, to derive an operating
+            # point -- and in NDT mode `threshold_from` returns a fixed 1.0 and
+            # never looks at these scores. Running the dynamic threshold over
+            # 22.1M steps to produce a number nothing reads is two thirds of a
+            # run's scoring cost.
+            #
+            # What comes back is the smoothed error itself, not a placeholder, so
+            # a caller that did consult it would get a real quantity rather than
+            # nonsense -- and `test_the_ndt_operating_point_ignores_its_argument`
+            # pins the invariant that makes skipping safe.
+            smoothed = self._smoothed_errors(values, context)
+            combined = smoothed.max(axis=1)
+            self.last_attribution = smoothed.argmax(axis=1).astype(np.int8)
+            self.last_emission = None
+        else:
+            # The cache is consulted before the errors are computed, not after.
+            # Checking afterwards would recompute the forecast and the smoothing
+            # for every point of a decision-layer grid -- the expensive two thirds
+            # of the work, to answer a question about the cheap third.
+            top, self.last_attribution, self.last_emission = self._tops(values, context)
+            combined = top[self.agreement - 1]
+
+        observed = np.isfinite(np.asarray(values, dtype=np.float32)).all(axis=1)
+        if valid is not None:
+            observed &= np.asarray(valid, dtype=bool).all(axis=1)
+        combined = combined.astype(np.float64)
+        combined[~observed] = -np.inf      # nothing measured is never an alarm
+        return combined
+
+    def threshold_from(self, train_scores):
+        """NDT already chose its operating point; the harness's cut is 1.0.
+
+        telemanom's threshold moves with the data, which the contract's single
+        scalar cannot express -- so it lives inside the score instead, and this
+        returns the fixed point at which that score means "anomalous". In
+        ``quantile`` mode the base class's label-free 99.9th percentile applies
+        unchanged, which is the whole purpose of that variant.
+        """
+        if self.mode == NDT:
+            return 1.0
+        return super().threshold_from(train_scores)
+
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
+        """The top-``MAX_AGREEMENT`` per-channel ratios, cached across the run.
+
+        Keyed on everything upstream of the reduction and on nothing downstream,
+        so every value of ``agreement`` reads the same computation. That is what
+        turns a decision-layer grid from hours into one scoring pass.
+        """
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               self.mode)          # ratios and raw errors are not interchangeable
+        cached = _TOPS.get(key)
+        if cached is not None:
+            return cached
+
+        smoothed = self._smoothed_errors(values, context)
+        if self.mode == QUANTILE:
+            # No dilation on this path: `top_columns` thresholds the raw smoothed
+            # errors and the harness cuts them, so a crossing IS the emission.
+            result = telemanom.top_columns(smoothed, depth=MAX_AGREEMENT) + (None,)
+        else:
+            emission = np.zeros(smoothed.shape[0], dtype=bool)
+            top, who = telemanom.top_ratios(smoothed, self.config,
+                                            depth=MAX_AGREEMENT, emission=emission)
+            result = (top, who, emission)
+        del smoothed
+        cost = result[0].nbytes + result[1].nbytes
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
+        while _TOPS and held + cost > TOPS_CACHE_BYTES:
+            evicted = _TOPS.pop(next(iter(_TOPS)))          # oldest first
+            held -= evicted[0].nbytes + evicted[1].nbytes
+        if cost <= TOPS_CACHE_BYTES:
+            _TOPS[key] = result
+        return result
+
+    # -- forecasting -------------------------------------------------------
+    def _smoothed_errors(self, values: np.ndarray, context) -> np.ndarray:
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), self.config.smoothing_window)
+        cached = _ERRORS.get(key)
+        if cached is not None:
+            return cached
+
+        filled = self._filled(values)
+        steps, channels = filled.shape
+        smoothed = np.empty((steps, channels), dtype=np.float32)
+        ewma_state = telemanom.EwmaState()
+        block = self.chunks * self.chunk_steps
+
+        for lo in range(0, steps, block):
+            hi = min(lo + block, steps)
+            forecast = self._forecast(filled, lo, hi)
+            errors = np.abs(filled[lo:hi] - forecast)
+            smoothed[lo:hi] = telemanom.ewma(errors, self.config.smoothing_window,
+                                             ewma_state)
+
+        if smoothed.nbytes <= ERROR_CACHE_BYTES:
+            _ERRORS.clear()
+            _ERRORS[key] = smoothed
+        return smoothed
+
+    def _forecast(self, filled: np.ndarray, lo: int, hi: int) -> np.ndarray:
+        """One-step-ahead forecast for ``[lo, hi)``, as a batch of warmed chunks.
+
+        Every chunk is preceded by ``window`` real timesteps and starts from a
+        zero state, so it sees exactly the history a telemanom window sees. The
+        forecast for timestep ``t`` is built only from inputs strictly before
+        ``t`` -- :func:`~sentinel_models.windows.aggregate_predictions` averages
+        predictions made at ``t-1`` and earlier -- so nothing here can peek.
+        """
+        window = self.hyper.window
+        starts = list(range(lo, hi, self.chunk_steps))
+        lengths = [min(self.chunk_steps, hi - s) for s in starts]
+        span = window + max(lengths)
+
+        batch = np.empty((len(starts), span, filled.shape[1]), dtype=np.float32)
+        for i, start in enumerate(starts):
+            front = max(0, window - start)          # history that does not exist yet
+            take = filled[start - window + front:start + lengths[i]]
+            back = span - front - take.shape[0]     # a short final chunk
+            pieces = [np.repeat(take[:1], front, axis=0)] if front else []
+            pieces.append(take)
+            if back:
+                pieces.append(np.repeat(take[-1:], back, axis=0))
+            batch[i] = np.concatenate(pieces) if len(pieces) > 1 else take
+            # Whatever the padding, absolute step `start` lands at index `window`.
+
+        if self._weights.n_exogenous:
+            # The same two features per command the model was fitted on, derived
+            # for exactly these chunks. Each chunk's window begins at
+            # `start - window`, which is where its first row came from above.
+            features = command_features(
+                self._impulses, np.asarray([s - window for s in starts]),
+                span, self.decay_steps)
+            batch = np.concatenate([batch, features], axis=2)
+
+        predictions, _ = reference.forward(self._weights, batch)
+        out = np.empty((hi - lo, filled.shape[1]), dtype=np.float32)
+        for i, start in enumerate(starts):
+            aggregated = aggregate_predictions(predictions[i])
+            out[start - lo:start - lo + lengths[i]] = aggregated[window:window + lengths[i]]
+        return out
+
+    def _filled(self, values: np.ndarray) -> np.ndarray:
+        """Replace unobserved values so a gap cannot poison the recurrent state.
+
+        Held forward from the last observation, and from the training-window mean
+        where nothing precedes it. The steps concerned are excluded from the
+        metrics by the harness anyway (they are unscorable), and their scores are
+        forced to ``-inf`` in :meth:`score`; the fill exists only so that the
+        arithmetic downstream stays finite.
+        """
+        values = np.asarray(values, dtype=np.float32)
+        if np.isfinite(values).all():
+            return np.ascontiguousarray(values)
+
+        filled = values.copy()
+        missing = ~np.isfinite(filled)
+        filled[missing] = np.nan
+        for c in range(filled.shape[1]):
+            column = filled[:, c]
+            gaps = np.isnan(column)
+            if not gaps.any():
+                continue
+            index = np.where(~gaps, np.arange(column.shape[0]), 0)
+            np.maximum.accumulate(index, out=index)
+            column[:] = column[index]
+            column[np.isnan(column)] = self._fill[c]
+        return filled
+
+
+class TelemanomGuarded(ForecastDetector):
+    """telemanom's rule with CFAR guard cells. The variant, not the baseline.
+
+    The reference window excludes the segment it judges, so a sustained event
+    cannot raise the bar it has to clear. `docs/MODELS.md` deviation 6 records
+    that our window is `e_s[seg_lo - 2100 : seg_hi]` -- 2,170 samples with the
+    judged segment inside -- which is the guard-cell violation
+    `docs/RESEARCH.md` describes from radar practice, now confirmed in our own
+    code. Measured as an arm rather than assumed either way.
+    """
+
+    name = "lstm-telemanom-guarded"
+
+    def __init__(self, **kwargs) -> None:
+        config = kwargs.pop("config", None) or telemanom.Config()
+        super().__init__(config=type(config)(**{**vars(config), "guard_segment": True}),
+                         **kwargs)
+
+
+class OSCFARDetector(ForecastDetector):
+    """A local order statistic under a nominal floor. `sentinel_models.oscfar`.
+
+    Same forecaster, same cached weights, same folds, same bundle as
+    `lstm-telemanom`. **The decision rule is the only thing that differs**, which
+    is what made the telemanom/quantile pair informative and is the only way this
+    pair can be.
+
+    Pre-registered in `docs/MODELS.md` section 10 before its first run, including
+    the condition that falsifies it: if the local term binds in fewer than 10% of
+    segments, the floor is doing all the work and this is a rediscovery of
+    `lstm-quantile` rather than a new rule.
+    """
+
+    name = "lstm-oscfar"
+
+    def __init__(self, *, config: oscfar.Config | None = None, **kwargs) -> None:
+        kwargs.pop("mode", None)
+        super().__init__(config=config or oscfar.Config(), mode=NDT, **kwargs)
+        self.calibration: oscfar.Calibration | None = None
+        self.binding = None
+        self._fit_usable: np.ndarray | None = None
+
+    def fit(self, values, usable, context) -> None:
+        # A calibration belongs to the fit that produced it; carrying one across
+        # folds would be the stale-checkpoint failure in a different costume.
+        self.calibration, self.binding = None, None
+        super().fit(values, usable, context)
+        # The mask the harness gives to fit and withholds from score. Without it
+        # the floor is a quantile of a pool containing the anomalies it exists to
+        # sit above -- docs/NARRATIVE.md section 6.
+        self._fit_usable = (np.asarray(usable, dtype=bool)
+                            & np.isfinite(np.asarray(values)).all(axis=1))
+        # The report dict comes out of the shared weight cache, so it is copied
+        # before anything is written into it. `harness._score_fold` captures this
+        # object by reference straight after the fit, which is how the binding
+        # rate reaches the artifact without the harness learning about this rule.
+        self.report = dict(self.report or {})
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if context.window == self._fit_window and self.calibration is None:
+            # The harness scores the fitting window before the test window, to
+            # derive an operating point. That window is normal-only
+            # (`splits.train_mask`), so it is exactly the nominal pool both
+            # multipliers are fitted on -- and its forecast is being computed
+            # here anyway, so the calibration is free.
+            nominal = self._smoothed_errors(np.asarray(values), context)
+            if self._fit_usable is None or self._fit_usable.shape[0] != nominal.shape[0]:
+                raise ReferenceError(
+                    f"{self.name} has no nominal mask for this window; calibrating "
+                    f"on the unmasked fitting window is the defect in "
+                    f"docs/NARRATIVE.md section 6. Refusing rather than repeating it."
+                )
+            self.calibration = oscfar.calibrate(nominal, self.config,
+                                                usable=self._fit_usable)
+        return super().score(values, valid, context)
+
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
+        if self.calibration is None:
+            raise ReferenceError(
+                f"{self.name} scored a window before it was calibrated. The "
+                f"harness scores the fitting window first and that is where the "
+                f"nominal pool comes from; a caller driving the detector directly "
+                f"must do the same."
+            )
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               _digest(self.calibration.alpha, self.calibration.floor), self.mode)
+        cached = _TOPS.get(key)
+        if cached is not None:
+            return cached
+
+        smoothed = self._smoothed_errors(values, context)
+        top, who, binding = oscfar.top_ratios(smoothed, self.config, self.calibration,
+                                              depth=MAX_AGREEMENT)
+        emission = None                      # not instrumented; falls back to alarms
+        self.binding = binding
+        # docs/MODELS.md section 10.3 names this as the number that falsifies the
+        # design, and the first run inferred it from the outcome instead of
+        # producing it. A number not read from an artifact is not a number.
+        if isinstance(self.report, dict):
+            self.report["binding_rate"] = round(float(binding), 6)
+            self.report["calibration"] = self.calibration.as_dict()
+        del smoothed
+        result = (top, who, emission)
+        cost = top.nbytes + who.nbytes
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
+        while _TOPS and held + cost > TOPS_CACHE_BYTES:
+            evicted = _TOPS.pop(next(iter(_TOPS)))
+            held -= evicted[0].nbytes + evicted[1].nbytes
+        if cost <= TOPS_CACHE_BYTES:
+            _TOPS[key] = result
+        return result
+
+
+class OSCFARGuarded(OSCFARDetector):
+    """The proposed rule with CFAR guard cells. The fourth arm."""
+
+    name = "lstm-oscfar-guarded"
+
+    def __init__(self, *, config: oscfar.Config | None = None, **kwargs) -> None:
+        config = config or oscfar.Config()
+        super().__init__(config=type(config)(**{**vars(config), "guard_segment": True}),
+                         **kwargs)
+
+
+class WhitenedDetector(ForecastDetector):
+    """The decision layer that tests the relationship. `sentinel_models.whiten`.
+
+    Every other detector here reduces the residual to C independent error series
+    before the alarm rule sees it, so the rule asks *did errors get large* where
+    the project's claim is *did the relationship break* (`docs/DECISIONS.md`
+    D23). This one scores the whitened length of the **signed** residual vector
+    against its nominal covariance, which is one number per timestep and is a
+    relationship test: a residual consistent with normal co-variation scores low
+    however large, one orthogonal to it scores high however small.
+
+    A commanded manoeuvre moves channels together in the pattern the forecaster
+    already learned, so it lies along a high-variance direction and is divided
+    down -- which is the same mechanism that makes it a false alarm under
+    `k`-of-`n`, running the other way.
+
+    **`k`-of-`n` does not apply and is refused rather than ignored.** Agreement
+    counts how many channels independently exceeded; here there is one joint
+    score and nothing to count. That is the point of the stage, not a limitation
+    of it.
+    """
+
+    name = "lstm-whitened"
+
+    def __init__(self, *, config: whiten.Config | None = None, **kwargs) -> None:
+        kwargs.pop("mode", None)
+        if int(kwargs.get("agreement", 1)) != 1:
+            raise ReferenceError(
+                f"{self.name} scores one joint series, so channel agreement has "
+                f"nothing to count. Refused rather than silently ignored"
+            )
+        super().__init__(config=config or whiten.Config(), mode=NDT, **kwargs)
+        self.whitening: whiten.Whitening | None = None
+        self._fit_usable: np.ndarray | None = None
+
+    def fit(self, values, usable, context) -> None:
+        self.whitening = None
+        super().fit(values, usable, context)
+        self.report = dict(self.report or {})
+        # `harness._score_fold` hands the mask to fit and NOT to score, so the
+        # calibration would otherwise read the anomalies inside the fitting
+        # window as nominal -- docs/NARRATIVE.md section 6. Kept here because
+        # this is the only place it is offered.
+        self._fit_usable = (np.asarray(usable, dtype=bool)
+                            & np.isfinite(np.asarray(values)).all(axis=1))
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if context.window == self._fit_window and self.whitening is None:
+            self.whitening = self._whiten_on(np.asarray(values), context)
+            self.report["whitening"] = self.whitening.as_dict()
+        return super().score(values, valid, context)
+
+    def _signed_blocks(self, values, context):
+        """Signed, smoothed residual, block by block. The sign is the point.
+
+        `ForecastDetector._smoothed_errors` takes ``np.abs`` of the residual,
+        which makes *both channels rising together* and *one rising while the
+        other falls* the same number -- and that difference is the whole of the
+        relationship (`docs/MODELS.md` 12.1). Same forecast, same EWMA span, same
+        blocking and the same carried state, so nothing else differs.
+        """
+        filled = self._filled(np.asarray(values))
+        state = telemanom.EwmaState()
+        block = self.chunks * self.chunk_steps
+        for lo in range(0, filled.shape[0], block):
+            hi = min(lo + block, filled.shape[0])
+            forecast = self._forecast(filled, lo, hi)
+            yield telemanom.ewma(filled[lo:hi] - forecast, self.config.smoothing_window,
+                                 state)
+
+    def _whiten_on(self, values, context) -> whiten.Whitening:
+        """Fit the covariance on the fitting window, which is normal-only.
+
+        `splits.train_mask` removed annotated anomalies before the fit, so this is
+        the pre-launch calibration a mission performs on its own data. No label is
+        consulted, and the harness is already forecasting this window to derive an
+        operating point, so the pass is not an extra one.
+        """
+        mask = self._fit_usable
+        if mask is None or mask.shape[0] != np.asarray(values).shape[0]:
+            raise ReferenceError(
+                f"{self.name} has no nominal mask for this window. Calibrating on "
+                f"the unmasked fitting window sets the threshold partly from the "
+                f"anomalies inside it, which is the defect in docs/NARRATIVE.md "
+                f"section 6. Refusing rather than repeating it."
+            )
+        accumulator, at = None, 0
+        for smoothed in self._signed_blocks(values, context):
+            if accumulator is None:
+                accumulator = whiten.Accumulator(smoothed.shape[1],
+                                                 self.config.sample_stride)
+            accumulator.add(smoothed, mask[at:at + smoothed.shape[0]])
+            at += smoothed.shape[0]
+        if accumulator is None:
+            raise ReferenceError("no residual to fit a covariance on")
+        return accumulator.finish(self.config)
+
+    def _tops(self, values, context) -> tuple[np.ndarray, np.ndarray]:
+        if self.whitening is None:
+            raise ReferenceError(
+                f"{self.name} scored a window before its covariance was fitted. The "
+                f"harness scores the fitting window first and that is the nominal pool"
+            )
+        key = (_weights_digest(self._weights), context.window, values.shape,
+               _sample_digest(values), _digest(sorted(self.config.as_dict().items())),
+               _digest(self.whitening.precision, self.whitening.mean), self.mode)
+        cached = _TOPS.get(key)
+        if cached is not None:
+            return cached
+
+        pieces = [b for b in self._signed_blocks(values, context)]
+        signed = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
+        del pieces
+        emission = np.zeros(signed.shape[0], dtype=bool)
+        scored, who = whiten.ratios(signed, self.config, self.whitening,
+                                    emission=emission)
+        del signed
+        # One joint series, broadcast to the reduction's shape so the harness's
+        # `top[agreement - 1]` indexing is unchanged. Every level is the same
+        # series, which is exactly what "there is nothing to agree" means.
+        top = np.repeat(scored[None, :], MAX_AGREEMENT, axis=0)
+        result = (top, who, emission)
+        cost = top.nbytes + who.nbytes
+        held = sum(a.nbytes + b.nbytes for a, b, _ in _TOPS.values())
+        while _TOPS and held + cost > TOPS_CACHE_BYTES:
+            evicted = _TOPS.pop(next(iter(_TOPS)))
+            held -= evicted[0].nbytes + evicted[1].nbytes
+        if cost <= TOPS_CACHE_BYTES:
+            _TOPS[key] = result
+        return result
+
+
+class WhitenedLocal(WhitenedDetector):
+    """The relationship test with a **local** reference instead of a global one.
+
+    Pre-registered in `docs/MODELS.md` section 13 before its first run, collapse
+    signature and all. The whitened length is compared against a trailing
+    quantile of itself rather than one global quantile of the nominal pool -- the
+    only change, so the pair isolates *where the threshold comes from* and
+    nothing else.
+
+    This is the shape that collapsed onto the noise floor when the forecaster
+    improved (D17, D18), and `whiten.Accumulator.finish` refuses to score if the
+    fitted rule admits more than twice its target on nominal data.
+    """
+
+    name = "lstm-whitened-local"
+
+    def __init__(self, *, config: whiten.Config | None = None, **kwargs) -> None:
+        config = config or whiten.Config()
+        super().__init__(config=type(config)(**{**vars(config),
+                                                "local_reference": True}), **kwargs)
+
+
+class TelemanomQuantile(ForecastDetector):
+    """Same forecaster and cached weights; the harness picks the threshold.
+
+    The diagnostic that separates *the forecaster is weak* from *the thresholder
+    is wrong*. If this scores far better than `lstm-telemanom`, the nonparametric
+    dynamic threshold is not earning its place on ESA-ADB and we report that
+    rather than quietly keeping the winner.
+    """
+
+    name = "lstm-quantile"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(mode=QUANTILE, **kwargs)
+
+
+class TelemanomCommanded(ForecastDetector):
+    """The same detector, with telecommands as exogenous inputs. The other arm.
+
+    telemanom feeds its LSTM telemetry **and** encoded command information
+    (`docs/DECISIONS.md` D6); `lstm-telemanom` is what we built without that, and
+    this is the reproduction completed. The two differ in **that alone** --
+    identical architecture, hyperparameters, folds, seeds and detection stack --
+    which is what makes the pair an ablation rather than a comparison.
+
+    No ESA-ADB paper has published this ablation. The delta is the result,
+    whichever way it lands, and the magnitude is genuinely unknown: ESA's own
+    baselines got *worse* precision when telecommands were added, though they
+    cannot exploit them and this can. `docs/RESEARCH.md` marks that as the
+    thinnest and most consequential evidence in the project.
+    """
+
+    name = "lstm-commanded"
+    wants_commands = True
+
+
+#: The deliberately tiny configuration the smoke detectors run on the fixture.
+#: One definition, so the LSTM and the GRU smoke arms differ by the cell alone.
+SMOKE_HYPER = Hyper(window=60, hidden=(24, 24), n_predictions=5, batch_size=32,
+                    max_epochs=8, patience=3, sequence_budget_divisor=4,
+                    max_validation_sequences=256)
+SMOKE_CONFIG = telemanom.Config(error_window=420, stride=14, smoothing_window=21,
+                                error_buffer=20)
+SMOKE_CHUNKING = dict(chunk_steps=420, chunks=16)
+
+
+class TelemanomSmoke(ForecastDetector):
+    """A deliberately tiny configuration for the fixture and for development.
+
+    **Never a result.** It exists so that the whole pipeline -- sample, train,
+    forecast, smooth, threshold, prune, score -- runs end to end in seconds
+    against generated data at zero R2 operations.
+    """
+
+    name = "lstm-smoke"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(hyper=SMOKE_HYPER, config=SMOKE_CONFIG, **SMOKE_CHUNKING,
+                         **kwargs)
+
+
+# -- work item 5: the GRU ----------------------------------------------------
+class GRUForecastDetector(ForecastDetector):
+    """The same detector with the GRU cell. Nothing else differs.
+
+    `Hyper(cell="gru")` is the whole of the difference: the same window, layers,
+    dropout, loss, optimiser, batch, epoch cap, patience, relative stopping rule
+    and seeds, fitted by the same `lstm.train` and scored through the same
+    detection stack. Its weights are keyed apart from the LSTM's by that one
+    field and cannot collide with them (docs/DECISIONS.md D26).
+
+    This is telemanom's decision stack on a GRU forecast -- the reproduction
+    reading beside `lstm-telemanom`. It is **not** the gate arm; that is
+    `gru-quantile`, on the frozen decision layer (D25).
+    """
+
+    name = "gru-telemanom"
+    cell = "gru"
+
+
+class GRUQuantile(GRUForecastDetector):
+    """The gate arm. The frozen decision layer (D25) on the GRU's residuals.
+
+    Identical to `lstm-quantile` in every stage after the forecast -- per-channel
+    EWMA, max across channels, one label-free quantile of the fitting window's
+    scores -- so the row it produces differs from the LSTM's by the cell alone.
+    """
+
+    name = "gru-quantile"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(mode=QUANTILE, **kwargs)
+
+
+class GRUSmoke(GRUForecastDetector):
+    """`lstm-smoke` with the GRU cell. Fixture and development only; never a result."""
+
+    name = "gru-smoke"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(hyper=replace(SMOKE_HYPER, cell="gru"), config=SMOKE_CONFIG,
+                         **SMOKE_CHUNKING, **kwargs)
+
+
+# -- work item 6: the TCN ----------------------------------------------------
+#: The flown TCN shape: six residual blocks of 50 channels, kernel 3, dilations
+#: 1 to 32 -- receptive field 253, the first standard shape past l_s = 250, at
+#: 91,670 parameters against the LSTM's 91,640 (docs/MODELS.md section 16).
+#: Everything else is telemanom's configuration, shared with both cells.
+TCN_HYPER = Hyper(cell="tcn", hidden=(50,) * 6, kernel=3)
+
+
+class TCNForecastDetector(ForecastDetector):
+    """The same detector on a temporal convolutional forecaster. Nothing else differs.
+
+    Stateless by construction: every forecast reads the last 253 inputs and
+    nothing before them, which is what the chunked scoring path already
+    provides -- a 250-step warm prefix per chunk and no carried state. The
+    three steps a 253-step field reaches past that prefix are zero-filled, as
+    they are in training and as a ring buffer is at boot.
+
+    telemanom's decision stack on the TCN forecast: the reproduction reading
+    beside `lstm-telemanom`, not the gate arm.
+    """
+
+    name = "tcn-telemanom"
+    cell = "tcn"
+
+    def __init__(self, *, hyper: Hyper | None = None, **kwargs) -> None:
+        super().__init__(hyper=hyper if hyper is not None else TCN_HYPER, **kwargs)
+
+
+class TCNQuantile(TCNForecastDetector):
+    """The gate arm: the frozen decision layer (D25) on the TCN's residuals."""
+
+    name = "tcn-quantile"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(mode=QUANTILE, **kwargs)
+
+
+class TCNSmoke(TCNForecastDetector):
+    """`lstm-smoke` shaped for the TCN. Fixture and development only; never a result."""
+
+    name = "tcn-smoke"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(hyper=replace(SMOKE_HYPER, cell="tcn", hidden=(16,) * 5, kernel=3),
+                         config=SMOKE_CONFIG, **SMOKE_CHUNKING, **kwargs)
+
+
+# -- the deployment configuration D28 named, scoped in docs/MODELS.md 17 -----
+class UnionQuantile(Detector):
+    """`lstm-quantile OR gru-quantile`: a union of two alarm streams, and nothing cleverer.
+
+    Each member is fitted and calibrated exactly as it is alone -- its own
+    weights, its own label-free 99.9th percentile of its own anomaly-masked
+    fitting window (`harness.py:157`) -- and its score is divided by that
+    threshold, so 1.0 is the bar each member already uses. The union's score is
+    the larger of the two normalised scores and its cut is a fixed 1.0, which
+    makes the alarm mask ``max(r_L, r_G) >= 1``: byte for byte the OR mask
+    `scripts/combination_scope.py` measured in
+    `runs/m1-g8.9.10/_forensics/2026-08-29T170340Z-combination-scope.json`
+    (docs/MODELS.md 17.6). No weighting, no agreement, no mean, no fitted
+    constant: the scoping showed that on the gate set a combined score has no
+    concurrence to exploit, so the only honest combination is the union with
+    the union's false alarms.
+
+    Exists so the configuration can be scored through the one tested path,
+    `python -m sentinel_eval run`, beside its members. Its members' fits are
+    cache hits when the same run scored them first. Not a gate contestant
+    (D28): its adoption is D29, on the held-back transfer result.
+    """
+
+    name = "lstm-gru-or"
+    wants_commands = False
+
+    def __init__(self, *, members: tuple[Detector, ...] | None = None) -> None:
+        self.members = tuple(members) if members is not None else (TelemanomQuantile(), GRUQuantile())
+        if len(self.members) < 2:
+            raise ReferenceError("a union needs at least two members")
+        super().__init__(members={m.name: m.params for m in self.members})
+        self._thresholds: list[float] | None = None
+        self.report: dict | None = None
+        self.last_attribution = None
+        self.last_emission = None            # quantile path: the crossing is the emission
+
+    @property
+    def warmup_steps(self) -> int:
+        return max(m.warmup_steps for m in self.members)
+
+    def fit(self, values, usable, context) -> None:
+        """Fit every member as itself, then read each one's own bar off the fitting window."""
+        usable = np.asarray(usable, dtype=bool)
+        thresholds = []
+        for member in self.members:
+            member.fit(values, usable, context)
+            raw = member.score(values, None, context)
+            scores, _ = reduce_scores(raw, np.asarray(values).shape[0])
+            threshold = member.threshold_from(scores[usable] if usable.any() else scores)
+            if threshold is None or not threshold > 0:
+                raise ReferenceError(f"{member.name} produced no usable threshold on the fitting window")
+            thresholds.append(float(threshold))
+        self._thresholds = thresholds
+        self.report = {member.name: member.report for member in self.members}
+
+    def score(self, values, valid, context) -> np.ndarray:
+        if self._thresholds is None:
+            raise ReferenceError("score() before fit(); the harness always fits first")
+        n = np.asarray(values).shape[0]
+        reaches = []
+        for member, threshold in zip(self.members, self._thresholds):
+            scores, _ = reduce_scores(member.score(values, valid, context), n)
+            reaches.append(np.where(np.isfinite(scores), scores / threshold, -np.inf))
+        return np.max(np.stack(reaches), axis=0)
+
+    def threshold_from(self, train_scores):
+        """The members already chose their bars; the union's cut is 1.0, whatever it is handed."""
+        return 1.0

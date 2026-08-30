@@ -1,0 +1,166 @@
+# fprime-DeepLearning-Sentinel
+
+**fprime-sentinel** is a reusable F' (F Prime) flight-software component for cross-channel
+anomaly detection. A small neural forecaster, trained on a mission's own nominal telemetry,
+predicts all watched channels each cycle; sustained divergence between prediction and reality -
+the signature of a broken cross-channel relationship - is raised as a standard F' event. It
+warns; it never commands. The detection method is Hundman et al., KDD 2018 (JPL's telemanom);
+the reusable flight packaging is this project's contribution.
+
+## Status
+
+**Phase 1 closed - 2026-08-29.** Architecture: **GRU** (`docs/DECISIONS.md` D28). Transfer
+validated on an independent spacecraft (D29). **Phase 2 (flight C++) next** - what it inherits is
+in [docs/PHASE2.md](docs/PHASE2.md).
+
+| Phase | Scope | Gate | State |
+|---|---|---|---|
+| 1 | Python - prove the mathematics | Match or beat a telemanom baseline reproduced on this harness, with a multivariate forecaster, plus evidence-based architecture selection | **CLOSED** (tag `wi7`) |
+| 2 | C++ - the flight component | Tests green, flight-rule compliance clean | next |
+| 3 | C++ - integration and demo in the F' Ref deployment | Limit alarms silent while Sentinel warns, with time-to-limit | - |
+| 4 | C++ - hardware envelope | Comfortable margins documented | - |
+
+## Headline results
+
+Every figure is `k/n` read from a committed run artifact under `runs/` (gitignored outputs; the
+path is the identifier). `n < 20` denominators are UNDERPOWERED by the harness's own rule. The
+gate set is `m1-g8.9.10` (12 channels, 46 anomalies, 32 headline-cell, 48 rare nominal events);
+`m1-ss5` is its six-channel subset, always reported beside it. Honest lead is measured from the
+first threshold crossing; 0.0 means the detector fires at the labelled event boundary.
+
+| Set | Detector | F0.5 | recall | headline-cell (MVGS) | precision | rare-event FA | nominal-step FA | honest lead | artifact |
+|---|---|---|---|---|---|---|---|---|---|
+| `m1-g8.9.10` | `rstd` (the floor) | 0.250 | 3/46 | 3/32 | 6/7 | 1/48 | 0.000% | -1,512 | `runs/m1-g8.9.10/rstd/2026-08-25T*.json` |
+| `m1-g8.9.10` | `lstm-quantile` | **0.838** | 26/46 | 21/32 | 40/42 | 2/48 | 0.002% | +0.0 | `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json` |
+| `m1-g8.9.10` | **`gru-quantile`** (selected) | 0.804 | **27/46** | **22/32** | 139/157 | **1/48** | 0.001% | +0.0 | `runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json` |
+| `m1-g8.9.10` | `tcn-quantile` | 0.411 | 9/46 | 9/32 | 21/37 | 3/48 | 0.00002% | -4.0 | `runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json` |
+| `m1-ss5` | `lstm-quantile` | **0.885** | 27/42 | 21/31 | 127/130 | 2/48 | 0.293% | +0.0 | same artifact as the gate row |
+| `m1-ss5` | `gru-quantile` | 0.593 | 26/42 | 21/31 | 101/172 | 3/48 | 0.014% | +0.0 | same artifact as the gate row |
+| `m1-ss5` | `tcn-quantile` | 0.649 | 16/42 | 13/31 | 108/137 | 3/48 | 0.297% | -0.5 | same artifact as the gate row |
+
+**Transfer - the held-back sets, scored once** (`docs/RESULTS.md` section 6k, D29). Recall is
+disabled on `m2-ss1` by design; its scorecard is the adoption number.
+
+| Set | Detector | rare-event FA | nominal-step FA | artifact |
+|---|---|---|---|---|
+| `m2-ss1` (Mission 2, 424 rare events) | `lstm-quantile` | **4/424 (0.94%)** | **0 / 4,155,841** | `runs/m2-ss1/lstm-quantile/2026-08-29T204415Z-2717441a.json` |
+| `m2-ss1` | **`gru-quantile`** | **4/424 (0.94%)** | **0** | `runs/m2-ss1/gru-quantile/2026-08-29T204415Z-6d146f5d.json` |
+| `m2-ss1` | `tcn-quantile` | 6/424 (1.42%) | 0 | `runs/m2-ss1/tcn-quantile/2026-08-29T204415Z-c48bd47d.json` |
+| `m2-ss1` | `lstm-gru-or` (union) | 8/424 (1.89%) | 0 | `runs/m2-ss1/lstm-gru-or/2026-08-29T204415Z-a9e0d056.json` |
+| `m2-ss1` | `rstd` / `mavg` (floors) | 84/424 / 122/424 | 17.30% / 0 | `runs/m2-ss1/{rstd,mavg}/2026-08-29T204415Z-*.json` |
+| `m1-g3` (Mission 1 group 3; 11 anomalies, 13 rare - UNDERPOWERED) | `lstm-quantile`, `gru-quantile` | 8/13, 10/13 | **29.9%, 28.7%** - fold 0 clean (0 steps), folds 1-2 a calibration collapse (87% of one window) | `runs/m1-g3/{lstm-quantile,gru-quantile}/2026-08-29T223625Z-*.json` |
+
+## What is claimed, and what is retired
+
+From [Objective.md section 1.1](Objective.md), which governs every figure quoted anywhere:
+
+- **Retired: "+26 timesteps of early warning."** That figure was dated from the start of an alarm
+  range that `error_buffer` had widened backwards from a crossing that had already happened.
+  Measured from the first crossing, the median lead is **0.0** on the gate set (D21,
+  `docs/RESULTS.md` 6f). No wall-clock claim - no hours, no "~4h" - is made from Phase 1 evidence.
+- **Kept, and the stronger claim:** Sentinel is the first and only observer of cross-channel
+  relationship breaks in an F' deployment. On `m1-g8.9.10` a forecaster over the channel set finds
+  28 of 32 headline-cell events where a per-channel statistic finds 3; on an independent
+  spacecraft the same recipe alarms on one rare event in a hundred and on no nominal timestep.
+- **Unmeasured by design:** the break-to-limit-trip lead. ESA-ADB carries no dictionary limits and
+  an anonymised clock; that number is Phase 3's, on the F' Ref deployment, on a real clock.
+- **Measured against the recipe itself:** on a later period of the same spacecraft (`m1-g3`,
+  folds 1-2) the noise floor calibrated on early data sat under 87% of a later window's nominal
+  residual. Thresholds are parameters with a provenance, recalibrated in orbit - the first thing
+  Phase 2 inherits (D29).
+
+## How to review this repository
+
+Reading order: this README, then [Objective.md section 1.1](Objective.md), then
+[docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
+a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
+mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (D1 to D29: why, what else was
+considered, what settled it; superseded entries marked, never deleted).
+
+- [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
+  newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.
+- The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
+  `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
+  that tag.
+- **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
+  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi7`, the
+  Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
+  approved checkpoint. Neither branch is ever rewritten.
+
+No number in any document was written without an artifact under `runs/` to read it from.
+
+## How it works
+
+1. **Normalise: identity.** ESA-ADB is min-max scaled within each channel group; per-channel
+   rescaling would erase the amplitude ratios between related channels that the method exists to
+   watch (D2; `tests/test_no_per_channel_scaler.py`).
+2. **Forecast.** One multivariate model over the channel set - the GRU, two layers of 80, 250-step
+   lookback, ten-step-ahead head - predicts every channel from every channel; the forecast for a
+   timestep is the mean of the up-to-ten predictions made before it.
+3. **Residual.** Per channel, the absolute difference between the forecast and reality.
+4. **Smooth and reduce.** An EWMA (span 105) per channel, then the maximum across channels.
+5. **Threshold.** One label-free cut: the 99.9th percentile of that statistic over the mission's
+   own anomaly-masked nominal fitting window - the measured noise floor, never a chosen alarm
+   budget (D25, `docs/HARNESS.md` section 1). The crossing is the emission. Warn-only.
+
+Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy reference in
+`src/sentinel_models/reference.py`, held to torch at 1e-5 by test.
+
+## Repository map
+
+| Path | What it holds |
+|---|---|
+| `src/sentinel_data/` | ingest toolkit: Zenodo download, parquet transcode, R2 client with per-attempt operation accounting, manifest |
+| `src/sentinel_eval/` | the referee: catalog, streaming reads, labels, grid, splits, metrics, harness, scorecard, tasks, ops ledger, CLI. Never imports a model |
+| `src/sentinel_models/` | the players: baselines, the LSTM/GRU/TCN trainer, the NumPy reference, telemanom's detection stack, detectors, registry |
+| `src/sentinel_export/` | Phase 2 `model.bin` writer (placeholder) |
+| `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
+| `tests/` | 406 tests at zero R2 operations, including the layering rule and the reference-equivalence assertion |
+| `docs/` | the documents - see `docs/INDEX.md` |
+| `runs/` | weights and scorecards, gitignored outputs; never data |
+
+## How to run
+
+```bash
+python3.14 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env            # R2 credentials, only for tasks that read the bucket
+
+# the verification trio, zero R2 operations
+.venv/bin/python -m pytest -q
+.venv/bin/python scripts/check_no_list.py
+PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
+
+# one scoring run on the offline fixture, zero R2 operations
+PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep
+```
+
+A Mission-1 task (`run m1-g8.9.10 ...`) costs 15 Class B and 1 Class A operations on the bucket
+and scores both paired channel sets from one load. Fitting the production configuration takes
+minutes on a GPU or an hour on a laptop; scoring runs on the laptop through the NumPy reference.
+
+## Provenance rules
+
+- **Manifest-addressed reads only, never LIST, never glob**; `scripts/check_no_list.py` and
+  `tests/test_no_list.py` enforce it at source level.
+- **50,000 Class A and 50,000 Class B operations per calendar month, hard**; a per-run tripwire at
+  1,000; every operation counted on a `before-send` hook into `_manifest/ops_ledger.json`, read at
+  run start and committed at run end. Every artifact records what it spent.
+- **No telemetry on local disk.** Weights and scorecards under `runs/` are outputs and may persist.
+- **The held-back protocol.** `m1-g3` and `m2-ss1` were nominated before any decision-layer tuning
+  began, refused by every analysis script, and scored exactly once at the close of Phase 1 with
+  the predictions committed first (`docs/MODELS.md` section 18). They are spent; the results are
+  `docs/RESULTS.md` section 6k, whatever they said.
+- **No number enters a document that was not read from an artifact.** Pre-register, keep wrong
+  predictions beside their outcomes, report mistakes openly.
+
+## Citation and data
+
+- Hundman, K., Constantinou, V., Laporte, C., Colwell, I., Soderstrom, T. *Detecting Spacecraft
+  Anomalies Using LSTMs and Nonparametric Dynamic Thresholding.* KDD 2018.
+- ESA-ADB, the European Space Agency Anomaly Detection Benchmark (Airbus Defence and Space, KP Labs,
+  ESOC). Zenodo, DOI 10.5281/zenodo.15237121, CC BY 3.0 IGO. Never committed here; staged to the
+  project's R2 bucket as checksummed parquet with a provenance manifest (`docs/DATA.md`).
+
+## Licence
+
+Not yet selected. Intended for community release to the F' ecosystem.

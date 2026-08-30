@@ -1,0 +1,40 @@
+# Datasets are never committed to this repository - see Objective.md, section 9.5.
+# Telemetry lives in the project R2 bucket; data/ is a local staging path only.
+data/
+*.parquet
+*.hdf5
+*.h5
+*.npy
+*.npz
+*.csv.gz
+
+# Trained artifacts and experiment output
+models/
+runs/
+outputs/
+*.ckpt
+*.pt
+*.pth
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Ingest working area -- nothing here is ever committed
+scratch/
+.env
+*.zip
+*.pkl
