@@ -6,6 +6,7 @@ Then whatever the question needs.
 | Document | What it contains | Read it when |
 |---|---|---|
 | [Objective.md](../Objective.md) | The living objective: the problem, prior art, architecture, the LSTM/GRU/TCN gate, the data stack, cold start, the five permanent rules, the roadmap, the open decisions - and section 1.1, what is claimed and what is retired | First, and whenever a figure is quoted |
+| [docs/STATUS.md](STATUS.md) | The one-page status and roadmap: the goal, the headline table, what was done and learned, what happens next, where everything lives | First, beside the README, for a ten-minute assessment |
 | [docs/PHASE1_REPORT.md](PHASE1_REPORT.md) | The self-contained account of Phase 1 for a newcomer: the problem, the method, the journey as it happened, what Phase 2 inherits | When you want the whole story in one sitting |
 | [docs/RESULTS.md](RESULTS.md) | The scorecard record: every detector, both channel sets, `k/n` throughout, both numbers wherever a correction moved one; sections 6a-6k are the corrections and the three architectures; 6k the held-back sets | For any number |
 | [docs/NARRATIVE.md](NARRATIVE.md) | What happened in order, errors included, and the measurements that changed conclusions | To understand why the rules exist |

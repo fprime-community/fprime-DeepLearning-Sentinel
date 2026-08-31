@@ -20,6 +20,8 @@ in [docs/PHASE2.md](docs/PHASE2.md).
 | 3 | C++ - integration and demo in the F' Ref deployment | Limit alarms silent while Sentinel warns, with time-to-limit | - |
 | 4 | C++ - hardware envelope | Comfortable margins documented | - |
 
+The ten-minute overview - goal, results, learnings, roadmap - is [docs/STATUS.md](docs/STATUS.md).
+
 ## Headline results
 
 Every figure is `k/n` read from a committed run artifact under `runs/` (gitignored outputs; the
