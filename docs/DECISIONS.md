@@ -1799,3 +1799,148 @@ mechanism, on the same window.
    is passed on the gate set (`docs/RESULTS.md` 6e-6h, D28), and the
    transfer experiment the design protected since day one is spent and
    written. No held-back set remains.
+
+---
+
+## D30. The `model.bin` format is frozen: plain little-endian float32, gate order named, parameters in their own CRC'd block. Supersedes Objective.md 14.10's format implication
+
+**DATE** 2026-09-01 | **STATUS** resolved -- the freeze. Objective.md 14.2 is
+resolved by this entry
+
+**CONTEXT.** Objective.md 14.2 requires the model-file format frozen **before Phase 2
+starts**, because it is the contract between the Python toolkit and the C++ loader.
+Two committed statements of that format disagree, and the disagreement had to be
+settled before any flight code could be written. Objective.md 14.10 specifies "a
+quantized, self-describing FlatBuffer, TFLite-Micro compatible", with a header
+carrying "model type, version, channel count and ordering, window length, quantization
+parameters, a mandatory `baseline_only` flag, and a CRC over the weights";
+`CHANGELOG.md` repeats it in the open-decisions table. `docs/PHASE2.md` 3 and
+`docs/STATUS.md` 7, both written at the close of Phase 1, say plain float32 arrays
+with the gate order named in the header. Objective.md declares itself the living
+document the others defer to, so precedence alone does not settle it.
+
+**ALTERNATIVES.** The FlatBuffer as Objective.md 14.10 writes it. A quantized plain
+format. The plain float32 format `docs/PHASE2.md` describes.
+
+**Against the first two, three reasons, in the order they bind.**
+
+1. **Nothing here consumes TFLite.** The inference core is a hand-written
+   transcription of `reference.py`, checked against it at 1e-5 -- that is D15's
+   premise and the whole purpose of `tests/test_reference_equivalence.py`. A
+   TFLite-Micro-compatible container is compatibility with an interpreter this
+   project does not have and, by Objective.md 4.3 step 2, will not fly.
+2. **A FlatBuffer parser is templated, allocating third-party code the flight rules
+   exclude.** F' CPP-25 forbids the STL and templates beyond the simple, CPP-1
+   forbids allocation after initialisation, and CPP-7 caps template complexity.
+   Vendoring a generated parser to read ten arrays inverts the cost.
+3. **A fixed layout with a CRC is byte-inspectable by a review board.** A reviewer can
+   read `docs/MODEL_FILE.md` 3 and a hexdump side by side and check the file by hand.
+   That is worth more here than self-description, because the thing being reviewed is
+   a neural network on a spacecraft.
+
+**Against quantization specifically.** The acceptance tolerance against `reference.py`
+is 1e-5 (`tests/test_reference_equivalence.py:36`), and the GRU's measured headroom is
+1.2e-07. Int8 quantization loses two to three orders of magnitude more than that, so
+a quantized file cannot meet the tolerance every result in this project was measured
+against. `docs/MODELS.md` 3 never endorsed quantization: it says only that at 278.0
+KiB "quantization is about flash budget and load time rather than feasibility" -- and
+at 278.0 KiB neither is pressing.
+
+**EVIDENCE.** 71,160 parameters, 284,640 bytes as float32 (`docs/MODELS.md` 3,
+`tests/test_reference_equivalence.py:282`). A complete file at the flown shape is
+285,136 bytes: a 64-byte header, a 240-byte channel map, the weights, and a 192-byte
+parameter block. The whole file fits a standard F' file uplink without special
+handling.
+
+*And the measurement that shapes the parameter block.* Thresholds are
+fitting-procedure-specific, not merely model-specific: two calibrations of one rule on
+one set of residuals produced 126 alarm ranges and 2,405 -- nineteenfold, from how the
+constants were fitted (Objective.md 14.10, `docs/RESULTS.md` 6b). A threshold that
+suited a one-epoch model produced 3,548 alarm ranges on a trained one (D17). And D29
+measured the case that decides the design: on `m1-g3` folds 1 and 2 a floor calibrated
+on the first 7.36M steps sat under 86.7% of a later window's nominal residual, on the
+same spacecraft. Thresholds must be recalibrable in orbit without retraining.
+
+**CONSEQUENCE.**
+
+1. **The format is frozen at version 1 and specified byte for byte in
+   `docs/MODEL_FILE.md`**, which is normative and owned by `src/sentinel_export/` as
+   that package's docstring has said since it was created. Little-endian float32, no
+   quantization, no generated parser, no third-party dependency.
+2. **The gate order is named in the header, not inferred from a slice index.**
+   `gate_order_id = 1` means `reference.GRU_GATES == ("reset", "update", "new")`.
+   `arch_id = 1` means the GRU. Both are verified against the payload on load, never
+   merely read -- the D16 rule `detectors._load_weights` already applies to `cell`.
+3. **Both bias vectors are stored unsummed.** `b_hn` sits inside the reset product and
+   cannot be folded into `b_in` (`docs/MODELS.md` 3, amended by D26). The LSTM's may
+   be summed and the GRU's may not, and the format does not offer the choice.
+4. **The parameter block carries its own CRC, separate from the weights' CRC.** This
+   is the entry's operative decision. Normalisation constants, the threshold, the EWMA
+   span, `baseline_only` and the tier live there, outside the weight block, at a fixed
+   size, so an in-orbit recalibration is a fixed-length overwrite plus an eight-byte
+   header patch and the 278.0 KiB of weights are never touched or re-verified. That is
+   what Objective.md 10.2 fix 4, Objective.md 14.10 and D29 consequence 3 require, made
+   executable.
+5. **The threshold is stored as F64 and compared as F64.** `harness.py:169-172`
+   compares `combined.astype(np.float64) >= threshold` against a `np.quantile` result;
+   storing an F32 would round the cut and could flip a crossing at the boundary. The
+   comparison is `>=`, not `>`.
+6. **`baseline_only` is in the header of the parameter block, as Objective.md 14.10
+   requires.** It is the Level 1 switch (D5) and work item 9 wires it to the
+   active-tier telemetry channel.
+7. **Objective.md 14.10's format implication is superseded by this entry and marked
+   superseded, not deleted**, together with its restatement in `CHANGELOG.md`.
+   Everything else in 14.10 stands: the three tiers, Level 1 as the loader's mandatory
+   safe failure mode, the `baseline_only` flag, the CRC, and constants stored outside
+   the weights. Only the container -- FlatBuffer, quantized, TFLite-Micro -- is struck.
+
+---
+
+## D31. F' is pinned at v4.3.0, and the work item 8 core is freestanding C++14 behind a types shim
+
+**DATE** 2026-09-01 | **STATUS** resolved. Objective.md 14.4 is resolved by this entry
+
+**CONTEXT.** Objective.md 14.4 lists the target F' version pin as an early-Phase-2
+decision, with the reason "everything downstream depends on it". Work item 8 forced
+it early for a second reason: the work item requires the flight rules cited from F's
+own coding standard, and a rule cannot be cited without a version.
+
+**EVIDENCE.** The current F' release is **v4.3.0**, published 2026-08-20. Its
+authoritative statement of the C/C++ design rules is
+`.github/skills/fprime-cpp-design/SKILL.md`, which describes itself as "the **single
+source of truth** for the C/C++ design rules F Prime flight software is held to" and
+carries the numbered rules CPP-1 to CPP-34. Reading it corrected three rules this
+project had stated from memory, all recorded in `docs/MODELS.md` 19.3: F' states no
+no-recursion rule (that is Power of Ten rule 1 and the JPL C standard, which F' cites
+at CPP-27); F's own no-heap rule is CPP-1 rather than Power of Ten rule 3; and F'
+forbids bare `float` and `double` outright at CPP-3, which the project had not
+recorded anywhere and which changes every declaration in the core.
+
+**ALTERNATIVES.** Build work item 8 against a vendored F' checkout. Defer the pin to
+work item 9. Pin an older release.
+
+**Against each.** Building against F' now would pull work item 9's integration into
+work item 8, which the work item scopes out, and would require a build system this
+machine does not have -- `cmake` is not installed. Deferring the pin leaves the flight
+rules uncitable, which is the one thing work item 8 was asked to get right. An older
+release would pin to rules that have since been restated; v4.3.0 is current and its
+rule set is the one a reviewer will hold this code to.
+
+**CONSEQUENCE.**
+
+1. **F' is pinned at v4.3.0** for Phase 2. `docs/MODELS.md` 19.3 tabulates the rules
+   this core obeys, each cited to its CPP number.
+2. **The work item 8 core is freestanding C++14**, depending only on `<cstdint>`,
+   `<cstring>`, `<cmath>` and the three `<algorithm>` and `<limits>` helpers CPP-25
+   explicitly permits. `flight/include/sentinel/Types.hpp` defines `F32`, `F64`, `U8`,
+   `U16` and `U32` with F's exact names and meanings; work item 9 replaces that one
+   header with `Fw/FPrimeBasicTypes.hpp` and no line of the core changes.
+3. **CRC is carried locally and matches F' exactly.** `flight/` holds its own
+   CRC-32/IEEE 802.3 table; `Utils/Hash/Crc32/Crc32.hpp` at v4.3.0 implements the same
+   polynomial, so work item 9 may substitute `Utils::Hash` with no change in value.
+4. **`flight/CMakeLists.txt` is written now and used later.** It carries the identical
+   flag set to the Makefile so the F' build cannot be quietly laxer than the one work
+   item 8 verified against; a test asserts the two agree rather than trusting them to.
+5. **`clang-tidy` is deferred to work item 9**, with the F' toolchain. It is not
+   available on the development machine. `flight/.clang-tidy` and a `make lint` target
+   are written now and run the moment a toolchain has it.

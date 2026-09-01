@@ -900,15 +900,15 @@ replacing either.
 | # | Decision | Deadline | Why it matters |
 |---|---|---|---|
 | 1 | **Architecture selection** - LSTM vs GRU vs TCN | Was: end of Phase 1 | **RESOLVED 2026-08-29 - the GRU** (docs/DECISIONS.md D28), on section 8's criteria: criterion 1 a tie at the harness's resolution, criteria 2-5 and trainability to the GRU; the LSTM retained as the published baseline, the TCN rows retained as the stateless answer. The LSTM leads on event-wise F0.5, and D28 says so |
-| 2 | **Model-file format freeze** | **Before Phase 2 starts** | It is the contract between the Python toolkit and the C++ loader. The format implication is recorded in 14.10; empirical findings from the work item 4 weight extraction are in `docs/MODELS.md` |
-| 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Resolve against the pinned F' version |
-| 4 | **Target F' version pin** | Early Phase 2 | Everything downstream depends on it |
+| 2 | **Model-file format freeze** | Was: before Phase 2 starts | **RESOLVED 2026-09-01 - plain little-endian float32, version 1** (docs/DECISIONS.md D30), specified byte for byte in `docs/MODEL_FILE.md`. Gate order and architecture named in the header, both bias vectors unsummed, and the normalisation constants and threshold in a **separately-CRC'd parameter block** so a mission recalibrates in orbit without touching the weights. 14.10's FlatBuffer/quantized container is superseded and marked so, never deleted; every requirement it stated is met |
+| 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Open. Resolve against the pinned F' version, now v4.3.0 (D31). This is a work item 9 question: the inference core takes a vector of channel values and does not care how they arrive |
+| 4 | **Target F' version pin** | Was: early Phase 2 | **RESOLVED 2026-09-01 - v4.3.0**, published 2026-08-20 (docs/DECISIONS.md D31). Forced early by work item 8: the flight rules cannot be cited without a version. F's own statement of them is `.github/skills/fprime-cpp-design/SKILL.md` at that tag, and reading it corrected three rules this project had stated from memory (docs/MODELS.md 19.3) |
 | 5 | **Harness base** - build on TimeEval or standalone | Was: now | **RESOLVED 2026-08-25 - standalone** (CHANGELOG 0.3.0, Decided). TimeEval would have given ESA-ADB-comparable metrics for free; external comparability is out of Phase 1's scope (section 12) |
 | 6 | **R2 ingest sizing** for 11.6 GB | Was: before item 3 | **RESOLVED 2026-08-24** - 11.53 GB as zstd parquet in 234 objects under a 90 MiB ceiling, four channels sharded (CHANGELOG 0.2.0). 40x the previous data volume |
 | 7 | **Second independent scoring set** | Was: before item 7 | **RESOLVED in practice, and spent 2026-08-29** (docs/RESULTS.md 6k): Mission 2 carried the adoption number (4/424 rare events, 0 nominal-step alarms) and Mission 1 group 3 the recall exam. No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
 | 8 | **Normalisation policy** | Was: before the loader | **RESOLVED - identity.** ESA min-max scaled within each channel group, so amplitude ratios between related channels survive. Cross-group spanning is acceptable: those offsets are fixed, invertible and uninformative, and a model absorbs them. Per-channel rescaling is refused, because it erases the ratios and no model can recover them. Enforced at a chokepoint and by `tests/test_no_per_channel_scaler.py` |
 | 9 | **SatNOGS as subsystem-prior corpus** | Post-gate | Open. Feeds section 10.2 fix 5 - a generic power-subsystem base model that each mission fine-tunes on its own small dataset |
-| 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN.** One C++ loader, one file format, three capability tiers. Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. Detail in 14.10 |
+| 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN**, and partly discharged. One C++ loader, one file format, three capability tiers; Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. The file format now carries the `baseline_only` flag and the tier, and the loader refuses a bad magic, version or CRC with a status code and no exception (D30) - the hook Level 1 is built on. **Degrading to the baseline with an event is work item 9 and is still open.** Detail in 14.10 |
 
 Rows of this table are cited elsewhere as `Objective.md 14.N` - decision N of the table; only 14.10 has a subsection of its own, below.
 
@@ -989,6 +989,27 @@ channel count and ordering, window length, quantization parameters, a mandatory 
 flag, and a CRC over the weights. **Normalisation constants and detection thresholds are stored
 separately**, as small PrmDb-style parameters, and are never baked into the weights - so a
 mission can recalibrate in orbit without retraining.
+
+**(!) THE CONTAINER IS SUPERSEDED BY D30, 2026-09-01. The requirements are not.** The
+paragraph above is kept because everything in it except the container still binds. What
+is struck is *quantized, self-describing FlatBuffer, TFLite-Micro compatible*, for three
+reasons recorded in `docs/DECISIONS.md` D30: nothing in this project consumes TFLite --
+the inference core is a hand-written transcription of `reference.py` checked against it
+at 1e-5, and section 4.3 step 2 refuses an interpreter outright; a FlatBuffer parser is
+templated, allocating third-party code the flight rules exclude (F' CPP-25, CPP-1); and a
+fixed layout with a CRC is byte-inspectable by a review board, which is worth more here
+than self-description. Quantization is struck with it: the acceptance tolerance against
+`reference.py` is 1e-5 and int8 loses far more than that.
+
+**What replaces it**, frozen at version 1 and specified byte for byte in
+`docs/MODEL_FILE.md`: plain little-endian float32 in `reference.Weights.arrays()` order
+with **both bias vectors unsummed**; a 64-byte self-protecting header naming the
+architecture and the gate order rather than leaving them to be inferred; a channel map;
+and a **separately-CRC'd parameter block** carrying the normalisation constants, the
+threshold, the EWMA span, `baseline_only` and the tier -- so a recalibration in orbit
+overwrites a fixed-size block and never touches the 278.0 KiB of weights. Every
+requirement this section stated -- constants outside the weights, the `baseline_only`
+flag, the CRC, recalibration without retraining -- is met; only the container changed.
 
 **Precedent, worth recording.** This mirrors NASA cFS, where apps ship default configuration
 tables so a mission has working behaviour on day one and overrides them later. F's own

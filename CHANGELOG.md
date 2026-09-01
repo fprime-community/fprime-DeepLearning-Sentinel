@@ -22,9 +22,9 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 | # | Decision | Deadline |
 |---|---|---|
 | 1 | Architecture selection - LSTM vs GRU vs TCN | **Resolved 2026-08-29: the GRU (D28)** |
-| 2 | Model-file format freeze - quantized self-describing FlatBuffer, TFLite-Micro compatible; normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) | Before Phase 2 starts |
+| 2 | Model-file format freeze. The FlatBuffer/TFLite-Micro container above is **superseded by D30, not deleted**; the requirement it carried - normalisation constants and thresholds stored separately as PrmDb-style parameters (Objective.md 14.10) - stands and is met | **Resolved 2026-09-01: plain little-endian float32, version 1 (D30)**, specified in `docs/MODEL_FILE.md` |
 | 3 | Channel-ingestion mechanism - telemetry-path tap vs direct port wiring | Early Phase 2 |
-| 4 | Target F' version pin | Early Phase 2 |
+| 4 | Target F' version pin | **Resolved 2026-09-01: v4.3.0 (D31)** |
 | 5 | Harness base - build on TimeEval or standalone | **Resolved 2026-08-25: standalone** (0.3.0) |
 | 6 | R2 ingest sizing for 11.6 GB | **Resolved 2026-08-24: 11.53 GB in 234 objects** (0.2.0) |
 | 7 | Second independent scoring set | **Resolved in practice and spent 2026-08-29**: Mission 2 the adoption number, Mission 1 group 3 the recall exam (RESULTS.md 6k) |
