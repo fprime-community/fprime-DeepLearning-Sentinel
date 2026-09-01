@@ -8,17 +8,6 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
-### Planned - work item 9
-
-- The F' component: FPP model, ports, the warning event naming the channel, and Level 1's
-  degrade-with-an-event, for which WI8's refusal codes are the hook. Done when it builds in
-  an F' Ref deployment. Pre-registered in `docs/MODELS.md` 20 with D32 to D37, committed
-  before any component code, along with twelve corrections to the work item's own brief.
-- Corrections worth naming here because they move published statements: the loader has
-  **11** refusal codes and 16 load *cases*, not 16 codes; `Ref/` moved to
-  `TestDeploymentsProject/Ref/` at F' v4.3.0; and `rstd` lives in
-  `src/sentinel_models/baselines.py`, not `src/sentinel_eval`.
-
 ### Planned - work item 9.5, before work item 10
 
 - `baselines._rolling` accumulates its prefix sums in float32 and loses the statistic it
@@ -29,6 +18,77 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   `numpy.nanstd`, one re-score covering `m1-g8.9.10` and `m1-ss5` together, and every
   affected figure republished as `new (was old, D37)` with old artifacts preserved.
   Whether the spent held-back sets are re-scored is escalated, not decided (21.5).
+
+### Planned - work item 10
+
+- The in-orbit threshold recalibration path: file uplink, human-approved reload. The hook is
+  noted in the component's FPP and SDD and no code implements it. It makes the component
+  `queued` (D32 consequence 2).
+
+## [0.6.0] - 2026-09-01 - Phase 2 work item 9 (tag wi9)
+
+The F' component and the Level 1 safe-failure mode. Reviewed and checkpointed 2026-09-01.
+Zero bucket operations throughout.
+
+### Added - work item 9, 2026-09-01 - the F' component and Level 1
+
+- **`Sentinel::Monitor` builds in F' v4.3.0's own Ref deployment**, which is work item 9's
+  definition of done. Ref moved out of the framework root to `TestDeploymentsProject/Ref` at
+  v4.3.0 and the move is not in the release notes, so the brief's target had to be found
+  before it could be hit (`docs/MODELS.md` 20.2 correction 3). Two proofs: this project's own
+  `fprime/SentinelRef` deployment, committed and rebuildable from a fresh clone, and F's Ref
+  via `scripts/fprime_ref_patch.sh` -- 2,428,064 bytes against stock Ref's 2,352,560, carrying
+  234 Sentinel symbols. Nothing is copied: `fprime/` is an F' library, so Ref consumes it the
+  way a mission would, with one `library_locations` line.
+- **Level 1 works, and was watched working.** All **11/11** refusal codes degrade to the
+  statistical baseline with the code named in the event; **0/11** fail the topology; the
+  component served 200 ticks after a refusal in test. Run for six seconds with no model file,
+  the deployment emits `DegradedToBaseline: NO_MODEL_FILE` and carries on. Objective.md
+  decision 10's Level 1 is resolved; Levels 2 and 3 stay open.
+- **The loader has 11 refusal codes, not 16.** The 16 is the number of load *cases* in
+  `flight/test/RefusalTests.cpp` -- 15 refusing, 1 accepting. `CHANGELOG.md`, `docs/STATUS.md`
+  and `docs/MODELS.md` 19.8's prediction F7 were all loose the same way.
+- **The Level 1 baseline transcribes the rule and not the implementation, deliberately** (D37).
+  `baselines._rolling` runs `np.cumsum` on a float32 array and differences the result to
+  recover a second moment, which is catastrophic cancellation: three independent
+  implementations agree to 1.8e-08 and disagree with it by **7.6584e+00** on a true sigma of
+  3.0, and on this project's own fixture it produces **3,975** exact zeros against float64's
+  **1,123**. `flight/src/Baseline.cpp` matches `src/sentinel_models/baseline_reference.py`
+  **exactly** -- 0.000e+00 over four tiers and 1,600 steps, flags exact. The harness repair is
+  scoped as work item 9.5.
+- **D32 to D37**: a passive component on a synchronous `Svc.Sched`; direct port wiring rather
+  than a telemetry-path tap, which resolves Objective.md decision 3 and declines the tap on
+  evidence; Level 1's constants as PrmDb-style parameters rather than model-file fields; a
+  guarded types shim, amending D31 consequence 2; the whole-file read with the chunked reader
+  deferred; and the `_rolling` finding.
+- **The types shim swap, proven both ways.** One file differs between the freestanding build
+  and the F' build, and it is the shim; `sizeof(Detector)` is still exactly 312,112 bytes under
+  F' types. D31 consequence 2's literal wording is not achievable -- `Fw/FPrimeBasicTypes.hpp`
+  needs a generated config header the Makefile build has no way to produce -- so the shim
+  selects rather than replaces, and three tests hold the claim in place.
+- **`FW_HAS_F64` does not exist in F' v4.3.0.** `docs/MODEL_FILE.md` 9 and the old `Types.hpp`
+  both said F' treats F64 as switchable; `F64` is unconditional at `Fw/Types/BasicTypes.h:86`
+  and the macro appears exactly once in the whole framework, in the documentation table this
+  project read. The shim asserts the property instead. Both documents amended.
+- **`clang-tidy` ran for the first time**: 170 findings, 16 fixed, 154 excluded with a written
+  reason each, 0 remaining across three configurations -- ours, the framework's root config and
+  the framework's release config for flight code. Two findings earned the exercise: an
+  out-of-bounds access and a division by zero that the loader makes unreachable at load time
+  but that a radiation bit-flip in RAM could reach afterwards. D31 consequence 5 was wrong
+  about where clang-tidy comes from; it is Homebrew's llvm, not F'.
+- **Footprint**: `sizeof(Sentinel::Monitor)` is **623,152 bytes** against 624,528 predicted
+  before the component existed -- 1,376 B under. Of that, 312,112 is the `Detector`, 302,048
+  the model-file buffer and 8,216 the `Baseline`.
+- **Predictions C1 to C10 are re-tabulated in `docs/MODELS.md` 20.9; eight held and two were
+  wrong.** C6 predicted fewer than 50 lint findings dominated by `readability-*` and got 170
+  dominated by `misc-include-cleaner`; C9 predicted a 10-to-20-minute first F' build and got
+  **12.4 seconds**, because F' builds only the modules the topology references.
+- **Thirteen corrections to the work item's brief** are recorded in `docs/MODELS.md` 20.2 and
+  four more things F' settled once code was being written in 20.10 -- among them that a
+  component with parameters is required to carry command ports, and that a library's modules
+  must be namespaced, which moved the component to `fprime/Sentinel/Monitor`.
+- Tests 473 -> 493. `docs/FPRIME.md` records the toolchain and `scripts/fprime_setup.sh`
+  rebuilds it from nothing.
 
 ## [0.5.0] - 2026-09-01 - Phase 2 work item 8 (tag wi8)
 
@@ -307,7 +367,8 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi8...dev
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9...dev
+[0.6.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi8...wi9
 [0.5.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...wi8
 [0.4.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi3...wi7
 [0.3.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi2...wi3

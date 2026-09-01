@@ -3027,7 +3027,130 @@ fails a test rather than passing quietly.
 
 ### 20.9 OBSERVED
 
-*Reserved. Filled in beside the predictions above, never in place of them.*
+**2026-09-01.** Everything below is printed by `make -C flight test`,
+`make -C flight lint`, `fprime-util check`, `scripts/fprime_ref_patch.sh` and
+`.venv/bin/python -m pytest -q`. Zero bucket operations.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **C1** | `sizeof(Monitor)` 624,528 B, delta +312,416 | **623,152 B, delta +311,040** | **Held**, 1,376 B under (0.22%) |
+| **C2** | the shim swap touches 1/1 files | **1/1**, and `sizeof(Detector)` is still exactly 312,112 under F' types | **Held** |
+| **C3** | baseline matches the reference at <= 1e-5, expected <= 1e-9 | **0.000e+00** over four tiers and 1,600 steps, flags exact | **Held**, with nothing left to spare because there is no difference |
+| **C4** | 11/11 refusal codes degrade, 0/11 fail the topology | **11/11 and 0/11** | **Held** |
+| **C5** | passive: 0 threads, 0 queues, 2 sync input ports | **0, 0, 2** -- and three command ports F' requires that were not predicted | **Held, with a correction** |
+| **C6** | clang-tidy: 1 to 50 findings, largest class `readability-*` | **170 findings, largest class `misc-include-cleaner` at 87** | **Wrong**, on the count and on the class |
+| **C7** | both deployments build at the union flag set | both build; the union is real and includes `-Wold-style-cast -Wdouble-promotion -Wsign-conversion` | **Held** |
+| **C8** | BASELINE costs 1,920 F64 MACs against MODEL's 70,080, 2.7% | unchanged; it is arithmetic from the window and the channel count | **Held** |
+| **C9** | first full F' build 10 to 20 minutes | **12.4 s** -- generate 6.4 s, build 6.0 s | **Wrong**, by two orders of magnitude |
+| **C10** | a degraded component emits 2,230 ticks earlier | 120 against 2,350, and the unit test pins the gate at both ends | **Held** |
+
+**C1, and where the 1,376 bytes went.** 312,112 `Detector` + 302,048 model-file
+buffer + 8,216 `Baseline` = 622,376, leaving 776 bytes of component state where
+2,048 was budgeted. The `Baseline` came in 104 B under its predicted 8,320
+because the ring's finite-mask estimate was generous. Nothing came in over.
+
+**C6, and what the two findings that mattered were.** The whole exercise earned
+its keep on two lines, both from `clang-analyzer`, the path-sensitive checks:
+`Detector.cpp:68` out-of-bounds access past `m_hidden`, and `Detector.cpp:118`
+division by zero. Both are unreachable at load time -- `ModelFile.cpp:109`
+refuses the shapes that would cause them. But the loader validates once and the
+`Model` struct then lives in RAM for the mission, and D5's own motivation for
+Level 1 is "a corrupt file, a version mismatch, a failed CRC or **a radiation
+bit-flip**". A flipped bit in `nLayers` after load walks off the array. The
+shape is now re-checked in `step`, three compares against 70,080
+multiply-accumulates, and a corrupted shape scores negative infinity so it reads
+on the ground as a dead channel rather than a frozen one. Sixteen findings were
+fixed, 154 excluded, and every exclusion carries a written reason in
+`flight/.clang-tidy`. All three configurations -- ours, the framework's root and
+the framework's release config -- now report **0** on the core, the tests and the
+component.
+
+**C9, and why the reasoning was wrong.** The prediction assumed a framework build
+means thousands of translation units. F' builds only the modules the topology
+references: 400 objects and 113 static libraries, in 21 CPU-seconds. The error
+was in the model of the build system, not in the arithmetic.
+
+### 20.10 What F' decided that reading its documents had not
+
+Four things the framework settled once code was being written rather than read.
+They are recorded here rather than in 20.2, which was committed before any of
+this existed.
+
+14. **Parameters force command ports.** F' refuses a component that declares
+    parameter specifiers and no command receive port, because the parameter
+    protocol *is* the autocoded `PARAM_SET` and `PARAM_SAVE` commands. So D34's
+    choice of parameters obliges the component to carry `cmdIn`, `cmdRegOut` and
+    `cmdResponseOut` while still having no command of its own. **This does not
+    disturb D32**: the generated base class holds an `Os::Mutex m_paramLock` for
+    parameter sets and gets, so a passive component's parameters are already
+    guarded against the command dispatcher's thread, and the concurrency argument
+    that would have forced `queued` does not arise.
+15. **A library's modules must be namespaced.**
+    `docs/how-to/develop/develop-fprime-libraries.md`: "Placing container
+    directories directly at the root of the repository is *strongly* forbidden."
+    Making `fprime/` an F' library so Ref could consume it moved the component
+    from `fprime/Monitor` to `fprime/Sentinel/Monitor` and its module name from
+    `Monitor` to `Sentinel_Monitor`. A library shipping a module called `Monitor`
+    at its root collides with the next library that has one.
+16. **A deployment can only reference modules already defined**, so the
+    component's `add_fprime_subdirectory` must precede the deployment's. The
+    `fprime-util new` wizard appends each at the end of the project's
+    `CMakeLists.txt`, which produces the wrong order; F' then says so precisely.
+17. **A telemetry packet set is exhaustive.** Ref downlinks through one, and FPP
+    requires every channel of every instance to be packetized or explicitly
+    omitted -- so adding Sentinel to Ref means saying what happens to its five
+    channels. They went into a packet rather than the omit list.
+
+### 20.11 The build proof
+
+| Artifact | Result |
+|---|---|
+| `fprime/SentinelRef`, this project's own deployment | builds; **1,956,600 B**; instantiated on the 1 Hz rate group |
+| F's own `TestDeploymentsProject/Ref`, via `scripts/fprime_ref_patch.sh` | builds; **2,428,064 B** against stock Ref's 2,352,560; **234** Sentinel symbols including the rate-group handler |
+| The component's F' unit tests | **10/10**, covering all eleven refusal codes |
+| `make -C flight test` | five suites, eleven vector tiers, seven byte-identical round trips |
+| `make -C flight lint` | three configurations, **0** findings |
+| `pytest -q` | **493** tests, up from 473 |
+
+**Level 1 was watched working, not only tested.** Running `SentinelRef` for six
+seconds with no model file present:
+
+```
+  WARNING_HI: (SentinelRef.sentinelMonitor) DegradedToBaseline :
+      Sentinel degraded to the Level 1 baseline: NO_MODEL_FILE (2)
+                                                (NOT_LOADED (12))
+```
+
+and PrmDb, the version events and the rate groups all ran afterwards. The two
+`PrmIdNotFound` warnings for `0x20000000` and `0x20000001` beside it are
+`BASELINE_SCALE` and `BASELINE_THRESHOLD` falling back to their FPP defaults,
+which is D34 working: Level 1 runs with no parameter database at all.
+
+### 20.12 Stop-and-report triggers: one fired, and it was not on the list
+
+Of 20.8's seven, **trigger 3 fired** -- "F' v4.3.0's documents contradict this
+section" -- four times, and each is recorded as a correction rather than
+absorbed: Ref's location (3), where `clang-tidy` comes from (10), `FW_HAS_F64`
+naming a macro F's code does not define (13), and the four items in 20.10. None
+of the other six fired: no core file other than the shim changed for the swap,
+the baseline matched exactly, the union flag set held, nothing touched `main`,
+work item 10's scope, Python training, the frozen decision layer or the spent
+held-back sets, and the work item cost zero bucket operations.
+
+**And one fired that this section did not list, from the work item's own brief:**
+"the baseline transcription cannot match its Python source at 1e-5". It cannot,
+and the reason is that the source is wrong -- 20.6 and D37. It was reported
+before the transcription was written, the decision to transcribe the rule rather
+than the implementation was taken at the checkpoint rather than by this work
+item, and the repair is scoped in section 21 to run before work item 10.
+
+**Verification.** 493 tests pass (473 before this work item, plus 14 on the
+baseline reference, 4 on the shim and the F' bridge, 1 on the toolchain
+exemption and 1 driving the component's F' suite); `scripts/check_no_list.py`
+clean on 68 files; `sentinel_eval selftest` 8/8; `make -C flight test` green on
+footprint, refusals, determinism twice, seven golden-vector tiers, four baseline
+tiers and seven byte-identical round trips; `make -C flight lint` clean on three
+configurations; `fprime-util check` 10/10.
 
 ---
 

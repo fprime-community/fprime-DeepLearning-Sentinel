@@ -115,3 +115,39 @@ a provenance, not a constant.
   telemanom-minus-commands; the ablation on post-fix weights has not run.
 - Objective.md 13 item 8, the injected-fault sensitivity study, and the
   Phase 3 lead-time measurement.
+
+## 7. What work item 9 settled, added 2026-09-01
+
+This document was written at the close of Phase 1 and describes what the C++
+phase inherited. Three of its open items are now closed, and one sentence in it
+turned out to rest on a defect. Recorded here rather than by editing the text
+above, which is the record of what was believed at the time.
+
+**Section 3's last bullet -- "Level 1 ... is unbuilt and is Phase 2's first
+obligation" -- is discharged.** All 11 of the loader's refusal codes degrade to
+the statistical baseline with the code named in the event, none fails the
+topology, and the behaviour was watched in a live deployment rather than only
+asserted (`docs/MODELS.md` 20.9, 20.11; D5; Objective.md decision 10).
+
+**Section 6's open decisions are unchanged**, except that they are joined by a
+new one. D14, D21, D23 and D6 are all still open exactly as written.
+
+**And a finding this document could not have carried, because nobody had looked.**
+Section 4 describes the frozen decision layer and cites `rstd` throughout Phase 1
+as the floor it was measured against. `baselines._rolling`, which computes
+`rstd`, accumulates its prefix sums in float32 and loses the statistic: measured
+7.6584e+00 of error against a true sigma of 3.0, and 2,852 spurious exact zeros
+on this project's own fixture. The flight Level 1 baseline therefore transcribes
+the **rule** and not the implementation, and the two are knowingly different
+numbers until the harness is repaired. D37 records it; `docs/MODELS.md` 21
+scopes the repair as work item 9.5, to run before work item 10, because
+`docs/RESULTS.md` 2's floor of 0.250 and the 3/32 in `docs/MODELS.md` 4's
+OBSERVED verdict both rest on it.
+
+**Two things the flight component now fixes that this document did not
+anticipate.** Objective.md decision 3, the channel-ingestion mechanism, is
+resolved as direct port wiring (D33) -- the telemetry-path tap is not
+implementable against `model.bin` version 1, which carries no per-channel type
+tag. And `Detector::step` re-validates the shape it is about to trust, because
+the loader validates once and the `Model` struct then lives in RAM for the
+mission; a radiation bit-flip in `nLayers` would otherwise walk off an array.

@@ -1,8 +1,9 @@
 # Project status and roadmap
 
 **2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
-file); WI9 next. Phase 1 closed 2026-08-29 (tag `wi7`). A ten-minute read; every number is
-read from a named artifact under `runs/`, or from a test that pins it.**
+file), WI9 complete (the F' component and Level 1); WI9.5 next, then WI10. Phase 1 closed
+2026-08-29 (tag `wi7`). A ten-minute read; every number is read from a named artifact under
+`runs/`, or from a test that pins it.**
 
 ## 1. Goal
 
@@ -44,7 +45,9 @@ in orbit without retraining (Objective.md 14.10).
 **Phase 1 CLOSED 2026-08-29 (tag `wi7`). Architecture: GRU (D28). Transfer validated on an
 independent spacecraft (D29). Phase 2 in progress: WI8 complete (tag `wi8`) - the flight
 inference core matches the reference at 1.8e-07 and the model file format is frozen (D30,
-D31, `docs/MODELS.md` 19.8). WI9, the F' component, is next.**
+D31, `docs/MODELS.md` 19.8). WI9 complete - `Sentinel::Monitor` builds in F' v4.3.0's own Ref
+deployment and Level 1 degrades on all 11 refusal codes without failing the topology (D32 to
+D37, `docs/MODELS.md` 20.9). WI9.5, the `_rolling` correctness fix, is next.**
 
 Every figure is `k/n`, read from the artifact named on its row. MVGS is ESA-ADB's
 Multivariate/Global/Subsequence class - the headline cell, the cross-channel anomaly class this
@@ -132,14 +135,17 @@ PHASE 2 - flight C++ (gate: tests green, flight-rule compliance clean)
       `docs/MODEL_FILE.md`): seven files round-trip Python to C++ to Python byte-identically,
       and the parameter block carries its own CRC so a recalibration in orbit never touches
       the 278.0 KiB of weights.
-- [ ] Level 1 safe failure mode, Phase 2's first obligation - done when a corrupt file, CRC or
-      version mismatch degrades to the statistical baseline with an event, never failing the
-      topology (Objective.md 14.10, D5). **Half built**: the loader refuses a bad magic,
-      version, header CRC, static CRC, param CRC, shape, size or truncation with its own
-      status code and no exception (16 cases), and a refused model emits nothing. The
-      degrade-with-an-event is the F' component's and is open.
-- [ ] F' component skeleton - ports, telemetry, the warning event naming the channel - done
-      when it builds in an F' Ref deployment.
+- [x] Level 1 safe failure mode, Phase 2's first obligation - a corrupt file, CRC or version
+      mismatch degrades to the statistical baseline with an event, never failing the topology
+      (Objective.md 14.10, D5) - **done 2026-09-01**: all **11/11** refusal codes degrade to
+      BASELINE with the code named in the event, **0/11** fail the topology, and the component
+      served 200 ticks after a refusal in test. Watched working in a live deployment, not only
+      asserted (`docs/MODELS.md` 20.11).
+- [x] F' component skeleton - ports, telemetry, the warning event naming the channel - **done
+      2026-09-01**: `Sentinel::Monitor`, passive on a `Svc.Sched` tick (D32), builds in this
+      project's own deployment **and** in F' v4.3.0's own Ref, which moved to
+      `TestDeploymentsProject/Ref` (`docs/MODELS.md` 20.2 correction 3). Consumed as an F'
+      library, so a mission adopts it with one `library_locations` line and nothing copied.
 - [ ] `_rolling`'s float32 accumulation, corrected and re-scored (work item 9.5, D37,
       `docs/MODELS.md` 21) - done when the floor is republished from a new artifact with the
       old figure beside it. Runs before the recalibration path, because the floor is the
@@ -187,9 +193,12 @@ HOUSEKEEPING
 ## 8. Where things live
 
 - Code: `src/sentinel_data` (ingest), `src/sentinel_eval` (the referee; never imports a model),
-  `src/sentinel_models` (the players and the NumPy reference), `src/sentinel_export` (the
-  `model.bin` writer and reader), `flight/` (the C++ inference core and its golden vectors),
-  `scripts/`, `tests/` (473 tests, zero R2 operations).
+  `src/sentinel_models` (the players, the NumPy reference and the Level 1 baseline reference),
+  `src/sentinel_export` (the `model.bin` writer and reader), `flight/` (the C++ inference core,
+  the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
+  deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
+  and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
+  (493 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -203,10 +212,17 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 473 tests
+.venv/bin/python -m pytest -q                                    # 493 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
-make -C flight test                                              # the C++ core
+make -C flight test                                              # the C++ core and Level 1
+make -C flight lint                                              # clang-tidy, three configs
+
+# the F' half, after one-time setup with scripts/fprime_setup.sh
+cd fprime && . fprime-venv/bin/activate
+cd Sentinel/Monitor && fprime-util check                         # the component, 10 tests
+cd ../../SentinelRef && fprime-util build                        # the deployment
+bash scripts/fprime_ref_patch.sh                                 # and F's own Ref
 
 # one scoring run on the offline fixture, zero R2 operations
 PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep
