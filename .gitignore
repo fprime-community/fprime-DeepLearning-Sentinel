@@ -38,3 +38,12 @@ scratch/
 .env
 *.zip
 *.pkl
+
+# Flight golden vectors: the small tiers are committed so the C++ suite is
+# self-contained and cannot drift. G3's weight file is 285 KB and regenerates
+# from its seed, and the G4 tier is built from cached production weights under
+# runs/, which is gitignored -- neither is committed.
+flight/test/vectors/g3.bin
+flight/test/vectors/g4_*
+flight/test/vectors/manifest_local.json
+flight/build/
