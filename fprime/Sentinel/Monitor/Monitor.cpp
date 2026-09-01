@@ -3,9 +3,9 @@
 // \brief  Cross-channel telemetry monitor: the work item 8 core, wrapped
 // ======================================================================
 
-#include "Monitor/Monitor.hpp"
+#include "Sentinel/Monitor/Monitor.hpp"
 
-#include "Monitor/FppConstantsAc.hpp"
+#include "Sentinel/Monitor/FppConstantsAc.hpp"
 
 #include <cstdio>
 

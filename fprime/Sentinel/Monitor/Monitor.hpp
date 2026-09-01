@@ -19,7 +19,7 @@
 #define Sentinel_Monitor_HPP
 
 #include "Fw/Types/FileNameString.hpp"
-#include "Monitor/MonitorComponentAc.hpp"
+#include "Sentinel/Monitor/MonitorComponentAc.hpp"
 #include "sentinel/Baseline.hpp"
 #include "sentinel/Detector.hpp"
 #include "sentinel/ModelFile.hpp"

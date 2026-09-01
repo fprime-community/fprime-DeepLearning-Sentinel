@@ -13,8 +13,8 @@
 #ifndef Sentinel_MonitorTester_HPP
 #define Sentinel_MonitorTester_HPP
 
-#include "Monitor/Monitor.hpp"
-#include "Monitor/MonitorGTestBase.hpp"
+#include "Sentinel/Monitor/Monitor.hpp"
+#include "Sentinel/Monitor/MonitorGTestBase.hpp"
 
 namespace Sentinel {
 

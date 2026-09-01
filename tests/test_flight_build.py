@@ -244,7 +244,7 @@ def test_the_fprime_component_unit_tests_pass():
     env = dict(os.environ)
     env["PATH"] = f"{fprime / 'fprime-venv' / 'bin'}:{env.get('PATH', '')}"
     env["VIRTUAL_ENV"] = str(fprime / "fprime-venv")
-    result = subprocess.run(["fprime-util", "check"], cwd=str(fprime / "Monitor"),
+    result = subprocess.run(["fprime-util", "check"], cwd=str(fprime / "Sentinel" / "Monitor"),
                             capture_output=True, text=True, timeout=1800, env=env)
     assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-2000:]
     assert "100% tests passed" in result.stdout, result.stdout[-2000:]

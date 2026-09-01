@@ -46,8 +46,8 @@ register_fprime_ut(
 # SENTINEL_UT_TMP keeps the test's scratch model file out of the source tree.
 # A test that dirties the tree is what tests/test_no_local_persistence.py exists
 # to forbid on the Python side, and the same rule applies here.
-if (TARGET Monitor_ut_exe)
-    target_compile_definitions(Monitor_ut_exe PRIVATE
-        "SENTINEL_VECTORS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../flight/test/vectors\""
+if (TARGET Sentinel_Monitor_ut_exe)
+    target_compile_definitions(Sentinel_Monitor_ut_exe PRIVATE
+        "SENTINEL_VECTORS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../../flight/test/vectors\""
         "SENTINEL_UT_TMP=\"${CMAKE_CURRENT_BINARY_DIR}\"")
 endif()
