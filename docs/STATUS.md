@@ -2,7 +2,8 @@
 
 **2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
 file); **WI9 complete** (the F' component and the Level 1 safe-failure mode, tag `wi9`);
-**WI9.5 (the `rstd` correctness fix) then WI10 next**. Phase 1 closed 2026-08-29 (tag
+**WI9.5 complete** (the `rstd` correctness fix, and it falsified a published claim);
+**WI10 next**. Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
 
@@ -57,18 +58,21 @@ stamped UNDERPOWERED by the harness's own rule; none appears here.
 
 | Set | Detector | F0.5 | recall | precision | headline cell (MVGS) | rare-event FA | nominal-step FA | artifact |
 |---|---|---|---|---|---|---|---|---|
-| `m1-g8.9.10` (gate) | `rstd` (the floor) | 0.250 | 3/46 | 6/7 | 3/32 | 1/48 | 0.000% | `runs/m1-g8.9.10/rstd/2026-08-25T*.json` |
+| `m1-g8.9.10` (gate) | `rstd` (the floor) | **0.676** (was 0.250, D37) | **34/46** (was 3/46) | 84/127 (was 6/7) | **25/32** (was 3/32) | 3/48 (was 1/48) | 0.024% (was 0.000%) | `runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json` |
 | `m1-g8.9.10` | `lstm-quantile` | 0.838 | 26/46 | 40/42 | 21/32 | 2/48 | 0.002% | `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json` |
 | `m1-g8.9.10` | **`gru-quantile`** (selected) | 0.804 | 27/46 | 139/157 | 22/32 | 1/48 | 0.001% | `runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json` |
 | `m1-g8.9.10` | `tcn-quantile` | 0.411 | 9/46 | 21/37 | 9/32 | 3/48 | 0.00002% | `runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json` |
 | `m2-ss1` (transfer, 424 rare events) | **`gru-quantile`** | - | - | - | - | 4/424 (0.94%) | 0 / 4,155,841 | `runs/m2-ss1/gru-quantile/2026-08-29T204415Z-6d146f5d.json` |
 
-**(!) The `rstd` floor row is under correction.** `baselines._rolling` accumulates its
-prefix sums in float32 and loses the statistic it computes (D37, `docs/MODELS.md` 20.6):
-measured 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros on
-this project's own fixture. The figures below are what the artifact says and are left
-standing; the repair and the re-score are scoped in `docs/MODELS.md` 21 and run before
-work item 10. Nothing in the forecaster rows calls `_rolling`.
+**(!) The `rstd` and `mavg` floor rows were re-scored 2026-09-01 and moved a long way.**
+`baselines._rolling` accumulated its prefix sums in float32 and lost the statistic it
+computed; corrected, the floor's headline-cell recall goes from 3/32 to **25/32** and its
+F0.5 from 0.250 to **0.676**. The forecaster rows are unchanged and were not recomputed --
+nothing in their path calls `_rolling`. Every moved figure carries its old value in
+parentheses with D37. What this does to the project's central claim is stated plainly in
+`docs/RESULTS.md` 1 and `docs/MODELS.md` 21.8: **the claim as it was written is
+falsified.** The gate metric's ordering is not: `gru-quantile` still clears the corrected
+floor by 0.128 of F0.5, at a third of its alarm rate.
 
 On the `m2-ss1` row "-" means unmeasured: recall is disabled on the transfer set by design, so
 its scorecard is the adoption number (D29, `docs/RESULTS.md` 6k). The paired subset `m1-ss5`,
@@ -118,6 +122,12 @@ the union and floor rows on Mission 2, and the `m1-g3` folds are in README and
 - "+26 timesteps early" was an artifact; measured from the first crossing, the flying
   detector's median lead is 0.0 - true early warning is Phase 3's measurement (D21,
   Objective.md 1.1).
+- A defect in the floor is a defect in every comparison drawn against it. `baselines._rolling`
+  accumulated in float32 and lost the statistic; corrected, the floor went from F0.5 0.250 to
+  0.676 and from 3/32 to 25/32 headline-cell events, and the project's most-quoted sentence --
+  a per-channel statistic finds three, a forecaster finds twenty-eight -- turned out to be
+  about arithmetic (D37). The forecaster still wins the gate metric; the ratio it was
+  advertised with was never the gate metric.
 - Thresholds are parameters with a provenance: the recipe held across spacecraft, and a floor
   fixed in the past sat under 86.7% of one later window's nominal residual - recalibrate in
   orbit (D29).
@@ -147,10 +157,15 @@ PHASE 2 - flight C++ (gate: tests green, flight-rule compliance clean)
       project's own deployment **and** in F' v4.3.0's own Ref, which moved to
       `TestDeploymentsProject/Ref` (`docs/MODELS.md` 20.2 correction 3). Consumed as an F'
       library, so a mission adopts it with one `library_locations` line and nothing copied.
-- [ ] `_rolling`'s float32 accumulation, corrected and re-scored (work item 9.5, D37,
-      `docs/MODELS.md` 21) - done when the floor is republished from a new artifact with the
-      old figure beside it. Runs before the recalibration path, because the floor is the
-      denominator of the headline comparison.
+- [x] `_rolling`'s float32 accumulation, corrected and re-scored (work item 9.5, D37,
+      `docs/MODELS.md` 21) - **done 2026-09-01**, at 41 Class B and 3 Class A. The floor is
+      republished everywhere from new artifacts with the old figure beside it. **The
+      pre-registered falsification fired**: the corrected floor's headline-cell recall is
+      **25/32**, past `gru-quantile`'s 22/32, so the claim that a per-channel statistic
+      cannot see the cross-channel class is dead. On the gate metric D3 fixed in advance --
+      event-wise F0.5, never bare recall -- `gru-quantile` still clears the corrected floor
+      0.804 to 0.676, at a third of its alarm rate (`docs/RESULTS.md` 1a,
+      `docs/MODELS.md` 21.10).
 - [ ] In-orbit threshold recalibration path - file uplink, human-approved reload - done when it
       is exercised end to end on the Ref.
 

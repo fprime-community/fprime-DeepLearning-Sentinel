@@ -279,6 +279,13 @@ ESA-ADB**, so it cannot be quietly replaced by whatever happened.
 The floor is `rstd` on `m1-g8.9.10`: **event-wise F0.5 = 0.250**, from recall
 3/46 and precision 6/7.
 
+**(!) CORRECTED 2026-09-01 (D37, section 21).** That floor was measured with a
+defect: `baselines._rolling` accumulated its prefix sums in float32 and lost the
+statistic. Re-scored, the floor is **F0.5 = 0.676**, from recall **34/46** and
+precision 84/127. The predictions below were made against 0.250 and 3/32 and are
+left exactly as they were written, because that is what a pre-registration is;
+the OBSERVED table restates the verdicts that the correction changes.
+
 ### PREDICTED
 
 | Metric | Prediction | Reasoning |
@@ -320,8 +327,8 @@ side-by-side record; the artifacts are named there.
 
 | Prediction | Pre-fix | Post-fix | Verdict |
 |---|---|---|---|
-| **F0.5 on `m1-g8.9.10` clears `rstd`'s 0.250** | **0.269** | **0.026** | **Held, then lost.** It cleared the floor by 0.019 with a one-epoch model and fell an order of magnitude below it once the model was trained. The floor is a two-line rolling standard deviation |
-| **Headline-cell recall above `rstd`'s 3/32** | 28/32 | 28/32 | **Held, decisively, and it is the project's thesis.** A per-channel statistic finds three; a forecaster over the channel set finds twenty-eight, at 0.231 and 0.021 precision respectively |
+| **F0.5 on `m1-g8.9.10` clears `rstd`'s 0.250** | **0.269** | **0.026** | **Held, then lost -- and on the corrected floor it never held.** It cleared 0.250 by 0.019 with a one-epoch model and fell an order of magnitude below it once the model was trained. **(!) CORRECTED 2026-09-01 (D37): the floor is 0.676, so 0.269 never cleared it.** The floor is a two-line rolling standard deviation, and it is a better one than this project measured |
+| **Headline-cell recall above `rstd`'s 3/32** | 28/32 | 28/32 | **Held against the number as it stood, and the number was wrong.** The verdict here read: "Held, decisively, and it is the project's thesis. A per-channel statistic finds three; a forecaster over the channel set finds twenty-eight, at 0.231 and 0.021 precision respectively." **(!) CORRECTED 2026-09-01 (D37): a per-channel statistic finds twenty-five of thirty-two, not three.** The 3/32 was an artifact of `_rolling`'s float32 accumulation. The forecaster's 28/32 is unchanged and was not recomputed, but it is no longer evidence that a per-channel statistic cannot see the cell, because it can. What survives is stated in `docs/RESULTS.md` 1a: on the gate metric this project declared in advance, the forecaster still wins, and it wins by reaching comparable recall at a third of the alarm rate |
 | **Rare-event false alarms low, near `rstd`'s 1/48** | 22/48 | 30/48 | **Wrong, and wrong by a lot.** Trigger 3 fired: the prediction's own stop-and-report threshold was `mavg`'s 10/48 |
 | **`m1-ss5` may lose to `mavg`'s 0.135** | 0.664 | 0.035 | **Wrong pre-fix, right post-fix**, for a reason the prediction did not contain: not the spiky regime suiting a per-channel method, but the threshold collapsing |
 | **`lstm-quantile` loses to `lstm-telemanom`** | 0.421 vs 0.269 | not re-run | **Wrong on F0.5, right on the thing that matters.** Trigger 2 fired and was reported: the quantile branch wins F0.5 and is structurally late, and is closed on that ground (`docs/DECISIONS.md` D13) |
@@ -3289,4 +3296,136 @@ are a starting list, not a substitute for grepping on the day.
 
 ### 21.8 OBSERVED
 
-*Reserved.*
+**2026-09-01.** Three runs, **41 Class B and 3 Class A** in total, all recorded in
+the ledger. Old artifacts preserved beside the new ones; no forecaster row was
+recomputed, and no run named a detector other than `rstd` and `mavg`.
+
+**The fix.** `baselines.py:40` promotes to float64 before the values are squared
+and `np.cumsum` accumulates with `dtype=np.float64`. Against the flight rule the
+gap closes from **7.6584e+00 to 1.8284e-08**, and the spurious exact zeros go
+from 3,975 to none. `tests/test_rolling_precision.py` pins it against
+`numpy.nanstd` in five regimes.
+
+### 21.9 PREDICTED against MEASURED
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **W1** | the corrected fold-0 threshold is **below** 3.339457480522701 | **13.666420229522133** -- and folds 1 and 2 likewise rose, to 13.44 and 11.95 | **Wrong**, and the reasoning was backwards |
+| **W2** | corrected headline-cell recall **>= 3/32** | **25/32** | **Held**, and far past the falsification line |
+| **W3** | corrected nominal-step false alarms rise **above 0.000%** | **0.024%** (2,563 / 10,675,488) | **Held** |
+| **W4** | F0.5 moves from 0.250, by **less than 0.15** | **0.676**, a move of **0.426** | **Wrong on the magnitude**, right that it moved |
+| **W5** | `mavg` moves **less than** `rstd` on every metric | `mavg` F0.5 0.028 -> 0.170 (+0.142) against `rstd`'s +0.426; but `mavg`'s rare-event false alarms moved 10/48 -> 15/48 where `rstd`'s moved 1/48 -> 3/48, and on `m2-ss1` `mavg` got **worse** (122/424 -> 208/424) where `rstd` got much better | **Mostly held, not on every metric** |
+| **W6** | no forecaster moves at all | none was recomputed; nothing in any forecaster's path calls `_rolling` | **Held by construction** |
+
+**W1 is worth dwelling on, because the reasoning was exactly inverted.** The
+prediction argued that a corrupted statistic has a fatter upper tail, so its
+99.9th percentile sits high and correcting it would lower the floor. What
+actually happened: the scale divisor is `nanstd` of the spread series itself
+(`baselines.py:105`), and the corrupted spread series was far *noisier*, so its
+standard deviation was far *larger*, so the normalised scores were far *smaller*.
+Correcting the numerator shrank the denominator more. The threshold rose from
+3.34 to 13.67 and the detector still fires eleven times more often. The
+prediction reasoned about one half of a ratio and forgot the other.
+
+### 21.10 The falsification fired
+
+`docs/MODELS.md` 21.4 stated it in advance: "**If corrected `rstd` reaches or
+exceeds the GRU's headline-cell 22/32, the project's central claim -- that a
+per-channel statistic cannot see the cross-channel class -- is in serious
+question and this document says so in those words.**"
+
+It reached **25/32**. So, in those words: **the project's central claim as it was
+written is falsified.** A per-channel statistic finds twenty-five of the
+thirty-two `Multivariate/Global/Subsequence` events on the gate set. The "three"
+that this repository has quoted since work item 4 was an artifact of arithmetic.
+
+`m1-g8.9.10`, corrected floor beside the detector that flies:
+
+| | F0.5 | recall | MVGS | precision | rare-event FA | alarms / 1k nominal |
+|---|---|---|---|---|---|---|
+| `rstd`, corrected | 0.676 | 34/46 | **25/32** | 84/127 (0.661) | 3/48 | 0.0024 |
+| `gru-quantile` | **0.804** | 27/46 | 22/32 | **139/157 (0.885)** | **1/48** | **0.00066** |
+
+**What survives, and why it is not a consolation prize.** D3 fixed the gate metric
+as event-wise F0.5, *never bare recall*, before any of this was measured, and
+`docs/HARNESS.md` 1 requires recall to be read against precision and never alone.
+On that metric the forecaster wins by 0.128, and it wins in the way the argument
+always said it should: comparable recall at **a third of the alarm rate**, with
+precision 0.885 against 0.661. The corrected floor buys its events by alarming
+more often. That is a real difference and it is the one the project pre-committed
+to measuring.
+
+**What does not survive** is the *ratio* -- three against twenty-eight -- that has
+been the rhetorical centre of this repository. It was never the gate criterion,
+and it was wrong.
+
+**What is untouched.** D28's architecture gate compared LSTM, GRU and TCN and
+never involved `rstd`. D25's decision layer, D29's transfer result and adoption
+number, and every forecaster figure in this repository stand exactly as measured.
+
+### 21.11 The held-back sets, and what the re-score found there
+
+Re-scored on the recommendation accepted at the work item 9 checkpoint: `rstd`
+and `mavg` only, in runs that named no other detector, with the original
+artifacts preserved.
+
+**`m2-ss1`, the transfer set.** This is the largest correction in the document,
+and it runs the other way:
+
+| | rare-event FA | nominal-step FA |
+|---|---|---|
+| `rstd`, was | 84/424 | 718,831 / 4,155,841 (**17.30%**) |
+| `rstd`, corrected | **22/424** | **126 / 4,155,841 (0.003%)** |
+| `gru-quantile` | 4/424 | 0 / 4,155,841 |
+
+`docs/PHASE1_REPORT.md` said the per-channel floor "alarmed on a sixth of nominal
+time" on an independent spacecraft. It did not. It alarmed on three thousandths
+of a percent. **D29's conclusion is unchanged and its evidence is now cleaner**:
+the forecaster still wins the adoption number 4/424 against 22/424 and 0
+nominal-step alarms against 126. The comparison is now between two working
+detectors instead of one working detector and a broken one.
+
+**`m1-g3`, the held-back recall set.** The corrected floor matches the flying
+detector's headline cell exactly:
+
+| | F0.5 | recall | MVGS | precision | alarms / 1k |
+|---|---|---|---|---|---|
+| `rstd`, corrected | 0.351 (was 0.029) | 8/11 (was 3/11) | **8/10** (was 3/10) | 173/557 | 0.035 |
+| `gru-quantile` | **0.835** | 9/11 | **8/10** | 4,819/5,740 | 0.078 |
+
+Same 8/10, at half the alarm rate, at a third of the precision. The gate metric
+separates them by 0.484.
+
+### 21.12 Stop-and-report triggers
+
+Trigger 1 fired -- "the corrected `rstd` reaches the GRU's headline cell" -- and
+is the subject of 21.10. Trigger 2 did not: no forecaster moved, because none was
+recomputed and nothing in their path calls `_rolling`. Trigger 3 did not: 41
+Class B against a budget of 50. Trigger 4 did not: the held-back question was
+decided at the work item 9 checkpoint before this work item ran.
+
+**And a finding that was not on the list.** The float64 fix is necessary and it
+is not sufficient in general. `sqrt(S2/n - (S1/n)^2)` has a regime limit at any
+precision: its relative error grows as the **square** of `|mean|/sigma`.
+
+```
+  |mean|/sigma        relative error, float64, after the fix
+             6            1.9e-13
+         2.8e+03            4.6e-08     a 28 V bus with 10 mV of noise
+           1e+06            6.7e-03
+           1e+08            1.0         the statistic is gone
+           1e+09            0.0         the variance floor clamps, silently
+```
+
+ESA-ADB is min-max scaled within channel groups, so its ratios run about 2 to 6
+and the fix is decisive for everything this project scores. But the last row is
+the same silent-zero failure the fix removed, at a higher threshold, and
+`src/sentinel_models/baseline_reference.py` -- and therefore
+`flight/src/Baseline.cpp` -- shares the limit exactly, because it transcribes the
+same formula. `tests/test_rolling_precision.py` pins the boundary. Making the
+form unconditionally stable is an algorithm change that would move the flight
+golden vectors; it is reported here, not taken.
+
+**Verification.** 505 tests pass; `scripts/check_no_list.py` clean; `sentinel_eval
+selftest` 8/8; `make -C flight test` green with the Level 1 baseline still exact
+at 0.000e+00; `make -C flight lint` clean on three configurations.

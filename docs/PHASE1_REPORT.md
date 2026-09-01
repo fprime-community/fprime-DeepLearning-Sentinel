@@ -48,6 +48,9 @@ alarms for 42 events. The gate metric became event-wise F0.5, and bare recall is
 alone anywhere (D3, `docs/HARNESS.md` section 7). Four more defects followed, all in the
 measurement design, all recorded (`docs/NARRATIVE.md` section 2). The floor was set: a rolling
 standard deviation at F0.5 0.250, 3 of 32 headline-cell events (`docs/RESULTS.md` section 1).
+**(!) Corrected 2026-09-01: those two figures were wrong. The floor is F0.5 0.676 and 25 of
+32 (D37). What follows is the Phase 1 story as it was lived, against the floor as it was
+then believed; `docs/RESULTS.md` 1a states what the correction does to the conclusion.**
 
 ### The reproduction, and the constant that had disabled training
 
@@ -137,7 +140,13 @@ nothing would be re-tuned (`docs/MODELS.md` section 18).
 **On the independent spacecraft the recipe held.** Fit on a third of an unseen mission's history,
 calibrated on its own nominal residual with no label and no tuning, the LSTM, the GRU and the TCN
 alarmed on **4, 4 and 6 of 424 rare events and on none of 4,155,841 nominal timesteps**. The
-per-channel floors did not: `rstd` alarmed on a sixth of nominal time. The union's Mission-1
+per-channel floors did not, on the numbers available at the time: `rstd` was recorded
+as alarming on a sixth of nominal time. **(!) Corrected 2026-09-01 (D37): that 17.30%
+was an artifact of `baselines._rolling`'s float32 accumulation. Re-scored, `rstd` alarms
+on 126 of 4,155,841 nominal steps -- 0.003%, not a sixth -- and on 22 of 424 rare events
+rather than 84. The forecasters still win the adoption number decisively, 4/424 against
+22/424 and 0 nominal-step alarms against 126, so D29 stands; the margin it is quoted
+against does not.** The union's Mission-1
 economy did not transfer - its eight rare alarms were the members' four and four, disjoint - and
 its recall edge evaporated on `m1-g3`; `gru-quantile` flies alone (D29).
 

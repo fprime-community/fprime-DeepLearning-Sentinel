@@ -10,18 +10,48 @@ caveat that qualifies every LSTM figure below.
 
 ---
 
+
+> **(!) READ FIRST, 2026-09-01.** Every `rstd` and `mavg` figure in this document was
+> re-scored at work item 9.5 after `baselines._rolling` was found to accumulate its
+> prefix sums in float32 and lose the statistic it computed (D37, `docs/MODELS.md` 21).
+> Corrected figures carry their old value in parentheses. **The floor moved from
+> F0.5 0.250 to 0.676 and from 3/32 to 25/32 headline-cell recall**, which falsifies
+> this project's central claim as it was written -- section 1a says so plainly, and says
+> what survives. No forecaster figure moved or was recomputed. Passages that narrate
+> what was believed at the time are left standing, because that is the record; where one
+> states a figure as live it is corrected in place.
+
 ## 1. The floor, and what cleared it
 
-**The floor was `rstd` on `m1-g8.9.10`: event-wise F0.5 = 0.250.** A two-line
-rolling standard deviation. Work items 4, 5 and 6 must beat it.
+**(!) CORRECTED 2026-09-01, work item 9.5. The floor was measured with a defect
+and it is much higher than this section said.** `baselines._rolling` accumulated
+its prefix sums in float32 and lost the statistic it computed (D37,
+`docs/MODELS.md` 21). Re-scored from
+`runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json`, the floor is
+**F0.5 = 0.676**, not 0.250, and its headline-cell recall is **25/32**, not 3/32.
+The original text is kept below because it is the record of what was measured and
+believed; every figure in it that moved is corrected beside it. Section 1a states
+what this does to the project's central claim.
 
-**Work item 4 cleared it**, and the margin is not the interesting part:
+**The floor was `rstd` on `m1-g8.9.10`: event-wise F0.5 = 0.676 (was 0.250,
+D37).** A two-line rolling standard deviation. Work items 4, 5 and 6 must beat
+it.
+
+**Work item 4 cleared it** on the gate metric, and the margin is not the
+interesting part:
 
 ```
-  rstd            F0.5 0.250    headline-cell recall   3/32
-  lstm-telemanom  F0.5 0.269    headline-cell recall  28/32
-  lstm-quantile   F0.5 0.421    headline-cell recall   6/32
+  rstd            F0.5 0.676 (was 0.250)   headline-cell recall  25/32 (was 3/32)
+  lstm-telemanom  F0.5 0.269               headline-cell recall  28/32
+  lstm-quantile   F0.5 0.421               headline-cell recall   6/32
 ```
+
+**(!) On the corrected numbers work item 4 did NOT clear the floor.** `rstd` at
+0.676 is above `lstm-telemanom`'s 0.269 and `lstm-quantile`'s 0.421. What cleared
+it is the post-fix work: `gru-quantile` at 0.804 and `lstm-quantile` at 0.838 on
+trained weights (section 6h). The one-epoch numbers in this block are a
+historical record, not a live comparison; `docs/DECISIONS.md` D17 already records
+that every fit in this era kept its first epoch.
 
 ### (!) The floor was never a flight candidate, and only one detector survives
 
@@ -36,11 +66,19 @@ changed which detectors are eligible at all:
 ```
 
 **`rstd` remains the F0.5 floor and is retained for comparability.** Every result
-in this repository is measured against 0.250 and that does not change. But over
-the three events it catches it alarms a median of **1,512 timesteps late**, so by
-the rule in `docs/HARNESS.md` section 1 it is **disqualified on timeliness and was
-never a candidate for the flight configuration**. That was unknowable before the
-metric existed, which is the point.
+in this repository is measured against it; the number it is measured against is
+now **0.676**, not 0.250 (D37).
+
+**(!) The timeliness disqualification does not survive the correction either.**
+This paragraph used to read: "over the three events it catches it alarms a median
+of 1,512 timesteps late, so by the rule in `docs/HARNESS.md` section 1 it is
+disqualified on timeliness and was never a candidate for the flight
+configuration." The corrected `rstd` catches **34** events, not three, and its
+honest median lead is **+0.0** -- it fires at the labelled boundary, exactly like
+`lstm-quantile` and `gru-quantile`. The -1,512 was a property of the defect: a
+statistic that was mostly noise and spurious zeros caught almost nothing, and
+what it did catch it caught late. On timeliness the corrected floor is not
+disqualified.
 
 `lstm-quantile` is disqualified on the same ground at -122, despite holding the
 best F0.5 and the best false-alarm rate in this document.
@@ -53,11 +91,45 @@ the persistence sweep already moved lead time from +26 to -37 as N rose from 1 t
 60, for almost no gain in F0.5. Every layer from here reports its lead-time cost
 beside its precision gain.
 
-The cross-channel claim is what was actually tested. `m1-g8.9.10` carries 32
-`Multivariate/Global/Subsequence` events -- the taxonomy cell Objective.md 2.4's
-argument lives in -- and a per-channel statistic finds three of them. A
-forecaster over the whole channel set finds twenty-eight. That is the
-project's thesis measured rather than asserted.
+## 1a. The cross-channel claim, restated after the correction
+
+This section used to end: "`m1-g8.9.10` carries 32 `Multivariate/Global/Subsequence`
+events -- the taxonomy cell Objective.md 2.4's argument lives in -- and a
+per-channel statistic finds three of them. A forecaster over the whole channel
+set finds twenty-eight. That is the project's thesis measured rather than
+asserted."
+
+**That sentence is false, and the correction is the reason.** A per-channel
+statistic finds **25 of 32**, not three. The pre-registered falsification in
+`docs/MODELS.md` 21.4 named exactly this outcome -- "if corrected `rstd` reaches
+or exceeds the GRU's headline-cell 22/32, the project's central claim is in
+serious question and this document says so in those words" -- and it fired.
+
+Measured on `m1-g8.9.10`, corrected floor beside the flying detector:
+
+| | F0.5 | recall | MVGS | precision | rare-event FA | alarms / 1k nominal |
+|---|---|---|---|---|---|---|
+| `rstd`, corrected | 0.676 | 34/46 | **25/32** | 84/127 (0.661) | 3/48 | 0.0024 |
+| `gru-quantile` (flies) | **0.804** | 27/46 | 22/32 | **139/157 (0.885)** | **1/48** | **0.00066** |
+
+**What is dead.** The claim as it was written -- that a per-channel statistic
+cannot see the cross-channel class -- does not survive. It found 25 of 32. The
+"three" was an artifact of arithmetic, and every restatement of it in this
+repository is corrected.
+
+**What survives, and it is not nothing.** On the gate metric this project
+declared in advance -- event-wise F0.5, never bare recall (D3) -- the forecaster
+still wins by 0.128, and it wins the way the argument always said it should: it
+reaches comparable recall at **a third of the alarm rate** and with precision
+0.885 against 0.661. Read the way `docs/HARNESS.md` section 1 insists -- recall
+against precision, never alone -- the forecaster is the better detector on this
+set. What it is not is the only thing that can see the cell.
+
+**What this does not change.** D28's architecture gate compared LSTM, GRU and TCN
+and never involved `rstd`; D25's decision layer and D29's transfer result are
+untouched. Nothing in any forecaster's path calls `_rolling`, and no forecaster
+row was recomputed. The selection stands; the margin it is quoted against does
+not.
 
 **What did not clear anything is the false-alarm rate.** `lstm-telemanom` alarms
 on 22 of 48 commanded manoeuvres. Objective.md 11 rule 2 is explicit that a
@@ -90,8 +162,8 @@ agreement 1. Section 4 sweeps both.
 |---|---|---|---|---|---|---|---|---|---|---|
 | `lstm-quantile` | **0.421** | **-122 (!)** | 6/46 (0.130) | 20/21 (0.952) | 6/32 (0.188) | 6/45 (0.133) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.259 |
 | `lstm-telemanom` | **0.269** | **+26** | 37/46 (0.804) | 42/182 (0.231) | 28/32 (0.875) | 37/45 (0.822) | 9/11 (0.818) | **22/48 (0.458)** | 0.015 | 0.078 |
-| `rstd` | 0.250 | **-1,512 (!)** | 3/46 (0.065) | 6/7 (0.857) | 3/32 (0.094) | 3/45 (0.067) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.030 |
-| `mavg` | 0.028 | 0 | 34/46 (0.739) | 452/19909 (0.023) | 25/32 (0.781) | 34/45 (0.756) | 9/11 (0.818) | **10/48 (0.208)** | 1.796 | 0.226 |
+| `rstd` | **0.676** (was 0.250) | **+0.0** (was -1,512) | 34/46 (0.739) (was 3/46) | 84/127 (0.661) (was 6/7) | **25/32** (0.781) (was 3/32) | 34/45 (0.756) (was 3/45) | 9/11 (0.818) (was 0/11) | **3/48 (0.062)** (was 1/48) | 0.002 (was 0.000) | 0.284 (was 0.030) |
+| `mavg` | 0.170 (was 0.028) | 0 | 36/46 (0.783) (was 34/46) | 1152/8099 (0.142) (was 452/19909) | 27/32 (0.844) (was 25/32) | 36/45 (0.800) (was 34/45) | 9/11 (0.818) | **15/48 (0.312)** (was 10/48) | 0.636 (was 1.796) | 0.128 (was 0.226) |
 | `quiet` | undefined | n/a | 0/46 (0.000) | -/0 | 0/32 (0.000) | 0/45 (0.000) | 0/11 (0.000) | **0/48 (0.000)** | 0.000 | 0.030 |
 
 **(!) Two detectors are disqualified by the lead-time rule** (`docs/HARNESS.md`
@@ -104,7 +176,10 @@ catches late.
 `rstd`, **the floor this whole work item was measured against**, is worse:
 a median of **1,512 timesteps late** over the three events it caught. It cleared
 F0.5 = 0.250 while being, in the terms Objective.md 2 sets out, not an
-early-warning detector at all. That does not retract the floor -- it was and
+early-warning detector at all. **(!) Corrected 2026-09-01 (D37): both numbers
+were artifacts. The corrected floor catches 34 events at a median lead of +0.0
+and an F0.5 of 0.676, so this paragraph's conclusion -- that the floor is late
+and therefore disqualified -- does not hold. Section 1a.** That does not retract the floor -- it was and
 remains the number to beat on F0.5 -- but it does mean the floor was never a
 candidate for flight, and nobody could have known that before the metric existed.
 
@@ -119,8 +194,8 @@ which is what a per-channel threshold on a spike does.
 |---|---|---|---|---|---|---|---|---|---|
 | `lstm-telemanom` | **0.664** | 36/42 (0.857) | 39/62 (0.629) | 27/31 (0.871) | 36/41 (0.878) | 9/11 (0.818) | **17/48 (0.354)** | 0.005 | 0.184 |
 | `lstm-quantile` | 0.452 | 6/42 (0.143) | 76/77 (0.987) | 6/31 (0.194) | 6/41 (0.146) | 0/11 (0.000) | **1/48 (0.021)** | 0.000 | 0.458 |
-| `mavg` | 0.135 | 32/42 (0.762) | 399/3573 (0.112) | 23/31 (0.742) | 32/41 (0.780) | 9/11 (0.818) | **8/48 (0.167)** | 0.240 | 0.139 |
-| `rstd` | undefined | 0/42 (0.000) | 0/98 (0.000) | 0/31 (0.000) | 0/41 (0.000) | 0/11 (0.000) | **1/48 (0.021)** | 0.009 | 0.009 |
+| `mavg` | 0.422 (was 0.135) | 36/42 (0.857) (was 32/42) | 878/2342 (0.375) (was 399/3573) | 26/31 (0.839) (was 23/31) | 35/41 (0.854) (was 32/41) | 10/11 (0.909) (was 9/11) | **27/48 (0.562)** (was 8/48) | 0.096 (was 0.240) | 0.241 (was 0.139) |
+| `rstd` | **0.663** (was undefined) | 34/42 (0.810) (was 0/42) | 73/115 (0.635) (was 0/98) | **25/31** (0.806) (was 0/31) | 34/41 (0.829) (was 0/41) | 9/11 (0.818) (was 0/11) | **3/48 (0.062)** (was 1/48) | 0.004 (was 0.009) | 0.334 (was 0.009) |
 | `quiet` | undefined | 0/42 (0.000) | -/0 | 0/31 (0.000) | 0/41 (0.000) | 0/11 (0.000) | **0/48 (0.000)** | 0.000 | 0.013 |
 
 `n < 20` denominators -- point recall throughout, and `rstd`'s precision --
@@ -141,7 +216,7 @@ scaled, so no figure on this data may be expressed in hours.
 | `lstm-telemanom` | **+26** | +16 | +46 | 5/37 | 204 |
 | `mavg` | 0 | - | - | 6/34 | - |
 | `lstm-quantile` | **-122** | -124 | -42 | **6/6** | 1,151 |
-| `rstd` | **-1,512** | - | - | 2/3 | - |
+| `rstd` | **+0.0** (was -1,512, D37) | 0 | 0 | 3/34 (was 2/3) | - |
 | `quiet` | n/a | - | - | 0/0 | - |
 
 **This reverses a ranking, and it is the reason the metric was added.**
@@ -502,7 +577,8 @@ shortfall had been acting as an unintended out-of-sample margin.
 
 **`independent` at 1% is the highest event-wise F0.5 this document records with a
 positive median lead time** -- 0.449, against 0.269 for pre-fix `lstm-telemanom`
-and 0.250 for the `rstd` floor, at the same +26 and with rare-event false alarms
+and 0.250 for the `rstd` floor as it was then measured -- 0.676 corrected, D37 -- at the
+same +26 and with rare-event false alarms
 nearly halved, 14/48 against 22/48. **It is reported and not recommended.** It
 works partly through an error whose out-of-sample margin is unmeasured, and no
 cell here is selected.
@@ -566,8 +642,8 @@ from that region was about the bug.
 
 **One highlighted result did not survive.** `independent @ 1%` was reported as
 the highest event-wise F0.5 in this document with positive lead time, at 0.449.
-Clean it is **0.232** -- below the `rstd` floor of 0.250. It is retained above
-and withdrawn here.
+Clean it is **0.232** -- below the `rstd` floor of 0.250, and further below the
+corrected floor of 0.676 (D37). It is retained above and withdrawn here.
 
 **One conclusion did survive, weakened.** *Correcting the calibration arithmetic
 made the detector noisier* holds: at 1% the joint fit still spends far more alarm
@@ -620,7 +696,8 @@ headline-cell recall 28/32 to 21/32, and 29/31 to 15/31.** Seven events on the
 gate set; fourteen on the subset, nearly half.
 
 Event-wise F0.5 of **0.861** is the highest this document records by a wide
-margin, against the `rstd` floor of 0.250, and it clears the lead-time rule at
+margin, against the `rstd` floor of 0.250 as then measured -- 0.676 corrected,
+D37 -- and it clears the lead-time rule at
 +29.0. **That is not sufficient to adopt it** -- `docs/HARNESS.md` section 1 is
 explicit that recall and precision are read together, and giving up seven
 cross-channel events is a decision about what the component is for rather than a
@@ -1311,8 +1388,8 @@ the scorecard is the adoption number and the nominal-step rate.
 
 | Detector | **rare-event FA** | nominal-step FA | alarm ranges on nominal time | threshold | training (epochs, best, val-MSE) |
 |---|---|---|---|---|---|
-| `rstd` | 84/424 (0.198) | **718,831 / 4,155,841 (17.30%)** | 73 | 3.690 | -- |
-| `mavg` | **122/424 (0.288)** | 0 / 4,155,841 | 0 | 25.14 | -- |
+| `rstd` | **22/424 (0.052)** (was 84/424) | **126 / 4,155,841 (0.003%)** (was 718,831, 17.30%) | 73 | 3.690 | -- |
+| `mavg` | **208/424 (0.491)** (was 122/424) | 62 / 4,155,841 (was 0) | 0 | 25.14 | -- |
 | `lstm-quantile` | **4/424 (0.009)** | **0** | 0 | 0.2100 | 35, 29, 6.218e-5 |
 | `gru-quantile` | **4/424 (0.009)** | **0** | 0 | 0.4368 | 19, 8, 7.161e-5 |
 | `tcn-quantile` | 6/424 (0.014) | **0** | 0 | 0.3085 | 26, 15, 6.889e-5 |
@@ -1341,8 +1418,8 @@ here is UNDERPOWERED.**
 
 | Detector | **F0.5** | recall | **MVGS** | precision | **rare-FA** | **nominal-step FA** | honest lead |
 |---|---|---|---|---|---|---|---|
-| `rstd` | 0.029 | 3/11 | 3/10 | 12/499 | 0/13 | 332,245 / 10,881,882 (3.05%) | -45.0 (n=3) |
-| `mavg` | 0.021 | 5/11 | 5/10 | 58/3,367 | 0/13 | 270,203 (2.48%) | -1,272.0 (n=5) |
+| `rstd` | **0.351** (was 0.029) | 8/11 (was 3/11) | **8/10** (was 3/10) | 173/557 (was 12/499) | 6/13 (was 0/13) | 11,037 / 10,881,882 (0.10%) (was 332,245, 3.05%) | +0.0 (was -45.0) |
+| `mavg` | 0.050 (was 0.021) | 11/11 (was 5/11) | 10/10 (was 5/10) | 153/3,777 (was 58/3,367) | 5/13 (was 0/13) | 9,216 (0.08%) (was 270,203, 2.48%) | +0.0 (was -1,272.0) |
 | `lstm-quantile` | 0.679 | 10/11 | 9/10 | 6,002/9,406 | **8/13** | **3,256,485 (29.93%)** | -86.5 (n=10) |
 | `gru-quantile` | 0.835 | 9/11 | 8/10 | 4,819/5,740 | **10/13** | **3,122,203 (28.69%)** | -26.0 (n=9) |
 | `lstm-gru-or` | 0.657 | 10/11 | 9/10 | 6,042/9,835 | 10/13 | 3,274,525 (30.09%) | -37.5 (n=10) |

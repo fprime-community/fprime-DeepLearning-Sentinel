@@ -8,22 +8,60 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
-### Planned - work item 9.5, before work item 10
-
-- `baselines._rolling` accumulates its prefix sums in float32 and loses the statistic it
-  computes -- 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros
-  on this project's own fixture (D37, `docs/MODELS.md` 20.6). The floor `docs/RESULTS.md` 2
-  publishes as F0.5 = 0.250 and headline-cell 3/32 rests on it, so the comparison has to
-  be restated. Scoped in `docs/MODELS.md` 21: a D8 correctness fix, a pinning test against
-  `numpy.nanstd`, one re-score covering `m1-g8.9.10` and `m1-ss5` together, and every
-  affected figure republished as `new (was old, D37)` with old artifacts preserved.
-  Whether the spent held-back sets are re-scored is escalated, not decided (21.5).
-
 ### Planned - work item 10
 
 - The in-orbit threshold recalibration path: file uplink, human-approved reload. The hook is
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
+
+## [0.6.1] - 2026-09-01 - Phase 2 work item 9.5: the floor was wrong
+
+A D8 correctness fix and the re-score it forced. Zero new capability; one published
+claim falsified.
+
+### Fixed - work item 9.5, 2026-09-01 - `baselines._rolling`
+
+- **`_rolling` accumulated its prefix sums in float32 and lost the statistic it computed.**
+  `baselines.py:40` now promotes to float64 before squaring and `np.cumsum` accumulates with
+  `dtype=np.float64`. Against the flight rule the gap closes from **7.6584e+00 to
+  1.8284e-08** and the spurious exact zeros go from 3,975 to none.
+  `tests/test_rolling_precision.py` pins it against `numpy.nanstd` in five regimes, and the
+  three work-item-9 tests that pinned the size of the divergence are inverted, as their own
+  docstrings instructed.
+- **The floor moved a long way.** Re-scored at **41 Class B and 3 Class A**, old artifacts
+  preserved, no forecaster row recomputed and no run naming any other detector:
+
+  ```
+    m1-g8.9.10  rstd  F0.5  0.250 -> 0.676    MVGS  3/32 -> 25/32   lead -1,512 -> +0.0
+    m1-ss5      rstd  F0.5  undefined -> 0.663   MVGS  0/31 -> 25/31
+    m2-ss1      rstd  nominal-step FA  17.30% -> 0.003%    rare  84/424 -> 22/424
+    m1-g3       rstd  F0.5  0.029 -> 0.351    MVGS  3/10 -> 8/10
+  ```
+
+- **The pre-registered falsification fired, and this is the finding.** `docs/MODELS.md` 21.4
+  named 22/32 -- `gru-quantile`'s headline cell -- as the line past which the project's
+  central claim would be "in serious question". The corrected floor reached **25/32**. A
+  per-channel statistic finds twenty-five of the thirty-two cross-channel events, not three.
+  The sentence this repository has quoted since work item 4 -- "a per-channel statistic
+  finds three; a forecaster over the channel set finds twenty-eight" -- is about arithmetic,
+  and is corrected everywhere it appears with the old figure beside it.
+- **What survives.** On the gate metric D3 fixed before any of this was measured -- event-wise
+  F0.5, never bare recall -- `gru-quantile` still clears the corrected floor **0.804 to
+  0.676**, reaching comparable recall at **a third of the alarm rate** with precision 0.885
+  against 0.661. D28's architecture gate never involved `rstd`. D25 and D29 are untouched,
+  and D29's evidence is cleaner: on Mission 2 the corrected floor alarms on 0.003% of nominal
+  time rather than a sixth, so the adoption number is now a comparison between two working
+  detectors instead of one working detector and a broken one.
+- **W1 was wrong and backwards.** It predicted the corrected threshold would fall; it rose
+  from 3.34 to 13.67, because the scale divisor is the standard deviation of the spread
+  series itself and correcting the numerator shrank the denominator more. Recorded Wrong.
+- **A limit the fix does not remove.** `sqrt(S2/n - (S1/n)^2)` loses accuracy as the square
+  of `|mean|/sigma` at any precision -- negligible at the ratios ESA-ADB's min-max scaling
+  produces, total at 1e8, silently zero at 1e9. `baseline_reference.py` and therefore
+  `flight/src/Baseline.cpp` share it exactly. The boundary is pinned by test and reported;
+  making the form unconditionally stable is an algorithm change that would move the flight
+  golden vectors, and was not taken here.
+- Tests 493 -> 505.
 
 ## [0.6.0] - 2026-09-01 - Phase 2 work item 9 (tag wi9)
 
@@ -367,7 +405,8 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9...dev
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9.5...dev
+[0.6.1]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9...wi9.5
 [0.6.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi8...wi9
 [0.5.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...wi8
 [0.4.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi3...wi7

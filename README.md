@@ -37,7 +37,7 @@ first threshold crossing; 0.0 means the detector fires at the labelled event bou
 
 | Set | Detector | F0.5 | recall | headline-cell (MVGS) | precision | rare-event FA | nominal-step FA | honest lead | artifact |
 |---|---|---|---|---|---|---|---|---|---|
-| `m1-g8.9.10` | `rstd` (the floor) | 0.250 | 3/46 | 3/32 | 6/7 | 1/48 | 0.000% | -1,512 | `runs/m1-g8.9.10/rstd/2026-08-25T*.json` |
+| `m1-g8.9.10` | `rstd` (the floor) | **0.676** (was 0.250, D37) | **34/46** (was 3/46) | **25/32** (was 3/32) | 84/127 (was 6/7) | 3/48 (was 1/48) | 0.024% (was 0.000%) | +0.0 (was -1,512) | `runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json` |
 | `m1-g8.9.10` | `lstm-quantile` | **0.838** | 26/46 | 21/32 | 40/42 | 2/48 | 0.002% | +0.0 | `runs/m1-g8.9.10/lstm-quantile/2026-08-28T171349Z-2717441a.json` |
 | `m1-g8.9.10` | **`gru-quantile`** (selected) | 0.804 | **27/46** | **22/32** | 139/157 | **1/48** | 0.001% | +0.0 | `runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json` |
 | `m1-g8.9.10` | `tcn-quantile` | 0.411 | 9/46 | 9/32 | 21/37 | 3/48 | 0.00002% | -4.0 | `runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json` |
@@ -45,12 +45,15 @@ first threshold crossing; 0.0 means the detector fires at the labelled event bou
 | `m1-ss5` | `gru-quantile` | 0.593 | 26/42 | 21/31 | 101/172 | 3/48 | 0.014% | +0.0 | same artifact as the gate row |
 | `m1-ss5` | `tcn-quantile` | 0.649 | 16/42 | 13/31 | 108/137 | 3/48 | 0.297% | -0.5 | same artifact as the gate row |
 
-**(!) The `rstd` floor row is under correction.** `baselines._rolling` accumulates its
-prefix sums in float32 and loses the statistic it computes (D37, `docs/MODELS.md` 20.6):
-measured 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros on
-this project's own fixture. The figures below are what the artifact says and are left
-standing; the repair and the re-score are scoped in `docs/MODELS.md` 21 and run before
-work item 10. Nothing in the forecaster rows calls `_rolling`.
+**(!) The `rstd` and `mavg` floor rows were re-scored 2026-09-01 and moved a long way.**
+`baselines._rolling` accumulated its prefix sums in float32 and lost the statistic it
+computed; corrected, the floor's headline-cell recall goes from 3/32 to **25/32** and its
+F0.5 from 0.250 to **0.676**. The forecaster rows are unchanged and were not recomputed --
+nothing in their path calls `_rolling`. Every moved figure carries its old value in
+parentheses with D37. What this does to the project's central claim is stated plainly in
+`docs/RESULTS.md` 1 and `docs/MODELS.md` 21.8: **the claim as it was written is
+falsified.** The gate metric's ordering is not: `gru-quantile` still clears the corrected
+floor by 0.128 of F0.5, at a third of its alarm rate.
 
 **Transfer - the held-back sets, scored once** (`docs/RESULTS.md` section 6k, D29). Recall is
 disabled on `m2-ss1` by design; its scorecard is the adoption number.
@@ -61,7 +64,7 @@ disabled on `m2-ss1` by design; its scorecard is the adoption number.
 | `m2-ss1` | **`gru-quantile`** | **4/424 (0.94%)** | **0** | `runs/m2-ss1/gru-quantile/2026-08-29T204415Z-6d146f5d.json` |
 | `m2-ss1` | `tcn-quantile` | 6/424 (1.42%) | 0 | `runs/m2-ss1/tcn-quantile/2026-08-29T204415Z-c48bd47d.json` |
 | `m2-ss1` | `lstm-gru-or` (union) | 8/424 (1.89%) | 0 | `runs/m2-ss1/lstm-gru-or/2026-08-29T204415Z-a9e0d056.json` |
-| `m2-ss1` | `rstd` / `mavg` (floors) | 84/424 / 122/424 | 17.30% / 0 | `runs/m2-ss1/{rstd,mavg}/2026-08-29T204415Z-*.json` |
+| `m2-ss1` | `rstd` / `mavg` (floors) | **22/424** (was 84/424) / **208/424** (was 122/424) | **0.003%** (was 17.30%) / 0.001% (was 0) | `runs/m2-ss1/{rstd,mavg}/2026-09-01T220510Z-*.json` |
 | `m1-g3` (Mission 1 group 3; 11 anomalies, 13 rare - UNDERPOWERED) | `lstm-quantile`, `gru-quantile` | 8/13, 10/13 | **29.9%, 28.7%** - fold 0 clean (0 steps), folds 1-2 a calibration collapse (87% of one window) | `runs/m1-g3/{lstm-quantile,gru-quantile}/2026-08-29T223625Z-*.json` |
 
 ## What is claimed, and what is retired

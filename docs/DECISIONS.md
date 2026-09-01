@@ -1744,6 +1744,12 @@ rare alarm sitting inside the LSTM's two -- did not transfer.
 4/424, `tcn-quantile` 6/424 rare-event false alarms; **0 nominal-step alarms in
 4,155,841** for all three; the per-channel floors 84/424 with 17.3% of nominal
 time (`rstd`) and 122/424 (`mavg`). T1, T2, T6 held; T3 held on the ordering.
+**(!) The two floor figures are corrected 2026-09-01 (D37): `rstd` is 22/424 with
+0.003% of nominal time, not 84/424 with 17.3%, and `mavg` is 208/424. The
+forecaster figures are unmoved and were not recomputed. This entry's conclusion
+is unchanged -- 4/424 against 22/424, and 0 nominal-step alarms against 126 --
+and its evidence is cleaner, because the floor it is measured against now
+works.**
 That is the number that goes in front of a mission.
 
 *The recipe, on a later period of the same spacecraft.* `m1-g3` fold 0 held as
@@ -2200,8 +2206,8 @@ deployment to Sentinel's internals and complicates the unit test for no gain.
 
 ## D37. `baselines._rolling` computes its prefix sums in float32 and loses the statistic. The flight baseline transcribes the rule, not the implementation
 
-**DATE** 2026-09-01 | **STATUS** resolved for work item 9; the repair is scoped as
-`docs/MODELS.md` 21 and is **open**
+**DATE** 2026-09-01 | **STATUS** resolved. The repair ran at work item 9.5 and
+falsified a published claim; see the closing block of this entry
 
 **CONTEXT.** Work item 9 must transcribe the `rstd` statistical baseline into flight C++
 under work item 8's golden-vector discipline: seeded vectors, Python-versus-C++ match at
@@ -2273,3 +2279,41 @@ item whose budget is zero.
    this entry will record it when it is made.
 6. **D8's exemption is what makes the repair legitimate.** `docs/HARNESS.md`: the harness
    is closed to scope changes, never to correctness fixes. This is a correctness fix.
+
+**(!) RESOLVED 2026-09-01, work item 9.5, and the outcome falsified a published claim.**
+`baselines._rolling` now promotes to float64 before squaring and accumulates with
+`dtype=np.float64`; the gap against the flight rule closes from 7.6584e+00 to 1.8284e-08
+and the spurious zeros disappear. Re-scored at a cost of 41 Class B and 3 Class A:
+
+```
+  m1-g8.9.10  rstd   F0.5   0.250 -> 0.676     MVGS   3/32 -> 25/32
+                     recall  3/46 -> 34/46     lead  -1,512 -> +0.0
+  m1-ss5      rstd   F0.5    undefined -> 0.663    MVGS  0/31 -> 25/31
+  m2-ss1      rstd   nominal-step FA  17.30% -> 0.003%   rare  84/424 -> 22/424
+  m1-g3       rstd   F0.5   0.029 -> 0.351     MVGS  3/10 -> 8/10
+```
+
+**The falsification pre-registered in `docs/MODELS.md` 21.4 fired.** It named 22/32 -- the
+GRU's headline cell -- as the line past which "the project's central claim ... is in
+serious question and this document says so in those words". The corrected floor reached
+**25/32**. A per-channel statistic finds twenty-five of the thirty-two cross-channel
+events, not three; the three was an artifact of this defect, and every restatement of it
+is corrected in place with the old figure beside it.
+
+**What that does and does not overturn.** The gate metric was fixed as event-wise F0.5,
+never bare recall, by D3 and before any of this was measured: on it `gru-quantile` still
+clears the corrected floor 0.804 to 0.676, reaching comparable recall at a third of the
+alarm rate with precision 0.885 against 0.661. D28's architecture gate never involved
+`rstd`; D25 and D29 are untouched, and D29's evidence is cleaner, because the floor it is
+compared against on Mission 2 now works. What is overturned is the ratio -- three against
+twenty-eight -- that this repository had used as its headline, and W1's reasoning about
+which way the threshold would move, which was exactly backwards and is recorded as Wrong
+in 21.9.
+
+**And a limit the fix does not remove.** `sqrt(S2/n - (S1/n)^2)` loses accuracy as the
+square of `|mean|/sigma` at any precision: negligible at the ratios ESA-ADB's min-max
+scaling produces, total at 1e8, and silently zero at 1e9. `baseline_reference.py` and
+therefore `flight/src/Baseline.cpp` share it exactly.
+`tests/test_rolling_precision.py` pins the boundary. Making the form unconditionally
+stable is an algorithm change that would move the flight golden vectors, and is reported
+rather than taken.
