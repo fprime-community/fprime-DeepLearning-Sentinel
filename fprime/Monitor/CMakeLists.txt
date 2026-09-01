@@ -26,13 +26,24 @@ register_fprime_library(
 )
 
 ### Unit Tests ###
-# register_fprime_ut(
-#     AUTOCODER_INPUTS
-#         "${CMAKE_CURRENT_LIST_DIR}/Monitor.fpp"
-#     SOURCES
-#         "${CMAKE_CURRENT_LIST_DIR}/test/ut/MonitorTestMain.cpp"
-#         "${CMAKE_CURRENT_LIST_DIR}/test/ut/MonitorTester.cpp"
-#     DEPENDS
-#         STest # For rules-based testing
-#     UT_AUTO_HELPERS
-# )
+register_fprime_ut(
+    AUTOCODER_INPUTS
+        "${CMAKE_CURRENT_LIST_DIR}/Monitor.fpp"
+    SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/test/ut/MonitorTestMain.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test/ut/MonitorTester.cpp"
+    DEPENDS
+        Svc_Sched
+        Os
+        sentinel_core
+    UT_AUTO_HELPERS
+)
+
+# The refusal tests mutate a known-good model.bin, exactly as
+# flight/test/RefusalTests.cpp does, so they need the work item 8 vectors. The
+# path is a definition rather than a relative path, because a unit test's working
+# directory is the build cache and not the source tree.
+if (TARGET Monitor_ut_exe)
+    target_compile_definitions(Monitor_ut_exe PRIVATE
+        "SENTINEL_VECTORS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../flight/test/vectors\"")
+endif()

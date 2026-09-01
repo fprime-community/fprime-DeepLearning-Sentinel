@@ -163,7 +163,6 @@ ModelLoadStatus Monitor ::loadModel() {
 }
 
 void Monitor ::degrade(DegradeReason reason, ModelLoadStatus status) {
-    const bool changed = (!m_degraded) || (m_degradeReason != reason.e);
     m_mode = Mode::BASELINE;
     m_degradeReason = reason.e;
     m_degraded = true;
@@ -171,9 +170,14 @@ void Monitor ::degrade(DegradeReason reason, ModelLoadStatus status) {
     m_ticks = 0U;
     m_baseline.reset();
     this->refreshBaselineParameters();
-    if (changed) {
-        this->log_WARNING_HI_DegradedToBaseline(reason, status);
-    }
+
+    // Emitted on every degrade, not only when the reason changes. This is
+    // reached only from loadModel(), which is an explicit act -- topology setup
+    // now, a commanded reload at work item 10 -- and never from the tick path,
+    // so it cannot flood the event log. Suppressing a repeat would mean an
+    // operator who commands a reload that fails again the same way is answered
+    // with silence.
+    this->log_WARNING_HI_DegradedToBaseline(reason, status);
 }
 
 void Monitor ::refreshBaselineParameters() {

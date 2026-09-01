@@ -7,6 +7,7 @@ stay runnable on a machine that cannot build the core.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -225,3 +226,25 @@ def test_the_core_compiles_against_fprime_types_when_the_checkout_is_present():
                                 capture_output=True, text=True, timeout=600)
         assert result.returncode == 0, (
             f"{source.name} does not compile against F' types:\n{result.stderr}")
+
+
+@pytest.mark.skipif(
+    not (ROOT / "fprime" / "fprime-venv" / "bin" / "fprime-util").exists(),
+    reason="no F' toolchain; run scripts/fprime_setup.sh")
+def test_the_fprime_component_unit_tests_pass():
+    """The F' half of the suite, driven from pytest like the Makefile half.
+
+    `fprime-util check` builds and runs the component's gtest suite: the load-OK
+    path, all eleven refusal codes degrading to the baseline with the right
+    event, `baseline_only`, a missing file, the warning naming its channel, the
+    warm-up gate, and a tick with no sample. Skips rather than fails on a machine
+    that has not run `scripts/fprime_setup.sh`.
+    """
+    fprime = ROOT / "fprime"
+    env = dict(os.environ)
+    env["PATH"] = f"{fprime / 'fprime-venv' / 'bin'}:{env.get('PATH', '')}"
+    env["VIRTUAL_ENV"] = str(fprime / "fprime-venv")
+    result = subprocess.run(["fprime-util", "check"], cwd=str(fprime / "Monitor"),
+                            capture_output=True, text=True, timeout=1800, env=env)
+    assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-2000:]
+    assert "100% tests passed" in result.stdout, result.stdout[-2000:]
