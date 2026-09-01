@@ -28,10 +28,11 @@ CXXFLAGS := $(STD) $(SAFETY) $(DETERM) $(WARN) $(OPT) -Iinclude
 
 BUILD    := build
 CORE_SRC := src/Crc32.cpp src/Status.cpp src/ModelFile.cpp src/Gru.cpp \
-            src/Ewma.cpp src/Detector.cpp
+            src/Ewma.cpp src/Detector.cpp src/Baseline.cpp
 CORE_OBJ := $(patsubst src/%.cpp,$(BUILD)/%.o,$(CORE_SRC))
 
-TESTS    := GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint
+TESTS    := GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint \
+            BaselineVectors
 BINS     := $(patsubst %,$(BUILD)/%,$(TESTS))
 
 .PHONY: all test lint clean
@@ -53,6 +54,7 @@ test: $(BINS)
 	@$(BUILD)/DeterminismTest
 	@$(BUILD)/DeterminismTest
 	@$(BUILD)/GoldenVectors
+	@$(BUILD)/BaselineVectors
 	@echo "== round trip =="
 	@set -e; ok=0; for t in g1 g2 g3 g4_0 g4_1 g4_2 g4_3; do \
 	    if [ -f test/vectors/$$t.bin ]; then \
@@ -62,16 +64,37 @@ test: $(BINS)
 	        else echo "    FAIL $$t: re-emitted bytes differ"; exit 1; fi; \
 	    fi; done; echo "  round trip: $$ok file(s) byte-identical"
 
-# clang-tidy is deferred to work item 9 with the F' toolchain (D31); it is not
-# available on the development machine. The target is written now so it runs the
-# moment a toolchain has it, and says so plainly when it cannot.
+# clang-tidy, run for the first time at work item 9. D31 consequence 5 said it
+# would arrive "with the F' toolchain"; it does not -- F' ships no clang-tidy, and
+# it comes from Homebrew's llvm, which is what .clang-tidy said all along
+# (docs/MODELS.md 20.2 correction 10). Homebrew does not put it on PATH, so this
+# looks there too rather than reporting an absence that is really a PATH.
+#
+# Three configurations, because a core this project calls flight code should be
+# held to F's own bar as well as its own: flight/.clang-tidy, then F's root
+# .clang-tidy over everything, then F's release.clang-tidy, which is the one F'
+# reserves for flight code and whose single check is misc-no-recursion.
+TIDY := $(shell command -v clang-tidy 2>/dev/null || \
+                 ls /opt/homebrew/opt/llvm/bin/clang-tidy 2>/dev/null)
+FPRIME_DIR := ../fprime/lib/fprime
+
 lint:
-	@if command -v clang-tidy >/dev/null 2>&1; then \
-	    clang-tidy $(CORE_SRC) test/*.cpp -- $(CXXFLAGS); \
+	@if [ -z "$(TIDY)" ]; then \
+	    echo "lint: clang-tidy not installed. brew install llvm provides it."; \
+	    exit 0; \
+	fi; \
+	printf '== lint: '; $(TIDY) --version | head -1; \
+	echo "-- flight/.clang-tidy, core and tests"; \
+	$(TIDY) $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest; \
+	if [ -f $(FPRIME_DIR)/.clang-tidy ]; then \
+	    echo "-- the framework config, core and tests"; \
+	    $(TIDY) --config-file=$(FPRIME_DIR)/.clang-tidy $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest; \
+	    echo "-- the framework release config, flight code only"; \
+	    $(TIDY) --config-file=$(FPRIME_DIR)/release.clang-tidy $(CORE_SRC) -- $(CXXFLAGS); \
 	else \
-	    echo "lint: clang-tidy not installed -- deferred to work item 9 (D31)."; \
-	    echo "      brew install llvm provides it; flight/.clang-tidy is ready."; \
-	fi
+	    echo "-- framework checkout absent; skipping its two configs"; \
+	fi; \
+	echo "  lint: clean"
 
 clean:
 	rm -rf $(BUILD)

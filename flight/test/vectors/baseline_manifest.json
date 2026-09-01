@@ -1,0 +1,54 @@
+[
+  {
+    "tier": "b1",
+    "n_channels": 3,
+    "steps": 400,
+    "window": 120,
+    "threshold": 29.089385791035358,
+    "invalid_ticks": 0,
+    "nan_inputs": 0,
+    "crossings": 63,
+    "emitted": 28,
+    "vector_bytes": 19248,
+    "provenance": "seeded B1, rng(11), unit normal"
+  },
+  {
+    "tier": "b2",
+    "n_channels": 12,
+    "steps": 400,
+    "window": 120,
+    "threshold": 33.72164617313717,
+    "invalid_ticks": 4,
+    "nan_inputs": 81,
+    "crossings": 35,
+    "emitted": 26,
+    "vector_bytes": 62520,
+    "provenance": "seeded B2, rng(12), unit normal, 2% NaN, 4 invalid ticks"
+  },
+  {
+    "tier": "b3",
+    "n_channels": 12,
+    "steps": 400,
+    "window": 120,
+    "threshold": 33.481962020953965,
+    "invalid_ticks": 0,
+    "nan_inputs": 0,
+    "crossings": 63,
+    "emitted": 28,
+    "vector_bytes": 62520,
+    "provenance": "seeded B3, rng(13), N(1000, 3) -- the regime that exposes the float32 cancellation D37 records"
+  },
+  {
+    "tier": "b4",
+    "n_channels": 7,
+    "steps": 400,
+    "window": 120,
+    "threshold": 4.027920662051154,
+    "invalid_ticks": 0,
+    "nan_inputs": 0,
+    "crossings": 95,
+    "emitted": 28,
+    "vector_bytes": 38480,
+    "provenance": "the offline synthetic fixture, synthetic.build(seed=0), first 400 steps of 7 channels"
+  }
+]

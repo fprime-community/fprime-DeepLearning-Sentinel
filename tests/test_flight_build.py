@@ -7,6 +7,7 @@ stay runnable on a machine that cannot build the core.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -62,7 +63,7 @@ def test_the_core_builds_with_no_warnings_at_all(built):
 
 @needs_toolchain
 def test_every_flight_suite_passes(built):
-    for suite in ("footprint", "refusals", "determinism", "golden vectors"):
+    for suite in ("footprint", "refusals", "determinism", "golden vectors", "baseline"):
         assert f"{suite}: all checks passed" in built.stdout, built.stdout
     assert "FAIL" not in built.stdout, built.stdout
 
@@ -145,3 +146,110 @@ def test_the_status_codes_agree_between_python_and_cpp():
         pattern = rf"\b{status.name}\s*=\s*{status.value}U\b"
         assert re.search(pattern, header), (
             f"{status.name} = {status.value} is not in LoadStatus")
+
+
+def test_the_types_shim_is_the_only_file_that_knows_about_fprime():
+    """D35's claim, asserted rather than trusted.
+
+    Work item 9 puts the core under F' by selecting types in one header. The
+    promise D31 consequence 2 was protecting is that nothing else changes, so
+    `Types.hpp` must be the only file under `flight/` that includes an F' header
+    or tests the build's selector macro. A comment naming F' is fine -- most of
+    the core carries one -- so this looks for the `#include` and the macro, not
+    for the word.
+    """
+    shim = FLIGHT / "include" / "sentinel" / "Types.hpp"
+    include = re.compile(r'^\s*#\s*include\s*[<"]Fw/', re.MULTILINE)
+    selector = re.compile(r"^\s*#\s*(if|ifdef|elif).*SENTINEL_FPRIME_TYPES", re.MULTILINE)
+
+    offenders = []
+    for path in sorted((FLIGHT / "src").glob("*.cpp")) + \
+            sorted((FLIGHT / "include" / "sentinel").glob("*.hpp")) + \
+            sorted((FLIGHT / "test").glob("*.cpp")) + \
+            sorted((FLIGHT / "test").glob("*.hpp")):
+        if path == shim:
+            continue
+        text = path.read_text()
+        if include.search(text) or selector.search(text):
+            offenders.append(path.relative_to(ROOT).as_posix())
+    assert offenders == [], f"only Types.hpp may know about F': {offenders}"
+
+    text = shim.read_text()
+    assert selector.search(text), "Types.hpp must select on SENTINEL_FPRIME_TYPES"
+    assert include.search(text), "Types.hpp must include an F' header on the F' side"
+
+
+def test_the_shim_asserts_the_float_properties_rather_than_a_macro():
+    """`FW_HAS_F64` does not exist in F' v4.3.0, so the shim must not test it.
+
+    `F64` is unconditional at `Fw/Types/BasicTypes.h:86`; the macro appears once
+    in the whole framework, in a documentation table. Asserting the property is
+    what the dtype map in `docs/MODEL_FILE.md` 9 actually needs. See
+    `docs/MODELS.md` 20.2 correction 13.
+    """
+    text = (FLIGHT / "include" / "sentinel" / "Types.hpp").read_text()
+    code = "\n".join(line for line in text.splitlines()
+                     if not line.lstrip().startswith("//"))
+    assert "FW_HAS_F64" not in code, "the shim must not branch on a macro F' does not define"
+    for needed in ("sizeof(F32) == 4U", "sizeof(F64) == 8U",
+                   "std::numeric_limits<F64>::is_iec559"):
+        assert needed in code, f"{needed} is not asserted in Types.hpp"
+    # And the two switches F' really has, refused in the F' branch where they
+    # exist. A constraint built on a symbol that does not exist is not a
+    # constraint; these are the replacements (`docs/MODEL_FILE.md` 9).
+    for real in ("FW_HAS_64_BIT", "SKIP_FLOAT_IEEE_754_COMPLIANCE"):
+        assert real in code, f"{real} is not checked in Types.hpp"
+
+
+@needs_toolchain
+def test_the_core_compiles_against_fprime_types_when_the_checkout_is_present():
+    """The other half of `both worlds, one core` -- skipped without a checkout.
+
+    Compiles every core translation unit with `SENTINEL_FPRIME_TYPES` defined,
+    at the same flag set the freestanding build uses. `scripts/fprime_setup.sh`
+    provides the checkout; without it there is nothing to compile against and the
+    test skips rather than failing on a machine that has not run setup.
+    """
+    fprime = ROOT / "fprime" / "lib" / "fprime"
+    if not (fprime / "Fw" / "FPrimeBasicTypes.hpp").exists():
+        pytest.skip("no F' checkout; run scripts/fprime_setup.sh")
+    builds = sorted((fprime / "TestDeploymentsProject").glob("build-fprime-automatic-*"))
+    generated = next((b for b in builds if (b / "F-Prime" / "default").is_dir()), None)
+    if generated is None:
+        pytest.skip("no generated F' build cache to supply config headers")
+
+    compiler = shutil.which("clang++") or shutil.which("g++")
+    flags = ["-std=c++14", "-fno-exceptions", "-fno-rtti", "-ffp-contract=off",
+             "-Wall", "-Wextra", "-Wpedantic", "-Wconversion", "-Wshadow", "-Werror",
+             "-O2", "-DSENTINEL_FPRIME_TYPES",
+             f"-I{FLIGHT / 'include'}", f"-I{fprime}",
+             f"-I{fprime / 'cmake' / 'platform' / 'unix'}",
+             f"-I{generated / 'F-Prime' / 'default'}", f"-I{generated / 'F-Prime'}",
+             f"-I{generated}"]
+    for source in sorted((FLIGHT / "src").glob("*.cpp")):
+        result = subprocess.run([compiler, *flags, "-c", str(source), "-o", "/dev/null"],
+                                capture_output=True, text=True, timeout=600)
+        assert result.returncode == 0, (
+            f"{source.name} does not compile against F' types:\n{result.stderr}")
+
+
+@pytest.mark.skipif(
+    not (ROOT / "fprime" / "fprime-venv" / "bin" / "fprime-util").exists(),
+    reason="no F' toolchain; run scripts/fprime_setup.sh")
+def test_the_fprime_component_unit_tests_pass():
+    """The F' half of the suite, driven from pytest like the Makefile half.
+
+    `fprime-util check` builds and runs the component's gtest suite: the load-OK
+    path, all eleven refusal codes degrading to the baseline with the right
+    event, `baseline_only`, a missing file, the warning naming its channel, the
+    warm-up gate, and a tick with no sample. Skips rather than fails on a machine
+    that has not run `scripts/fprime_setup.sh`.
+    """
+    fprime = ROOT / "fprime"
+    env = dict(os.environ)
+    env["PATH"] = f"{fprime / 'fprime-venv' / 'bin'}:{env.get('PATH', '')}"
+    env["VIRTUAL_ENV"] = str(fprime / "fprime-venv")
+    result = subprocess.run(["fprime-util", "check"], cwd=str(fprime / "Sentinel" / "Monitor"),
+                            capture_output=True, text=True, timeout=1800, env=env)
+    assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-2000:]
+    assert "100% tests passed" in result.stdout, result.stdout[-2000:]

@@ -23,7 +23,7 @@ enum class LoadStatus : U8 {
     BAD_SHAPE = 8U,
     TOO_LARGE = 9U,
     TRUNCATED = 10U,
-    BAD_NORM_POLICY = 11U
+    BAD_NORM_POLICY = 11U,
 };
 
 //! Human-readable name, for test output and for work item 9's event text.

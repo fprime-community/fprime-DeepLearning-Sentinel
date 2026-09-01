@@ -901,18 +901,18 @@ replacing either.
 |---|---|---|---|
 | 1 | **Architecture selection** - LSTM vs GRU vs TCN | Was: end of Phase 1 | **RESOLVED 2026-08-29 - the GRU** (docs/DECISIONS.md D28), on section 8's criteria: criterion 1 a tie at the harness's resolution, criteria 2-5 and trainability to the GRU; the LSTM retained as the published baseline, the TCN rows retained as the stateless answer. The LSTM leads on event-wise F0.5, and D28 says so |
 | 2 | **Model-file format freeze** | Was: before Phase 2 starts | **RESOLVED 2026-09-01 - plain little-endian float32, version 1** (docs/DECISIONS.md D30), specified byte for byte in `docs/MODEL_FILE.md`. Gate order and architecture named in the header, both bias vectors unsummed, and the normalisation constants and threshold in a **separately-CRC'd parameter block** so a mission recalibrates in orbit without touching the weights. 14.10's FlatBuffer/quantized container is superseded and marked so, never deleted; every requirement it stated is met |
-| 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | Open. Resolve against the pinned F' version, now v4.3.0 (D31). This is a work item 9 question: the inference core takes a vector of channel values and does not care how they arrive |
+| 3 | **Channel-ingestion mechanism** - tapping the telemetry path vs. direct port wiring | Early Phase 2 | **RESOLVED 2026-09-01 - direct port wiring** (docs/DECISIONS.md D33). The tap is the more attractive design and is not implementable against this file format: `Fw.Tlm` carries a serialized `Fw::TlmBuffer`, and `docs/MODEL_FILE.md` 4's CHANNELS record carries an id and a name and **no type tag**, so a tap cannot deserialize a value without knowing its declared type. Adding one is a `format_version` bump and D30 froze version 1. A mission supplies a small adapter -- F's own Passive Adapter Pattern -- and section 4.3 step 5's "nothing downstream needs to know Sentinel exists" is thereby weakened rather than met, which D33 records rather than glosses |
 | 4 | **Target F' version pin** | Was: early Phase 2 | **RESOLVED 2026-09-01 - v4.3.0**, published 2026-08-20 (docs/DECISIONS.md D31). Forced early by work item 8: the flight rules cannot be cited without a version. F's own statement of them is `.github/skills/fprime-cpp-design/SKILL.md` at that tag, and reading it corrected three rules this project had stated from memory (docs/MODELS.md 19.3) |
 | 5 | **Harness base** - build on TimeEval or standalone | Was: now | **RESOLVED 2026-08-25 - standalone** (CHANGELOG 0.3.0, Decided). TimeEval would have given ESA-ADB-comparable metrics for free; external comparability is out of Phase 1's scope (section 12) |
 | 6 | **R2 ingest sizing** for 11.6 GB | Was: before item 3 | **RESOLVED 2026-08-24** - 11.53 GB as zstd parquet in 234 objects under a 90 MiB ceiling, four channels sharded (CHANGELOG 0.2.0). 40x the previous data volume |
 | 7 | **Second independent scoring set** | Was: before item 7 | **RESOLVED in practice, and spent 2026-08-29** (docs/RESULTS.md 6k): Mission 2 carried the adoption number (4/424 rare events, 0 nominal-step alarms) and Mission 1 group 3 the recall exam. No second viable *recall* set exists in ESA-ADB: Mission2 dedupes to 18 anomalies with 1-3 test-side, and Mission3 has 8 anomalies with 4 of 48 channels numeric. Resolved in practice by splitting the roles - Mission1 carries recall, Mission2 carries the adoption number - with the single-spacecraft limitation stated on every result |
 | 8 | **Normalisation policy** | Was: before the loader | **RESOLVED - identity.** ESA min-max scaled within each channel group, so amplitude ratios between related channels survive. Cross-group spanning is acceptable: those offsets are fixed, invertible and uninformative, and a model absorbs them. Per-channel rescaling is refused, because it erases the ratios and no model can recover them. Enforced at a chokepoint and by `tests/test_no_per_channel_scaler.py` |
 | 9 | **SatNOGS as subsystem-prior corpus** | Post-gate | Open. Feeds section 10.2 fix 5 - a generic power-subsystem base model that each mission fine-tunes on its own small dataset |
-| 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN**, and partly discharged. One C++ loader, one file format, three capability tiers; Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. The file format now carries the `baseline_only` flag and the tier, and the loader refuses a bad magic, version or CRC with a status code and no exception (D30) - the hook Level 1 is built on. **Degrading to the baseline with an event is work item 9 and is still open.** Detail in 14.10 |
+| 10 | **Tiered capability architecture** - Level 1 / 2 / 3 | **Before Phase 2** | **OPEN for Levels 2 and 3; LEVEL 1 RESOLVED 2026-09-01.** One C++ loader, one file format, three capability tiers; Level 1 is the loader's mandatory safe failure mode, not a data-availability fallback. The file format carries the `baseline_only` flag and the tier, and the loader refuses a bad magic, version or CRC with a status code and no exception (D30). Work item 9 built the rest: all **11/11** refusal codes degrade to the statistical baseline with the code named in the event, **0/11** fail the topology, `baseline_only` is wired to the active-tier telemetry channel, and the baseline's constants are PrmDb-style parameters rather than model-file fields so they are readable when the file is not (D34). Watched working in a live deployment (docs/MODELS.md 20.11). Levels 2 and 3 remain open. Detail in 14.10 |
 
 Rows of this table are cited elsewhere as `Objective.md 14.N` - decision N of the table; only 14.10 has a subsection of its own, below.
 
-### 14.10 Tiered capability architecture (decision 10, OPEN)
+### 14.10 Tiered capability architecture (decision 10; Level 1 RESOLVED, Levels 2 and 3 OPEN)
 
 The component ships as three tiers, all sharing **one C++ loader and one model file format**.
 
@@ -927,6 +927,15 @@ safe failure mode. A corrupt file, a version mismatch, a failed CRC or a radiati
 degrade to Level 1 with an event and an active-tier telemetry channel - **never fail the
 topology**. That requirement holds regardless of how much data a mission has, which is why
 Level 1 is not optional for well-provisioned missions.
+
+**BUILT 2026-09-01, work item 9.** `Sentinel::Monitor` runs the statistical baseline whenever
+the model cannot be run: all 11 refusal codes, `baseline_only` set, or no model file at all.
+The radiation bit-flip in the sentence above turned out to matter twice: once as the reason
+Level 1 exists, and once as the reason `Detector::step` re-checks the shape it is about to
+trust, because the loader validates a `model.bin` once and the struct then lives in RAM for the
+mission (docs/MODELS.md 20.9, found by clang-analyzer). The baseline transcribes the `rstd`
+rule and **not** `baselines._rolling`, which computes it wrongly -- D37, and the repair is
+scoped as docs/MODELS.md 21.
 
 **Level 2 is the intended shipped default once it exists.** A mission then gets a working
 detector out of the box and fine-tunes it, rather than training from scratch. It is section 10.2

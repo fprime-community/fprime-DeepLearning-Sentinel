@@ -47,3 +47,12 @@ flight/test/vectors/g3.bin
 flight/test/vectors/g4_*
 flight/test/vectors/manifest_local.json
 flight/build/
+
+# The F' toolchain, work item 9. The framework checkout, its tool venv and every
+# build cache are reproduced by scripts/fprime_setup.sh, never committed. Only the
+# project's own sources under fprime/ -- the component, the deployment, settings.ini
+# and CMakeLists.txt -- are tracked.
+fprime/lib/
+fprime/fprime-venv/
+fprime/build-fprime-automatic-*/
+fprime/build-artifacts/

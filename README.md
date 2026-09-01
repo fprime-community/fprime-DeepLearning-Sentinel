@@ -45,6 +45,13 @@ first threshold crossing; 0.0 means the detector fires at the labelled event bou
 | `m1-ss5` | `gru-quantile` | 0.593 | 26/42 | 21/31 | 101/172 | 3/48 | 0.014% | +0.0 | same artifact as the gate row |
 | `m1-ss5` | `tcn-quantile` | 0.649 | 16/42 | 13/31 | 108/137 | 3/48 | 0.297% | -0.5 | same artifact as the gate row |
 
+**(!) The `rstd` floor row is under correction.** `baselines._rolling` accumulates its
+prefix sums in float32 and loses the statistic it computes (D37, `docs/MODELS.md` 20.6):
+measured 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros on
+this project's own fixture. The figures below are what the artifact says and are left
+standing; the repair and the re-score are scoped in `docs/MODELS.md` 21 and run before
+work item 10. Nothing in the forecaster rows calls `_rolling`.
+
 **Transfer - the held-back sets, scored once** (`docs/RESULTS.md` section 6k, D29). Recall is
 disabled on `m2-ss1` by design; its scorecard is the adoption number.
 
@@ -90,7 +97,7 @@ considered, what settled it; superseded entries marked, never deleted).
   `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
   that tag.
 - **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
-  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi7`, the
+  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
   Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
   approved checkpoint. Neither branch is ever rewritten.
 
