@@ -3,7 +3,9 @@
 **2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
 file); **WI9 complete** (the F' component and the Level 1 safe-failure mode, tag `wi9`);
 **WI9.5 complete** (the `rstd` correctness fix, and it falsified a published claim);
-**WI10 next**. Phase 1 closed 2026-08-29 (tag
+**WI9.6 in progress** -- the corrected floor is being audited before the restatement is
+allowed to stand, and the checkpoint snapshot to `main` is held until it lands
+(`docs/MODELS.md` 22). Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
 

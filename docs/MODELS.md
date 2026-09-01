@@ -3429,3 +3429,126 @@ golden vectors; it is reported here, not taken.
 **Verification.** 505 tests pass; `scripts/check_no_list.py` clean; `sentinel_eval
 selftest` 8/8; `make -C flight test` green with the Level 1 baseline still exact
 at 0.000e+00; `make -C flight lint` clean on three configurations.
+
+---
+
+## 22. Pre-registration: is the corrected floor real? (work item 9.6)
+
+**Written and committed before a single figure is computed.** Work item 9.5
+corrected `baselines._rolling` and the floor moved from F0.5 0.250 to 0.676 and
+from 3/32 to 25/32 headline-cell events, which falsified this project's central
+claim as it was written (D37, section 21.10). Before that restatement is allowed
+to stand, the corrected floor is audited the way a hostile reviewer would audit
+it: **a result that overturns a thesis has to survive more scrutiny than the
+thesis did, not less.**
+
+Nothing here changes a detector, a threshold, a decision layer or a weight.
+Nothing is retrained. `main` is not touched. The restatement already committed at
+`b41f93b` stands as the record; whether it is the *final* reading depends on what
+this section finds.
+
+**Budget: one bundle load, 15 Class B and 1 Class A.** Everything below is
+computed from that single load plus the cached weights under `runs/_weights/`,
+in one script, because four scripts would be four loads.
+
+### 22.1 The four questions, and why each is asked
+
+1. **Is the corrected `rstd` leaking?** A floor that suddenly catches eleven
+   times more events is exactly what a look-ahead bug looks like. Four specific
+   leaks are checked, not a general impression.
+2. **Which events does each detector catch?** The scorecard says how many, never
+   which. **The only-GRU set is the thesis's remaining evidence** and it is the
+   first thing the report states.
+3. **Why does the GRU miss events a two-line statistic catches?** The
+   state-adaptation hypothesis: a forecaster that carries state across ticks
+   learns a sustained anomaly and stops being surprised by it, while a trailing
+   variance statistic does not.
+4. **What are the 32 headline-cell events actually made of?** The project has
+   asserted since Objective.md 2.3 that this cell is contextual -- every channel
+   inside its own limits while the combination is wrong. That has never been
+   measured on this data. It is Claim B, and it was skipped.
+
+### 22.2 Definitions fixed in advance
+
+Fixed here so they cannot be chosen after seeing the answer.
+
+- **Training envelope**: per channel, the **0.1 / 99.9 quantile pair** over the
+  fold's fitting window with `train_mask` applied -- the construction
+  `scripts/envelope_proxy.py:95-108` already uses, built from fitting data only,
+  no test sample and no test label. The hard min/max is reported beside it and
+  **where the two disagree that disagreement is the finding**.
+- **Truly contextual event**: one where **no** watched channel leaves its own
+  training envelope at any step inside the event span. This is the conservative
+  direction: a real limit sits *outside* the historical envelope, so an event
+  that never leaves the envelope is invisible to any limit check *a fortiori*.
+- **Per-channel variance signature**: at least one channel whose trailing-120
+  rolling standard deviation, inside the event span, exceeds that channel's own
+  99.9th percentile of the same quantity over the fitting window.
+- **Sustained crossing**: a run of consecutive steps at or above threshold inside
+  the event span. Reported as count of runs and the median run length; a
+  **stray-tick catch** is one whose longest run is a single step.
+- **Residual half-life**: steps from the event's first scorable step to the first
+  step at which the detector's per-step score has fallen to half its peak value
+  within the event span. Undefined if it never halves; that is a reported outcome,
+  not a missing value.
+
+### 22.3 PREDICTED
+
+Committed before the script runs.
+
+**Leakage. The prediction is that there is none, and each is checked separately.**
+
+| # | Prediction |
+|---|---|
+| **L1** | `_rolling`'s window is trailing and right-inclusive: no sample at `t' > t` enters the statistic at `t`. Checked by index arithmetic **and** by perturbation -- change a future sample, assert the score at `t` is bit-identical |
+| **L2** | `RollingStd.fit` sees `values[train_lo:train_hi]` with `train_mask` applied and nothing else -- the same window and the same mask the GRU's calibration uses, through the same `harness.py:142-157` call |
+| **L3** | `score`'s fallback scale, which would compute `nanstd` over the *scored* window, is never reached under the harness because `fit` always precedes it |
+| **L4** | the threshold is `np.quantile(train_scores[usable], 0.999)` through `Detector.threshold_from` -- byte-for-byte the same machinery as the GRU's, not a parallel implementation |
+| **L5** | the caught events are **sustained**, not stray ticks: median longest run inside a caught event **>= 100 steps**, and **<= 2 of 34** caught events are stray-tick catches |
+| **L6** | the lead jump to +0.0 is a concentration, not an average: **>= 80%** of caught events have a per-event lead of exactly 0 |
+
+**Overlap on `m1-g8.9.10`. `rstd` catches 34/46, `gru-quantile` 27/46.**
+
+| # | Prediction |
+|---|---|
+| **L7** | all events: both **25**, only-GRU **2**, only-rstd **9**, neither **10**. Only-GRU is predicted in **[0, 6]** |
+| **L8** | headline cell only: both **20**, only-GRU **2**, only-rstd **5**, neither **5** |
+| **L9** | **only-GRU >= 1 on the headline cell.** If it is **0**, the forecaster catches a strict subset of what a two-line statistic catches and the thesis has no per-event evidence left on this set. This is the sharpest single number in the work item |
+| **L10** | for **only-GRU** events, **no** channel shows a per-channel variance signature -- that is why `rstd` misses them. For **only-rstd** events, at least one does |
+
+**State adaptation.**
+
+| # | Prediction |
+|---|---|
+| **L11** | for events with footprint **> 1,000**, the GRU's per-step score halves within **105 steps** (the EWMA span) of event onset in **>= 60%** of cases, while the event is still running |
+| **L12** | `rstd`'s score does **not** decay comparably on the same events: its median half-life is **> 2x** the GRU's, or undefined |
+
+**Claim B, the label composition of the headline cell.**
+
+| # | Prediction |
+|---|---|
+| **L13** | of the 32 `Multivariate/Global/Subsequence` events, **8 to 16** are truly contextual by the envelope test. Central estimate **12**, from Hundman's 41% of 32 |
+| **L14** | `rstd`'s recall on the truly-contextual subset is **at least 20 percentage points below** its recall on the envelope-breaching subset. **This is the test that decides how much of the thesis survives**: if `rstd`'s 25/32 is concentrated in envelope-breaching events, the forecaster's value is precisely the contextual class and the claim restates rather than dies |
+
+### 22.4 The named risk
+
+**That this work item is motivated reasoning with a budget.** It was commissioned
+after a result nobody wanted, and it is looking for reasons the result might not
+count. The protections are that every definition in 22.2 is fixed before the
+numbers exist, every prediction in 22.3 is numeric and falsifiable, and **L9 and
+L14 are both stated in the direction that would hurt**: L9 names the outcome that
+would leave the thesis with no per-event evidence at all, and L14 names the
+threshold below which the restatement stands as written. A leak found is a
+finding; a leak *not* found is also a finding, and the more likely one.
+
+### 22.5 Stop and report
+
+1. Any of L1 to L4 fails -- `rstd` is leaking and the 9.5 numbers are void.
+2. `only-GRU == 0` on the headline cell (L9 refuted).
+3. Any figure belonging to a forecaster moves. Nothing here recomputes one.
+4. More than 20 Class B operations.
+5. Anything would touch `main`, a detector, a threshold or a weight.
+
+### 22.6 OBSERVED
+
+*Reserved. Filled in beside the predictions above, never in place of them.*
