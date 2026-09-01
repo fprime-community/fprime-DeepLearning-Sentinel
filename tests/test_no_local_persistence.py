@@ -14,6 +14,17 @@ dataset ban is **tightened** at the same time: parquet, pickles and archives are
 now refused everywhere in the tree including `runs/`, which the previous version
 skipped entirely. Loosening one rule is not a licence to loosen the other, and a
 telemetry file hidden under `runs/` would have gone unnoticed before.
+
+Work item 9 adds one exemption and states its reason here rather than in a
+comment. The F' framework checkout and its tool virtualenv live under `fprime/`
+because this machine keeps everything for this project inside this directory.
+They are a reproducible build dependency, not a store of data -- exactly the
+status `.venv` already has in `MACHINERY` -- they are gitignored, and
+`scripts/fprime_setup.sh` rebuilds them from nothing. Only those two subtrees are
+exempt: `fprime/`'s own sources, the component and the deployment, stay under
+every rule below, so a dataset parked beside the component is still caught. The
+checkout was scanned before the exemption was written and holds **0** files with
+a dataset or array suffix, so nothing is being waved through.
 """
 from __future__ import annotations
 
@@ -35,9 +46,20 @@ DATASET_SUFFIXES = {".parquet", ".pkl", ".zip", ".h5", ".hdf5", ".feather", ".ar
 #: Arrays are how weights are stored, so they are allowed -- but only as outputs.
 ARRAY_SUFFIXES = {".npy", ".npz"}
 
+#: The F' toolchain (D31, work item 9): a gitignored, script-rebuilt dependency
+#: tree, skipped for the reason given in this module's docstring. Matched as path
+#: prefixes rather than by name, so `fprime/` alone is never skipped.
+TOOLCHAIN_PREFIXES = ((("fprime", "lib"), ("fprime", "fprime-venv")))
+
 
 def _files(root: Path, skip: set[str]):
-    return (p for p in root.rglob("*") if p.is_file() and not skip & set(p.parts))
+    for p in root.rglob("*"):
+        if not p.is_file() or skip & set(p.parts):
+            continue
+        parts = p.relative_to(root).parts
+        if any(parts[:len(prefix)] == prefix for prefix in TOOLCHAIN_PREFIXES):
+            continue
+        yield p
 
 
 def test_a_full_scored_run_writes_nothing_to_the_source_tree(project_root, bucket, catalog,
@@ -69,6 +91,20 @@ def test_arrays_are_permitted_only_as_outputs_under_runs(project_root):
               for p in _files(project_root, MACHINERY)
               if p.suffix in ARRAY_SUFFIXES and "runs" not in p.parts]
     assert strays == [], f"arrays outside runs/: {strays}"
+
+
+def test_the_toolchain_exemption_covers_only_what_it_claims(project_root):
+    """The exemption is narrow, and this asserts it stays narrow.
+
+    `fprime/`'s own sources must still be scanned; only the checkout and the tool
+    venv are skipped. If someone widens the prefixes to `fprime/`, this fails.
+    """
+    scanned = {p.relative_to(project_root).as_posix() for p in _files(project_root, OUTPUTS)}
+    assert not any(f.startswith("fprime/lib/") for f in scanned)
+    assert not any(f.startswith("fprime/fprime-venv/") for f in scanned)
+    settings = project_root / "fprime" / "settings.ini"
+    if settings.exists():
+        assert "fprime/settings.ini" in scanned, "fprime/'s own sources must stay scanned"
 
 
 def test_the_repository_holds_code_and_docs_only(project_root):
