@@ -12,7 +12,23 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 - The F' component: FPP model, ports, the warning event naming the channel, and Level 1's
   degrade-with-an-event, for which WI8's refusal codes are the hook. Done when it builds in
-  an F' Ref deployment.
+  an F' Ref deployment. Pre-registered in `docs/MODELS.md` 20 with D32 to D37, committed
+  before any component code, along with twelve corrections to the work item's own brief.
+- Corrections worth naming here because they move published statements: the loader has
+  **11** refusal codes and 16 load *cases*, not 16 codes; `Ref/` moved to
+  `TestDeploymentsProject/Ref/` at F' v4.3.0; and `rstd` lives in
+  `src/sentinel_models/baselines.py`, not `src/sentinel_eval`.
+
+### Planned - work item 9.5, before work item 10
+
+- `baselines._rolling` accumulates its prefix sums in float32 and loses the statistic it
+  computes -- 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros
+  on this project's own fixture (D37, `docs/MODELS.md` 20.6). The floor `docs/RESULTS.md` 2
+  publishes as F0.5 = 0.250 and headline-cell 3/32 rests on it, so the comparison has to
+  be restated. Scoped in `docs/MODELS.md` 21: a D8 correctness fix, a pinning test against
+  `numpy.nanstd`, one re-score covering `m1-g8.9.10` and `m1-ss5` together, and every
+  affected figure republished as `new (was old, D37)` with old artifacts preserved.
+  Whether the spent held-back sets are re-scored is escalated, not decided (21.5).
 
 ## [0.5.0] - 2026-09-01 - Phase 2 work item 8 (tag wi8)
 

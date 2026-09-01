@@ -2802,3 +2802,366 @@ format, 27 on the golden vectors and 10 driving the C++ suite from `pytest`);
 `scripts/check_no_list.py` clean on 66 files; `sentinel_eval selftest` 8/8;
 `make -C flight test` green on footprint, 16 refusals, determinism twice, seven
 golden-vector tiers and seven byte-identical round trips.
+
+---
+
+## 20. Pre-registration: the F' component and the Level 1 safe-failure mode (work item 9)
+
+**Written and committed before a line of component code exists.** Work item 8 left a
+core that refuses a bad file and then goes quiet; this work item builds the thing that
+keeps serving the topology after that refusal. `docs/MODEL_FILE.md` is still normative
+on the file; `docs/DECISIONS.md` D32 to D37 carry the decisions this work item forces;
+F' is pinned at v4.3.0 (D31). Objective.md 14.10's Level 1 -- "the loader's safe failure
+mode ... never fail the topology" -- and `Objective.md` decision 3, the channel-ingestion
+mechanism, are both discharged here. Zero bucket operations: every input is a seeded
+generator or the offline fixture.
+
+### 20.1 What is being built, and what is not
+
+Built: an FPP-modelled F' component wrapping the work item 8 core, with a rate-group
+`schedIn`, a channel-vector input, five telemetry channels, five events, and the Level 1
+degrade-to-baseline path; the statistical baseline transcribed into `flight/` under the
+work item 8 golden-vector discipline; the types shim swapped for F's own; a deployment
+that builds and a `TestDeploymentsProject/Ref` instantiation that builds; `clang-tidy`
+run for the first time.
+
+Not built, and deliberately: the recalibration uplink path and its human approval (work
+item 10) -- the reload command is named in the FPP as a comment and in the SDD, and no
+code implements it; the chunked `Os::File` reader (`docs/MODEL_FILE.md` 8 anticipates it,
+D36 defers it, and the check order is left untouched so it stays droppable-in); the
+`_rolling` correctness fix (scoped as section 21, not executed); any change to Python
+training, to the frozen decision layer, or to the spent held-back sets; any inference
+library.
+
+### 20.2 Twelve corrections to the work item's brief
+
+The brief asks to be verified against the repository before anything is written, and the
+record says every previous coder found errors by doing so. Twelve, each a fact read from
+a named file. Where the brief and a document disagree, the document wins -- including F's
+own.
+
+| # | The brief, or a document, says | Verified |
+|---|---|---|
+| 1 | "16 refusal status codes", "each load refusal (the 16 codes)" | **11 refusal codes.** `flight/include/sentinel/Status.hpp:14-27` carries 12 enumerators, one of them `OK`. The 16 is the count of load *cases* in `flight/test/RefusalTests.cpp` -- 15 refusing, 1 accepting. `CHANGELOG.md:55`, `docs/STATUS.md:132` and section 19.8's prediction F7 are loose the same way. This work item emits one event carrying the code, over 11 codes |
+| 2 | "read its exact form from `src/sentinel_eval`" | `rstd` is `RollingStd`, **`src/sentinel_models/baselines.py:86-110`**, kernel `_rolling` at `:34-55`, registered at `src/sentinel_models/registry.py:38`. `sentinel_eval` supplies the reduction (`detector.py:143-155`), the 99.9th-percentile recipe (`detector.py:127-132`) and the `>=` comparison (`harness.py:169-172`) |
+| 3 | "done when it builds in an F' Ref deployment" | **`Ref/` does not exist at the v4.3.0 tag.** It is `TestDeploymentsProject/Ref/`. Present at v4.2.2, absent at v4.3.0, and absent from the v4.3.0 breaking-change notes. `docs/user-manual/design-patterns/rate-group.md:88` now links Ref through a pinned older commit. Both a project-owned deployment and the relocated Ref are built (D33 note, section 20.8) |
+| 4 | "docs/MODELS.md section 20" | There was no section 20. The file ended at 19.8. This section creates it |
+| 5 | "the baseline: the rstd rule as the harness defines it" | The rule needs **two fitted quantities `model.bin` version 1 does not carry**: a per-channel scale (`baselines.py:105`) and its own threshold. `rstd`'s calibrated cuts on `m1-g8.9.10` are 3.339457480522701, 4.386269506802676 and 4.380987492380889; the model path's committed tiers sit at 0.2737089991569519 to 0.951245903968811. Different statistics on different scales. Resolved by D34 |
+| 6 | D31: "work item 9 replaces that one header ... and no line of the core changes" | Not literally achievable beside "the freestanding make target must STILL build". `Fw/FPrimeBasicTypes.hpp` includes `config/FppConstantsAc.hpp`, a generated F' build artifact that does not exist in the Makefile build. The shim is **guarded** (D35). Shim-only still holds: no other file changes |
+| 7 | `Types.hpp` defines the shim | `SizeType` and `I32` are declared and **never used** anywhere in `flight/`. The swap is narrower than D31 implies |
+| 8 | "the WARNING event carrying the peaking channel's id/name" | **The index does not exist.** `flight/src/Detector.cpp:100-106` reduces into a local and discards it. `Objective.md:417` already records that `last_attribution` is not persisted. Taken by a component-side argmax over `smoothed()` using the identical strict-`>` rule, so ties keep the lowest index as the core does. Zero core change |
+| 9 | Section 19.3's nine CPP rules | A subset. v4.3.0's `.github/skills/fprime-cpp-design/SKILL.md` carries CPP-1 to CPP-34. **CPP-4, CPP-21, CPP-22, CPP-23, CPP-24 and CPP-28** bear directly on a component and are absent from the 19.3 table. Section 20.4 extends it |
+| 10 | D31: "`clang-tidy` is deferred to work item 9, with the F' toolchain" | **F' v4.3.0 ships no `clang-tidy`.** It came from `brew install llvm`, which is what `flight/.clang-tidy` itself says. D31's premise was wrong about where the tool comes from, not about when it runs. F' does ship its own `.clang-tidy` and `release.clang-tidy` at its repository root, and the core is run against those too |
+| 11 | `Objective.md` decision 3: telemetry-path tap vs direct port wiring | **The tap is not implementable against this file format.** `Fw.Tlm` carries a serialized `Fw::TlmBuffer`; `docs/MODEL_FILE.md` 4's CHANNELS record carries `id` and `name` and **no type tag**, so a tap cannot deserialise a value without knowing its declared type. Resolved by D33 |
+| 12 | Work item 8's flag set is the bar | `TestDeploymentsProject/Ref/CMakeLists.txt` adds `-Wsign-conversion -Wold-style-cast -Woverloaded-virtual -Wnon-virtual-dtor -Wformat-security -Wundef` on top of it. The component is held to the union |
+
+Two smaller ones, fixed in the same commit: `docs/INDEX.md` was stale in four places
+(D1-D29, "0.1.0 to 0.4.0", `wi1`-`wi7`, and the pre-registration list); and
+`Objective.md:294-298`'s two named events both describe capabilities `Objective.md:283-289`
+says do not exist, so this work item builds the channel-naming event only, exactly as
+`CHANGELOG.md:13` already scoped it.
+
+### 20.3 The component
+
+`Sentinel::Monitor`, a **passive** component (D32). The core already owns
+`Sentinel::LoadStatus`, so the ground-facing FPP enum is named `ModelLoadStatus` to
+avoid the collision.
+
+```
+  array ChannelVector = [16] F32          # static_assert'd against Config::MAX_CHANNELS
+  port  ChannelSample(ref values: ChannelVector, valid: bool)
+  enum  Mode: U8            { MODEL = 0, BASELINE = 1 }
+  enum  ModelLoadStatus: U8 { OK = 0 ... BAD_NORM_POLICY = 11 }
+```
+
+| Port | Kind | Type | Why |
+|---|---|---|---|
+| `schedIn` | `sync input` | `Svc.Sched` | the rate-group tick. F's `component-and-port-selection.md` names a passive component with a `sync` `Svc.Sched` input as the model for cyclic work |
+| `channelsIn` | `sync input` | `Sentinel.ChannelSample` | D33. Latched; consumed once per tick |
+| `tlmOut`, `eventOut`, `textEventOut`, `timeGetOut`, `prmGetOut`, `prmSetOut` | special | | telemetry, events, time, parameters |
+
+| Telemetry | Type | Meaning |
+|---|---|---|
+| `Score` | `F32` | the max-across-channels statistic this tick |
+| `Threshold` | `F64` | the active cut, the model's or the baseline's |
+| `ActiveMode` | `Sentinel.Mode` | D5's active-tier channel; D30 consequence 6 wires `baseline_only` here |
+| `TicksSinceWarmup` | `U32` | saturating, 0 while warming |
+| `LoadStatus` | `Sentinel.ModelLoadStatus` | the last load result |
+
+| Event | Severity | Carries |
+|---|---|---|
+| `ModelLoaded` | activity high | provenance, tier, `n_channels`, `n_parameters` |
+| `ModelRefused` | warning high | the code, and the byte count read |
+| `DegradedToBaseline` | warning high | the reason: a refusal code, or `BASELINE_ONLY_SET` |
+| `CrossChannelWarning` | warning high | channel id, channel name, score, threshold; throttled |
+| `WarmupComplete` | activity low | ticks |
+
+Parameters, per D34: `BASELINE_SCALE: ChannelVector` and `BASELINE_THRESHOLD: F64`, both
+with FPP defaults so Level 1 has constants even with no parameter database. The model
+file path arrives through `configure()` in topology setup, which is the shape v4.3.0's
+own breaking-change note gives for `FileHandling::prmDb.configure("PrmDb.dat")`.
+
+**The assumption on the sample, stated so it can be tested.** Upstream delivers one
+vector of `n_channels` F32 values per tick, from a producer on the same rate group at a
+lower port index -- so both `sync` ports run on one thread and no mutex is needed, which
+is the F' cyclic model. A mission wiring a producer on another thread makes `channelsIn`
+`guarded`. If no sample arrived since the last tick the tick runs with `valid = false`,
+which scores negative infinity and cannot alarm.
+
+### 20.4 The flight rules, extended for a component
+
+Section 19.3's table stands and is not repeated. Six rules it does not carry, each read
+from `.github/skills/fprime-cpp-design/SKILL.md` at v4.3.0:
+
+| rule | as F' states it | how this component obeys it |
+|---|---|---|
+| **CPP-4** | `FW_ASSERT` is for programmer-controllable invariants; never on "any off-device data crossing a hub / bridge / driver boundary" | `model.bin` is uplinked. **No assert anywhere on its contents.** Every refusal returns a code and emits an event, which is what the work item 8 loader already does |
+| **CPP-21** | no C-style arrays in interfaces; pair array and length | every ground-facing interface is an FPP type. The core's `step(const F32*, bool)` and `load(const U8*, U32)` stay as they are and are recorded here as a knowing exception at an internal boundary, not an oversight |
+| **CPP-22** | prefer `Fw/DataStructures` containers | the baseline's ring is a fixed member array sized from `Config`, as CPP-1 permits; no bespoke container escapes the class |
+| **CPP-23** | commands, events, parameters and telemetry are declared in `.fpp` and the autocoded types used directly | `Mode` and `ModelLoadStatus` are FPP enums, `ChannelVector` an FPP array. Nothing is hand-serialized |
+| **CPP-24** | prefer `Fw::String` over `char*` | the channel name in `CrossChannelWarning` and the provenance in `ModelLoaded` are `Fw::String`. `statusName()` returns a literal and is used only at the boundary |
+| **CPP-28** | prefer configurable `Fw*` types where range varies by project | `FwChanIdType` for the channel id, `FwSizeType` and `FwIndexType` for sizes and indices in component code. The core keeps its fixed-size types, which CPP-3 requires and CPP-28 does not override |
+
+### 20.5 PREDICTED
+
+Committed before the component is written. Every figure is arithmetic from shapes
+already measured, not an estimate.
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **C1** | `sizeof(Sentinel::Monitor)` is **624,528 B**, a delta of **+312,416 B** over work item 8's 312,112 B | the derivation below |
+| **C2** | The shim swap touches **1/1 files** and `make -C flight test` still passes all five suites | D35's guard keeps the freestanding path byte-identical |
+| **C3** | The C++ baseline matches `baseline_reference.py` to **<= 1e-5**, and the worst case is **<= 1e-9** | the baseline path is F64 end to end with no narrowing, unlike the model path's three F32 narrowings that produced 1.788e-07 |
+| **C4** | **11/11** refusal codes degrade to BASELINE and emit; **0/11** fail the topology | Objective.md 14.10 |
+| **C5** | The component is passive: **0** threads, **0** queues, **2** sync input ports | D32 |
+| **C6** | `clang-tidy` produces **at least 1 and fewer than 50** findings across the three configurations, the largest class being `readability-*` | 1,798 lines never linted, `WarningsAsErrors: '*'` |
+| **C7** | Both deployments build at the union flag set of correction 12 | |
+| **C8** | BASELINE mode costs **1,920** F64 multiply-adds per tick against MODEL mode's **70,080**, i.e. **2.7%** | 120 x 16 window recompute; 70,080 is 19.8's F4 |
+| **C9** | The first full F' build completes in **10 to 20 minutes** on this machine | 10 cores, 16 GiB, measured in 20.9 |
+| **C10** | A degraded component starts emitting **2,230 ticks earlier** than a healthy one -- baseline warm-up 120, model warm-up 2,350 | `baselines.py:96-98`, `docs/MODEL_FILE.md:185`. Stated because it is a real operational consequence of degrading, not a defect |
+
+The footprint derivation, in bytes:
+
+```
+  Detector, measured at work item 8                              312,112
+  model.bin buffer, 64 + 20*16 + 4*75,360 + 96 + 8*16            302,048
+  Baseline: ring 120*16*4 = 7,680; finite mask 120*2 = 240;
+            scale 16*8 = 128; scratch 2*16*8 = 256; counters 16    8,320
+  component base, ports, latch, mode, name and provenance          2,048
+  ----------------------------------------------------------------------
+                                                                 624,528
+```
+
+### 20.6 The named risk -- and the one that fired before any code was written
+
+**The named risk.** `clang-tidy` has never run on this core. `flight/.clang-tidy` sets
+`WarningsAsErrors: '*'` over `bugprone-*`, `cert-*`, `clang-analyzer-*`, `misc-*`,
+`performance-*` and `readability-*`, and F' ships two stricter configurations of its
+own. If the finding count is large, findings are reported and triaged in the open;
+**a check is not switched off to make a build quiet.** An exclusion added here needs the
+same written reason the existing four carry.
+
+**The risk that fired first, measured 2026-09-01 before the pre-registration was
+committed.** The Python source the baseline is to be transcribed from does not compute
+the rule it states. `baselines.py:44` runs `np.cumsum` on a float32 array and promotes
+to float64 only at the surrounding `np.concatenate`, so the prefix sums that
+`trailing_sum` differences are accumulated in float32. Differencing two large float32
+prefix sums to recover a small second moment is catastrophic cancellation, and the
+variance floor at `baselines.py:55` then clamps the negative result to zero.
+
+Measured, three independent implementations against the one in the tree, on
+`N(1000, 3)` float32, T = 8,000, C = 12, post-warm-up rows only:
+
+```
+  _rolling(float64 input)  vs  exact windowed recompute      1.8284e-08
+  exact windowed recompute vs  numpy nanstd                  3.5489e-10
+  _rolling(float32 input)  vs  all three                     7.6584e+00
+```
+
+True sigma is 3.0. At t = 5000 `_rolling` returns `[6.65, 0.00, 3.90, 0.00]` where the
+answer is `[2.91, 3.28, 2.96, 2.82]`: two channels of four clamped to exactly zero.
+
+It is not confined to a stress case. On this project's own offline fixture -- 39,992
+steps, 7 channels, per-channel `|mean|/std` between 2.08 and 5.91, which is a mild
+regime -- the float32 and float64 forms differ by up to **4.9252e-03** on spreads of
+order 0.02 to 0.24, and the float32 form produces **3,975/279,104** exact zeros against
+float64's **1,123/279,104**. That is 2,852 steps where the floor detector reports zero
+spread because of arithmetic rather than data.
+
+**Consequence for this work item, and it is deliberate.** The flight baseline
+transcribes **the rule**, in F64, pinned against `numpy.nanstd`; it does **not**
+reproduce `_rolling`'s float32 accumulation, which no fixed-memory implementation could
+do in any case. So the flight Level 1 baseline and the harness's `rstd` are knowingly
+different numbers, and this paragraph is the record of why. `baselines.py` is not
+touched here: correcting it moves published Phase 1 figures and costs bucket operations,
+and both belong to their own work item. That work item is scoped in section 21 and D37.
+
+### 20.7 The golden vectors
+
+The work item 8 discipline, applied to the baseline: seeded inputs, a committed vector
+per tier, a manifest recording what each tier is, and a C++ binary held to the Python at
+1e-5 with the crossing flag exact.
+
+| tier | shape | input | committed |
+|---|---|---|---|
+| B1 | 3 channels, window 120 | seeded `default_rng(11)`, unit normal | yes |
+| B2 | 12 channels at the flown width | seeded `default_rng(12)`, unit normal, 2% NaN | yes |
+| B3 | 12 channels, offset 1000 sigma 3 | seeded `default_rng(13)` -- the regime that exposes the cancellation | yes |
+| B4 | 7 channels | the offline synthetic fixture, `synthetic.build(seed=0)` | yes |
+
+B3 exists specifically so a future implementation that reintroduces float32 accumulation
+fails a test rather than passing quietly.
+
+### 20.8 Stop and report
+
+1. The shim swap requires a change to any core file other than `Types.hpp`.
+2. The C++ baseline cannot match `baseline_reference.py` at 1e-5.
+3. F' v4.3.0's documents contradict this section -- F's own documents win.
+4. `FW_HAS_F64` is unavailable on the build platform.
+5. The F' unit-test or deployment build cannot be held to correction 12's union flag set.
+6. Anything would touch `main`, work item 10's scope, Python training, the frozen
+   decision layer or the spent held-back sets.
+7. Any bucket operation at all. This work item's budget is zero.
+
+### 20.9 OBSERVED
+
+*Reserved. Filled in beside the predictions above, never in place of them.*
+
+---
+
+## 21. Scoping the `_rolling` correctness fix (work item 9.5; scope, not build)
+
+**Written and committed before anything is changed or re-scored.** Section 20.6 measured
+a defect in `baselines._rolling`, the kernel behind both `rstd` and `mavg`. This section
+scopes the repair. Nothing here is executed by work item 9: the flight baseline in work
+item 9 transcribes the correct rule and says so, and this section is the plan for making
+the harness agree. It runs **after work item 9 and before work item 10**, because the
+figure at stake is the denominator of the project's headline comparison.
+
+### 21.1 Why it cannot wait
+
+`docs/RESULTS.md` 2 states the floor as "`rstd` on `m1-g8.9.10`: event-wise
+F0.5 = 0.250", headline-cell recall **3/32**, and section 20.6 shows the statistic behind
+that number is computed wrongly. Section 4's own OBSERVED table
+(`docs/MODELS.md:324`) reads "**Headline-cell recall above `rstd`'s 3/32** | 28/32 | ...
+**Held, decisively, and it is the project's thesis. A per-channel statistic finds three;
+a forecaster over the channel set finds twenty-eight**". A thesis stated as a ratio
+against a baseline is only as good as the baseline. If the floor was under-measured by
+arithmetic, the comparison has to be restated.
+
+### 21.2 What changes, and what is preserved
+
+1. **`baselines._rolling` accumulates in float64.** A one-line change at
+   `baselines.py:44`, promoting before `np.cumsum` rather than after. This is a **D8
+   correctness fix**, which `docs/HARNESS.md` explicitly exempts from the
+   closed-to-scope-changes rule: "closed to scope changes, never to correctness fixes".
+2. **A pinning test lands with it**, asserting `_rolling(x, W, "std")` matches
+   `numpy.nanstd` over the trailing window to a stated tolerance, on the B3 regime of
+   section 20.7 -- the offset case that exposes the cancellation. The defect cannot
+   return silently.
+3. **Every old artifact under `runs/` is preserved**, and every re-scored figure is
+   published as `new (was old, D37)`. Nothing is overwritten and no number is deleted.
+   This is the same discipline sections 4 and 6a-6g already use for corrections.
+
+### 21.3 The re-score, and what it costs
+
+`m1-ss5` is a strict subset of `m1-g8.9.10`, and `docs/HARNESS.md` 4 records that "one
+twelve-channel load scores both -- 15 Class B rather than the 25 two runs would cost".
+So the primary re-score is **one run, not two**:
+
+```
+  python -m sentinel_eval --verbose run m1-g8.9.10 \
+      --detector rstd --detector mavg --no-sweep
+```
+
+| Run | Class B | Class A |
+|---|---|---|
+| `m1-g8.9.10` + `m1-ss5`, both baselines, all folds | 10 to 15 | 1 |
+
+`docs/HARNESS.md` 5's table says 10 for any Mission1 task; `docs/HARNESS.md` 4 and
+`docs/STATUS.md:204` say 15. The discrepancy is noted here and resolved by reading the
+ledger on the day, not by choosing the convenient one. Either way it is negligible
+against the 50,000-per-class monthly ceiling and the 1,000 tripwire.
+
+Both baselines are re-scored, not just `rstd`, because `_rolling` feeds both. Their
+exposure differs by two orders of magnitude and the scope should say so: on the offline
+fixture the `mavg` residual moves by **2.2078e-04** against a residual scale of
+**3.8092e-02** (0.6%), where the `rstd` spread moves by up to **4.9252e-03** on spreads
+of 0.02 to 0.24, and gains 2,852 spurious exact zeros.
+
+### 21.4 PREDICTED, before the re-score
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **W1** | The corrected `rstd` threshold on `m1-g8.9.10` fold 0 is **below** 3.339457480522701 | the corrupted statistic has a fatter upper tail -- spurious 6.65 where the truth is 2.91 -- so its 99.9th percentile sits high. Correcting it should lower the floor |
+| **W2** | Corrected `rstd` headline-cell recall is **>= 3/32** | a lower floor fires more often, and the defect's spurious zeros could only suppress |
+| **W3** | Corrected `rstd` nominal-step false alarms rise **above 0.000%** | same mechanism |
+| **W4** | The F0.5 floor **moves from 0.250**, by **less than 0.15** | direction not predicted: recall up and precision down pull F0.5 opposite ways, and F0.5 weights precision twice |
+| **W5** | `mavg` moves by less than `rstd` on every metric | 21.3's measured exposure |
+| **W6** | `gru-quantile`, `lstm-quantile` and `tcn-quantile` **do not move at all** | none of them calls `_rolling`. The flying path is `detectors.py` and `reference.py`. This is checked by re-running nothing and diffing the code path, not assumed |
+
+**The falsification, stated plainly.** If corrected `rstd` reaches or exceeds the GRU's
+headline-cell **22/32**, the project's central claim -- that a per-channel statistic
+cannot see the cross-channel class -- is in serious question and this document says so in
+those words. If it merely improves on 3/32, section 4's OBSERVED verdict is restated with
+both numbers and the thesis is re-argued at the corrected margin, not quietly left at the
+old one.
+
+### 21.5 The held-back sets: escalated, not decided here
+
+`docs/RESULTS.md:1463` records that two held-back sets exist: **`m2-ss1`** and
+**`m1-g3`**. Both carry `rstd` rows computed with the defect -- `m2-ss1` at
+**84/424 (0.198)** rare-event false alarms and **718,831/4,155,841 (17.30%)** of nominal
+steps (`docs/RESULTS.md:1314`), `m1-g3` at **3/11** headline-cell and
+**332,245/10,881,882 (3.05%)** (`docs/RESULTS.md:1344`). Whether those rows are
+re-scored is **not decided in this section**. Both cases:
+
+**For re-scoring (rstd and mavg rows only).** D8 exempts correctness fixes by name, and
+this is one. The held-back discipline exists to stop a *candidate* being tuned against a
+set; `rstd` is a baseline, its only parameter is a default `window = 120` that no result
+selected, and re-running it chooses nothing. A targeted run
+(`--detector rstd --detector mavg`) produces a new artifact containing only those rows,
+so the flying detectors' numbers are never recomputed and cannot be re-read. And the cost
+of leaving it is real: `m2-ss1`'s `rstd` row is what "a floor fixed in the past collapsed
+on a later period of the same spacecraft" is argued from, and that sentence should not
+rest on an artifact of float32 accumulation. 16 Class B and 1 Class A for `m2-ss1`.
+
+**Against re-scoring.** The task definition's own `headline` field reads "HELD BACK --
+recall. Run once, at the end, settings frozen", and `tasks.py:163-166` adds "If the
+result disappoints we do not re-tune: tuning against a held-back set converts it into
+another training set." A rule that admits a well-argued exception is a rule that ends at
+the first well-argued exception, and this would be the first. The defect is in a
+baseline, and **D29's adoption decision does not move**: `gru-quantile`'s 4/424 and its
+0 of 4,155,841 nominal-step alarms come from a path that never calls `_rolling`, so
+nothing that was decided on those sets is in doubt. An annotation is complete and costs
+nothing -- "computed with `_rolling`'s float32 accumulation; see D37; not re-scored,
+because the held-back sets are scored once" -- and the project already preserves wrong
+numbers rather than re-running them (section 4's OBSERVED, D22).
+
+**Recommendation, for the decision to accept or overrule.** Re-score `m2-ss1` and
+`m1-g3` for `rstd` and `mavg` only, in a run that names no other detector, and preserve
+the original artifacts beside the new ones. The seal protects the candidate from the
+set; it was never a promise that a baseline's arithmetic error would be published
+uncorrected. But the argument against is not weak, and the decision is not this
+document's to make.
+
+### 21.6 Documents that carry an `rstd` figure
+
+Every one is updated from the new artifact, old figure kept in parentheses with the
+D-reference: `README.md:40` and `:57`; `docs/STATUS.md:56`; `docs/RESULTS.md:15`, `:21`,
+`:35`, `:38`, `:93`, `:104`, `:123`, `:144`, `:505`, `:569`, `:623`, `:1314`, `:1344`,
+`:1366`; `docs/MODELS.md:279`, `:287`, `:323`, `:324`, `:325`;
+`docs/PHASE1_REPORT.md:140`; `CHANGELOG.md:104`. Line numbers are as of this commit and
+are a starting list, not a substitute for grepping on the day.
+
+### 21.7 Stop and report
+
+1. The corrected `rstd` reaches the GRU's headline cell -- 21.4's falsification.
+2. Any flying detector's number moves. Nothing in the flying path calls `_rolling`; if
+   one moves, the fix reached further than this section says and the work item stops.
+3. The re-score would cost more than 50 Class B operations in total.
+4. The held-back question in 21.5 has not been decided.
+
+### 21.8 OBSERVED
+
+*Reserved.*

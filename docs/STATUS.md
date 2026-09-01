@@ -59,6 +59,13 @@ stamped UNDERPOWERED by the harness's own rule; none appears here.
 | `m1-g8.9.10` | `tcn-quantile` | 0.411 | 9/46 | 21/37 | 9/32 | 3/48 | 0.00002% | `runs/m1-g8.9.10/tcn-quantile/2026-08-29T162030Z-c48bd47d.json` |
 | `m2-ss1` (transfer, 424 rare events) | **`gru-quantile`** | - | - | - | - | 4/424 (0.94%) | 0 / 4,155,841 | `runs/m2-ss1/gru-quantile/2026-08-29T204415Z-6d146f5d.json` |
 
+**(!) The `rstd` floor row is under correction.** `baselines._rolling` accumulates its
+prefix sums in float32 and loses the statistic it computes (D37, `docs/MODELS.md` 20.6):
+measured 7.6584e+00 of error on a true sigma of 3.0, and 2,852 spurious exact zeros on
+this project's own fixture. The figures below are what the artifact says and are left
+standing; the repair and the re-score are scoped in `docs/MODELS.md` 21 and run before
+work item 10. Nothing in the forecaster rows calls `_rolling`.
+
 On the `m2-ss1` row "-" means unmeasured: recall is disabled on the transfer set by design, so
 its scorecard is the adoption number (D29, `docs/RESULTS.md` 6k). The paired subset `m1-ss5`,
 the union and floor rows on Mission 2, and the `m1-g3` folds are in README and
@@ -133,6 +140,10 @@ PHASE 2 - flight C++ (gate: tests green, flight-rule compliance clean)
       degrade-with-an-event is the F' component's and is open.
 - [ ] F' component skeleton - ports, telemetry, the warning event naming the channel - done
       when it builds in an F' Ref deployment.
+- [ ] `_rolling`'s float32 accumulation, corrected and re-scored (work item 9.5, D37,
+      `docs/MODELS.md` 21) - done when the floor is republished from a new artifact with the
+      old figure beside it. Runs before the recalibration path, because the floor is the
+      denominator of the headline comparison.
 - [ ] In-orbit threshold recalibration path - file uplink, human-approved reload - done when it
       is exercised end to end on the Ref.
 

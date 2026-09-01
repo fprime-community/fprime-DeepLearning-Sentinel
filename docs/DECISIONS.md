@@ -1944,3 +1944,321 @@ rule set is the one a reviewer will hold this code to.
 5. **`clang-tidy` is deferred to work item 9**, with the F' toolchain. It is not
    available on the development machine. `flight/.clang-tidy` and a `make lint` target
    are written now and run the moment a toolchain has it.
+
+---
+
+## D32. `Sentinel::Monitor` is a passive component driven by a synchronous `Svc.Sched`
+
+**DATE** 2026-09-01 | **STATUS** resolved
+
+**CONTEXT.** Nothing in the repository had ever stated whether the F' component is
+passive, queued or active: a search of `Objective.md`, `README.md`, `CHANGELOG.md` and
+every document under `docs/` for those words in the F' sense returns nothing, and
+`schedIn` appears nowhere. The choice had to be made against F's own guidance rather
+than from the project's memory.
+
+**EVIDENCE.** `nasa/fprime` v4.3.0
+`docs/user-manual/framework/component-and-port-selection.md` classifies work as cyclic,
+event-driven or background, and says of the first: "Passive components are the natural
+choice for cyclic work as we intend them to execute in the context of the invoking rate
+group. A good starting model for cyclic work is to have a passive component with a
+`sync` port of type `Svc.Sched` that performs the repeating work for that component each
+cycle." It also says why not asynchronous: "Asynchronous invocations are not used because
+this work would be run outside the rate group cycling context and thus slips and failure
+to reach deadlines would be hidden in another thread." Sentinel's flight loop is exactly
+this -- one `step()` per rate-group tick, fixed compute, no waiting on anything.
+
+The same document names the condition that would change the answer: "This simple
+`passive` pattern breaks down when the cyclic component needs to accept some Event-Driven
+work (e.g. it processes some commands)", for which it prescribes `queued` with the queue
+dispatched inside the `Svc.Sched` handler, and gives `Svc.Health` as the example.
+
+**ALTERNATIVES.** Queued now, to leave room for work item 10's reload command. Active
+with an `async` `Svc.Sched`, F's "Cyclic Notification Pattern".
+
+**Against each.** Queued now buys nothing: work item 9 has no asynchronous port and no
+command, and the same document closes with "You should prefer the simpler models above
+wherever possible." A queue with nothing to dispatch is a place for a fault to hide.
+Active is wrong on its face -- it hides rate-group slip in another thread, which is the
+one thing the cyclic section says not to do, and it would put a neural network forward
+pass on its own thread with no deadline visible to the topology.
+
+**CONSEQUENCE.**
+
+1. **The component is `passive`, with `sync input port schedIn: Svc.Sched`.** All work
+   happens in the tick, in the caller's context, so a slip is visible as a slip.
+2. **Work item 10 promotes it to `queued`**, because its reload path is an `async`
+   command. That is a one-word change in the FPP plus a queue dispatch at the top of the
+   `schedIn` handler, and it is recorded here so work item 10 does not have to
+   rediscover it. The reload command is named in the FPP as a comment and in the SDD;
+   no code implements it.
+3. **Both input ports are `sync`, and the topology assumption is documented and tested**:
+   the sample producer sits on the same rate group at a lower port index, so one thread
+   runs both. A mission wiring a producer on another thread makes `channelsIn` `guarded`,
+   which F' describes as "synchronous with an internal mutex to protect data".
+
+---
+
+## D33. Channel ingestion is direct port wiring with an FPP-modelled vector, not a telemetry-path tap. Resolves Objective.md decision 3
+
+**DATE** 2026-09-01 | **STATUS** resolved. Objective.md decision 3 is resolved by this entry
+
+**CONTEXT.** Objective.md decision 3 -- "Channel-ingestion mechanism: tapping the
+telemetry path vs. direct port wiring" -- was deferred to early Phase 2 with the note
+"This is a work item 9 question: the inference core takes a vector of channel values and
+does not care how they arrive." It is now due.
+
+**EVIDENCE.** The tap is the more attractive design on its face, because it is what
+`Objective.md` 4.3 step 5 promises -- "Nothing downstream needs to know Sentinel exists"
+-- and because `docs/MODEL_FILE.md` 4 already stores "`id  U32  the F' telemetry channel
+id (FwChanIdType)`" for every channel, which only a tap would need. F' supports it:
+`Svc::TlmPacketizer` carries `sync input port TlmRecv: Fw.Tlm` and is the framework's own
+example of a rate-group-driven telemetry consumer.
+
+**It is nevertheless not implementable against this file format.** `Fw.Tlm` is declared
+in `Fw/Tlm/Tlm.fpp` as carrying `ref val: TlmBuffer` -- "Buffer containing serialized
+telemetry value". Deserialising a `TlmBuffer` requires knowing the channel's declared
+type, and `docs/MODEL_FILE.md` 4's CHANNELS record carries `id` and `name` and **no type
+tag**. A tap would therefore have to assume every watched channel is serialized F32, and
+be silently wrong on a mission whose battery voltage is a `U16`. Adding a type tag is a
+`format_version` bump, and D30 froze version 1.
+
+**ALTERNATIVES.** The tap, with an assumed F32 encoding. The tap, with a
+`format_version = 2` carrying a per-channel type tag. Direct port wiring.
+
+**Against the first two.** An assumed encoding fails silently, which is the exact failure
+mode `docs/MODELS.md` 3 rejects for gate order -- "a model that runs, converges to
+nothing useful, and fails silently". A version bump to buy an ingestion convenience
+reopens a format frozen eight days earlier for reasons that have not changed.
+
+**CONSEQUENCE.**
+
+1. **Ingestion is a `sync input port channelsIn: Sentinel.ChannelSample`**, where
+   `port ChannelSample(ref values: ChannelVector, valid: bool)` and
+   `array ChannelVector = [16] F32`, sized against `Config::MAX_CHANNELS` by
+   `static_assert`. FPP-modelled, per CPP-23.
+2. **The mission supplies a small adapter.** F' names the shape: the "Passive Adapter
+   Pattern", "a passive component as an adapter that is called synchronously as part of
+   the primary port call ... you need to connect two components with incompatible port
+   types and need to reconcile those types". This is a real adoption cost and
+   `Objective.md` 4.3 step 5's "nothing downstream needs to know Sentinel exists" is
+   thereby weakened, not met: a mission wires one adapter. Recorded rather than glossed.
+3. **The CHANNELS block's `id` field keeps its meaning and its use.** It is what the
+   warning event reports, so an operator sees a channel id they already know, and it is
+   what a future tap would need if a later format version carries a type tag.
+4. **The tap stays measured and declined, not deleted**, as `lstm-whitened` did at D25.
+   If a `format_version = 2` ever carries per-channel types, this entry is the place to
+   revisit.
+
+---
+
+## D34. Level 1's baseline constants are F' parameters with defaults, not `model.bin` fields
+
+**DATE** 2026-09-01 | **STATUS** resolved
+
+**CONTEXT.** Level 1 is "the loader's safe failure mode" (D5, Objective.md 14.10): on a
+corrupt file, a failed CRC or a version mismatch, the component runs a statistical
+baseline instead of the network. The baseline is the `rstd` rule, and the rule is not
+parameter-free: `RollingStd` carries a fitted per-channel scale (`baselines.py:105`) and
+is compared against a threshold calibrated on its own statistic. `model.bin` version 1
+carries neither. Its PARAMS block holds the *model's* threshold, whose committed values
+run 0.2737089991569519 to 0.951245903968811, where `rstd`'s calibrated cuts on
+`m1-g8.9.10` are 3.339457480522701, 4.386269506802676 and 4.380987492380889. They are
+different statistics on different scales and one cannot stand in for the other.
+
+**EVIDENCE.** The decisive argument is not storage, it is availability. The refusal that
+Level 1 exists to survive is `BAD_HEADER_CRC` -- and `docs/MODEL_FILE.md` 3 requires the
+header CRC be "verified *before* any length field is used", precisely because nothing in
+a file with a bad header can be trusted to bound a read. Baseline constants stored inside
+that file are unreadable in exactly the case they are needed.
+
+`Objective.md` already names the mechanism that does work. 14.10: "Normalisation
+constants and detection thresholds are stored separately, as small PrmDb-style
+parameters". And `Objective.md:1012-1018` records the precedent: "F's own equivalents are
+PrmDb - a generic component loading a mission file ... We are following an established
+framework pattern, not inventing one."
+
+**ALTERNATIVES.** Extend PARAMS and bump to `format_version = 2`. Compile-time constants
+in the component's configuration. F' parameters with FPP defaults.
+
+**Against the first two.** The version bump reopens D30's freeze and still leaves the
+constants unreadable on a bad header. Compile-time constants are always available, which
+is their merit, but a threshold baked into flight code has no provenance and cannot be
+recalibrated in orbit -- which D29 consequence 3 and Objective.md 10.2 fix 4 both forbid,
+and which two calibrations of one rule differing nineteenfold (`docs/RESULTS.md` 6b)
+makes concrete.
+
+**CONSEQUENCE.**
+
+1. **`param BASELINE_SCALE: ChannelVector` and `param BASELINE_THRESHOLD: F64`**, both
+   with FPP defaults. The default is the compile-time fallback, so Level 1 has constants
+   with no parameter database present; PrmDb supplies mission values; and work item 10's
+   uplink path reaches them by the same mechanism it will use for the model's own
+   threshold.
+2. **`model.bin`'s format does not change.** D30 stands, version 1 stands, and
+   `docs/MODEL_FILE.md` needs no revision for this entry.
+3. **The baseline is armed independently of the model.** The component can be in
+   BASELINE mode with no model file present at all, which is what "never fail the
+   topology" requires.
+
+---
+
+## D35. The types shim is guarded, not replaced
+
+**DATE** 2026-09-01 | **STATUS** resolved. Amends D31 consequence 2
+
+**CONTEXT.** D31 consequence 2 says "work item 9 replaces that one header with
+`Fw/FPrimeBasicTypes.hpp` and no line of the core changes". Work item 9's brief adds a
+requirement D31 did not anticipate: "The freestanding make target must STILL build and
+pass all WI8 tests after the swap -- both worlds, one core."
+
+**EVIDENCE.** The two cannot both hold with an unconditional include.
+`Fw/FPrimeBasicTypes.hpp` at v4.3.0 includes `Fw/FPrimeBasicTypes.h`,
+`Fw/Types/BasicTypes.hpp` and `config/FppConstantsAc.hpp`. The last is generated by the
+F' build. It does not exist for `make -C flight test`, and cannot be made to exist
+without giving the freestanding build an F' dependency, which is the whole thing D31
+consequence 2 was protecting.
+
+A second fact, found while making the change: `Types.hpp`'s `SizeType` and `I32` are
+**declared and never used** anywhere in `flight/`. The surface being swapped is `U8`,
+`U16`, `U32`, `U64`, `F32` and `F64` only.
+
+**ALTERNATIVES.** Unconditional include and abandon the freestanding build. Vendor a stub
+`FppConstantsAc.hpp`. A guarded shim.
+
+**Against the first two.** Abandoning the freestanding build gives up the property work
+item 8 was built around -- that the arithmetic can be verified without a framework, which
+is D15's premise. A vendored stub is a second copy of a generated file, which drifts.
+
+**CONSEQUENCE.**
+
+1. **`Types.hpp` selects on `SENTINEL_FPRIME_TYPES`**, defined by the F' build only. F's
+   names are aliased into `namespace Sentinel` so no other file changes.
+2. **The zero-change claim holds where it matters and is restated precisely**: exactly
+   one file differs between the two worlds, and it is the shim. Every other `.cpp` and
+   `.hpp` under `flight/` is byte-identical in both builds, and a test asserts it.
+3. **The shim carries a hard `FW_HAS_F64` check.** `docs/MODEL_FILE.md` 9 already
+   declares F64 a requirement of the flight target rather than a preference; this turns
+   that sentence into a compile error on a platform that switches F64 off, instead of a
+   silent change of detector.
+4. **D31 consequence 2 is amended, not deleted.** Its intent -- one header, no core
+   change -- is met; its literal wording is not achievable and this entry records why.
+
+---
+
+## D36. The model file is read whole, through `Os::File`, into a component-owned buffer
+
+**DATE** 2026-09-01 | **STATUS** resolved
+
+**CONTEXT.** `docs/MODEL_FILE.md` 8 says: "Work item 8's reader takes the whole buffer
+from its caller because work item 8 has no filesystem -- `Os::File` and the chunked feed
+are work item 9's, and the check order below is written so that a chunked reader can be
+dropped in without changing which failure is reported first." Work item 9 therefore has
+to decide whether to build the chunked feed now.
+
+**EVIDENCE.** The chunked reader saves memory and costs verification. The whole-buffer
+path costs 302,048 bytes of statically allocated storage -- 64 header, 320 channel map,
+301,440 weight arena at `MAX_PARAMETERS = 75,360`, and 224 of parameter block -- against
+a component that already carries a 312,112-byte `Detector`. The chunked path would save
+most of that and would require re-establishing, by test, that all 16 load cases still
+report the same status in the same order, which `flight/test/RefusalTests.cpp` currently
+proves against a resident buffer. That re-verification is the larger part of the risk in
+this work item, and it buys memory on a machine where memory is not yet the constraint --
+Phase 4 is where the board is chosen and the envelope measured.
+
+**ALTERNATIVES.** Build the chunked reader now. Have the topology own the buffer. Have
+the component own it.
+
+**Against the first two.** Building it now trades a measured, tested load path for an
+untested one in the same work item that first puts the core under a framework, and
+work item 9's brief does not ask for it. A topology-owned buffer couples every
+deployment to Sentinel's internals and complicates the unit test for no gain.
+
+**CONSEQUENCE.**
+
+1. **The component owns the buffer and reads with `Os::File`.** `Detector::load(data,
+   length)` is called unchanged, so the shim-swap proof stays clean and no core file is
+   touched by this decision.
+2. **The chunked reader is deferred, and the property that permits it is preserved.**
+   The check order in `ModelFile.cpp` is not altered by this work item, so
+   `docs/MODEL_FILE.md` 8's sentence remains true and the reader remains droppable-in.
+3. **The cost is pre-registered, not discovered.** `docs/MODELS.md` 20.5 predicts
+   `sizeof(Sentinel::Monitor)` at 624,528 bytes, of which 302,048 is this decision.
+
+---
+
+## D37. `baselines._rolling` computes its prefix sums in float32 and loses the statistic. The flight baseline transcribes the rule, not the implementation
+
+**DATE** 2026-09-01 | **STATUS** resolved for work item 9; the repair is scoped as
+`docs/MODELS.md` 21 and is **open**
+
+**CONTEXT.** Work item 9 must transcribe the `rstd` statistical baseline into flight C++
+under work item 8's golden-vector discipline: seeded vectors, Python-versus-C++ match at
+1e-5, committed. Before writing the transcription the Python source was measured against
+independent implementations, as D15 requires -- portability is an assertion, not an
+environment.
+
+**EVIDENCE.** `baselines.py:44` reads
+`cumulative = np.concatenate([np.zeros((1,) + a.shape[1:]), np.cumsum(a, axis=0)])`.
+The bundle's values are float32 (`bundle.py:169`) and normalisation is identity (D2), so
+`np.cumsum` runs at **float32** and the promotion to float64 happens at the surrounding
+`np.concatenate`, after the precision is already gone. `trailing_sum` then differences two
+large float32 prefix sums to recover a small second moment -- catastrophic cancellation --
+and the variance floor `np.maximum(second - mean * mean, 0.0)` at `baselines.py:55`
+clamps the negative result to zero.
+
+Measured on `N(1000, 3)`, float32, T = 8,000, C = 12, post-warm-up rows only:
+
+```
+  _rolling(float64 input)   vs  exact windowed recompute      1.8284e-08
+  exact windowed recompute  vs  numpy.nanstd                  3.5489e-10
+  _rolling(float32 input)   vs  all three                     7.6584e+00
+```
+
+True sigma is 3.0. At t = 5000, `_rolling` returns `[6.65, 0.00, 3.90, 0.00]` against a
+true `[2.91, 3.28, 2.96, 2.82]`: two channels of four clamped to exactly zero. Three
+implementations agree with each other to 1.8e-08 and disagree with the one in the tree by
+7.66.
+
+**It is not a stress-case artifact.** On this project's own offline fixture -- 39,992
+steps, 7 channels, per-channel `|mean|/std` between 2.08 and 5.91 -- the float32 and
+float64 forms differ by up to **4.9252e-03** on spreads of order 0.02 to 0.24, and the
+float32 form yields **3,975/279,104** exact zeros against float64's **1,123/279,104**.
+2,852 steps report zero spread because of arithmetic. `_rolling` also serves `mavg`,
+whose exposure is two orders smaller: **2.2078e-04** on a residual scale of
+**3.8092e-02**.
+
+**ALTERNATIVES.** Transcribe `_rolling`'s float32 behaviour into flight. Fix
+`baselines.py` inside work item 9. Transcribe the rule and scope the fix separately.
+
+**Against the first two.** Transcribing the defect is impossible and undesirable: a
+whole-array float32 prefix sum cannot be reproduced by a fixed-memory ring buffer, and
+flying a statistic known to be wrong would violate Objective.md 11 rule 5's premise that
+the flight code computes what it says it computes. Fixing `baselines.py` inside work item
+9 moves published Phase 1 figures -- `docs/RESULTS.md` 2's floor of 0.250 and the 3/32 in
+`docs/MODELS.md` 4's OBSERVED verdict -- and requires bucket operations, against a work
+item whose budget is zero.
+
+**CONSEQUENCE.**
+
+1. **The flight Level 1 baseline implements the rule, in F64, pinned against
+   `numpy.nanstd`.** It does not reproduce `_rolling`'s float32 accumulation. **The
+   divergence is deliberate and this entry is its record**: the flight component and the
+   harness's `rstd` are knowingly different numbers until the harness is fixed.
+2. **`src/sentinel_models/baselines.py` is not touched by work item 9.**
+3. **A golden-vector tier exists specifically to catch a regression**: tier B3
+   (`docs/MODELS.md` 20.7) is the offset regime that exposes the cancellation, so an
+   implementation that reintroduces float32 accumulation fails a test rather than
+   passing quietly.
+4. **The repair is scoped, dated and sequenced.** `docs/MODELS.md` 21 is the plan: a D8
+   correctness fix to `_rolling`, a pinning test against `numpy.nanstd`, one re-score
+   covering `m1-g8.9.10` and `m1-ss5` together, every affected figure republished as
+   `new (was old, D37)` with old artifacts preserved, and a falsification stated in
+   advance. It runs **after work item 9 and before work item 10**, because the figure at
+   stake is the denominator of the project's headline comparison.
+5. **Whether the spent held-back sets are re-scored is escalated, not decided.**
+   `docs/MODELS.md` 21.5 argues both sides and recommends a targeted `rstd`/`mavg`-only
+   re-score of `m2-ss1` and `m1-g3`; the decision belongs to the checkpoint review, and
+   this entry will record it when it is made.
+6. **D8's exemption is what makes the repair legitimate.** `docs/HARNESS.md`: the harness
+   is closed to scope changes, never to correctness fixes. This is a correctness fix.
