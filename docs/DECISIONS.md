@@ -2317,3 +2317,143 @@ therefore `flight/src/Baseline.cpp` share it exactly.
 `tests/test_rolling_precision.py` pins the boundary. Making the form unconditionally
 stable is an algorithm change that would move the flight golden vectors, and is reported
 rather than taken.
+
+---
+
+## D38. `gru-quantile` catches a strict subset of the corrected floor's events on Mission 1
+
+**DATE** 2026-09-01 | **STATUS** resolved as a finding. It changes no selection and
+retires one argument
+
+**CONTEXT.** Work item 9.5 corrected `baselines._rolling` and the floor rose from
+F0.5 0.250 to 0.676 and from 3/32 to 25/32 headline-cell events (D37). Work item 9.6
+was commissioned to audit that result before the restatement was allowed to stand,
+and pre-registered fourteen predictions in `docs/MODELS.md` 22 before computing
+anything. L9 named the sharpest one: **if the forecaster catches no event the floor
+misses, the thesis has no per-event evidence on this set.**
+
+**EVIDENCE.** One bundle load, 15 Class B, cached weights, nothing refitted. The audit
+reproduces every published scorecard count exactly -- 27/46, 34/46, 22/32, 25/32 --
+before reporting anything new.
+
+```
+  m1-g8.9.10   both 27   only-GRU 0   only-rstd 7   neither 12
+  m1-ss5       both 26   only-GRU 0   only-rstd 8   neither  8
+```
+
+**Not one event, on either set, in any taxonomy cell, is caught by `gru-quantile`
+and missed by the corrected `rstd`.** The seven the floor catches and the
+forecaster misses have footprints of 1, 1, 1, 1, 24, 28 and 54 steps, with `rstd`
+reaches of 5.2 to 6.4 against the GRU's 0.55 to 0.62.
+
+**And the floor is not leaking**, which is the first thing a result like this must
+survive. L1 to L4 all hold: perturbing a future sample changes rows before `t` by
+exactly 0.0 with a working control; `fit` sees only the masked training window
+through the same `harness.py:144` line every detector uses; the fallback scale is
+unreachable; and `RollingStd.threshold_from` **is** `Detector.threshold_from`, the
+same function object the GRU's calibration calls. The catches are sustained rather
+than stray: excluding events whose footprint is 1, **0 of 25** are single-step and
+the alarm covers a median 95% of the footprint.
+
+**ALTERNATIVES.** Treat the nesting as an artifact of the corrected floor.
+Re-open the architecture gate. Record it as a finding and change nothing.
+
+**Against the first two.** The nesting is not an artifact: the audit reproduces the
+harness's own counts and the four named leaks are all refuted. Re-opening the gate
+would be answering the wrong question -- D28 compared LSTM, GRU and TCN against each
+other on event-wise F0.5 and never involved `rstd`, and nothing in this audit moves
+any forecaster figure or their ordering.
+
+**CONSEQUENCE.**
+
+1. **`gru-quantile` remains the selected architecture and the flying detector.**
+   D28, D25 and D29 are untouched. On D3's gate metric -- event-wise F0.5, fixed
+   before any of this -- it clears the corrected floor 0.804 to 0.676, with
+   precision 139/157 against 84/127 and 0.00066 alarms per thousand nominal steps
+   against 0.0024.
+2. **The per-event argument for the forecaster is withdrawn on Mission 1.** It
+   catches nothing the floor does not. Its case rests entirely on the *quality* of
+   the same catches -- fewer alarms, higher precision -- which is a real and
+   measured difference and is what the gate metric was chosen to capture. Every
+   statement in this repository that the forecaster sees events a per-channel
+   statistic cannot is withdrawn for these two sets.
+3. **What the two detectors are is now measured rather than assumed**: ordered, not
+   complementary, in exactly the sense D25 established for `lstm-whitened` and
+   `lstm-quantile`. A union buys nothing, and none is proposed.
+4. **This does not generalise beyond Mission 1 without measurement.** `m2-ss1` and
+   `m1-g3` carry no per-event overlap analysis, and none is run here.
+
+---
+
+## D39. The headline cell is not the contextual class, and the contextual class is caught by nothing
+
+**DATE** 2026-09-01 | **STATUS** resolved as a finding. It is the more serious of the two
+
+**CONTEXT.** Objective.md 2.3 motivates this entire project with Hundman's finding
+that 41% of real spacecraft anomalies are contextual -- every channel inside its
+limits while the combination or the trajectory is wrong -- and states that a
+per-channel limit check cannot see them. The project has treated the 32
+`Multivariate/Global/Subsequence` events on `m1-g8.9.10` as that class since work
+item 4. **It was never measured.** `docs/MODELS.md` 22 called it Claim B and
+pre-registered L13 and L14 to test it.
+
+**EVIDENCE.** Per event, whether any watched channel leaves its own training
+envelope at any step inside the event span. The envelope is the 0.1/99.9 quantile
+pair over the fold's fitting window with `train_mask` applied -- fitting data only,
+no test sample and no test label -- the construction `scripts/envelope_proxy.py`
+already uses. Definition fixed in 22.2 before the numbers existed.
+
+```
+  truly contextual, no channel outside its own envelope :  3/32   (6/32 by hard min/max)
+  at least one channel leaves its envelope              : 29/32
+```
+
+Predicted 8 to 16. Measured 3.
+
+**And neither detector catches any of the three.**
+
+```
+  id_121  footprint 257   GRU reach 0.110   rstd reach 0.544   channels breaching 0
+  id_153  footprint  10   GRU reach 0.178   rstd reach 0.608   channels breaching 0
+  id_157  footprint  51   GRU reach 0.238   rstd reach 0.572   channels breaching 0
+```
+
+Neither comes within half its threshold. `rstd` scores 0/3; `gru-quantile` scores
+0/3. L14's 86-point gap between contextual and breaching recall is real, and it is
+not evidence for the forecaster, because the forecaster's gap runs 76 points the
+same way.
+
+**A related fact, from cached forensics at zero cost.** None of the 32 events is
+single-channel to the watched view: 21 touch all 12 channels and the fewest touches
+5. So the events are genuinely multivariate; what they are not is *contextual*.
+Multi-channel and contextual are different claims and only the second is the
+project's.
+
+**Stated carefully, because an envelope is not a limit.** A real RED or YELLOW limit
+sits *outside* a channel's historical envelope, so breaching the envelope does not
+establish that a limit would have tripped; the implication runs only the other way.
+What is established is that **29 of 32 are not in the class that is provably
+invisible to limit checking**, and that the three which are, nothing here catches.
+
+**CONSEQUENCE.**
+
+1. **Objective.md 2.3's motivating claim is not tested by `m1-g8.9.10`'s headline
+   cell.** The cell is 29/32 envelope-breaching. Whatever this project has
+   demonstrated on this set, it is not that it catches anomalies a limit check
+   cannot see.
+2. **The three events that are provably in that class are missed by both
+   detectors**, at reaches of 0.11 to 0.61. On the evidence available, this project
+   has **no** measured instance of catching a contextual anomaly.
+3. **No detector, threshold or decision layer changes on this finding.** It is a
+   statement about what the evidence supports, not about what the component should
+   do, and acting on 3 events would be acting on n=3.
+4. **The honest version of the project's claim, for every document that states
+   it**: this is a reusable flight component that packages a published detection
+   method, measured against a floor on a set whose headline cell is largely
+   limit-visible. The early-warning claim was already retired (Objective.md 1.1);
+   the contextual-class claim is now in the same position and is retired by this
+   entry until a set exists that tests it.
+5. **What would settle it** is a scoring set whose events are selected for the
+   contextual property rather than assumed to have it. ESA-ADB may not contain one
+   at n >= 20; `docs/HARNESS.md`'s own rule would stamp anything smaller
+   UNDERPOWERED. That is a Phase 3 question and is not answered here.

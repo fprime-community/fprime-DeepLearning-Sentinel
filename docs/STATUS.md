@@ -3,9 +3,11 @@
 **2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
 file); **WI9 complete** (the F' component and the Level 1 safe-failure mode, tag `wi9`);
 **WI9.5 complete** (the `rstd` correctness fix, and it falsified a published claim);
-**WI9.6 in progress** -- the corrected floor is being audited before the restatement is
-allowed to stand, and the checkpoint snapshot to `main` is held until it lands
-(`docs/MODELS.md` 22). Phase 1 closed 2026-08-29 (tag
+**WI9.6 complete** -- the corrected floor is not leaking, and the audit found two things
+worse than the correction did: the forecaster catches a **strict subset** of the floor's
+events on Mission 1 (D38), and the headline cell is **3/32 contextual**, with all three
+missed by both detectors (D39). The checkpoint snapshot to `main` is held pending review.
+Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
 
@@ -202,6 +204,11 @@ HOUSEKEEPING
       (README) - done before any public release.
 - [ ] Pre-publication sweep of the history for anything sensitive - done before the repository
       goes public.
+- [ ] Restate the project's claim in every document that carries it, on D39: the
+      early-warning claim was retired at Objective.md 1.1 and the contextual-class claim
+      is now in the same position. Held pending review; nothing is rewritten yet.
+- [ ] A scoring set whose events are selected for the contextual property rather than
+      assumed to have it (D39 consequence 5). ESA-ADB may not contain one at `n >= 20`.
 - [ ] Open decisions carried (`docs/PHASE2.md` section 6) - D14, the weight-cache key is still
       positional; D21 first reach, `error_buffer`'s effect on alarm width; D23, the decision
       layer is channel-blind and k-of-n was never re-derived; D6, the command-conditioning

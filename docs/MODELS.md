@@ -3551,4 +3551,143 @@ finding; a leak *not* found is also a finding, and the more likely one.
 
 ### 22.6 OBSERVED
 
-*Reserved. Filled in beside the predictions above, never in place of them.*
+**2026-09-01.** One bundle load, **15 Class B and 1 Class A** against the budget of
+20. Weight store unchanged at 86 files -- nothing was fitted, nothing retrained,
+no threshold moved. Artifact
+`runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json`.
+
+**The audit reproduces the published scorecards exactly** before it says anything
+new: GRU 27/46 and 22/32, `rstd` 34/46 and 25/32, all four matching
+`docs/RESULTS.md` to the event. An audit that could not reproduce the numbers it
+is auditing would not be worth reading.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **L1** | no future sample reaches the statistic at `t` | perturbing samples at t=200, 350, 500 changes rows before `t` by **0.0** exactly; the control confirms the perturbed row itself moved by 90.1 | **Held** |
+| **L2** | `fit` sees only the masked training window, same path as the GRU | `harness.py:144` is one line, `detector.fit(values[train_lo:train_hi], usable, context)`, called identically for every detector | **Held** |
+| **L3** | the fallback scale is unreachable | `fit` at 144 always precedes `score` at 154 | **Held** |
+| **L4** | the threshold is the same machinery, not a parallel one | `RollingStd.threshold_from is Detector.threshold_from` is **True** -- the same function object | **Held** |
+| **L5** | sustained not stray: median longest run >= 100, stray-tick catches <= 2/34 | median longest run **54**, naive stray-tick **9/34** | **Refuted as written, and the definition was the defect** -- see below |
+| **L6** | lead exactly 0 in >= 80% of caught events | **79%** (27/34) on the gate set, **94%** (32/34) on `m1-ss5` | **Refuted by one point** on the gate set, held on the subset |
+| **L7** | all events: both 25, only-GRU 2, only-rstd 9, neither 10 | both **27**, only-GRU **0**, only-rstd **7**, neither **12** | **Refuted** |
+| **L8** | headline: both 20, only-GRU 2, only-rstd 5, neither 5 | both **22**, only-GRU **0**, only-rstd **3**, neither **7** | **Refuted** |
+| **L9** | only-GRU >= 1 on the headline cell | **0**, on both sets, and **0 on all events too** | **REFUTED. Stop-and-report trigger 2 fired** |
+| **L10** | only-GRU events show no variance signature; only-rstd events do | only-rstd **7/7** and **8/8** show one; the only-GRU side is **vacuous, there are no such events** | **Held on the half that exists** |
+| **L11** | GRU score halves within 105 steps in >= 60% of events with footprint > 1,000 | **2/15 (13%)** on the gate set, **0/10 (0%)** on `m1-ss5`; median GRU half-life **2,805** and **6,284** steps | **Refuted. The state-adaptation hypothesis is dead** |
+| **L12** | `rstd` decays more slowly than the GRU, half-life > 2x | **the opposite**: `rstd` median half-life **114** and **112** steps against the GRU's **2,805** and **6,284** | **Refuted in the reverse direction** |
+| **L13** | 8 to 16 of 32 headline-cell events are truly contextual | **3/32** by the 0.1/99.9 envelope, **6/32** by hard min/max | **Refuted, and by a long way** |
+| **L14** | `rstd`'s recall on contextual is >= 20 points below its recall on breaching | **0% against 86%**, a gap of **86 points** | **Held, overwhelmingly** |
+
+**L5, and a defect in this section's own definitions.** 22.2 defined a stray-tick
+catch as one whose longest run is a single step, and did not condition on the
+event's footprint. Nine of the 34 catches on the gate set are single-step -- and
+every one of them is an event whose **footprint is 1**, where a one-step crossing
+is not a stray tick but a perfect catch. Excluding footprint-1 events:
+**0 of 25** catches are stray ticks on the gate set and **0 of 8** on `m1-ss5`,
+median longest run **54** steps, and the alarm covers a median **95%** of the
+event's footprint. The claim L5 was testing -- that the catches are real and
+sustained -- holds decisively. The prediction as written is still recorded
+Refuted, because a definition that needed fixing after seeing the data is
+exactly what pre-registration exists to expose.
+
+### 22.7 L9: the flying detector catches a strict subset of the floor's events
+
+**There is not one event on either Mission 1 set that `gru-quantile` catches and
+the corrected `rstd` misses.** Not in the headline cell, not anywhere.
+
+```
+  m1-g8.9.10   both 27   only-GRU 0   only-rstd 7   neither 12
+  m1-ss5       both 26   only-GRU 0   only-rstd 8   neither  8
+```
+
+This is the same nesting D25 found between `lstm-whitened` and `lstm-quantile`,
+and the same consequence follows: **two detectors whose catches are nested are
+ordered, not complementary.** Here the two-line rolling standard deviation is the
+superset and the forecaster is the subset.
+
+The seven events `rstd` catches and the GRU misses on the gate set are short and
+sharp -- footprints of 1, 1, 1, 1, 24, 28 and 54 steps -- with `rstd` reaches of
+5.2 to 6.4 against the GRU's 0.55 to 0.62. The GRU's EWMA over a 105-span smooths
+a one-step excursion below its threshold; a 120-step variance window does not.
+
+**What this leaves of the thesis on this data: nothing at the per-event level.**
+The forecaster's remaining defence is entirely in the *quality* of the same
+catches -- precision 139/157 against 84/127, and 0.00066 alarms per thousand
+nominal steps against 0.0024 -- which is a real difference and is the one D3's
+gate metric measures. It is not the difference the project has been claiming.
+
+### 22.8 L13 and L14: the headline cell is not the contextual class
+
+Objective.md 2.3's argument rests on Hundman's finding that 41% of real
+spacecraft anomalies are contextual -- every channel inside its limits while the
+combination is wrong -- and this project has treated the 32
+`Multivariate/Global/Subsequence` events as that class. **Measured, they are
+not.**
+
+```
+  truly contextual, no channel outside its own 0.1/99.9 training envelope :  3/32
+  at least one channel leaves its envelope                                : 29/32
+```
+
+By hard min/max the contextual count is 6/32, and 22.2 said in advance that where
+the two readings disagree the disagreement is the finding: it is, and both
+readings are far below the 8-to-16 predicted.
+
+**And the three that are genuinely contextual are caught by nothing.**
+
+| event | footprint | GRU | `rstd` | GRU reach | `rstd` reach | channels breaching |
+|---|---|---|---|---|---|---|
+| `id_121` | 257 | no | no | 0.110 | 0.544 | 0 |
+| `id_153` | 10 | no | no | 0.178 | 0.608 | 0 |
+| `id_157` | 51 | no | no | 0.238 | 0.572 | 0 |
+
+Neither detector comes within half its threshold. `rstd` scores 0/3 and the
+**GRU also scores 0/3**. L14's 86-point gap is real and it is not evidence for
+the forecaster, because the forecaster's gap is 76 points in the same direction.
+
+**Stated carefully, because the envelope is not a limit.** A real RED or YELLOW
+limit sits *outside* a channel's historical envelope, so "breaches its envelope"
+does **not** mean "would have tripped a limit"; the implication runs only the
+other way, and only for the three. What can be said is that **29 of 32 events are
+not in the class that is provably invisible to limit checking**, and that the
+three which are, this project's detector does not catch.
+
+### 22.9 L11 and L12: the state-adaptation hypothesis is dead, backwards
+
+The hypothesis was that a forecaster carrying state across ticks learns a
+sustained anomaly and stops being surprised by it, which would explain its
+misses. The opposite is true.
+
+```
+  median half-life, events with footprint > 1,000
+                        gate set     m1-ss5
+    gru-quantile          2,805       6,284      and never halves in 5/15, 7/10
+    rstd                    114         112
+```
+
+The GRU's score does **not** decay inside a sustained event -- it stays elevated
+for thousands of steps. It is `rstd` that decays fast, in about its own 120-step
+window, which is what a trailing variance statistic does once the new variance
+becomes the window's normal. So the GRU's misses have some other cause, and this
+work item did not find it. The seven only-`rstd` events point at the EWMA
+smoothing short excursions rather than at state adaptation, but that is a
+hypothesis for another work item and is not tested here.
+
+### 22.10 Triggers, and what this does not touch
+
+**Trigger 2 fired** -- `only-GRU == 0` on the headline cell -- and it is the
+subject of 22.7 and D38. Trigger 1 did not: L1 to L4 all hold and the corrected
+`rstd` is not leaking, so work item 9.5's numbers stand as measured. Trigger 3
+did not: no forecaster figure was recomputed, and the audit reproduces every
+published one exactly. Trigger 4 did not: 15 Class B against 20. Trigger 5 did
+not: `main` is untouched, no detector, threshold or weight moved, the weight store
+is unchanged at 86 files.
+
+**A limitation of this audit, named rather than left to be found.** L6 records
+where the first in-span alarm step falls; it cannot separate "crossed at onset"
+from "an alarm was already running and overlapped". Arithmetic bounds it -- 2,563
+nominal alarm steps over 34 caught events caps a universal pre-existing run at 75
+steps on average -- but it is not settled per event, and settling it needs a
+second bundle load this section's budget does not allow. Separately, run lengths
+were instrumented for `rstd` and **not** for the GRU, so 22.6's L5 finding has no
+forecaster comparison. Both are gaps in the instrument, not in the data.
