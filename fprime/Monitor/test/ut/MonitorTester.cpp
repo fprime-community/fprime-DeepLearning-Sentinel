@@ -24,8 +24,13 @@ namespace {
 
 const char* const G1_PATH = SENTINEL_VECTORS_DIR "/g1.bin";
 
-//! Written into the working directory; the test owns and overwrites it.
-const char* const WORK_PATH = "MonitorTester_model.bin";
+//! Written into the build cache, never into the source tree: a test that
+//! dirties the tree is what tests/test_no_local_persistence.py forbids on the
+//! Python side, and the rule is the same here.
+#ifndef SENTINEL_UT_TMP
+#define SENTINEL_UT_TMP "."
+#endif
+const char* const WORK_PATH = SENTINEL_UT_TMP "/MonitorTester_model.bin";
 
 }  // namespace
 

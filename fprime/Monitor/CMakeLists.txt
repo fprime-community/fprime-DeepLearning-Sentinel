@@ -43,7 +43,11 @@ register_fprime_ut(
 # flight/test/RefusalTests.cpp does, so they need the work item 8 vectors. The
 # path is a definition rather than a relative path, because a unit test's working
 # directory is the build cache and not the source tree.
+# SENTINEL_UT_TMP keeps the test's scratch model file out of the source tree.
+# A test that dirties the tree is what tests/test_no_local_persistence.py exists
+# to forbid on the Python side, and the same rule applies here.
 if (TARGET Monitor_ut_exe)
     target_compile_definitions(Monitor_ut_exe PRIVATE
-        "SENTINEL_VECTORS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../flight/test/vectors\"")
+        "SENTINEL_VECTORS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../flight/test/vectors\""
+        "SENTINEL_UT_TMP=\"${CMAKE_CURRENT_BINARY_DIR}\"")
 endif()
