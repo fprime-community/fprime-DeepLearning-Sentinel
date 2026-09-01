@@ -2718,6 +2718,87 @@ training report.
 
 ### 19.8 OBSERVED
 
-*Not yet run. This subsection is written when the core builds and the vectors run, and
-the PREDICTED table above is re-tabulated against it verdict by verdict, whatever it
-says.*
+**2026-09-01.** Everything below is printed by `make -C flight test` and by
+`.venv/bin/python -m pytest -q`. Zero bucket operations.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **F1** | 312,642 B of declared members; `sizeof` within 64 B of it | **`sizeof(Detector)` = 312,112 B = 304.8 KiB** | **Held, 530 B under (0.17%)** -- see below |
+| **F2** | the flown shape uses 284,640 B of weights = 278.0 KiB | 284,640 B; `MAX_PARAMETERS` = 75,360 float32 = 301,440 B of arena | **Held, exactly** |
+| **F3** | the maxima cost 18,768 B over the flown shape, of which 16,800 B is the weight arena | weight arena headroom **16,800 B (5.9%)** | **Held, exactly**, on the half a single object can report |
+| **F4** | 70,080 multiply-accumulates per tick | 70,080, re-derived from the array shapes | **Held** |
+| **F5** | <= 1e-5 on state and forecast, **exact** on the crossing flag | **worst stage difference 1.788e-07** over seven tiers and 504 steps; crossing and emitted flags **exact on every step of every tier** | **Held, with two orders of margin** |
+| **F6** | 285,136 bytes, round-tripping Python -> C++ -> Python byte-identical | 285,136 B; **7 of 7 files re-emitted byte-identically**, four of them at the flown shape | **Held** |
+| **F7** | a status code and no exception for each refusal | **16 load cases**, each returning its own code; `-fno-exceptions` makes throwing impossible | **Held** |
+| **F8** | patching the parameter block leaves `static_crc32` and the weights untouched | the only bytes that move are `param_crc32`, `header_crc32` and the block itself | **Held** |
+
+**F1, and where the 530 bytes went.** The pre-registration budgeted 640 B of
+ping-pong "layer in / out" buffers. The implementation does not need them: layer
+`i`'s output **is** its hidden state, so `Gru::step` writes into `m_hidden[i]` and
+layer `i+1` reads it, and no intermediate buffer exists. That saves 640 B; 110 B come
+back as struct padding and the `LayerView` offsets the prediction did not itemise.
+Net 530 B under. Nothing was resized to meet the prediction.
+
+**F5, stage by stage.** The largest difference on any tier, at any step, in any
+stage:
+
+```
+  tier   channels  shape        worst |diff|   where
+  g1      3        (4, 4)        5.960e-08    hidden / head / forecast / residual / EWMA
+  g2      7        (24, 24)      1.192e-07    residual, step 1
+  g3     12        (80, 80)      8.941e-08    head output, step 16
+  g4_0   12        production    1.788e-07    head output, step 15
+  g4_1   12        production    1.192e-07    head output, step 11
+  g4_2   12        production    1.192e-07    head output, step 15
+  g4_3   12        production    1.192e-07    residual, step 62
+```
+
+That is the float32 resolution the reference itself carries: `docs/MODELS.md` 2
+measured the NumPy reference against torch at 1.2e-07 for the GRU at the flown shape,
+and the C++ sits in the same place. **The named risk in 19.5 did not materialise.**
+`tanhf`/`expf` against `np.tanh`/`np.exp`, and a counted F32 loop against NumPy's
+blocked accumulation, cost between 2.98e-08 and 1.79e-07 over 72 steps, two layers
+and a chunk boundary -- roughly fifty times inside the tolerance. Accumulation stayed
+in F32 as pre-registered; the F64 variant was never needed and was not built.
+
+**The G4 tier, named.** The four cached fits at the flown shape are
+`runs/_weights/37f6c44412c194ddfe477941dd9ce47f.npz` (best epoch 8, validation MSE
+7.161e-05), `4e336c4e32cd08fecfb385c4977cb3bc.npz` (26, 3.378e-06),
+`5fcd163f4b4bca44d5d2729e90819610.npz` (18, 3.468e-06) and
+`6ab5ebd98331bd8b5a53152bf7104f32.npz` (34, 4.628e-06). All four are 12 channels, two
+layers of 80, `l_p = 10`, `window` 250, `n_exogenous` 0.
+
+**Determinism.** The output digest over 400 ticks -- a CRC over the raw bit patterns
+of every hidden state, head output, forecast, residual, EWMA, score and flag -- is
+`0xD66576B4` twice in one process and again in a fresh process. Bit patterns and not
+values, because the claim is about the encoding.
+
+**The EWMA denominator recursion.** `Ewma.hpp` replaces the reference's
+`(1 - decay^(t+1)) / alpha` with `D[t] = 1 + decay * D[t-1]`, which removes a `pow`
+and an unbounded counter from every tick. Measured against the closed form over
+8,000 steps: **maximum relative deviation 3.218e-15**, converging to `1/alpha` = 53.0.
+Reported rather than asserted to be zero, as 19.5 said it would be.
+
+**The build.** Silent at `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror`,
+with `-std=c++14 -fno-exceptions -fno-rtti -ffp-contract=off -O2`. Not one warning at
+any level in any file. `flight/CMakeLists.txt` carries the identical flag set and
+refuses `-ffast-math`, `-Ofast` and `-funsafe-math-optimizations` with a fatal error;
+`tests/test_flight_build.py` asserts the two lists agree rather than trusting them to.
+
+**Lint: deferred, and why.** `clang-tidy` is not on this machine -- not on `PATH`, not
+in the Xcode toolchain, no Homebrew LLVM. `flight/.clang-tidy` carries the check set
+with a reason beside each exclusion, and `make -C flight lint` runs it when present
+and says so plainly when not. It runs at work item 9 with the F' toolchain (D31).
+
+**Stop-and-report triggers: none fired.** The C++ reached 1e-5 with two orders to
+spare, no crossing flag differed, no vector needed anything beyond the cached weights
+and the fixture, the format needed no field beyond `baseline_only` (which
+Objective.md 14.10 had already required and the work item's brief had omitted),
+nothing touched `main`, the frozen decision layer, the held-back sets or Python
+training code, and the run cost zero bucket operations.
+
+**Verification.** 473 tests pass (406 before this work item, plus 30 on the file
+format, 27 on the golden vectors and 10 driving the C++ suite from `pytest`);
+`scripts/check_no_list.py` clean on 66 files; `sentinel_eval selftest` 8/8;
+`make -C flight test` green on footprint, 16 refusals, determinism twice, seven
+golden-vector tiers and seven byte-identical round trips.

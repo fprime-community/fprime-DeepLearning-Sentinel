@@ -278,12 +278,18 @@ by discipline.
 against the compile-time maxima, then `BAD_SHAPE`, then the payload is streamed and
 the two payload CRCs verified.
 
-**One pass, no whole-file buffer.** Bytes stream into the destination arrays while
-the CRC accumulates. The detector is **not armed** until every CRC verifies, so
-nothing is ever used before it has been checked; on any non-`OK` status the
-detector's state is left uninitialised and the component stays silent. That refusal
-is the hook WI9's Level 1 degrade-with-an-event is built on (D5, Objective.md 14.10):
-never fail the topology.
+**One pass, and the loader adds no buffer of its own.** The reader is handed the
+file's bytes and copies them once, into the arrays it will use; it allocates
+nothing and holds no second copy (F' CPP-1). Work item 8's reader takes the whole
+buffer from its caller because work item 8 has no filesystem -- `Os::File` and the
+chunked feed are work item 9's, and the check order below is written so that a
+chunked reader can be dropped in without changing which failure is reported first.
+
+**Nothing is used before it is checked.** The detector is **not armed** until every
+CRC verifies; on any non-`OK` status the model is left unusable, `step()` does
+nothing and no warning can be emitted. That refusal is the hook work item 9's
+Level 1 degrade-with-an-event is built on (D5, Objective.md 14.10): never fail the
+topology.
 
 **Every field is verified against the payload.** `weight_bytes` must equal exactly
 the parameter count the declared shape implies; `n_inputs` must equal

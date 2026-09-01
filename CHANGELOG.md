@@ -8,11 +8,61 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
+### Added - work item 8, 2026-09-01 - the C++ inference core and the frozen `model.bin`
+
+Phase 2's first work item. Not yet tagged: it stops here for review before the F'
+component. It becomes 0.5.0 when the checkpoint is approved.
+
+- **The format is frozen at version 1** (D30, `docs/MODEL_FILE.md`, normative). Plain
+  little-endian float32 in `reference.Weights.arrays()` order with **both bias vectors
+  unsummed**; a 64-byte self-protecting header naming the architecture and the gate order
+  rather than leaving them to be inferred; a channel map; and a **separately-CRC'd
+  parameter block** carrying the normalisation constants, the threshold, the EWMA span,
+  `baseline_only` and the tier. A recalibration in orbit overwrites a fixed-size block and
+  two header words, and never touches the 278.0 KiB of weights.
+- **Objective.md 14.10's "quantized, self-describing FlatBuffer, TFLite-Micro compatible"
+  is superseded and marked so, never deleted.** Nothing here consumes TFLite; a FlatBuffer
+  parser is templated, allocating third-party code F' CPP-25 and CPP-1 exclude; and a fixed
+  layout with a CRC is byte-inspectable by a review board. Quantization goes with it: the
+  tolerance against `reference.py` is 1e-5 and int8 loses far more. Every requirement 14.10
+  stated is met. Objective.md 14.2 is resolved.
+- **F' pinned at v4.3.0** (D31), which resolves Objective.md 14.4. Reading F's own
+  statement of its C/C++ rules corrected three this project had from memory: F' states no
+  no-recursion rule (that is Power of Ten 1 and the JPL C standard, which F' cites at
+  CPP-27); its no-heap rule is CPP-1, not Power of Ten 3; and CPP-3 forbids bare `float`
+  and `double` outright, which was recorded nowhere and changes every declaration.
+- `flight/`: the GRU forward pass and the frozen decision layer (D25) transcribed from
+  `src/sentinel_models/reference.py`. Freestanding C++14 behind a types shim work item 9
+  swaps for `Fw/FPrimeBasicTypes.hpp`. No exceptions, no RTTI, no STL, no allocation
+  anywhere, no recursion, every loop bounded by a header field already checked.
+  `sizeof(Detector)` is **312,112 bytes** against 312,642 predicted before the code existed.
+- **The core matches the reference at 1.8e-07** worst case across seven weight sets --
+  three seeded tiers and the four cached production fits -- over 504 steps spanning a chunk
+  boundary and a reset, with the **crossing flag exact on every step**. The tolerance was
+  1e-5, so the margin is roughly fifty-fold, and it sits where `docs/MODELS.md` 2 already
+  measured the NumPy reference against torch (1.2e-07).
+- `src/sentinel_export/` stops being a placeholder: `format.py`, `writer.py`, `reader.py`,
+  standard library and numpy only, as its docstring has always promised. The reader returns
+  a `Status` whose values are shared with the C++ `LoadStatus`, so one test asserts both
+  sides refuse the same bytes for the same reason. Sixteen refusal cases; seven files
+  round-trip Python to C++ to Python byte-identically.
+- Golden vectors under `flight/test/vectors/`, committed and regenerable: deleting them all
+  and rebuilding reproduces fourteen files byte-identically. **No vector uses real
+  telemetry and none can** -- there is none on local disk -- so every input is the seeded
+  fixture or a seeded generator, and the cached production weights supply the fourth tier.
+- Determinism: the same 400-tick digest, `0xD66576B4`, twice in one process and again in a
+  fresh one. Guaranteed by `-ffp-contract=off` and the absence of `-ffast-math`, both
+  pre-registered. The build is **silent** at `-Wall -Wextra -Wpedantic -Wconversion
+  -Wshadow -Werror`; `clang-tidy` is deferred to work item 9 with the F' toolchain.
+- Tests 406 -> 473. `docs/MODELS.md` 19 is the pre-registration, committed before a line of
+  C++, with its PREDICTED table re-tabulated in 19.8; all eight predictions held.
+
 ### Planned - Phase 2, and after
 
-- Phase 2: the deterministic C++ flight component from the GRU reference blueprint - FPP model,
-  static memory, no exceptions, model-file loader with Level 1 as its safe failure mode,
-  thresholds carried as recalibratable parameters outside the weights. See docs/PHASE2.md.
+- Phase 2, what remains after work item 8: the F' component itself - FPP model, ports, the
+  warning event naming the channel - and Level 1's degrade-with-an-event, which the loader's
+  refusal codes are the hook for. Then the in-orbit threshold recalibration path, exercised
+  end to end on the F' Ref. See docs/PHASE2.md and docs/STATUS.md section 7.
 - Post-gate: injected-fault sensitivity study - controlled drifts and decouplings injected into
   real ESA-ADB telemetry, for a detection sensitivity curve and lead-time measurement. Never a
   headline number; see Objective.md section 13.

@@ -1,7 +1,8 @@
 # Project status and roadmap
 
-**2026-08-30 - Phase 1 closed 2026-08-29 (tag `wi7`); Phase 2 (flight C++) not started. A
-ten-minute read; every number is read from a named artifact under `runs/`.**
+**2026-09-01 - Phase 1 closed 2026-08-29 (tag `wi7`); Phase 2 under way: the `model.bin`
+format is frozen and the C++ inference core matches the reference at 1.8e-07. A ten-minute
+read; every number is read from a named artifact under `runs/`, or from a test that pins it.**
 
 ## 1. Goal
 
@@ -41,7 +42,8 @@ in orbit without retraining (Objective.md 14.10).
 ## 4. Where we are
 
 **Phase 1 CLOSED 2026-08-29 (tag `wi7`). Architecture: GRU (D28). Transfer validated on an
-independent spacecraft (D29). Phase 2 (flight C++) is next.**
+independent spacecraft (D29). Phase 2 is under way: the file format is frozen (D30) and the
+C++ inference core is built and verified (`docs/MODELS.md` 19.8); the F' component is next.**
 
 Every figure is `k/n`, read from the artifact named on its row. MVGS is ESA-ADB's
 Multivariate/Global/Subsequence class - the headline cell, the cross-channel anomaly class this
@@ -112,15 +114,22 @@ the union and floor rows on Mission 2, and the `m1-g3` folds are in README and
 
 PHASE 2 - flight C++ (gate: tests green, flight-rule compliance clean)
 
-- [ ] GRU inference in C++ from `src/sentinel_models/reference.py` - static memory, no
-      exceptions - done when it matches the NumPy reference at 1e-5 at the flown shapes.
-- [ ] `model.bin` format frozen - gate order named in the header, both bias vectors unsummed,
+- [x] GRU inference in C++ from `src/sentinel_models/reference.py` - static memory, no
+      exceptions - **done 2026-09-01**: `flight/` matches the NumPy reference at
+      **1.8e-07** worst case over seven weight sets including the four cached production
+      fits, with the crossing flag exact on every step (`docs/MODELS.md` 19.8).
+- [x] `model.bin` format frozen - gate order named in the header, both bias vectors unsummed,
       normalisation and thresholds outside the weights as PrmDb-style parameters, replaceable
-      without retraining (Objective.md 14.10) - done when it round-trips between Python and
-      C++.
+      without retraining (Objective.md 14.10) - **done 2026-09-01** (D30,
+      `docs/MODEL_FILE.md`): seven files round-trip Python to C++ to Python byte-identically,
+      and the parameter block carries its own CRC so a recalibration in orbit never touches
+      the 278.0 KiB of weights.
 - [ ] Level 1 safe failure mode, Phase 2's first obligation - done when a corrupt file, CRC or
       version mismatch degrades to the statistical baseline with an event, never failing the
-      topology (Objective.md 14.10, D5).
+      topology (Objective.md 14.10, D5). **Half built**: the loader refuses a bad magic,
+      version, header CRC, static CRC, param CRC, shape, size or truncation with its own
+      status code and no exception (16 cases), and a refused model emits nothing. The
+      degrade-with-an-event is the F' component's and is open.
 - [ ] F' component skeleton - ports, telemetry, the warning event naming the channel - done
       when it builds in an F' Ref deployment.
 - [ ] In-orbit threshold recalibration path - file uplink, human-approved reload - done when it
@@ -166,23 +175,26 @@ HOUSEKEEPING
 ## 8. Where things live
 
 - Code: `src/sentinel_data` (ingest), `src/sentinel_eval` (the referee; never imports a model),
-  `src/sentinel_models` (the players and the NumPy reference), `src/sentinel_export` (Phase 2
-  placeholder), `scripts/`, `tests/` (406 tests, zero R2 operations).
+  `src/sentinel_models` (the players and the NumPy reference), `src/sentinel_export` (the
+  `model.bin` writer and reader), `flight/` (the C++ inference core and its golden vectors),
+  `scripts/`, `tests/` (473 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
 - Outputs: `runs/`, gitignored; every number in every document is read from an artifact there.
 - Documents: `docs/INDEX.md` is the map, one sentence per document; `docs/PHASE1_REPORT.md` is
-  the full Phase 1 story; `docs/PHASE2.md` is what the C++ phase inherits.
+  the full Phase 1 story; `docs/PHASE2.md` is what the C++ phase inherits;
+  `docs/MODEL_FILE.md` is the normative file format.
 - History: all work lands on `dev` (tags `wi1`-`wi7` and their Releases); `main` advances only
   by one snapshot commit per approved checkpoint; neither branch is ever rewritten.
 
-## 9. Verify in three commands
+## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 406 tests
+.venv/bin/python -m pytest -q                                    # 473 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
+make -C flight test                                              # the C++ core
 
 # one scoring run on the offline fixture, zero R2 operations
 PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep

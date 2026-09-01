@@ -366,7 +366,7 @@ override. The ledger is read-modify-write, never reset.
 ```
 src/sentinel_eval/     the referee   -- never imports a model
 src/sentinel_models/   the players   -- items 4-6 land here
-src/sentinel_export/   Phase 2 model.bin writer (placeholder)
+src/sentinel_export/   the model.bin writer and reader (format frozen, D30)
 ```
 
 The dependency runs one way, enforced by `tests/test_layering.py`, so LSTM, GRU
