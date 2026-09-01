@@ -1,8 +1,8 @@
 # Project status and roadmap
 
-**2026-09-01 - Phase 1 closed 2026-08-29 (tag `wi7`); Phase 2 under way: the `model.bin`
-format is frozen and the C++ inference core matches the reference at 1.8e-07. A ten-minute
-read; every number is read from a named artifact under `runs/`, or from a test that pins it.**
+**2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
+file); WI9 next. Phase 1 closed 2026-08-29 (tag `wi7`). A ten-minute read; every number is
+read from a named artifact under `runs/`, or from a test that pins it.**
 
 ## 1. Goal
 
@@ -42,8 +42,9 @@ in orbit without retraining (Objective.md 14.10).
 ## 4. Where we are
 
 **Phase 1 CLOSED 2026-08-29 (tag `wi7`). Architecture: GRU (D28). Transfer validated on an
-independent spacecraft (D29). Phase 2 is under way: the file format is frozen (D30) and the
-C++ inference core is built and verified (`docs/MODELS.md` 19.8); the F' component is next.**
+independent spacecraft (D29). Phase 2 in progress: WI8 complete (tag `wi8`) - the flight
+inference core matches the reference at 1.8e-07 and the model file format is frozen (D30,
+D31, `docs/MODELS.md` 19.8). WI9, the F' component, is next.**
 
 Every figure is `k/n`, read from the artifact named on its row. MVGS is ESA-ADB's
 Multivariate/Global/Subsequence class - the headline cell, the cross-channel anomaly class this
