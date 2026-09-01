@@ -75,11 +75,11 @@ F64 readF64(const U8* p) {
 //! Both infinite with the same sign counts as equal; an invalid tick scores
 //! -infinity on both sides and subtracting them would yield NaN.
 bool closeEnough(F64 a, F64 b, F64& difference) {
-    if ((std::isinf(a) != 0) && (std::isinf(b) != 0)) {
+    if (std::isinf(a) && std::isinf(b)) {
         difference = 0.0;
         return (a > 0.0) == (b > 0.0);
     }
-    if ((std::isnan(a) != 0) || (std::isnan(b) != 0)) {
+    if (std::isnan(a) || std::isnan(b)) {
         difference = 1.0;
         return false;
     }

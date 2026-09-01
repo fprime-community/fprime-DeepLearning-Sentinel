@@ -24,24 +24,28 @@
 #include <cstdint>
 #include <limits>
 
-#if defined(SENTINEL_FPRIME_TYPES)
+#ifdef SENTINEL_FPRIME_TYPES
 #include "Fw/FPrimeBasicTypes.hpp"
 #endif
 
 namespace Sentinel {
 
-#if defined(SENTINEL_FPRIME_TYPES)
+#ifdef SENTINEL_FPRIME_TYPES
 
 // F' declares these at global scope in `Fw/Types/BasicTypes.h`. Aliasing rather
 // than redeclaring them is what keeps every other file in this directory
 // byte-identical between the two builds.
-using U8 = ::U8;
-using U16 = ::U16;
-using U32 = ::U32;
-using U64 = ::U64;
-using I32 = ::I32;
-using F32 = ::F32;
-using F64 = ::F64;
+// Using-declarations, not aliases: `using U8 = ::U8;` names the same type twice
+// and clang-tidy is right that the alias adds nothing. These make F's names
+// visible as `Sentinel::U8` and so on, which is what every other file in this
+// directory already writes.
+using ::F32;
+using ::F64;
+using ::I32;
+using ::U16;
+using ::U32;
+using ::U64;
+using ::U8;
 
 #else
 

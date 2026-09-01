@@ -1,5 +1,6 @@
 #include "sentinel/Detector.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -50,6 +51,27 @@ void Detector::step(const F32* values, bool valid) {
     const U32 channels = m_model.nChannels;
     const U32 predictions = m_model.nPredictions;
 
+    // The loader already refuses a shape past these bounds -- ModelFile.cpp:109
+    // returns TOO_LARGE -- so at load time this cannot fail. It is checked again
+    // here because the loader validates once and this struct then lives in RAM
+    // for the whole mission, and D5's own motivation for Level 1 is "a corrupt
+    // file, a version mismatch, a failed CRC or a radiation bit-flip". A flipped
+    // bit in nLayers or nPredictions after load would walk off m_hidden or
+    // divide by zero; three compares per tick against 70,080 multiply-accumulates
+    // is not a cost worth arguing about. Found by clang-analyzer at work item 9,
+    // which could not see the loader's invariant and was right not to trust it.
+    //
+    // The score goes to negative infinity rather than staying stale, so a
+    // corrupted shape is visible on the ground as a dead channel instead of a
+    // frozen one, and it can never alarm.
+    if ((m_model.nLayers == 0U) || (m_model.nLayers > Config::MAX_LAYERS) ||
+        (predictions == 0U) || (channels > Config::MAX_CHANNELS)) {
+        m_score = -std::numeric_limits<F32>::infinity();
+        m_crossing = false;
+        m_emitted = false;
+        return;
+    }
+
     // Normalisation is identity under D2, and the slot exists because a mission
     // whose data is not ESA-preprocessed will need it.
     for (U32 c = 0U; c < channels; ++c) {
@@ -99,9 +121,7 @@ void Detector::step(const F32* values, bool valid) {
     } else {
         F32 largest = m_smoothed[0];
         for (U32 c = 1U; c < channels; ++c) {
-            if (m_smoothed[c] > largest) {
-                largest = m_smoothed[c];
-            }
+            largest = std::max(largest, m_smoothed[c]);
         }
         m_score = largest;
     }

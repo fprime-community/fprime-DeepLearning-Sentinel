@@ -162,7 +162,7 @@ ModelLoadStatus Monitor ::loadModel() {
     return m_status;
 }
 
-void Monitor ::degrade(DegradeReason reason, ModelLoadStatus status) {
+void Monitor ::degrade(const DegradeReason& reason, const ModelLoadStatus& status) {
     m_mode = Mode::BASELINE;
     m_degradeReason = reason.e;
     m_degraded = true;

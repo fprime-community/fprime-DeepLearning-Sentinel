@@ -76,7 +76,7 @@ class Monitor final : public MonitorComponentBase {
     //! Enter Level 1, with an event that says why. Idempotent: re-entering the
     //! same mode for the same reason emits nothing, so a repeated refusal does
     //! not flood the event log.
-    void degrade(DegradeReason reason, ModelLoadStatus status);
+    void degrade(const DegradeReason& reason, const ModelLoadStatus& status);
 
     //! Push the parameters into the baseline. Called after a parameter update
     //! and at load, never inside the tick's hot path.

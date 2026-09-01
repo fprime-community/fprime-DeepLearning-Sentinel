@@ -1,5 +1,6 @@
 #include "sentinel/Baseline.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -97,7 +98,7 @@ void Baseline::step(const F32* values, bool valid) {
     const U32 slot = static_cast<U32>(m_steps % static_cast<U64>(Config::BASELINE_WINDOW));
     U16 mask = 0U;
     for (U32 c = 0U; c < m_channels; ++c) {
-        const bool finite = (std::isfinite(values[c]) != 0);
+        const bool finite = std::isfinite(values[c]);
         m_ring[slot][c] = finite ? values[c] : 0.0F;
         if (finite) {
             mask = static_cast<U16>(mask | bitFor(c));
@@ -131,15 +132,13 @@ void Baseline::step(const F32* values, bool valid) {
                 count += 1.0;
             }
         }
-        if (count < 1.0) {
-            count = 1.0;   // `baselines.py:50`, the count floor
-        }
+        count = std::max(count, 1.0);   // `baselines.py:50`, the count floor
         const F64 mean = sum / count;
         const F64 second = sumSquares / count;
-        F64 variance = second - (mean * mean);
-        if (variance < 0.0) {
-            variance = 0.0;   // `baselines.py:55`, the variance floor
-        }
+        // `baselines.py:55`, the variance floor. Cancellation cannot drive this
+        // negative the way `_rolling`'s float32 prefix sums do (D37), but the
+        // floor is part of the rule and is transcribed with it.
+        const F64 variance = std::max(second - (mean * mean), 0.0);
         const F64 spread = std::sqrt(variance);
         const F64 divisor = (m_scale[c] > EPSILON) ? m_scale[c] : EPSILON;
         m_scores[c] = spread / divisor;

@@ -8,6 +8,7 @@
 // A divergence is a finding, not something to tune away. The maxima are printed
 // per stage whether they pass or fail, so the work-item report quotes measured
 // numbers rather than "within tolerance".
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -228,9 +229,7 @@ void reportDenominatorDrift() {
         const F64 closed = (1.0 - std::pow(decay, static_cast<F64>(t) + 1.0)) / alpha;
         const F64 difference = (recursive - closed) / closed;
         const F64 magnitude = (difference < 0.0) ? -difference : difference;
-        if (magnitude > worst) {
-            worst = magnitude;
-        }
+        worst = std::max(worst, magnitude);
     }
     std::printf("    EWMA denominator, recursive vs the reference's closed form:\n"
                 "      max relative deviation over 8,000 steps  %.3e  "
