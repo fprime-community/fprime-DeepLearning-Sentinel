@@ -1,0 +1,53 @@
+[
+  {
+    "tier": "g1",
+    "n_channels": 3,
+    "hidden": [
+      4,
+      4
+    ],
+    "n_predictions": 2,
+    "parameters": 258,
+    "steps": 72,
+    "threshold": 0.8371512591838837,
+    "crossings": 32,
+    "emitted": 26,
+    "vector_bytes": 7984,
+    "model_bytes": 1276,
+    "provenance": "seeded G1, rng(1), U(-k,k) k=1/sqrt(H)"
+  },
+  {
+    "tier": "g2",
+    "n_channels": 7,
+    "hidden": [
+      24,
+      24
+    ],
+    "n_predictions": 5,
+    "parameters": 6851,
+    "steps": 72,
+    "threshold": 0.951245903968811,
+    "crossings": 40,
+    "emitted": 32,
+    "vector_bytes": 32464,
+    "model_bytes": 27760,
+    "provenance": "seeded G2 on synthetic.build(seed=0, n=8000)"
+  },
+  {
+    "tier": "g3",
+    "n_channels": 12,
+    "hidden": [
+      80,
+      80
+    ],
+    "n_predictions": 10,
+    "parameters": 71160,
+    "steps": 72,
+    "threshold": 0.6411577463150024,
+    "crossings": 40,
+    "emitted": 24,
+    "vector_bytes": 94960,
+    "model_bytes": 285136,
+    "provenance": "seeded G3 at the flown shape, rng(3)"
+  }
+]

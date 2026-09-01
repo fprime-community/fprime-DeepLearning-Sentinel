@@ -1,0 +1,32 @@
+# Written at work item 8, run from work item 9 with the F' toolchain (D31).
+#
+# clang-tidy is not installed on the development machine, so `make lint` says so
+# and skips rather than passing silently. The check set is here now so it runs the
+# moment a toolchain has it, and so a reviewer can see what it would enforce.
+#
+# Exclusions, each with a reason rather than a preference:
+#   *-magic-numbers            F' CPP-8 and CPP-30 govern constants here, and
+#                              Config.hpp already names every bound with its
+#                              derivation. The generic check would flag the byte
+#                              offsets in ModelFile.cpp, which are the format.
+#   *-avoid-c-arrays           F' forbids the STL alternatives outright (CPP-25);
+#                              fixed C arrays are the required shape, not a lapse.
+#   readability-identifier-length
+#                              short loop indices are idiomatic in the reference
+#                              this file transcribes.
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -modernize-avoid-c-arrays,
+  -cert-err58-cpp
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'include/sentinel/.*'
+FormatStyle: none

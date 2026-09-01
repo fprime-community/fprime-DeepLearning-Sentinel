@@ -2533,3 +2533,272 @@ the weights; `m1-g3` fold 1 is the measured case for why.
 the scorecard printer expects one report and the union carries one per
 member; the artifacts carry both members' blocks correctly
 (`tests/test_union_detector.py`). Cosmetic; recorded.
+
+---
+
+## 19. Pre-registration: the C++ inference core and the `model.bin` freeze (work item 8)
+
+**Written and committed before a line of C++ exists.** The format is frozen by
+`docs/DECISIONS.md` D30 and specified byte for byte in `docs/MODEL_FILE.md`, which is
+normative; this section is the pre-registration the flight work is judged against -
+the flight rules with their citations, the predicted footprint, and the acceptance
+tolerances. Objective.md 14.2 requires the freeze **before Phase 2 starts**. Zero
+bucket operations: every input is the seeded fixture or a seeded generator, and the
+only trained weights used are already cached under `runs/_weights`.
+
+### 19.1 What is being built, and what is not
+
+Built: the GRU forward pass and the frozen decision layer (D25) transcribed from
+`src/sentinel_models/reference.py` into freestanding C++14 under `flight/`; the
+`model.bin` writer and reader in `src/sentinel_export/`; and golden vectors pinning
+every stage.
+
+Not built, and deliberately: the F' component, its ports and events (work item 9);
+the recalibration uplink path (work item 10); any inference library (D30); any change
+to Python training code or to the frozen decision layer. The held-back sets are spent
+and are not touched.
+
+### 19.2 The file, in one paragraph
+
+Four blocks - a 64-byte self-protecting header, a channel map, the float32 weights in
+`reference.Weights.arrays()` order with **both bias vectors unsummed**, and a
+separately-CRC'd parameter block carrying the threshold, the EWMA span, the
+normalisation constants and `baseline_only`. Three CRCs, all CRC-32/IEEE 802.3. The
+parameter block having its own CRC is what lets a mission recalibrate in orbit without
+touching 278.0 KiB of weights, which is the requirement D29 consequence 3 and
+Objective.md 14.10 both state. Full layout: `docs/MODEL_FILE.md`.
+
+### 19.3 The flight rules, as F' itself writes them
+
+The authority is `.github/skills/fprime-cpp-design/SKILL.md` at `nasa/fprime`
+**v4.3.0** (released 2026-08-20), which calls itself "the **single source of truth**
+for the C/C++ design rules F Prime flight software is held to". The version pin is
+D31, which resolves Objective.md 14.4.
+
+| rule | as F' states it | how this core obeys it |
+|---|---|---|
+| **CPP-1** | no `new`/`delete`/`malloc`/`free` after init; "pre-sized arrays sized at compile or init time" allowed | every buffer is a fixed member sized from `constexpr` maxima in `Config.hpp`. No allocator at all |
+| **CPP-25** | no exceptions, no RTTI, no STL, no `std::string`; `std::min`/`max`/`numeric_limits`/`<cstdint>` permitted | `-fno-exceptions -fno-rtti`; the loader returns a status and cannot throw by construction |
+| **CPP-3** | fixed-size types only; bare `int`, `float`, `double` forbidden outside external APIs | `F32`/`F64`/`U8`/`U16`/`U32` throughout, via `Types.hpp` |
+| **CPP-5** | C++14; C++17 and C++20 features are not portable to every toolchain | `-std=c++14` |
+| **CPP-34** | "All loops must have a provable upper bound"; prefer `for` | every loop is counted against a header field already bounded by `TOO_LARGE` |
+| **CPP-9 / CPP-10** | no C-style or function-style casts; `reinterpret_cast` needs justification | `memcpy` for every field read out of the byte stream; `static_cast` elsewhere |
+| **CPP-19** | every variable explicitly initialised | member-initialiser lists and brace initialisation |
+| **CPP-32** | every fallible return value checked, or `(void)`-cast with a reason | the reader's status is checked at every call site |
+| **CPP-8 / CPP-30** | typed `constexpr` over `#define`; no bare numeric literals for configuration | `Config.hpp` names every bound, with its derivation |
+
+**Three corrections to the work item's own statement of the rules**, recorded because
+a rule cited to the wrong authority does not survive review:
+
+1. **F' states no no-recursion rule.** It states CPP-34 (bounded loops) and cites the
+   **JPL C Coding Standard** (CPP-27) and the F' style wiki (CPP-26). Recursion is
+   forbidden here anyway - it is **Power of Ten rule 1** and a JPL C standard rule -
+   but it is cited to those and not to F'.
+2. **"No dynamic allocation after initialization" is Power of Ten rule 3** and the
+   citation is correct as far as it goes, but F's own equivalent is **CPP-1**, and F'
+   cites the JPL C standard rather than the Power of Ten. Both are recorded.
+   `Fw::MemAllocator` is the F'-idiomatic init-time allocator
+   (`docs/user-manual/framework/memory-management/memory-allocation.md`: "Flight
+   Software coding standards forbid dynamic memory allocation outside of system
+   initialization") and it is **not used**, because our shapes are known at compile
+   time and a fixed array is simpler than an allocator.
+3. **"Buffers sized at compile time from the model header" cannot be done as
+   written** - a header is read at runtime. Buffers are sized from compile-time
+   maxima and the header is **validated against them**, refusing with `TOO_LARGE`.
+
+**Not a library.** `mlpack` and Armadillo are not used, in flight or anywhere near
+it: both throw, both allocate on the heap, and neither supports a bare-metal target.
+The transcription is hand-written and checked against `reference.py`, which is the
+whole point of D15 and of `tests/test_reference_equivalence.py`.
+
+### 19.4 PREDICTED
+
+Committed before the core is written. Every figure is arithmetic from the array
+shapes in section 3, not an estimate.
+
+| # | Prediction | Reasoning |
+|---|---|---|
+| **F1** | The declared members of `Sentinel::Detector` total **312,642 bytes** at the compile-time maxima (`C=16, L=2, H=80, l_p=10`), and `sizeof` exceeds that by under 64 bytes of alignment padding | 301,440 B of weight arrays plus 11,202 B of state, ring, scratch and parameters. The full derivation is the table below |
+| **F2** | Of that, the flown shape uses **293,874 bytes = 287.0 KiB**, of which **284,640 B (278.0 KiB) is weights** | 71,160 parameters x 4, matching section 3 and the frozen assertion at `tests/test_reference_equivalence.py:282` |
+| **F3** | The maxima cost **18,768 B (6.4%)** over the flown shape | `C=16` against 12 and `n_in=16` against 12 in `w_ih` and the head |
+| **F4** | Compute is **70,080 multiply-accumulates per tick** | Reproduces D28 criterion 3 exactly, independently derived here from the shapes |
+| **F5** | The C++ matches `reference.py` at **<= 1e-5** on hidden state and forecast at every tier, and **exactly** on the crossing flag, including across a chunk boundary and after a reset | The same `TOLERANCE` that holds the reference to torch (`tests/test_reference_equivalence.py:36`), where the GRU measures **1.2e-07** at the flown shape and does not grow with sequence length |
+| **F6** | A file at the flown shape is **285,136 bytes** and round-trips Python -> C++ -> Python byte-identical | 64 + 240 + 284,640 + 192 |
+| **F7** | The reader refuses a bad magic, a bad version, a bad header CRC, a bad static CRC, a bad param CRC, a truncation and an oversize, each with its own status code and **no exception** | `-fno-exceptions` makes throwing impossible; the codes are `docs/MODEL_FILE.md` 8 |
+| **F8** | Patching the parameter block leaves `static_crc32` unchanged and the weights unread | `docs/MODEL_FILE.md` 6.1 - the in-orbit recalibration path, demonstrated at the format level |
+
+**F1 and F2, derived.**
+
+```
+                              maxima      flown
+  weight arrays              301,440    284,640
+  channel map (id + name16)      320        240
+  parameter block                230        198
+  hidden state (L x H)           640        640
+  prediction ring (l_p x l_p*C) 6,400      4,800
+  EWMA numerator (C x F64)       128         96
+  EWMA denominator                 8          8
+  forecast / residual / EWMA     192        144
+  gate scratch (proj + recur)  1,920      1,920
+  layer in / out                 640        640
+  input vector                    64         48
+  head output                    640        480
+  counters, status, flags         20         20
+  -----------------------------------------------
+  TOTAL                      312,642    293,874
+                            305.3 KiB  287.0 KiB
+```
+
+### 19.5 The named risk, stated before it is measured
+
+`np.tanh` and `np.exp` against libm's `tanhf` and `expf`, and NumPy's blocked BLAS
+accumulation against a counted F32 loop over 80 terms, each differ at about one unit
+in the last place, and a recurrence compounds them over 250 steps and two layers. The
+reference-to-torch measurement - 1.2e-07 at the flown shape, "not growing with
+sequence length" (section 2) - says the margin against 1e-5 is roughly two orders of
+magnitude wide. It is not a proof.
+
+Accumulation is in **F32**, matching the reference's dtype exactly. **If 1e-5 is not
+reached, that is reported as a finding and not tuned away**; the F64-accumulate
+variant is reported beside it as evidence of where the difference came from, not
+silently substituted for it.
+
+**The dtype map is not uniform and must not be made uniform.** The decision layer is
+F64 by construction: `windows.aggregate_predictions` accumulates in float64 and casts
+to float32, `telemanom.ewma` computes entirely in float64 and returns float32, and the
+threshold comparison at `harness.py:169-172` is float64. A core that ran the decision
+layer in F32 throughout would be a different detector. `-Wconversion -Werror` makes
+every narrowing explicit so the compiler holds that map rather than the author's care.
+It also makes **F64 a hard requirement of the flight target**, which F' treats as a
+switchable platform feature (`FW_HAS_F64`); Phase 4's board selection inherits it.
+
+### 19.6 The golden vectors
+
+Four tiers. Each records, per step: the hidden state per layer, the head output, the
+forecast, the residual, the EWMA, the max across channels, the score and the crossing
+flag - plus a chunk-boundary case and a post-reset case.
+
+| tier | shape | weights | input | committed |
+|---|---|---|---|---|
+| **G1** | 3 channels, (4, 4), `l_p` 2 | seeded | seeded | the `model.bin` itself, 1,276 bytes, **and** its vectors - a byte-frozen format regression, small enough to audit by hand |
+| **G2** | 7 channels, (24, 24), `l_p` 5 | seeded | **the synthetic fixture**, `synthetic.build(seed=0, n=8000)` | vectors |
+| **G3** | 12 channels, (80, 80), `l_p` 10 | seeded | seeded | vectors only; the 278.0 KiB of weights is regenerated from the seed and never committed |
+| **G4** | 12 channels, production | the four cached fits under `runs/_weights` | seeded | nothing - local only, skipped when absent, reported in the work-item report |
+
+Seeded weights use PyTorch's own GRU initialiser, `U(-k, k)` with `k = 1/sqrt(H)`, by
+the recipe fixed in `docs/MODEL_FILE.md` 10, so a committed vector regenerates on a
+fresh clone. `tests/test_golden_vectors.py` regenerates every vector and asserts it is
+unchanged, so they cannot drift silently.
+
+**No golden vector uses real telemetry, and none can.** "No telemetry on local disk"
+(README, provenance rules); `runs/` holds weights and scorecards only. The cached
+*weights* are local and G4 uses them; every *input* is synthetic. The work item's own
+wording assumed otherwise and is corrected here.
+
+**Which production weights.** The scorecard fingerprint `6d146f5d` is a SHA-256 of the
+detector's name and parameters (`sentinel_eval/detector.py:96-100`, recomputed and
+confirmed), not of any weight file, and the weight-cache key is a digest that includes
+a strided sample of the telemetry (`detectors._digest`), which is not on disk. So a
+cached file cannot be mapped back to a named fold. G4 therefore uses **all four**
+cached fits at the flown shape and names each by its store filename and its embedded
+training report.
+
+### 19.7 Stop and report
+
+1. The C++ cannot reach 1e-5 against `reference.py` on any tier, or a crossing flag
+   ever differs. That is a finding about the transcription or about float32, and it is
+   reported, not tuned away.
+2. A vector needs anything beyond the cached weights and the fixture.
+3. The format needs a field the documents did not anticipate. `baseline_only`
+   (Objective.md 14.10) was already one the work item's own brief had omitted; it is
+   in the format and this trigger covers the next one.
+4. Anything would touch `main`, the frozen decision layer, the spent held-back sets,
+   or Python training code.
+5. Any bucket operation at all. This work item's budget is zero.
+
+### 19.8 OBSERVED
+
+**2026-09-01.** Everything below is printed by `make -C flight test` and by
+`.venv/bin/python -m pytest -q`. Zero bucket operations.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **F1** | 312,642 B of declared members; `sizeof` within 64 B of it | **`sizeof(Detector)` = 312,112 B = 304.8 KiB** | **Held, 530 B under (0.17%)** -- see below |
+| **F2** | the flown shape uses 284,640 B of weights = 278.0 KiB | 284,640 B; `MAX_PARAMETERS` = 75,360 float32 = 301,440 B of arena | **Held, exactly** |
+| **F3** | the maxima cost 18,768 B over the flown shape, of which 16,800 B is the weight arena | weight arena headroom **16,800 B (5.9%)** | **Held, exactly**, on the half a single object can report |
+| **F4** | 70,080 multiply-accumulates per tick | 70,080, re-derived from the array shapes | **Held** |
+| **F5** | <= 1e-5 on state and forecast, **exact** on the crossing flag | **worst stage difference 1.788e-07** over seven tiers and 504 steps; crossing and emitted flags **exact on every step of every tier** | **Held, with two orders of margin** |
+| **F6** | 285,136 bytes, round-tripping Python -> C++ -> Python byte-identical | 285,136 B; **7 of 7 files re-emitted byte-identically**, four of them at the flown shape | **Held** |
+| **F7** | a status code and no exception for each refusal | **16 load cases**, each returning its own code; `-fno-exceptions` makes throwing impossible | **Held** |
+| **F8** | patching the parameter block leaves `static_crc32` and the weights untouched | the only bytes that move are `param_crc32`, `header_crc32` and the block itself | **Held** |
+
+**F1, and where the 530 bytes went.** The pre-registration budgeted 640 B of
+ping-pong "layer in / out" buffers. The implementation does not need them: layer
+`i`'s output **is** its hidden state, so `Gru::step` writes into `m_hidden[i]` and
+layer `i+1` reads it, and no intermediate buffer exists. That saves 640 B; 110 B come
+back as struct padding and the `LayerView` offsets the prediction did not itemise.
+Net 530 B under. Nothing was resized to meet the prediction.
+
+**F5, stage by stage.** The largest difference on any tier, at any step, in any
+stage:
+
+```
+  tier   channels  shape        worst |diff|   where
+  g1      3        (4, 4)        5.960e-08    hidden / head / forecast / residual / EWMA
+  g2      7        (24, 24)      1.192e-07    residual, step 1
+  g3     12        (80, 80)      8.941e-08    head output, step 16
+  g4_0   12        production    1.788e-07    head output, step 15
+  g4_1   12        production    1.192e-07    head output, step 11
+  g4_2   12        production    1.192e-07    head output, step 15
+  g4_3   12        production    1.192e-07    residual, step 62
+```
+
+That is the float32 resolution the reference itself carries: `docs/MODELS.md` 2
+measured the NumPy reference against torch at 1.2e-07 for the GRU at the flown shape,
+and the C++ sits in the same place. **The named risk in 19.5 did not materialise.**
+`tanhf`/`expf` against `np.tanh`/`np.exp`, and a counted F32 loop against NumPy's
+blocked accumulation, cost between 2.98e-08 and 1.79e-07 over 72 steps, two layers
+and a chunk boundary -- roughly fifty times inside the tolerance. Accumulation stayed
+in F32 as pre-registered; the F64 variant was never needed and was not built.
+
+**The G4 tier, named.** The four cached fits at the flown shape are
+`runs/_weights/37f6c44412c194ddfe477941dd9ce47f.npz` (best epoch 8, validation MSE
+7.161e-05), `4e336c4e32cd08fecfb385c4977cb3bc.npz` (26, 3.378e-06),
+`5fcd163f4b4bca44d5d2729e90819610.npz` (18, 3.468e-06) and
+`6ab5ebd98331bd8b5a53152bf7104f32.npz` (34, 4.628e-06). All four are 12 channels, two
+layers of 80, `l_p = 10`, `window` 250, `n_exogenous` 0.
+
+**Determinism.** The output digest over 400 ticks -- a CRC over the raw bit patterns
+of every hidden state, head output, forecast, residual, EWMA, score and flag -- is
+`0xD66576B4` twice in one process and again in a fresh process. Bit patterns and not
+values, because the claim is about the encoding.
+
+**The EWMA denominator recursion.** `Ewma.hpp` replaces the reference's
+`(1 - decay^(t+1)) / alpha` with `D[t] = 1 + decay * D[t-1]`, which removes a `pow`
+and an unbounded counter from every tick. Measured against the closed form over
+8,000 steps: **maximum relative deviation 3.218e-15**, converging to `1/alpha` = 53.0.
+Reported rather than asserted to be zero, as 19.5 said it would be.
+
+**The build.** Silent at `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror`,
+with `-std=c++14 -fno-exceptions -fno-rtti -ffp-contract=off -O2`. Not one warning at
+any level in any file. `flight/CMakeLists.txt` carries the identical flag set and
+refuses `-ffast-math`, `-Ofast` and `-funsafe-math-optimizations` with a fatal error;
+`tests/test_flight_build.py` asserts the two lists agree rather than trusting them to.
+
+**Lint: deferred, and why.** `clang-tidy` is not on this machine -- not on `PATH`, not
+in the Xcode toolchain, no Homebrew LLVM. `flight/.clang-tidy` carries the check set
+with a reason beside each exclusion, and `make -C flight lint` runs it when present
+and says so plainly when not. It runs at work item 9 with the F' toolchain (D31).
+
+**Stop-and-report triggers: none fired.** The C++ reached 1e-5 with two orders to
+spare, no crossing flag differed, no vector needed anything beyond the cached weights
+and the fixture, the format needed no field beyond `baseline_only` (which
+Objective.md 14.10 had already required and the work item's brief had omitted),
+nothing touched `main`, the frozen decision layer, the held-back sets or Python
+training code, and the run cost zero bucket operations.
+
+**Verification.** 473 tests pass (406 before this work item, plus 30 on the file
+format, 27 on the golden vectors and 10 driving the C++ suite from `pytest`);
+`scripts/check_no_list.py` clean on 66 files; `sentinel_eval selftest` 8/8;
+`make -C flight test` green on footprint, 16 refusals, determinism twice, seven
+golden-vector tiers and seven byte-identical round trips.

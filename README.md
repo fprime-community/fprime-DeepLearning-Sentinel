@@ -10,8 +10,13 @@ the reusable flight packaging is this project's contribution.
 ## Status
 
 **Phase 1 closed - 2026-08-29.** Architecture: **GRU** (`docs/DECISIONS.md` D28). Transfer
-validated on an independent spacecraft (D29). **Phase 2 (flight C++) next** - what it inherits is
-in [docs/PHASE2.md](docs/PHASE2.md).
+validated on an independent spacecraft (D29). What Phase 2 inherits is in
+[docs/PHASE2.md](docs/PHASE2.md).
+
+**Phase 2 under way.** The `model.bin` format is frozen at version 1 (D30,
+[docs/MODEL_FILE.md](docs/MODEL_FILE.md)) and the C++ inference core in `flight/` matches the
+NumPy reference to **1.8e-07** at the flown shape, with the crossing flag exact
+(`docs/MODELS.md` 19.8). The F' component is next.
 
 | Phase | Scope | Gate | State |
 |---|---|---|---|
@@ -115,9 +120,10 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_data/` | ingest toolkit: Zenodo download, parquet transcode, R2 client with per-attempt operation accounting, manifest |
 | `src/sentinel_eval/` | the referee: catalog, streaming reads, labels, grid, splits, metrics, harness, scorecard, tasks, ops ledger, CLI. Never imports a model |
 | `src/sentinel_models/` | the players: baselines, the LSTM/GRU/TCN trainer, the NumPy reference, telemanom's detection stack, detectors, registry |
-| `src/sentinel_export/` | Phase 2 `model.bin` writer (placeholder) |
+| `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
-| `tests/` | 406 tests at zero R2 operations, including the layering rule and the reference-equivalence assertion |
+| `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
+| `tests/` | 473 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `runs/` | weights and scorecards, gitignored outputs; never data |
 
@@ -127,10 +133,11 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 python3.14 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env            # R2 credentials, only for tasks that read the bucket
 
-# the verification trio, zero R2 operations
+# the verification set, zero R2 operations
 .venv/bin/python -m pytest -q
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
+make -C flight test                                              # the C++ core
 
 # one scoring run on the offline fixture, zero R2 operations
 PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep
