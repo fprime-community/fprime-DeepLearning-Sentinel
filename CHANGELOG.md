@@ -8,10 +8,18 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [Unreleased]
 
-### Added - work item 8, 2026-09-01 - the C++ inference core and the frozen `model.bin`
+### Planned - work item 9
 
-Phase 2's first work item. Not yet tagged: it stops here for review before the F'
-component. It becomes 0.5.0 when the checkpoint is approved.
+- The F' component: FPP model, ports, the warning event naming the channel, and Level 1's
+  degrade-with-an-event, for which WI8's refusal codes are the hook. Done when it builds in
+  an F' Ref deployment.
+
+## [0.5.0] - 2026-09-01 - Phase 2 work item 8 (tag wi8)
+
+Phase 2's first work item: the flight inference core and the frozen model file. Reviewed
+and checkpointed 2026-09-01. Zero bucket operations throughout.
+
+### Added - work item 8, 2026-09-01 - the C++ inference core and the frozen `model.bin`
 
 - **The format is frozen at version 1** (D30, `docs/MODEL_FILE.md`, normative). Plain
   little-endian float32 in `reference.Weights.arrays()` order with **both bias vectors
@@ -59,10 +67,8 @@ component. It becomes 0.5.0 when the checkpoint is approved.
 
 ### Planned - Phase 2, and after
 
-- Phase 2, what remains after work item 8: the F' component itself - FPP model, ports, the
-  warning event naming the channel - and Level 1's degrade-with-an-event, which the loader's
-  refusal codes are the hook for. Then the in-orbit threshold recalibration path, exercised
-  end to end on the F' Ref. See docs/PHASE2.md and docs/STATUS.md section 7.
+- After work item 9: the in-orbit threshold recalibration path, exercised end to end on the
+  F' Ref. See docs/PHASE2.md and docs/STATUS.md section 7.
 - Post-gate: injected-fault sensitivity study - controlled drifts and decouplings injected into
   real ESA-ADB telemetry, for a detection sensitivity curve and lead-time measurement. Never a
   headline number; see Objective.md section 13.
@@ -285,7 +291,8 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...dev
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi8...dev
+[0.5.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...wi8
 [0.4.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi3...wi7
 [0.3.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi2...wi3
 [0.2.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi1...wi2
