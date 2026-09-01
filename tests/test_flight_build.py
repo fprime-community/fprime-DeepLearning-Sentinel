@@ -194,6 +194,11 @@ def test_the_shim_asserts_the_float_properties_rather_than_a_macro():
     for needed in ("sizeof(F32) == 4U", "sizeof(F64) == 8U",
                    "std::numeric_limits<F64>::is_iec559"):
         assert needed in code, f"{needed} is not asserted in Types.hpp"
+    # And the two switches F' really has, refused in the F' branch where they
+    # exist. A constraint built on a symbol that does not exist is not a
+    # constraint; these are the replacements (`docs/MODEL_FILE.md` 9).
+    for real in ("FW_HAS_64_BIT", "SKIP_FLOAT_IEEE_754_COMPLIANCE"):
+        assert real in code, f"{real} is not checked in Types.hpp"
 
 
 @needs_toolchain

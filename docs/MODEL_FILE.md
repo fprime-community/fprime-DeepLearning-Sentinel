@@ -351,13 +351,40 @@ is defined unconditionally at `Fw/Types/BasicTypes.h:86` -- "64-bit floating poi
 (double). Required for compiler-supplied double promotion" -- and it was unconditional at
 v4.2.2 as well. `FW_HAS_F64` appears exactly once in the entire framework, and it is the
 documentation table this project read: `docs/reference/numerical-types.md:35`. F'
-documents a macro its code does not define. The macro that is real is `FW_HAS_64_BIT`,
-and it guards `U64` and `I64`, not `F64`. The requirement stands and the mechanism named
-for it did not exist, so `flight/include/sentinel/Types.hpp` asserts the property
-directly -- `sizeof(F64) == 8` and `numeric_limits<F64>::is_iec559` -- rather than
-branching on a macro no build defines. The original sentence is kept above because it
-records what was believed and where it came from. See `docs/MODELS.md` 20.2 correction 13
-and D35.
+documents a macro its code does not define. The original sentence is kept above because
+it records what was believed and where it came from. See `docs/MODELS.md` 20.2 correction
+13 and D35.
+
+**The constraint that replaces it, from what F' actually provides.** A requirement built
+on a symbol that does not exist is not a requirement, so it is restated here against the
+two switches F' really has. Both live in
+`default/config/FPrimeNumericalConfig.h`, which is a **project-configurable** header -- a
+mission overrides it through `config_directory` in `settings.ini` -- so both are things a
+Phase 4 board selection can genuinely get wrong.
+
+```
+  FW_HAS_64_BIT                   must be 1     default (1)
+  SKIP_FLOAT_IEEE_754_COMPLIANCE  must be 0     default (0)
+```
+
+**`FW_HAS_64_BIT` is the switch that actually bites**, and it is not about `F64` at all:
+it guards `U64` and `I64` at `Fw/Types/BasicTypes.h:77`. This core needs `U64` in sixteen
+places outside the types shim -- `Detector::m_steps` is the tick counter that drives the
+warm-up gate and the prediction ring's modulo, and `ModelFile`'s `readU64` assembles the
+threshold's F64 bit pattern before `memcpy`. On a platform with `FW_HAS_64_BIT (0)` this
+core does not compile, which is the correct outcome and is now an `#error` with a sentence
+rather than a cascade of unknown-type diagnostics.
+
+**`SKIP_FLOAT_IEEE_754_COMPLIANCE` is F's own name for the property section 9 depends on.**
+Set to 1 it tells F' not to check that the platform's floating point is IEEE 754. Every
+equivalence result in this project -- 1.788e-07 against the NumPy reference, 0.000e+00 on
+the Level 1 baseline -- assumes it is. The shim asserts the property directly with
+`numeric_limits<F32>::is_iec559` and `numeric_limits<F64>::is_iec559`, which is stronger
+than reading a configuration value, and refuses the configuration value too so that a
+mission which sets it learns why here rather than from a drifting number in orbit.
+
+**F64 itself constrains nothing**, because F' always provides it. That half of the
+original paragraph was the half that was wrong.
 
 ---
 

@@ -97,7 +97,7 @@ considered, what settled it; superseded entries marked, never deleted).
   `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
   that tag.
 - **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
-  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi7`, the
+  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
   Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
   approved checkpoint. Neither branch is ever rewritten.
 

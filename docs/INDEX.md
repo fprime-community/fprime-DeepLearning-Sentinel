@@ -22,5 +22,5 @@ Then whatever the question needs.
 | [CHANGELOG.md](../CHANGELOG.md) | Versions 0.1.0 to 0.5.0 (Phase 1 closed at tag wi7; the flight core and the frozen model file at tag wi8), work item by work item, and the open decisions | For what changed when |
 | [docs/manifest.snapshot.json](manifest.snapshot.json) | A generated copy of the bucket manifest for reading by humans; **no code reads it** (`check_no_list` rule 4) | To see what the bucket holds without spending an operation |
 
-Branches: `main` is one commit per checkpoint; the full history is on `dev` with tags `wi1`-`wi8`
+Branches: `main` is one commit per checkpoint; the full history is on `dev` with tags `wi1`-`wi9`
 and their Releases. Artifacts live under `runs/`, gitignored, and are cited by path.

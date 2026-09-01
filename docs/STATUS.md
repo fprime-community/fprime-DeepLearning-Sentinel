@@ -1,9 +1,10 @@
 # Project status and roadmap
 
 **2026-09-01 - Phase 2 in progress - WI8 complete (flight inference core + frozen model
-file), WI9 complete (the F' component and Level 1); WI9.5 next, then WI10. Phase 1 closed
-2026-08-29 (tag `wi7`). A ten-minute read; every number is read from a named artifact under
-`runs/`, or from a test that pins it.**
+file); **WI9 complete** (the F' component and the Level 1 safe-failure mode, tag `wi9`);
+**WI9.5 (the `rstd` correctness fix) then WI10 next**. Phase 1 closed 2026-08-29 (tag
+`wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
+from a test that pins it.**
 
 ## 1. Goal
 
@@ -206,7 +207,7 @@ HOUSEKEEPING
 - Documents: `docs/INDEX.md` is the map, one sentence per document; `docs/PHASE1_REPORT.md` is
   the full Phase 1 story; `docs/PHASE2.md` is what the C++ phase inherits;
   `docs/MODEL_FILE.md` is the normative file format.
-- History: all work lands on `dev` (tags `wi1`-`wi7` and their Releases); `main` advances only
+- History: all work lands on `dev` (tags `wi1`-`wi9` and their Releases); `main` advances only
   by one snapshot commit per approved checkpoint; neither branch is ever rewritten.
 
 ## 9. Verify in four commands

@@ -26,6 +26,22 @@
 
 #ifdef SENTINEL_FPRIME_TYPES
 #include "Fw/FPrimeBasicTypes.hpp"
+
+// The two platform switches this core actually depends on, refused here with a
+// sentence rather than left to fail as a cascade of unknown-type diagnostics.
+// Both live in F's project-configurable `FPrimeNumericalConfig.h`, so a mission
+// can genuinely set either one wrong through `config_directory`.
+//
+// Not `FW_HAS_F64`, which does not exist -- see the block below and
+// `docs/MODEL_FILE.md` 9.
+#if !FW_HAS_64_BIT
+#error "Sentinel requires FW_HAS_64_BIT: Detector's tick counter is U64 and the \
+loader assembles the F64 threshold's bit pattern through readU64."
+#endif
+#if SKIP_FLOAT_IEEE_754_COMPLIANCE
+#error "Sentinel requires IEEE 754 floating point: every equivalence result in \
+this project is measured against a NumPy reference that assumes it."
+#endif
 #endif
 
 namespace Sentinel {
@@ -77,9 +93,13 @@ using SizeType = std::size_t;
 // promotion" -- and `FW_HAS_F64` appears exactly once in the whole framework, in
 // the documentation table at `docs/reference/numerical-types.md:35`, which is
 // the table work item 8 read. F' documents a macro its code does not define.
-// The guarded feature is `FW_HAS_64_BIT`, and it guards `U64`/`I64`, not `F64`.
-// So the constraint is asserted here directly rather than through a macro that
-// does not exist. See `docs/MODELS.md` 20.2 correction 13.
+// See `docs/MODELS.md` 20.2 correction 13.
+//
+// The real switches are checked above, in the F' branch where they exist:
+// `FW_HAS_64_BIT`, which guards `U64` and which this core needs, and
+// `SKIP_FLOAT_IEEE_754_COMPLIANCE`. These static assertions are the freestanding
+// half of the same guarantee, and they test the property rather than the
+// configuration value, which is the stronger of the two.
 static_assert(sizeof(F32) == 4U, "F32 must be 4 bytes; the golden vectors are F32");
 static_assert(sizeof(F64) == 8U, "F64 must be 8 bytes; the decision layer is F64");
 static_assert(std::numeric_limits<F64>::is_iec559,
