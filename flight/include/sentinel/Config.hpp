@@ -53,6 +53,12 @@ constexpr U32 MAX_HEAD_W = MAX_OUTPUTS * MAX_HIDDEN;
 // 16-byte NUL-padded ASCII, as `docs/MODEL_FILE.md` 4 specifies.
 constexpr U32 CHANNEL_NAME_BYTES = 16U;
 
+// The Level 1 statistical baseline's trailing window, from `RollingStd`'s only
+// ever-used value -- `src/sentinel_models/baselines.py:91`, `window = 120`, which
+// the registry never overrides (`registry.py:38`). It is also the baseline's
+// warm-up, `baselines.py:96-98`: 120 ticks, against the model path's 2,350.
+constexpr U32 BASELINE_WINDOW = 120U;
+
 }  // namespace Config
 }  // namespace Sentinel
 

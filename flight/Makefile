@@ -28,10 +28,11 @@ CXXFLAGS := $(STD) $(SAFETY) $(DETERM) $(WARN) $(OPT) -Iinclude
 
 BUILD    := build
 CORE_SRC := src/Crc32.cpp src/Status.cpp src/ModelFile.cpp src/Gru.cpp \
-            src/Ewma.cpp src/Detector.cpp
+            src/Ewma.cpp src/Detector.cpp src/Baseline.cpp
 CORE_OBJ := $(patsubst src/%.cpp,$(BUILD)/%.o,$(CORE_SRC))
 
-TESTS    := GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint
+TESTS    := GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint \
+            BaselineVectors
 BINS     := $(patsubst %,$(BUILD)/%,$(TESTS))
 
 .PHONY: all test lint clean
@@ -53,6 +54,7 @@ test: $(BINS)
 	@$(BUILD)/DeterminismTest
 	@$(BUILD)/DeterminismTest
 	@$(BUILD)/GoldenVectors
+	@$(BUILD)/BaselineVectors
 	@echo "== round trip =="
 	@set -e; ok=0; for t in g1 g2 g3 g4_0 g4_1 g4_2 g4_3; do \
 	    if [ -f test/vectors/$$t.bin ]; then \

@@ -37,6 +37,7 @@ set(SENTINEL_SOURCES
     src/Gru.cpp
     src/Ewma.cpp
     src/Detector.cpp
+    src/Baseline.cpp
 )
 
 add_library(sentinel_core STATIC ${SENTINEL_SOURCES})
@@ -53,7 +54,8 @@ foreach(forbidden "-ffast-math" "-Ofast" "-funsafe-math-optimizations")
     endif()
 endforeach()
 
-foreach(binary GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint)
+foreach(binary GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint
+               BaselineVectors)
     add_executable(${binary} test/${binary}.cpp)
     target_include_directories(${binary} PRIVATE test)
     target_link_libraries(${binary} PRIVATE sentinel_core)

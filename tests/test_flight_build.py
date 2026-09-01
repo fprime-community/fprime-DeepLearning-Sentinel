@@ -62,7 +62,7 @@ def test_the_core_builds_with_no_warnings_at_all(built):
 
 @needs_toolchain
 def test_every_flight_suite_passes(built):
-    for suite in ("footprint", "refusals", "determinism", "golden vectors"):
+    for suite in ("footprint", "refusals", "determinism", "golden vectors", "baseline"):
         assert f"{suite}: all checks passed" in built.stdout, built.stdout
     assert "FAIL" not in built.stdout, built.stdout
 

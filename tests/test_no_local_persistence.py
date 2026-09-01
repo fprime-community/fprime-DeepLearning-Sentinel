@@ -28,7 +28,10 @@ a dataset or array suffix, so nothing is being waved through.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from sentinel_eval import bundle as bundle_mod
 from sentinel_eval import harness, splits, tasks
@@ -107,10 +110,50 @@ def test_the_toolchain_exemption_covers_only_what_it_claims(project_root):
         assert "fprime/settings.ini" in scanned, "fprime/'s own sources must stay scanned"
 
 
+def _repository_files(project_root):
+    """What a clone would hold: tracked files, plus untracked ones not ignored.
+
+    Sharpened at work item 9. This test previously measured the whole working
+    tree, which conflates the repository with local output: 1.97 MiB of the
+    4.11 MiB it was seeing is gitignored -- work item 8's g3 and g4 golden
+    vectors, which `.gitignore` excludes precisely because they regenerate from
+    their seeds, and `flight/build/`. Both are outputs in exactly the sense
+    `runs/` is, and `OUTPUTS` already skips `runs/` for that reason.
+
+    Measuring the tracked set is what the test's own name claims, and it is
+    strictly sharper for the thing that matters: a committed dataset now fails
+    here whatever its suffix, where before it competed for headroom with build
+    output. The dataset and array guards above are untouched and still scan the
+    entire tree, gitignored files included.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=str(project_root), capture_output=True, text=True, timeout=120)
+    if listing.returncode != 0:
+        pytest.skip("not a git checkout")
+    return [project_root / name
+            for name in listing.stdout.split("\0") if name and (project_root / name).is_file()]
+
+
 def test_the_repository_holds_code_and_docs_only(project_root):
     """784 KB was the agreed size. A dataset would show up as megabytes."""
-    total = sum(p.stat().st_size for p in _files(project_root, OUTPUTS))
-    assert total < 4 * 1024 * 1024, f"working tree is {total / 1048576:.1f} MiB"
+    total = sum(p.stat().st_size for p in _repository_files(project_root))
+    assert total < 4 * 1024 * 1024, f"repository is {total / 1048576:.1f} MiB"
+
+
+def test_no_gitignored_output_is_mistaken_for_repository_content(project_root):
+    """The sharpening above must not become a hiding place.
+
+    Anything gitignored is invisible to the size check, so this asserts the two
+    sets are actually disjoint in the way the docstring claims: every file the
+    size check counts is one `git` would carry.
+    """
+    counted = {p.resolve() for p in _repository_files(project_root)}
+    for path in counted:
+        rel = path.relative_to(project_root).as_posix()
+        ignored = subprocess.run(["git", "check-ignore", "-q", rel],
+                                 cwd=str(project_root), capture_output=True, timeout=60)
+        assert ignored.returncode != 0, f"{rel} is gitignored but counted as repository content"
 
 
 def test_gitignore_covers_the_artifacts_this_harness_produces(project_root):
