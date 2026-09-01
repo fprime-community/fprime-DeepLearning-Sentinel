@@ -64,6 +64,7 @@ class Baseline {
 
     // -- what the tick produced -------------------------------------------
     F64 score() const { return m_score; }
+    F64 threshold() const { return m_threshold; }
     bool crossing() const { return m_crossing; }
     bool emitted() const { return m_emitted; }
     U64 steps() const { return m_steps; }
