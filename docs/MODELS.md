@@ -2833,11 +2833,12 @@ D36 defers it, and the check order is left untouched so it stays droppable-in); 
 training, to the frozen decision layer, or to the spent held-back sets; any inference
 library.
 
-### 20.2 Twelve corrections to the work item's brief
+### 20.2 Thirteen corrections to the work item's brief
 
 The brief asks to be verified against the repository before anything is written, and the
-record says every previous coder found errors by doing so. Twelve, each a fact read from
-a named file. Where the brief and a document disagree, the document wins -- including F's
+record says every previous coder found errors by doing so. Thirteen, each a fact read
+from a named file. The last was found while writing the code rather than while reading,
+and is recorded here beside the others rather than in a commit message. Where the brief and a document disagree, the document wins -- including F's
 own.
 
 | # | The brief, or a document, says | Verified |
@@ -2854,6 +2855,7 @@ own.
 | 10 | D31: "`clang-tidy` is deferred to work item 9, with the F' toolchain" | **F' v4.3.0 ships no `clang-tidy`.** It came from `brew install llvm`, which is what `flight/.clang-tidy` itself says. D31's premise was wrong about where the tool comes from, not about when it runs. F' does ship its own `.clang-tidy` and `release.clang-tidy` at its repository root, and the core is run against those too |
 | 11 | `Objective.md` decision 3: telemetry-path tap vs direct port wiring | **The tap is not implementable against this file format.** `Fw.Tlm` carries a serialized `Fw::TlmBuffer`; `docs/MODEL_FILE.md` 4's CHANNELS record carries `id` and `name` and **no type tag**, so a tap cannot deserialise a value without knowing its declared type. Resolved by D33 |
 | 12 | Work item 8's flag set is the bar | `TestDeploymentsProject/Ref/CMakeLists.txt` adds `-Wsign-conversion -Wold-style-cast -Woverloaded-virtual -Wnon-virtual-dtor -Wformat-security -Wundef` on top of it. The component is held to the union |
+| 13 | `docs/MODEL_FILE.md` 9 and `Types.hpp`: F' "treats `F64` as a configurable platform type that a platform may switch off (`FW_HAS_F64`)" | **The macro does not exist in F's code.** `F64` is unconditional at `Fw/Types/BasicTypes.h:86` at v4.3.0 and at v4.2.2. `FW_HAS_F64` occurs exactly once in the framework, in the documentation table this project read, `docs/reference/numerical-types.md:35`. The real macro is `FW_HAS_64_BIT` and it guards `U64`/`I64`. Found while writing the shim, which now asserts `sizeof(F64) == 8` and `is_iec559` instead. Both documents amended |
 
 Two smaller ones, fixed in the same commit: `docs/INDEX.md` was stale in four places
 (D1-D29, "0.1.0 to 0.4.0", `wi1`-`wi7`, and the pre-registration list); and

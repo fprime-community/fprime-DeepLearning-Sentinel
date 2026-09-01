@@ -2137,10 +2137,21 @@ is D15's premise. A vendored stub is a second copy of a generated file, which dr
 2. **The zero-change claim holds where it matters and is restated precisely**: exactly
    one file differs between the two worlds, and it is the shim. Every other `.cpp` and
    `.hpp` under `flight/` is byte-identical in both builds, and a test asserts it.
-3. **The shim carries a hard `FW_HAS_F64` check.** `docs/MODEL_FILE.md` 9 already
-   declares F64 a requirement of the flight target rather than a preference; this turns
-   that sentence into a compile error on a platform that switches F64 off, instead of a
-   silent change of detector.
+3. **The shim asserts the float properties the dtype map needs**, so a platform that
+   cannot provide them fails to compile instead of silently becoming a different
+   detector: `sizeof(F32) == 4`, `sizeof(F64) == 8`, and `is_iec559` on both.
+
+   **(!) AMENDED 2026-09-01, hours after this entry was written, while writing the
+   shim.** This consequence originally read "The shim carries a hard `FW_HAS_F64`
+   check", on the strength of `docs/MODEL_FILE.md` 9. **`FW_HAS_F64` does not exist in
+   F' v4.3.0.** `F64` is defined unconditionally at `Fw/Types/BasicTypes.h:86`, and was
+   at v4.2.2 too; the macro appears exactly once in the framework, in the documentation
+   table work item 8 read at `docs/reference/numerical-types.md:35`. Writing
+   `#if !FW_HAS_F64` would have expanded to `#if !0` and failed every build. The
+   requirement is real and the mechanism was not, so the property is asserted directly.
+   `docs/MODEL_FILE.md` 9 is amended in the same commit, and this is correction 13 in
+   `docs/MODELS.md` 20.2. Recorded rather than quietly rewritten, because a decision
+   that turns out to rest on a false premise is worth more visible than invisible.
 4. **D31 consequence 2 is amended, not deleted.** Its intent -- one header, no core
    change -- is met; its literal wording is not achievable and this entry records why.
 

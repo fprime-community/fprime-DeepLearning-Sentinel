@@ -340,10 +340,24 @@ the reference casts, so the compiler holds the map rather than the author's memo
 `total` and returns float32. A C++ core that ran the decision layer in F32 throughout
 would be a different detector.
 
-**This makes F64 a hard requirement of the flight target.** F' treats `F64` as a
-configurable platform type that a platform may switch off (`FW_HAS_F64` in
-`PlatformTypes.h`, `nasa/fprime` v4.3.0 `docs/reference/numerical-types.md`). Sentinel
-requires it. Phase 4's board selection inherits that constraint.
+**This makes F64 a hard requirement of the flight target.** Sentinel requires it, and
+Phase 4's board selection inherits that constraint.
+
+**(!) AMENDED 2026-09-01, by work item 9.** This paragraph previously continued: "F'
+treats `F64` as a configurable platform type that a platform may switch off
+(`FW_HAS_F64` in `PlatformTypes.h`, `nasa/fprime` v4.3.0
+`docs/reference/numerical-types.md`)." **That is not true of the code.** At v4.3.0 `F64`
+is defined unconditionally at `Fw/Types/BasicTypes.h:86` -- "64-bit floating point
+(double). Required for compiler-supplied double promotion" -- and it was unconditional at
+v4.2.2 as well. `FW_HAS_F64` appears exactly once in the entire framework, and it is the
+documentation table this project read: `docs/reference/numerical-types.md:35`. F'
+documents a macro its code does not define. The macro that is real is `FW_HAS_64_BIT`,
+and it guards `U64` and `I64`, not `F64`. The requirement stands and the mechanism named
+for it did not exist, so `flight/include/sentinel/Types.hpp` asserts the property
+directly -- `sizeof(F64) == 8` and `numeric_limits<F64>::is_iec559` -- rather than
+branching on a macro no build defines. The original sentence is kept above because it
+records what was believed and where it came from. See `docs/MODELS.md` 20.2 correction 13
+and D35.
 
 ---
 
