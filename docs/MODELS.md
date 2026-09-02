@@ -3958,3 +3958,340 @@ Not attempted here, and named so it is not mistaken for an omission: why
 fold 1. The concentration is reported above as an observation and no
 mechanism is proposed for it.
 
+
+## 23. Pre-registration: making the forecaster's cross-channel advantage measurable (work item 9.7; scope, not build)
+
+**Written and committed before a single figure is computed, and nothing in this
+section is run.** Work item 9.5 falsified the ratio the project quoted (D37) and
+work item 9.6 found worse: on both Mission 1 sets the flying detector catches a
+**strict subset** of a two-line rolling standard deviation's events (D38), and
+the headline cell is **3/32 contextual** with all three caught by nothing (D39).
+
+What survives is a claim about **quality** -- `gru-quantile` clears the corrected
+floor 0.804 to 0.676 on D3's gate metric, at precision 139/157 against 84/127
+and a third of the alarm rate. That is real, it is measured, and it is not the
+claim this project has been making. The claim it has been making is that a
+forecaster over the channel set sees relationship breaks a per-channel statistic
+cannot, and **there is now no per-event evidence for it on this data.**
+
+This section scopes the four studies that would settle it, in the order of what
+they cost. Two are measurements this repository can make; two are designs that
+would have to be built first and are costed rather than started.
+
+Nothing here changes a detector, a threshold, a weight, the frozen decision
+layer or `main`. Nothing is retrained. **No study below runs until it is
+approved separately**, and the operation cost of each is stated before its
+predictions rather than after.
+
+### 23.1 The four studies, and why each is asked
+
+1. **A -- the matched-operating-point comparison.** D38 withdrew the per-event
+   argument and left the quality argument standing. The quality argument has
+   never been tested at a matched operating point: the two detectors are
+   compared at *their own* thresholds, and a detector that alarms more will
+   catch more. Raise the floor's threshold until it is as quiet as the
+   forecaster and the comparison becomes like-for-like for the first time.
+2. **B -- the reduction study.** D23 has been OPEN since 2026-08-27 and says
+   the decision layer is twelve univariate detectors and a vote. The forecaster
+   is multivariate and everything after it is not. `k`-of-`n` "was tuned against
+   182 alarm ranges when there are now 3,548", and D23 requires that "any
+   threshold proposal that goes forward re-derives `k`-of-`n` rather than
+   inheriting it". Nothing has.
+3. **C -- leave-one-out cross-prediction.** Every design in this project
+   predicts each channel from *all* channels including itself, so a channel can
+   be forecast from its own history and the residual need not measure a
+   relationship at all. Predicting each channel from the *others only* makes the
+   residual a relationship measurement by construction. This is the thesis as
+   architecture rather than as hope.
+4. **D -- the injected-fault study.** Objective.md 13 item 8, never run. D39
+   consequence 5 says what would settle Claim B is a scoring set whose events
+   are selected for the contextual property rather than assumed to have it, and
+   that ESA-ADB may not contain one at `n >= 20`. A synthesised set does, by
+   construction, at a sample size that is not underpowered.
+
+### 23.2 Three corrections to the framing, stated before the predictions
+
+The work item was framed with three assumptions. Two are wrong and one bounds
+what a result could mean, so they are recorded here rather than discovered in
+23.9.
+
+**1. A and B are not free, and nothing cached can make them free.** Nothing
+under `runs/` holds a per-step or per-channel score.
+`scripts/floor_audit.py:149` computes the per-channel matrix and `:154` returns
+it unread; `runs/m1-g8.9.10/_curve/` and `_grid/` are 25 to 27 August, from
+before `gru-quantile` existed and before `_rolling` was corrected, so they
+describe neither detector in this comparison. **A and B share one bundle load:
+15 Class B and 1 Class A**, both channel sets, all folds, every arm -- because
+`_TOPS` (`src/sentinel_models/detectors.py:414-421`) is keyed on everything
+upstream of the reduction and on nothing downstream, and the weights are already
+cached, so every arm after the first is a reduction and a threshold comparison.
+The month stands at 3 Class A and 56 Class B against a ceiling of 50,000 each.
+
+**2. `k`-of-`n` at `k = 2` and `k = 3` needs no new code.** `MAX_AGREEMENT = 3`
+(`detectors.py:78`), `agreement` is already a constructor parameter validated at
+`:259-263`, the reduction is already `combined = top[self.agreement - 1]`
+(`:370`, `:392`), and `scripts/decision_grid.py` already sweeps it against
+persistence. Only the L2 norm and the sum are new code, because `_tops` keeps
+the top `MAX_AGREEMENT` ratios and discards the other nine at `C = 12`; an
+aggregate over all channels needs the full matrix retained.
+
+**3. L2 and sum cannot test the relationship claim, and a win by either would
+not be evidence for it.** `np.abs(filled[lo:hi] - forecast)` at
+**`detectors.py:465`** removes the sign before any reduction sees the residual
+vector. D23 states the consequence exactly: *"Both channels rising together and one rising while the other falls
+become the same number, and that difference is the whole of the relationship."*
+L2 and sum aggregate magnitude across channels; they are a softer `k`-of-`n`,
+and what they test is co-occurrence. The only reduction that could express a
+relationship is one over the **signed** residual vector -- D23's nominal
+residual covariance, 144 floats at `C = 12` against the GRU's 71,160 parameters
+-- and it is not in B, because it is a detector change and this section builds
+nothing.
+
+**A citation correction, found while writing this.** Both
+`docs/DECISIONS.md` D23 (at `:1313`) and `docs/MODELS.md` section 11 (at
+`:1022`) locate that `np.abs` at `detectors.py:410`. It was there when D23 was
+written on 2026-08-27 and it is not there now -- the file has grown and the call
+is at `:465`. Neither entry's finding changes and neither is edited; the pointer
+is corrected here, and it is worth noting that a line-number citation is a fact
+with no test behind it, which is the same class of rot
+`tests/test_documents_are_current.py` was written for and does not yet cover.
+
+And the relationship layer has been measured once already. `lstm-whitened` was
+built, scored and declined: D25 found the plain quantile matched it event for
+event at a **fourteen times lower** nominal-step alarm rate
+(`docs/DECISIONS.md` D25, `docs/RESULTS.md` 6d). **B's predictions are written
+against that record.** A reduction that beats `max` here would be the first
+cross-channel decision stage in this project that ever has.
+
+### 23.3 Study A -- the matched-operating-point comparison
+
+**What is measured.** Both detectors' thresholds are swept, and the full
+recall-versus-alarm-rate curve is reported for each, on both channel sets, per
+fold and pooled, every recall as `k/n` with `n < 20` stamped UNDERPOWERED. Two
+points on those curves are named in advance:
+
+```
+  matched-quiet    rstd's threshold raised until its nominal-step alarm rate
+                   equals gru-quantile's 0.001%   (rstd is at 0.024% today)
+  matched-loud     gru-quantile's threshold lowered until its nominal-step
+                   alarm rate equals rstd's 0.024%
+```
+
+At each, the four overlap sets are recomputed by id, exactly as 22.11 reports
+them at the calibrated thresholds.
+
+**The threshold is swept, never chosen.** `scripts/oscfar_curve.py` established
+the precedent and states the rule: what is reported is the curve, and no
+operating point is recommended from it. Choosing the best-scoring cell is the
+oracle sweep `docs/MODELS.md` section 7 refuses, and it stays refused.
+**Nothing in A moves the flying detector's threshold**, which is D25's frozen
+99.9th percentile of the anomaly-masked fitting window and is not a dial.
+
+### 23.4 Study B -- the reduction study, D23 re-derived
+
+**What is measured.** Under the frozen calibration recipe -- the same 99.9th
+quantile, the same anomaly-masked fitting window, identity normalisation (D2) --
+the max-across-channels reduction is replaced by four alternatives, each scored
+as a **new named arm** so that `gru-quantile` and the frozen layer are untouched,
+the way `lstm-whitened` and `lstm-oscfar` were added:
+
+```
+  gru-l2     L2 norm across channels          new code: the full residual matrix
+  gru-sum    sum across channels              new code: the full residual matrix
+  gru-k2     agreement k=2                    no new code (detectors.py:370)
+  gru-k3     agreement k=3                    no new code (detectors.py:370)
+```
+
+Per arm: F0.5, event recall, headline-cell recall, rare-event false alarms,
+nominal-step false alarms and lead, both channel sets, per fold and pooled. Per
+event: what happens to the three contextual ids `id_121`, `id_153`, `id_157`; to
+the seven fold-1 events the floor catches and the forecaster misses; and to each
+of `gru-quantile`'s 19 misses on the gate set.
+
+**What B cannot do**, restated here so no result is over-read: all four arms are
+downstream of `np.abs()` at `detectors.py:410` and none of them can see a sign.
+A gain by any of them is a gain in **co-occurrence sensitivity**, not evidence
+that a relationship test works. 23.2's third correction states why, and D25's
+measured verdict on the one relationship layer this project did build is the
+record B is written against.
+
+### 23.5 Study C -- leave-one-out cross-prediction (scoped, not built)
+
+Every forecaster in this project predicts channel `c` from all `C` channels
+including `c` itself, so nothing forces the residual on `c` to carry information
+about any other channel. A channel with strong autocorrelation is forecast from
+its own history, its residual measures its own predictability, and the
+cross-channel claim rides on an architecture that never had to express it.
+**Leave-one-out predicts `c` from the other `C-1` only**, which makes the
+residual a relationship measurement by construction rather than by hope.
+
+**Delivered as a costed design, not as code.** The scoping states: parameters
+and multiply-accumulates per tick against `gru-quantile`'s 71,160 and the Phase
+4 envelope; whether the cheapest workable form is `C` separate models, one
+shared trunk with a masked input, or one model with a zeroed diagonal; training
+time and whether the existing fold and weight-cache machinery carries it
+unchanged (D14); how it meets the frozen decision layer, which is channel-blind
+and would be unchanged by it; whether `model.bin` version 1 can carry it without
+a format change (D30, `docs/MODEL_FILE.md`); and the pre-registration it would
+itself need before a single fit. **No fit is run and no weight is written.**
+
+### 23.6 Study D -- the injected-fault study (design only)
+
+Objective.md 13 item 8, never run, and the only instrument that can settle Claim
+B at a sample size that is not underpowered. D39 consequence 5 says what is
+needed is a scoring set whose events are selected for the contextual property
+rather than assumed to have it, and that ESA-ADB may not contain one at
+`n >= 20`. This manufactures one instead of hunting for it.
+
+**The construction.** Relationship breaks synthesised on real nominal telemetry
+from the fitting windows, with **every channel held inside its own 0.1/99.9
+training envelope at every injected step** -- the same envelope 22.2 fixed and
+D39 measured against, so an injected event is contextual by construction and by
+the same definition, and D40 requires the watched channel set to be named with
+it. Three families, each a break in a relationship rather than an excursion:
+
+```
+  coupling offset    a channel's response to its driver shifted in amplitude
+  response delay     a channel's lag to its driver lengthened
+  decoupling         a channel's response to its driver removed
+```
+
+**`n >= 50`**, which is the first sample size in this project that clears
+`docs/HARNESS.md` section 1's UNDERPOWERED rule for this class. Scored blind by
+`gru-quantile`, the corrected `rstd`, and every arm from B.
+
+**The design states**, before anything is built: which nominal windows and which
+folds, so no injection lands in a window a detector was fitted on; how injection
+reaches the values without touching the frozen decision layer, any threshold or
+any weight; how blindness is enforced, given that whoever writes the injector
+knows the answers; how an injected event that no detector could ever cross on is
+distinguished from one both simply miss; and the exact operation cost.
+
+### 23.7 Definitions fixed in advance
+
+- **Matched operating point**: equal **nominal-step false-alarm rate**, the
+  column both detectors already report, computed on the same fold's nominal
+  steps. Not equal alarm count, not equal precision.
+- **Recovered event**: an event a reduction arm catches that `gru-quantile` at
+  its frozen threshold does not, on the same fold and the same channel set.
+- **Truly contextual**: unchanged from 22.2, and per D40 always stated with the
+  channel set it is contextual with respect to.
+- **Sign-blind**: a reduction whose value is unchanged when the sign of any
+  channel's residual is flipped. All four arms in B are sign-blind; the test is
+  one line and it is asserted rather than assumed.
+- **Detectable injection**: an injected event whose peak reach under *some*
+  detector in the study exceeds 1.0. An injection detectable by nothing is a
+  property of the injection and is reported as such, not as a miss.
+
+### 23.8 PREDICTED
+
+Committed before any study runs. Every one is numeric or a yes/no a document can
+be held to, and each names what would refute it.
+
+**Study A. The quality argument, tested like for like for the first time.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **M1** | at **matched-quiet**, `rstd`'s headline-cell recall falls to **10 to 20 of 32**, central estimate 15, and below `gru-quantile`'s 22/32 | `rstd` reaching **>= 22/32** while as quiet as the forecaster. **This is the sharpest number in A.** It would mean the floor matches the flying detector at the flying detector's own operating point, and the quality defence D38 consequence 2 left standing would be gone too -- the last argument for the forecaster on this data. The document would say so in those words |
+| **M2** | at **matched-loud**, `gru-quantile`'s headline-cell recall reaches **25 to 30 of 32**, at or above the corrected floor's 25/32 | `gru-quantile` below **25/32** while as loud as the floor: the floor would then lead at both ends of the curve and the ordering would not be an operating-point artifact in the forecaster's favour |
+| **M3** | at **at least one** of the two matched points, only-GRU **>= 1** on the gate set -- there exists an operating point at which the forecaster sees something the floor does not | only-GRU **0** at both matched points **and** across the swept curve. D38 would then hold not at one threshold but everywhere, and the nesting would be a property of the two detectors rather than of their calibration. Stated deliberately in the direction that hurts |
+| **M4** | swept down to the alarm rate at which each detector's event-wise precision first falls below **0.5**, `rstd` catches **>= 1** of the three contextual events and `gru-quantile` catches **0** | either half. The GRU catching one would be this project's first measured contextual catch, at a stated cost in precision |
+
+**Study B. D23 re-derived, against the record of the one relationship layer that
+was built.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **M5** | `gru-k2` and `gru-k3` **lose** headline-cell recall against `k = 1` on both channel sets, despite recalibration on the reduced statistic | either gaining. The reduction is strictly harder at a fixed threshold and the recalibration is predicted not to compensate |
+| **M6** | **at least one** of the four arms recovers **>= 1** of `gru-quantile`'s 19 gate-set misses at a nominal-step false-alarm rate no worse than `gru-quantile`'s | none does. D23's open question would then be answerable **no** on this data with the reductions available, and D23 could close as measured rather than stay open |
+| **M7** | **no** arm catches any of `id_121`, `id_153`, `id_157` | any arm catching one. It would be the first measured contextual catch in this project, and 23.2's third correction would be wrong about what a sign-blind reduction can see |
+| **M8** | **none** of the seven fold-1 only-`rstd` events is recovered by any arm, because they are lost in the per-channel EWMA at span 105 **upstream** of the reduction, not in the reduction | any arm recovering one, which would locate the loss in the reduction after all and make the EWMA explanation in 22.7 wrong |
+| **M9** | **no** arm beats `gru-quantile`'s **0.804** F0.5 on the gate set | one does. D25 would be re-opened for scoping -- not changed, and not on this evidence alone -- because the frozen decision layer would not be the best of the reductions available to it |
+
+**Studies C and D. Design claims, checkable without running anything.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **M10** | the cheapest workable leave-one-out form costs **<= 2x** `gru-quantile`'s 71,160 parameters, not the naive `C` x | the cheapest form found costing more than 2x, which would make C a Phase 4 envelope question before it is a Phase 3 accuracy question |
+| **M11** | `model.bin` version 1 **cannot** carry a leave-one-out model without a format change (D30) | it can, which would be the better answer and would make C cheaper to adopt than it looks |
+| **M12** | a set of **>= 50** contextual injections can be constructed that stays inside every channel's 0.1/99.9 envelope **and** is detectable by at least one detector in the study | the two constraints proving incompatible -- no injection that stays inside the envelope produces a residual any detector could cross on. **That would itself be the finding**, and a large one: it would mean the contextual class as this project defines it is not reachable by residual thresholding at all, which is a statement about the method and not about the data |
+
+**Deliberately not predicted.** Which of the four B arms wins, if any -- the
+prediction is about whether *any* does, and naming a favourite would invite
+reading the winner as confirmation. The lead time of any A or B configuration
+beyond reporting it. Anything about `m2-ss1` or `m1-g3`, which are spent (D29)
+and are not consulted. Why every only-`rstd` event is in fold 1, which 22.11
+records as an observation with no mechanism and which no study here tests.
+
+### 23.9 Cost, and the order of spending
+
+```
+  A + B     one bundle load, both channel sets, all folds, every arm
+            15 Class B, 1 Class A          cached weights, nothing refitted
+  C         zero operations                a costed design, no fit
+  D         zero operations                a design, no injection built
+```
+
+A and B are one script and one load, for the reason 21.3 gives: four scripts
+would be four loads. The month stands at **3 Class A and 56 Class B** against a
+ceiling of 50,000 each and a per-run tripwire of 1,000.
+
+**C and D are written first**, before A and B are approved to spend anything,
+because a design that has to be honest about its own cost is cheapest to
+abandon on paper.
+
+### 23.10 The named risk
+
+**That this work item exists to find the forecaster a win.** Work item 9.6 ended
+with the project's central claim withdrawn on two counts, and a study
+commissioned immediately afterwards to look for cross-channel advantage is
+looking for a specific answer. That is the same risk 22.4 named, and it did not
+prevent 9.6 from returning two results against the direction it was commissioned
+in.
+
+The protections are the same and they are stated in the same place: every
+definition in 23.7 is fixed before any number exists; M1, M3 and M6 are stated
+in the direction that would hurt, and M6 names the outcome that would let D23
+**close as answered no** rather than stay open as a hope; 23.2 bounds in advance
+what a B result could mean, so a co-occurrence gain cannot later be read as a
+relationship result; and M12's refutation is written as a finding rather than a
+failure.
+
+**A negative result here is publishable and this section says so now.** If A
+shows the floor matching the forecaster at matched quiet, if B shows no
+reduction recovering anything, and if C costs more than the envelope allows,
+then the honest reading is that on this data the forecaster's advantage is
+precision at a fixed operating point and nothing more -- and `docs/RESULTS.md`
+and Objective.md would say that, in those words.
+
+### 23.11 Stop and report
+
+1. **M1 refuted** -- the floor matches the forecaster at matched quiet. Report
+   before anything else in this section is written up.
+2. **M3 refuted** -- only-GRU is 0 across the whole swept curve. D38 would
+   generalise from a threshold to a detector.
+3. **M12 refuted** -- a contextual injection detectable by nothing.
+4. Any figure belonging to a **frozen** artifact moves: `gru-quantile`'s
+   scorecard, the decision layer, a weight, a held-back score.
+5. More than **20 Class B** in any run, or the per-run tripwire at 1,000.
+6. Any arm in B is proposed for adoption. **B measures; it does not select.**
+   Adoption is a separate decision with its own pre-registration.
+
+### 23.12 What this decides, and what it may not
+
+**Decides.** Whether the forecaster has any measurable cross-channel advantage
+over the corrected floor at a matched operating point (A). Whether D23 closes as
+answered or stays open (B). Whether leave-one-out is affordable enough to be
+worth a pre-registration of its own (C). Whether Claim B can be tested at
+`n >= 50` at all, and what it would cost (D).
+
+**May not.** Move any threshold, retrain anything, alter the frozen decision
+layer, re-score a held-back set, adopt any arm, or touch `main`. Re-open D28,
+which compared LSTM, GRU and TCN against each other and never involved `rstd`.
+Restate the central claim -- that is held at `docs/STATUS.md` section 7 on D39
+and is not this section's to settle. And it may not treat a co-occurrence gain
+in B as evidence for the relationship claim; 23.2 fixed that reading in advance.
+
+### 23.13 OBSERVED
+
+Reserved. Nothing has run.
