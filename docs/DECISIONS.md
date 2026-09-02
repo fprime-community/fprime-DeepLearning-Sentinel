@@ -2398,6 +2398,21 @@ any forecaster figure or their ordering.
 3. **What the two detectors are is now measured rather than assumed**: ordered, not
    complementary, in exactly the sense D25 established for `lstm-whitened` and
    `lstm-quantile`. A union buys nothing, and none is proposed.
+
+   **(!) QUALIFIED 2026-09-02 (`docs/MODELS.md` 23.13). "Ordered" is true at these
+   two thresholds and is not a property of the two detectors.** Held to the **same
+   number of catches** rather than to their own calibrated thresholds, the
+   forecaster sees **6** events on the gate set and **2** on `m1-ss5` that the floor
+   does not, and only-GRU is non-zero at **39 of 46** and **31 of 42** matched-recall
+   levels. The two are not rank-identical. Derived at zero operations from the same
+   audit artifact, whose per-event reaches reproduce the published catch flags on
+   176 of 176 pairs. The nesting reported above appears because the floor is allowed
+   to catch seven more events; at equal counts it disappears. **Consequence 2 stands
+   as written for the flying configuration** -- these are the thresholds in the
+   repository -- but the per-event argument is withdrawn *at this operating point*,
+   not at every operating point, and 23.13 is where the difference is stated.
+   Whether the forecaster keeps an advantage at a matched **false-alarm** rate is
+   work item 9.7 study A and is unmeasured; matched recall is not matched cost.
 4. **This does not generalise beyond Mission 1 without measurement.** `m2-ss1` and
    `m1-g3` carry no per-event overlap analysis, and none is run here.
 

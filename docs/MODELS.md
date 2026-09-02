@@ -4296,4 +4296,90 @@ in B as evidence for the relationship claim; 23.2 fixed that reading in advance.
 
 ### 23.13 OBSERVED
 
-Reserved. Nothing has run.
+**2026-09-02. Study A, the half of it that costs nothing, and it is the finding.**
+Studies B, C and D have not run. **Zero bucket operations**: everything below is
+derived from `runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json`,
+which stores each event's **reach** -- the peak score inside the event span
+divided by that detector's own calibrated threshold.
+
+**Why a reach is a threshold sweep.** An event is caught at threshold multiplier
+`m` exactly when `reach >= m`, so the cached reaches give the complete
+recall-versus-threshold curve for both detectors on both sets without loading
+anything. The identity was checked before it was used: `reach >= 1` reproduces
+the published catch flag on **176 of 176** (event, detector) pairs, with no null
+reaches, on both sets.
+
+**What it cannot give** is the alarm rate at any multiplier, because the
+nominal-step score distribution is not cached. So this is matched **recall**,
+not the matched **false-alarm rate** 23.7 defined and M1 to M3 were written
+against. Those still need one bundle load.
+
+#### D38's nesting is a property of the two thresholds, not of the two detectors
+
+At the frozen operating point the audit reports -- the GRU catching 27 and the
+floor 34 -- only-GRU is 0, and that reproduces exactly. Hold the two to the
+**same number of catches** and it stops being true.
+
+```
+  m1-g8.9.10                                    only-GRU
+    frozen, asymmetric  (GRU 27, rstd 34)           0     <- D38, reproduced
+    matched recall      (both at 27)                6
+    matched recall      (both at 34)                0
+    worst case          (both at 15)                7
+
+  m1-ss5
+    frozen, asymmetric  (GRU 26, rstd 34)           0     <- D38, reproduced
+    matched recall      (both at 26)                2
+    matched recall      (both at 34)                0
+    worst case          (both at 15)                6
+```
+
+Only-GRU is **> 0 at 39 of 46** matched-recall levels on the gate set and **31
+of 42** on `m1-ss5`. The two detectors are **not rank-identical**: they order
+the same events differently, and the nesting D38 found appears only where the
+floor is allowed to catch seven more events than the forecaster.
+
+**The six the forecaster sees at matched recall on the gate set**, with the rank
+each detector gives them:
+
+| event | fold | cell | footprint | GRU reach | `rstd` reach | GRU rank | `rstd` rank |
+|---|---|---|---|---|---|---|---|
+| `id_114` | 0 | MVGP | 1 | 1.28 | 5.39 | 10 | 32 |
+| `id_109` | 0 | MVGP | 1 | 1.27 | 5.47 | 11 | 31 |
+| `id_110` | 0 | MVGP | 1 | 1.23 | 5.94 | 15 | 30 |
+| `id_177` | 2 | MVGS | 64 | 1.14 | 5.97 | 22 | 28 |
+| `id_172` | 2 | MVGP | 1 | 1.12 | 5.94 | 24 | 29 |
+| `id_145` | 1 | MVGS | 10,717 | 1.06 | 2.64 | 27 | 34 |
+
+Two are headline-cell. On `m1-ss5` the pair is `id_90` and `id_12`, both MVGS,
+GRU ranks 8 and 9 against the floor's 32 and 33.
+
+**What this does and does not change.** It does **not** overturn D38: at the
+thresholds both detectors actually fly with, the flying detector still catches
+nothing the floor misses, and that is the configuration in the repository. What
+it removes is the reading D38 invited -- *"ordered, not complementary"* as a
+statement about the two detectors. They are ordered **at one pair of operating
+points**. Ranked against each other at equal catch counts, the forecaster
+promotes six events the floor buries thirty ranks down, and five of the six are
+short: four have a footprint of 1 and one of 64.
+
+**And it does not yet vindicate the forecaster**, because matched recall is not
+matched cost. Catching the same number of events says nothing about how many
+alarms each spent doing it, and the floor alarms 3.71x more per nominal step on
+the gate set at the frozen point (`docs/RESULTS.md` 6l). **M1, M2 and M3 remain
+open as written.** What is now known is that their answer is not foreclosed:
+before this, D38 made only-GRU look structurally zero, and it is not.
+
+#### Predictions adjudicated so far
+
+| # | Status |
+|---|---|
+| **M3** | **Open, and materially more likely to hold.** M3 asks for only-GRU >= 1 at a matched *false-alarm* point. On the matched *recall* axis it is 6 and 2, at 39 of 46 and 31 of 42 levels. Not the pre-registered test, and not scored |
+| **M1, M2** | Open. Both are defined on the false-alarm axis and need the load |
+| **M4** | Open. Partially answerable here: the three contextual events rank **38th, 42nd and 45th** of 46 by GRU reach and **39th, 42nd and 43rd** by `rstd` reach, so both would have to run near the bottom of their own event ordering to reach them. The precision axis needs the load |
+| **M5 to M9** | Not started. Study B needs the per-channel residual matrix, which nothing caches |
+| **M10 to M12** | See 23.14; C and D are costed, not run |
+
+**Nothing was retrained, no threshold moved, the weight store is unchanged at 86
+files, and no artifact under `runs/` was written.** This subsection is arithmetic
+over a committed artifact.
