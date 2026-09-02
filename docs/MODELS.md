@@ -4477,3 +4477,132 @@ and D is the instrument that would settle it at `n >= 50` instead of `n = 3`.
 correlation study on nominal data that is itself one pass over the same load;
 and a decision on whether injections land in test windows only, which they must,
 since a fold's fitting window sets that fold's threshold.
+
+### 23.15 OBSERVED -- studies A and B
+
+**2026-09-02. One bundle load, 1 Class A and 15 Class B**, both channel sets,
+all folds, all five reductions, cached weights, weight store unchanged at 86
+files. Artifact `runs/m1-g8.9.10/_forensics/2026-09-02T193623Z-reduction-and-curve.json`.
+Studies C and D were costed at 23.14 and remain unbuilt.
+
+**The gate first.** The `max` arm is not a reimplementation of `gru-quantile`;
+it is the same reduction of the same forecast, so it must reproduce the
+published scorecard before anything else here is believed. All six checks pass:
+
+```
+  m1-g8.9.10   max  27/46 and 22/32   rstd  34/46 and 25/32   denominators 46, 32
+  m1-ss5       max  26/42 and 21/31   rstd  34/42 and 25/31   denominators 42, 31
+```
+
+#### Study A: at a matched alarm rate the nesting reverses
+
+D38 compared the two detectors at their own calibrated thresholds, where the
+floor alarms on 18x more nominal steps than the forecaster on the gate set.
+Held to the same nominal-step rate, the comparison inverts.
+
+```
+  m1-g8.9.10                     recall    MVGS   nominal-step rate
+    frozen      gru-quantile      27/46   22/32       0.0013%
+    frozen      rstd              34/46   25/32       0.0240%
+    matched-quiet  rstd  x7.435    7/46    7/32       0.0009%
+    matched-loud   gru   x0.346   35/46   26/32       0.0174%
+
+  m1-ss5
+    frozen      gru-quantile      26/42   21/31       0.0141%
+    frozen      rstd              34/42   25/31       0.0408%
+    matched-quiet  rstd  x6.083   11/42   11/31       0.0078%
+    matched-loud   gru   x0.936   32/42   24/31       0.0169%
+```
+
+**Held to the forecaster's alarm rate, the floor finds 7 of 32 headline-cell
+events, not 25.** Its 25/32 was bought with eighteen times the alarm rate. And
+allowed the floor's alarm rate, the forecaster reaches **26/32** against the
+floor's 25/32 on the gate set.
+
+**The four sets at each operating point, and M3 is settled:**
+
+```
+  m1-g8.9.10          both  only-GRU  only-rstd  neither
+    frozen              27       0         7        12     <- D38
+    matched-quiet        7      20         0        19
+    matched-loud        34       1         0        11
+
+  m1-ss5
+    frozen              26       0         8         8     <- D38
+    matched-quiet       11      15         0        16
+    matched-loud        32       0         2         8
+```
+
+**At every matched operating point on both sets, only-`rstd` is 0 or 2 and
+only-GRU is 0 to 20.** D38's strict-subset result is an artifact of the two
+detectors sitting at very different alarm rates, and at a matched rate the
+containment runs the other way on the gate set. This is what 23.13 could only
+suggest from the recall axis; it is now measured on the axis M1 to M3 were
+written against.
+
+#### Study B: every reduction is a strict subset of `max`, and none recovers anything
+
+```
+  m1-g8.9.10   arm    recall   MVGS   nominal steps flagged
+                max    27/46   22/32       142
+                l2      9/46    9/32         2
+                sum     9/46    9/32         0
+                k2      8/46    8/32         0
+                k3      8/46    8/32        12
+
+  m1-ss5        max    26/42   21/31     1,536
+                l2     26/42   21/31     1,124
+                sum     7/42    7/31       945
+                k2      7/42    7/31       826
+                k3      7/42    7/31       833
+```
+
+**Not one arm catches a single event `max` misses, on either set.** Every arm's
+catch set is a strict subset of the flying reduction's, and none of the four
+recovers any of `gru-quantile`'s 19 gate-set misses, any of the seven fold-1
+events the floor catches, or any of the three contextual events -- and all four
+run at a *lower* nominal-step rate than `max`, so the failure is not a threshold
+handicap.
+
+**The one thing a reduction improves is precision, on one set.** On `m1-ss5`
+`l2` matches `max` event for event -- 26/42 and 21/31, the same events -- at
+**1,124 nominal steps flagged against 1,536**, 27% fewer. On the gate set the
+same arm collapses to 9/46. The mechanism is scale: aggregating across twelve
+channels raises the calibrated floor faster than it raises an anomaly's peak,
+because the anomalies are concentrated in a few channels while the noise is
+spread across all of them. **That is D23's premise inverted** -- `max` wins
+because cross-channel evidence is sparse, not because the decision layer was
+never asked to look.
+
+#### PREDICTED against MEASURED
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **M1** | at matched-quiet `rstd`'s MVGS falls to **10-20 of 32**, below the GRU's 22/32 | **7/32**, and **11/31** on `m1-ss5` | **Refuted on the band, held on the claim.** The direction is right and far past it; the band was too generous to the floor |
+| **M2** | at matched-loud the GRU reaches **25-30 of 32**, at or above `rstd`'s 25/32 | **26/32** on the gate set; **24/31** on `m1-ss5`, below `rstd`'s 25/31 | **Held on the gate set, refuted on `m1-ss5`** |
+| **M3** | only-GRU **>= 1** at at least one matched point | **20** and **1** on the gate set, **15** and **0** on `m1-ss5` | **Held, decisively.** The sharpest number in A |
+| **M4** | swept to precision 0.5, `rstd` catches >= 1 contextual and the GRU 0 | **Not measured.** The sweep recorded nominal-step rate, not event-wise precision | **Unresolved -- an instrument gap, see below.** At both matched points neither detector catches any of the three |
+| **M5** | `k2` and `k3` lose headline-cell recall against `k=1` on both sets | 8/32 and 8/32 against 22/32; 7/31 and 7/31 against 21/31 | **Held** |
+| **M6** | at least one arm recovers **>= 1** of the 19 gate-set misses at no worse nominal rate | **0**, by all four arms, on both sets, at strictly lower nominal rates | **REFUTED. This is the finding, and it closes D23 as answered** |
+| **M7** | no arm catches `id_121`, `id_153`, `id_157` | none does, on either set | **Held** |
+| **M8** | no arm recovers any of the seven fold-1 only-`rstd` events | none does | **Held.** The loss is upstream of the reduction, in the per-channel EWMA, as 22.7 argued |
+| **M9** | no arm beats `gru-quantile`'s 0.804 F0.5 on the gate set | **Not measured** | **Unresolved -- an instrument gap, see below** |
+
+#### Two gaps in this instrument, named rather than left to be found
+
+**M4 and M9 both need event-wise precision and this script did not record it.**
+The sweep stores, per multiplier, the events caught and the nominal steps
+flagged -- enough for a recall-versus-alarm-rate curve, which is what 23.3
+specified, and not enough for F0.5, which needs alarm *ranges* classified as
+true or false. `alarm_ranges` was never accumulated. That is a defect in the
+script, not in the design: 23.8 asked for both quantities and only one was
+instrumented.
+
+Closing it costs **one further bundle load, 15 Class B and 1 Class A**, by
+adding `mask_to_ranges` and `eventwise.score` to the same loop. It is not spent
+here. Nothing in the results above depends on it: M1, M2, M3, M5, M6, M7 and M8
+are all settled on quantities that were recorded.
+
+**What this does not touch.** No detector, threshold, weight or decision layer
+moved; no arm is proposed for adoption, and 23.11 trigger 6 makes that a
+separate decision; `m2-ss1` and `m1-g3` were not loaded; `main` is untouched.

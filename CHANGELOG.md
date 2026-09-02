@@ -14,6 +14,76 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.3] - 2026-09-02 - Phase 2 work item 9.7: the comparison made like for like
+
+The false headline withdrawn, and the two studies that could be run, run. One bundle
+load for both, 1 Class A and 15 Class B, cached weights, nothing refitted, weight
+store unchanged at 86 files.
+
+### Changed - the headline comparison is withdrawn, 2026-09-02
+
+- **Ten sites asserted "a forecaster finds 28 of 32 headline-cell events where a
+  per-channel statistic finds 3" as live.** All ten are withdrawn, each keeping the
+  sentence in quotation. Three things were wrong with it: the 3 was float32
+  accumulation and is 25 (D37); the 28 of 32 is `lstm-telemanom`'s, a detector
+  disqualified at 22 of 48 commanded manoeuvres, while the detector that flies scores
+  22/32; and D38 measured the flying detector's catches as a strict subset of the
+  floor's. What replaces them is a holding note, **not a new claim**.
+- **What is kept, separately**: nothing else in an F' deployment watches the
+  relationships between channels. That is a claim about the ecosystem, verified in
+  Objective.md 3, and no correction touches it.
+- **`docs/RESULTS.md` 6l** is new -- the corrected floor beside the flying detector,
+  which no section carried, because 6h to 6k compare the architectures against each
+  other and the correction came later.
+
+### Fixed - a one-sided figure, found while writing 6l
+
+- **The gate-metric result is not the same on the two channel sets and only one had
+  ever been quoted.** On `m1-g8.9.10` the forecaster leads 0.804 to 0.676; on
+  `m1-ss5` the corrected floor leads **0.663 to 0.593**. The alarm-rate advantage is
+  3.71x on the gate set -- the "third of the alarm rate" every document repeated --
+  and 1.40x on `m1-ss5`. Both were inside the same artifacts, each carrying both sets.
+  D38 consequence 1 gets a rider; the selection does not move, since D28 never
+  involved `rstd`.
+
+### Added - work item 9.7 studies A and B, 2026-09-02
+
+- **D41 -- at a matched alarm rate the nesting reverses.** D38 compared the two at
+  their own thresholds, where the floor alarms on eighteen times more nominal steps.
+  Held to the forecaster's rate the floor finds **7 of 32** headline-cell events, not
+  25; allowed the floor's rate the forecaster reaches **26/32** against 25/32. The
+  four sets follow: at matched-quiet on the gate set, only-GRU **20** and only-`rstd`
+  **0**. At every matched point on both sets only-`rstd` is 0 or 2. **D38's strict
+  subset is a calibration artifact**, and its counts remain exactly right for the
+  frozen configuration.
+- **D42 -- D23 closes as answered no.** `k`-of-`n` re-derived at k=2 and k=3, plus L2
+  and sum, under the frozen calibration recipe, all five from one forecast pass so
+  the `max` arm **is** `gru-quantile` and reproduces its scorecard. Every arm's catch
+  set is a strict subset of `max`'s on both sets; not one recovers any of the 19
+  gate-set misses, the seven fold-1 events or the three contextual events, and every
+  arm runs at a *lower* nominal rate, so it is not a threshold handicap. The one
+  improvement is `l2` on `m1-ss5`: the same 26/42 and 21/31 at 1,124 nominal steps
+  against 1,536, 27% fewer -- and the same arm collapses to 9/46 on the gate set. The
+  mechanism inverts D23's premise: `max` wins because cross-channel evidence is
+  sparse. All four arms are sign-blind, so a signed reduction remains untested.
+- **Neither result rehabilitates the contextual claim.** D39 and D40 stand: the
+  headline cell is 3/32 contextual and nothing catches the three, at any operating
+  point or under any reduction.
+- **`docs/MODELS.md` 23.14** costs studies C and D without building either. Every
+  leave-one-out form costs about C times the arithmetic, whatever the parameter
+  count; a version-1 `model.bin` would load design (b) and silently run it once
+  instead of twelve times, which the reserved-field refusal rule closes. And Rule 1
+  forbids storing an injected set as values, so D stores a regenerable recipe.
+
+### Known gaps - named, not left to be found
+
+- **M4 and M9 are unresolved.** The sweep recorded events caught and nominal steps
+  flagged, not alarm ranges classified, so event-wise F0.5 along the curve was never
+  computed. A defect in `scripts/reduction_and_curve.py`, not in the design: 23.8
+  asked for both and one was instrumented. One further bundle load closes it.
+- **The new headline is not written.** No replacement claim is stated; the measured
+  state is in `docs/RESULTS.md` 6l and `docs/MODELS.md` 23.15, and `main` is held.
+
 ## [0.6.2] - 2026-09-01 - Phase 2 work item 9.6: auditing the corrected floor
 
 The audit of a result that overturned a thesis, pre-registered at `e31533d` before a

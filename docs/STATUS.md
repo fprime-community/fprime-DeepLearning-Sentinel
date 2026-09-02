@@ -11,8 +11,15 @@ withdrawn from all ten documents that carried it** and replaced by a holding not
 by a new claim -- `docs/RESULTS.md` 6l is the corrected comparison on both channel sets,
 and it shows the forecaster leading the gate metric on `m1-g8.9.10` (0.804 to 0.676) and
 **trailing on `m1-ss5` (0.593 to 0.663)**, which no document had stated. Work item 9.7
-is pre-registered (`docs/MODELS.md` 23) and not run. The checkpoint snapshot to `main` is
-held until the new headline is written from 9.7's results.
+is pre-registered (`docs/MODELS.md` 23). **Studies A and B have now run**, at 1 Class A
+and 15 Class B: at a **matched alarm rate the nesting reverses** -- held to the
+forecaster's alarm rate the floor finds 7 of 32 headline-cell events, not 25, and the
+forecaster catches 20 the floor misses, so D38's strict subset is a calibration
+artifact (D41). No cross-channel reduction recovers anything `max` misses, and D23
+closes as answered no (D42). **Neither result rehabilitates the contextual claim**:
+D39 and D40 stand and the three contextual events are caught by nothing at any
+operating point. The checkpoint snapshot to `main` is held until the new headline is
+written from 9.7's results.
 Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
@@ -220,10 +227,17 @@ HOUSEKEEPING
       is now in the same position (D39). No replacement claim is stated meanwhile: the
       measured state of the current decision layer is recorded in `docs/RESULTS.md` 6l
       and `docs/MODELS.md` 22, and it is not a front-page claim.
-- [ ] Work item 9.7 (`docs/MODELS.md` 23, pre-registered 2026-09-02, not run): study A
-      the matched-false-alarm curve and study B the reduction study, one bundle load
-      together; C leave-one-out cross-prediction and D the injected-fault study, scoped
-      with costs and not built.
+- [x] Work item 9.7 studies A and B - **done 2026-09-02** at 1 Class A and 15 Class B,
+      one bundle load, cached weights, nothing refitted (`docs/MODELS.md` 23.15, D41,
+      D42). Seven of nine predictions settled; M4 and M9 are unresolved because the
+      sweep recorded nominal-step rate and not event-wise precision, a defect in the
+      script named in 23.15.
+- [x] Work item 9.7 studies C and D scoped with costs, not built - **done 2026-09-02**
+      (`docs/MODELS.md` 23.14). Every leave-one-out form costs about C times the
+      arithmetic; an injected set may never be stored as values under Rule 1.
+- [ ] Close M4 and M9: event-wise F0.5 along the swept curve. One bundle load, 15
+      Class B and 1 Class A, by adding `mask_to_ranges` and `eventwise.score` to
+      `scripts/reduction_and_curve.py`. Not spent.
 - [ ] A scoring set whose events are selected for the contextual property rather than
       assumed to have it (D39 consequence 5). ESA-ADB may not contain one at `n >= 20`.
 - [ ] Open decisions carried (`docs/PHASE2.md` section 6) - D14, the weight-cache key is still

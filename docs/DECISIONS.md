@@ -1261,7 +1261,7 @@ it survived, and nobody would have checked what it measured.
 
 ## D23. The decision layer is channel-blind; the cross-channel claim rests on the forecaster alone
 
-**DATE** 2026-08-27 | **STATUS** OPEN -- structural, resolve before the architecture gate
+**DATE** 2026-08-27 | **STATUS** OPEN -- structural, resolve before the architecture gate. **(!) CLOSED 2026-09-02 by D42**: `k`-of-`n` was re-derived at `k = 2` and `k = 3` alongside L2 and sum, and no reduction recovers an event `max` misses. The finding below is unchanged; the open question is answered no
 
 **CONTEXT.** Objective.md 2.4 defines the target class as one where every channel
 is individually legal while the combination is wrong, and `docs/RESULTS.md`
@@ -2568,3 +2568,164 @@ pre-registration exists to prevent; the disagreement is evidence, not noise.
    together in one pass, and neither was chosen for its answer.
 5. **No detector, threshold, weight or decision layer changes.** This is a
    statement about what a definition means. Recorded in `docs/MODELS.md` 22.11.
+
+---
+
+## D41. At a matched alarm rate the nesting reverses; D38's strict subset is a calibration artifact
+
+**DATE** 2026-09-02 | **STATUS** resolved as a finding. It qualifies D38 heavily and
+restores the forecaster's per-event case
+
+**CONTEXT.** D38 measured that `gru-quantile` catches a strict subset of the
+corrected `rstd`'s events on both Mission 1 sets and withdrew the per-event
+argument for the forecaster. That comparison is at each detector's **own**
+calibrated threshold, and at those thresholds the floor alarms on **eighteen times**
+more nominal steps than the forecaster on the gate set. A detector that alarms more
+catches more. `docs/MODELS.md` 23.3 pre-registered the like-for-like comparison and
+23.8's M1 to M3 named the numbers before it ran.
+
+**EVIDENCE.** One bundle load, 1 Class A and 15 Class B, cached weights, nothing
+refitted, weight store unchanged at 86 files. Artifact
+`runs/m1-g8.9.10/_forensics/2026-09-02T193623Z-reduction-and-curve.json`.
+The `max` arm reproduces `gru-quantile`'s published scorecard on both sets --
+27/46, 22/32 and 26/42, 21/31 -- before anything new is reported.
+
+```
+  m1-g8.9.10                     recall    MVGS   nominal-step rate
+    frozen      gru-quantile      27/46   22/32       0.0013%
+    frozen      rstd              34/46   25/32       0.0240%
+    matched-quiet  rstd  x7.435    7/46    7/32       0.0009%
+    matched-loud   gru   x0.346   35/46   26/32       0.0174%
+```
+
+**Held to the forecaster's alarm rate the floor finds 7 of 32 headline-cell events,
+not 25.** Allowed the floor's alarm rate the forecaster reaches 26/32 against the
+floor's 25/32. The four sets at each point:
+
+```
+  m1-g8.9.10          both  only-GRU  only-rstd  neither
+    frozen              27       0         7        12     <- D38
+    matched-quiet        7      20         0        19
+    matched-loud        34       1         0        11
+
+  m1-ss5
+    frozen              26       0         8         8     <- D38
+    matched-quiet       11      15         0        16
+    matched-loud        32       0         2         8
+```
+
+**At every matched operating point on both sets only-`rstd` is 0 or 2**, and on the
+gate set the containment runs the other way: the forecaster catches 20 events the
+floor misses when the two are equally quiet.
+
+**ALTERNATIVES.** Leave D38 as the standing reading. Withdraw D38. Record the
+matched-point result beside it and keep both.
+
+**Against the first two.** D38 is not wrong: at the thresholds both detectors
+actually fly with, its counts are exactly right and they reproduce here. Withdrawing
+it would discard a correct measurement. What it lacked was the comparison that makes
+a count mean something, and that is now made.
+
+**CONSEQUENCE.**
+
+1. **The per-event argument for the forecaster is restored, at a matched alarm
+   rate.** D38 consequence 2 withdrew it; that withdrawal was correct for the frozen
+   configuration and wrong as a general statement. Both readings stand together:
+   at its own operating point the forecaster catches nothing the floor misses; at
+   the floor's operating point, or with the floor held to its own, it catches
+   substantially more.
+2. **No selection, threshold, weight or decision layer changes.** D25, D28, D29 and
+   the frozen 99.9th percentile are untouched. The sweep is a measurement and
+   `scripts/oscfar_curve.py`'s rule applies: the threshold is swept, never chosen,
+   and no operating point is recommended from the curve.
+3. **D39 and D40 are unaffected and nothing here rehabilitates the contextual
+   claim.** At both matched points neither detector catches any of `id_121`,
+   `id_153` or `id_157`. The headline cell is still 3/32 contextual and the
+   contextual class is still caught by nothing.
+4. **Every comparison of two detectors in this repository is now suspect if it is
+   drawn at their own thresholds.** That is the general lesson and it is larger than
+   this pair: F0.5 is the gate metric precisely because it prices recall against
+   precision, and a bare per-event overlap does not.
+
+---
+
+## D42. D23 closes as answered no: no cross-channel reduction recovers anything `max` misses
+
+**DATE** 2026-09-02 | **STATUS** resolved. Supersedes D23's OPEN status; D23's finding
+stands and its open question is now answered
+
+**CONTEXT.** D23 has been open since 2026-08-27: the forecaster is multivariate and
+the decision layer is twelve univariate detectors and a vote, `k`-of-`n` was tuned
+against 182 alarm ranges when there are now 3,548, and the entry required that "any
+threshold proposal that goes forward re-derives `k`-of-`n` rather than inheriting
+it". Nothing had. `docs/MODELS.md` 23.4 pre-registered the re-derivation and 23.8's
+M5 to M9 named the outcomes.
+
+**EVIDENCE.** The same single bundle load as D41. Under the frozen calibration recipe
+-- the same 99.9th quantile of the same anomaly-masked fitting window, identity
+normalisation -- max-across-channels was replaced by L2, sum, and `k`-of-`n` at
+`k = 2` and `k = 3`. All five reductions come from one forecast pass over the same
+per-channel smoothed errors, so no detector was added and `gru-quantile` was not
+touched: the `max` arm **is** the flying detector and reproduces its scorecard.
+
+```
+  m1-g8.9.10   arm    recall   MVGS   nominal steps flagged
+                max    27/46   22/32       142
+                l2      9/46    9/32         2
+                sum     9/46    9/32         0
+                k2      8/46    8/32         0
+                k3      8/46    8/32        12
+
+  m1-ss5        max    26/42   21/31     1,536
+                l2     26/42   21/31     1,124
+                sum     7/42    7/31       945
+                k2      7/42    7/31       826
+                k3      7/42    7/31       833
+```
+
+**Every arm's catch set is a strict subset of `max`'s, on both sets.** Not one arm
+recovers a single one of `gru-quantile`'s 19 gate-set misses, none of the seven
+fold-1 events the floor catches, and none of the three contextual events -- and every
+arm runs at a **lower** nominal-step rate than `max`, so the failure is not a
+threshold handicap.
+
+**The one improvement is precision on one set.** On `m1-ss5` `l2` matches `max`
+event for event, 26/42 and 21/31 on the same events, at 1,124 nominal steps flagged
+against 1,536 -- 27% fewer. On the gate set the same arm collapses to 9/46.
+
+**And the mechanism inverts D23's premise.** Aggregating across twelve channels
+raises the calibrated floor faster than it raises an anomaly's peak, because the
+anomalies are concentrated in a few channels while the noise is spread across all of
+them. `max` wins because cross-channel evidence is **sparse**, not because the
+decision layer was never asked to look.
+
+**A bound on the claim, from 23.2 and stated before the run.** All four arms are
+downstream of the `np.abs` at `detectors.py:465` that removes the sign, so all four
+are **sign-blind**: they aggregate magnitude and test co-occurrence, not
+relationship. This answers D23's question as D23 posed it -- `k`-of-`n` re-derived,
+plus two aggregations it did not ask for -- and it does **not** test a signed
+relationship layer. The one signed layer this project built, `lstm-whitened`, was
+measured and declined at D25 for the same reason: it added nothing at fourteen times
+the nominal-step rate.
+
+**ALTERNATIVES.** Keep D23 open pending a signed reduction. Adopt `l2` on `m1-ss5`'s
+evidence. Close D23 as answered and record what remains untested.
+
+**Against the first.** D23's question was `k`-of-`n`, and it is answered. Holding an
+entry open for a different question makes the register a wish list.
+**Against the second.** One set, no gate-metric measurement, and 23.11 trigger 6 makes
+adoption a separate decision with its own pre-registration. `l2`'s collapse on the
+twelve-channel set is disqualifying on its own.
+
+**CONSEQUENCE.**
+
+1. **D23 is closed as answered no.** Its finding is unchanged and is not withdrawn:
+   the decision layer is channel-blind and the cross-channel claim rests on the
+   forecaster. What is settled is that the four reductions available to it recover
+   nothing, so the channel-blindness is not costing measured events on this data.
+2. **No arm is adopted and none is proposed.** The frozen decision layer stands (D25).
+3. **What remains untested is a signed reduction** -- D23's own nominal residual
+   covariance, 144 floats at `C = 12`. It is not scoped here and it is not implied by
+   this result; `lstm-whitened` is the standing evidence against expecting much.
+4. **`l2` on `m1-ss5` is recorded and not acted on**, so that a future proposal has
+   to argue against the gate set rather than discover the subset result fresh.

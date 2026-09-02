@@ -1573,15 +1573,56 @@ three are the contextual set on `m1-ss5`'s 31 (D39, replicated in 22.11).
 `rstd` 0/3, at reaches of 0.11 to 0.61 against a threshold of 1. Contextual is a
 property relative to a watched channel set (D40).
 
-### What this section does not settle
+### (!) Measured 2026-09-02: at a matched alarm rate the comparison reverses
 
-The comparison above is at each detector's own calibrated threshold, which is
-the frozen 99.9th percentile of its own anomaly-masked fitting window (D25). A
-detector that alarms more will catch more, and these two alarm at rates that
-differ by 3.71x and 1.40x. **The two have never been compared at a matched
-false-alarm rate**, and until they are, neither the 0.128 nor the 0.070 is a
-like-for-like result. That is work item 9.7 study A, pre-registered at
-`docs/MODELS.md` 23.3 with its predictions at 23.8.
+The rows above are at each detector's own calibrated threshold, and at those
+thresholds the floor alarms on **eighteen times** more nominal steps than the
+forecaster on the gate set. A detector that alarms more catches more. Work item
+9.7 study A swept both thresholds and compared them like for like
+(`docs/MODELS.md` 23.15, D41):
+
+```
+  m1-g8.9.10                     recall    MVGS   nominal-step rate
+    frozen      gru-quantile      27/46   22/32       0.0013%
+    frozen      rstd              34/46   25/32       0.0240%
+    matched-quiet  rstd  x7.435    7/46    7/32       0.0009%
+    matched-loud   gru   x0.346   35/46   26/32       0.0174%
+
+  m1-ss5
+    frozen      gru-quantile      26/42   21/31       0.0141%
+    frozen      rstd              34/42   25/31       0.0408%
+    matched-quiet  rstd  x6.083   11/42   11/31       0.0078%
+    matched-loud   gru   x0.936   32/42   24/31       0.0169%
+```
+
+**Held to the forecaster's alarm rate, the floor finds 7 of 32 headline-cell
+events, not 25.** Its 25/32 is bought with eighteen times the alarm rate.
+Allowed the floor's rate, the forecaster reaches 26/32 against 25/32 on the gate
+set -- and 24/31 against 25/31 on `m1-ss5`, where it stays behind.
+
+And the nesting reverses with it:
+
+```
+                      both  only-GRU  only-rstd  neither
+  m1-g8.9.10  frozen    27       0         7        12
+              matched    7      20         0        19    (rstd tightened)
+  m1-ss5      frozen    26       0         8         8
+              matched   11      15         0        16
+```
+
+**At every matched operating point on both sets, only-`rstd` is 0 or 2.** D38's
+strict-subset result holds at the frozen thresholds and is a calibration
+artifact, not a property of the two detectors (D41).
+
+**What does not move.** Neither detector catches any of the three contextual
+events at any of these operating points, so D39 and D40 stand unchanged. The
+threshold was swept and never chosen -- no operating point is recommended from
+this curve, and the flying threshold is the frozen 99.9th percentile (D25).
+
+**Still unmeasured**: event-wise F0.5 along the sweep. The curve recorded events
+caught and nominal steps flagged, not alarm ranges classified, so the 0.128 and
+0.070 gaps are stated only at the frozen point. Closing that costs one further
+bundle load (`docs/MODELS.md` 23.15).
 
 ## 7. What these numbers say
 
