@@ -1265,7 +1265,11 @@ it survived, and nobody would have checked what it measured.
 
 **CONTEXT.** Objective.md 2.4 defines the target class as one where every channel
 is individually legal while the combination is wrong, and `docs/RESULTS.md`
-reports 28 of 32 headline-cell events caught against `rstd`'s 3. Where in the
+reports 28 of 32 headline-cell events caught against `rstd`'s 3. **(!) Both
+figures are superseded (D37, D38); the corrected comparison is
+`docs/RESULTS.md` 6l. D23's finding does not depend on either -- it is about
+where in the pipeline the claim is expressed, not about how many events it
+catches -- and the entry is left as written.** Where in the
 pipeline that claim is actually expressed had never been written down.
 
 **EVIDENCE.** Every stage between the forecast and the alarm, inspected:
@@ -2371,6 +2375,20 @@ any forecaster figure or their ordering.
    before any of this -- it clears the corrected floor 0.804 to 0.676, with
    precision 139/157 against 84/127 and 0.00066 alarms per thousand nominal steps
    against 0.0024.
+
+   **(!) COMPLETED 2026-09-02, and this consequence was written one set short.**
+   That comparison is `m1-g8.9.10` only. On **`m1-ss5` the corrected floor leads
+   the same gate metric, 0.663 to 0.593**, and the alarm-rate advantage is 1.40x
+   rather than 3.71x. Both figures were in the artifacts this entry was written
+   from -- `runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json` and
+   `runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json`, each carrying
+   both sets -- and neither this entry, `docs/STATUS.md`, `docs/RESULTS.md` 1a nor
+   `CHANGELOG.md` 0.6.1 states the second. They are now in one table at
+   `docs/RESULTS.md` 6l. **The selection does not change**: D28 compared the three
+   architectures against each other, never against `rstd`, and it already records
+   the GRU's 0.593 on `m1-ss5`. What changes is that the gate-metric sentence is
+   no longer quotable in the singular, and the withdrawal note now carries both
+   sets.
 2. **The per-event argument for the forecaster is withdrawn on Mission 1.** It
    catches nothing the floor does not. Its case rests entirely on the *quality* of
    the same catches -- fewer alarms, higher precision -- which is a real and

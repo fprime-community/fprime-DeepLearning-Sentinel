@@ -18,34 +18,27 @@ can -- it checks three things a machine can settle:
   2. every tracked document is ASCII, which is a convention nothing enforced,
   3. a count a document states about this repository matches the repository.
 
-**On the baseline below.** ``BASELINE`` is a debt register, not an allowlist of
-things that are fine. It pins where each retired claim currently appears without
-a correction on the same line, so the set can shrink but never grow. Two kinds of
-entry are in it and they are not the same kind:
+**On the baseline below.** ``BASELINE`` is a register of where each retired
+claim still appears without a correction in its paragraph, pinned so the set can
+shrink but never grow. It was 25 entries when this test was written, across ten
+sites that asserted a superseded claim as live. **It is now 8, and all 8 are
+records that must never change:**
 
-  *Preserved.* `docs/MODELS.md` section 4's PREDICTED table and section 21's
-  verbatim re-quotation of it, and `CHANGELOG.md`'s 0.3.0 history entry. A
-  pre-registration that is edited after its outcome is not a pre-registration,
-  and these must never be corrected. They are pinned so they cannot move either.
+  `docs/MODELS.md` section 4's PREDICTED table and section 21's verbatim
+  re-quotation of it; `CHANGELOG.md`'s 0.3.0 entry; `docs/DECISIONS.md` D9's and
+  `docs/RESULTS.md` section 1's measured lead tables; `docs/NARRATIVE.md`'s
+  account of what was believed at the time; and a print string in a superseded
+  sweep. A pre-registration edited after its outcome is not a pre-registration,
+  and a record corrected in hindsight is not a record. They are pinned here so
+  they cannot move in either direction.
 
-  *Debt.* The twelve sites the restatement has to fix, held pending review at
-  `docs/STATUS.md` section 7 on D39. In order:
-
-      Objective.md          1.1's KEPT block, and section 4.4
-      README.md             "What is claimed, and what is retired"
-      docs/RESULTS.md       section 7, and section 1a's quotation of the old text
-      docs/PHASE1_REPORT.md the work item 4 narrative, and the closing claim
-      docs/NARRATIVE.md     section 3
-      docs/DECISIONS.md     D23's context block
-      docs/MODELS.md        section 8
-      whiten.py             the module docstring
-
-  Every figure in those sentences is superseded: the floor is 25/32 and not 3
-  (D37), the "28 of 32" is `lstm-telemanom`'s -- a detector disqualified at 22 of
-  48 commanded manoeuvres -- and not the flying `gru-quantile`'s 22/32, and D38
-  has since measured the flying detector's catches as a strict subset of the
-  floor's. When the restatement lands, each corrected line gains a marker and
-  drops out of the scan, and its entry here goes with it.
+  **The restatement debt is zero.** The ten sites that asserted the claim as
+  live were withdrawn on 2026-09-02, each keeping the withdrawn sentence in
+  quotation so the record survives. What replaced them is a holding note, not a
+  new claim: the headline comparison is withdrawn pending re-measurement under
+  work item 9.7, and `docs/RESULTS.md` 6l carries the corrected comparison on
+  both channel sets. If a new sentence asserts a retired claim, this test fails
+  and names the file and line.
 
 The scan is deliberately narrow. It matches the retired *claims* as prose --
 "28 of 32", "finds three", "the floor's 3", "+26 timesteps" -- and not the bare
@@ -82,31 +75,16 @@ CLAIMS = {
 #: retirement. See `docs/MODELS.md` 21.2 -- "nothing is overwritten and no
 #: number is deleted".
 CORRECTED = re.compile(
-    r"\(was |\(!\)|RETIRED|[Rr]etired|used to|D37|D38|D39|D40"
+    r"\(was |\(!\)|RETIRED|[Rr]etired|WITHDRAWN|[Ww]ithdrawn|used to|D37|D38|D39|D40"
     r"|was an artifact|not three|not 3\b|turned out|about arithmetic")
 
 BASELINE = {
-    ("CHANGELOG.md", "three"): 1,                    # preserved: 0.3.0 history
-    ("Objective.md", "ratio"): 2,
-    ("Objective.md", "three"): 1,
-    ("README.md", "ratio"): 1,
-    ("README.md", "three"): 1,
-    ("docs/DECISIONS.md", "lead"): 1,                # preserved: D9's lead table
-    ("docs/DECISIONS.md", "ratio"): 1,
-    ("docs/DECISIONS.md", "three"): 1,
-    ("docs/MODELS.md", "ratio"): 1,
-    ("docs/MODELS.md", "three"): 3,                  # 2 preserved (4.x, 21.1)
-    ("docs/NARRATIVE.md", "lead"): 1,                # preserved: the narrative
-    ("docs/NARRATIVE.md", "ratio"): 1,
-    ("docs/NARRATIVE.md", "three"): 1,
-    ("docs/PHASE1_REPORT.md", "lead"): 1,            # preserved: the narrative
-    ("docs/PHASE1_REPORT.md", "ratio"): 1,
-    ("docs/PHASE1_REPORT.md", "three"): 1,
-    ("docs/RESULTS.md", "lead"): 1,                  # preserved: section 1 table
-    ("docs/RESULTS.md", "ratio"): 1,
-    ("docs/RESULTS.md", "three"): 2,                 # 1 preserved (1a's quote)
-    ("scripts/threshold_sweep.py", "lead"): 1,       # preserved: a print string
-    ("src/sentinel_models/whiten.py", "ratio"): 1,
+    ("CHANGELOG.md", "three"): 1,             # 0.3.0, the history entry
+    ("docs/DECISIONS.md", "lead"): 1,         # D9's measured lead table
+    ("docs/MODELS.md", "three"): 3,           # section 4 PREDICTED, and 21's re-quotation
+    ("docs/NARRATIVE.md", "lead"): 1,         # the narrative, as it happened
+    ("docs/RESULTS.md", "lead"): 1,           # section 1's lead table
+    ("scripts/threshold_sweep.py", "lead"): 1,  # a print string in a superseded sweep
 }
 
 
@@ -119,19 +97,39 @@ def tracked() -> list[str]:
             or (f.endswith(".py") and f.startswith(("src/", "scripts/", "tests/")))]
 
 
+def paragraphs(lines: list[str]) -> list[tuple[int, int]]:
+    """Half-open [start, end) spans of consecutive non-blank lines, 0-indexed."""
+    spans, start = [], None
+    for i, line in enumerate(lines + [""]):
+        if line.strip():
+            start = i if start is None else start
+        elif start is not None:
+            spans.append((start, i))
+            start = None
+    return spans
+
+
 def scan() -> dict[tuple[str, str], list[int]]:
-    """Uncorrected occurrences of each retired claim, by file, with line numbers."""
+    """Uncorrected occurrences of each retired claim, by file, with line numbers.
+
+    The exemption is **paragraph-scoped, not line-scoped**. A withdrawal quotes
+    the sentence it withdraws, and a quoted sentence wraps: the marker lands on
+    one line and the banned phrase on the next. Scoping to the line would put
+    every such continuation in the register as debt, and a register full of
+    entries that are already fixed is one nobody reads.
+    """
     found: dict[tuple[str, str], list[int]] = {}
     for name in tracked():
         if name == "tests/test_documents_are_current.py":
             continue                      # this file quotes every pattern it bans
-        text = (ROOT / name).read_text(encoding="utf-8")
-        for number, line in enumerate(text.splitlines(), 1):
-            if CORRECTED.search(line):
+        lines = (ROOT / name).read_text(encoding="utf-8").splitlines()
+        for lo, hi in paragraphs(lines):
+            if any(CORRECTED.search(line) for line in lines[lo:hi]):
                 continue
-            for claim, pattern in CLAIMS.items():
-                if pattern.search(line):
-                    found.setdefault((name, claim), []).append(number)
+            for offset, line in enumerate(lines[lo:hi]):
+                for claim, pattern in CLAIMS.items():
+                    if pattern.search(line):
+                        found.setdefault((name, claim), []).append(lo + offset + 1)
     return found
 
 

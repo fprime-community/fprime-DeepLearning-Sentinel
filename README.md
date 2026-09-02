@@ -75,10 +75,16 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
   range that `error_buffer` had widened backwards from a crossing that had already happened.
   Measured from the first crossing, the median lead is **0.0** on the gate set (D21,
   `docs/RESULTS.md` 6f). No wall-clock claim - no hours, no "~4h" - is made from Phase 1 evidence.
-- **Kept, and the stronger claim:** Sentinel is the first and only observer of cross-channel
-  relationship breaks in an F' deployment. On `m1-g8.9.10` a forecaster over the channel set finds
-  28 of 32 headline-cell events where a per-channel statistic finds 3; on an independent
-  spacecraft the same recipe alarms on one rare event in a hundred and on no nominal timestep.
+- **Kept, and narrower than it was:** nothing else in an F' deployment watches the relationships
+  between channels at all, and on an independent spacecraft the same recipe alarms on one rare
+  event in a hundred and on no nominal timestep (D29). Both still hold.
+- **(!) Withdrawn 2026-09-02:** the sentence that used to sit here -- "a forecaster over the
+  channel set finds 28 of 32 headline-cell events where a per-channel statistic finds 3" -- is
+  withdrawn pending re-measurement (D37, D38). The 3 was an arithmetic defect and is 25; the 28
+  was `lstm-telemanom`'s and the flying detector scores 22/32; and the flying detector catches a
+  strict subset of the corrected floor's events. The two are compared in `docs/RESULTS.md` 6l:
+  the forecaster leads the gate metric on `m1-g8.9.10` (0.804 against 0.676) at a third of the
+  alarm rate and trails on `m1-ss5` (0.593 against 0.663). Re-run under work item 9.7.
 - **Unmeasured by design:** the break-to-limit-trip lead. ESA-ADB carries no dictionary limits and
   an anonymised clock; that number is Phase 3's, on the F' Ref deployment, on a real clock.
 - **Measured against the recipe itself:** on a later period of the same spacecraft (`m1-g3`,

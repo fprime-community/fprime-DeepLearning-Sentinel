@@ -80,7 +80,12 @@ audit trail is the asset.
 ## 4. Then we found the missing third of the reference method
 
 Work item 4 reproduced telemanom and cleared the floor. The cross-channel claim
-came out well: 28 of 32 headline-cell events against `rstd`'s 3. The false-alarm
+came out well: 28 of 32 headline-cell events against `rstd`'s 3. **(!) Both
+numbers were wrong, and it took until work items 9.5 and 9.6 to find out: the 3
+was float32 accumulation and is 25 (D37), the 28 belongs to a detector that was
+disqualified on false alarms, and the detector that flies catches a strict
+subset of the corrected floor's events (D38). This paragraph is the record of
+what was believed, not of what is true.** The false-alarm
 rate did not: 22 of 48 commanded manoeuvres.
 
 A 24-cell decision-layer grid could not fix it -- the best cell still alarmed on

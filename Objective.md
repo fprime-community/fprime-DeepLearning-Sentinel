@@ -52,10 +52,26 @@ a positive figure would say *we spoke before the annotation begins*, not *we
 spoke before the spacecraft was in danger*. The two are different quantities and
 only the second is the product claim.
 
-**KEPT, and it is the stronger claim anyway:** Sentinel is the **first and only
-observer of cross-channel relationship breaks**. On `m1-g8.9.10` a forecaster
-over the channel set finds 28 of 32 headline-cell events where a per-channel
-statistic finds 3. Nothing else in an F' deployment is watching for them at all.
+**KEPT, and narrower than it was:** nothing else in an F' deployment watches
+the relationships between channels at all. That is a statement about the F'
+ecosystem, verified in section 3, and nothing in D37, D38 or D39 touches it.
+
+**WITHDRAWN, and it was the evidence offered for the sentence above.** This
+used to continue: "On `m1-g8.9.10` a forecaster over the channel set finds 28 of
+32 headline-cell events where a per-channel statistic finds 3." Every figure in
+it is superseded. The 3 was `baselines._rolling` accumulating in float32 and is
+**25** (D37). The 28 of 32 is `lstm-telemanom`'s, a detector disqualified at 22
+of 48 commanded manoeuvres; the detector that flies scores **22/32**. And the
+flying detector catches a **strict subset** of the corrected floor's events on
+both Mission 1 sets (D38).
+
+**(!) WITHDRAWN 2026-09-02.** The Phase 1 headline comparison is withdrawn
+pending re-measurement (D37, D38). The corrected baseline and the flying
+detector are compared in `docs/RESULTS.md` 6l: on the pre-registered gate metric
+the forecaster leads on `m1-g8.9.10` (F0.5 **0.804** against **0.676**) at a
+third of the alarm rate, and **trails on `m1-ss5`** (0.593 against 0.663) at
+1.4x. The cross-channel catch comparison is re-run under work item 9.7
+(`docs/MODELS.md` 23).
 
 **The break-to-limit-trip lead is a Phase 3 deliverable and is unmeasured.**
 ESA-ADB carries no dictionary limits and its timestamps are anonymised and
@@ -258,8 +274,9 @@ have.** Measured by inspecting every stage between the forecast and the alarm
 (docs/MODELS.md section 11, docs/DECISIONS.md D23).
 
 **The forecaster is multivariate. The decision layer is not.** One model predicts
-every channel from every channel, which is why 28 of 32 cross-channel events are
-caught. Everything after that point sees C independent error series: smoothing,
+every channel from every channel, which is why **22 of 32** headline-cell events
+are caught (was "28 of 32", which was `lstm-telemanom`'s; D37, D38).
+The mechanism below is unchanged by the correction; only the number is. Everything after that point sees C independent error series: smoothing,
 thresholding, sequence-finding, pruning and persistence each take **one channel
 at a time**. The k-of-n channel agreement is the only stage that looks at more
 than one, and what it tests is **co-occurrence, not relationship** -- k channels

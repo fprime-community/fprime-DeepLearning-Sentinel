@@ -955,8 +955,10 @@ and this is where it is and is not expressed.
 
 **The forecaster is multivariate and the decision layer is not.** One LSTM
 predicts every channel from every channel, so a broken relationship raises the
-residual on whichever channels became unpredictable -- that is why 28 of 32
-headline-cell events are caught (`docs/RESULTS.md`). Everything after that point
+residual on whichever channels became unpredictable -- that is why **22 of 32**
+headline-cell events are caught (was "28 of 32", `lstm-telemanom`'s figure;
+D37, D38, `docs/RESULTS.md` 6l). The mechanism is unchanged; the number is
+the flying detector's. Everything after that point
 sees **twelve independent error series**:
 
 | Stage | Input | Sees more than one channel? |

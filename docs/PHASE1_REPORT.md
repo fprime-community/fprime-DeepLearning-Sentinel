@@ -57,8 +57,11 @@ then believed; `docs/RESULTS.md` 1a states what the correction does to the concl
 Work item 4 reproduced telemanom's detection method with one multivariate LSTM (91,640
 parameters), trained in PyTorch and scored through a plain-NumPy forward pass held to torch at
 1e-5 - the blueprint the C++ will be transcribed from (`docs/MODELS.md` sections 2-3). The thesis
-held at once: **28 of 32 headline-cell events against the floor's 3** (`docs/RESULTS.md` section
-2). The false-alarm rate did not: 22 of 48 commanded manoeuvres alarmed on, and a third of the
+appeared to hold at once: **28 of 32 headline-cell events against the floor's 3** (`docs/RESULTS.md`
+section 2) -- **(!) and neither figure survived. The floor's 3 was an arithmetic defect and is 25
+(D37); the 28 is `lstm-telemanom`'s and the detector that flies scores 22/32; and the flying
+detector catches a strict subset of the corrected floor's events (D38). Section 6l is the
+corrected comparison.** The false-alarm rate did not: 22 of 48 commanded manoeuvres alarmed on, and a third of the
 published method's input - the telecommands - had never been wired in (D6).
 
 Then a published constant turned out to have disabled training. telemanom's `min_delta = 3e-4`
@@ -95,8 +98,10 @@ start of an alarm range that `error_buffer` had widened backwards from a crossin
 happened. Measured from the crossing, the median lead is **0.0**, and fifteen of thirty-eight
 detections on the gate set had no emission overlapping the event at all (D21, `docs/RESULTS.md`
 section 6f). The claim "+26 timesteps of early warning" was retired in Objective.md section 1.1
-and the stronger, surviving claim stated in its place: the first and only observer of cross-channel
-breaks in an F' deployment. The break-to-limit lead remains a Phase 3 measurement on a real clock.
+and the surviving claim stated in its place: the first and only observer of cross-channel
+breaks in an F' deployment -- which is a statement about what an F' deployment contains, and
+stands. **(!) The catch comparison that used to be offered as its evidence is withdrawn
+(D37, D38); see `docs/RESULTS.md` 6l and work item 9.7.** The break-to-limit lead remains a Phase 3 measurement on a real clock.
 
 ### Three architectures, one variable
 

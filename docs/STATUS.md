@@ -6,7 +6,13 @@ file); **WI9 complete** (the F' component and the Level 1 safe-failure mode, tag
 **WI9.6 complete** -- the corrected floor is not leaking, and the audit found two things
 worse than the correction did: the forecaster catches a **strict subset** of the floor's
 events on Mission 1 (D38), and the headline cell is **3/32 contextual**, with all three
-missed by both detectors (D39). The checkpoint snapshot to `main` is held pending review.
+missed by both detectors (D39). **2026-09-02: the false headline comparison is
+withdrawn from all ten documents that carried it** and replaced by a holding note, not
+by a new claim -- `docs/RESULTS.md` 6l is the corrected comparison on both channel sets,
+and it shows the forecaster leading the gate metric on `m1-g8.9.10` (0.804 to 0.676) and
+**trailing on `m1-ss5` (0.593 to 0.663)**, which no document had stated. Work item 9.7
+is pre-registered (`docs/MODELS.md` 23) and not run. The checkpoint snapshot to `main` is
+held until the new headline is written from 9.7's results.
 Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
@@ -204,9 +210,20 @@ HOUSEKEEPING
       (README) - done before any public release.
 - [ ] Pre-publication sweep of the history for anything sensitive - done before the repository
       goes public.
-- [ ] Restate the project's claim in every document that carries it, on D39: the
+- [x] Withdraw the false headline comparison from every document that carried it -
+      **done 2026-09-02**. The ten sites that asserted "28 of 32 ... where a per-channel
+      statistic finds 3" as live now carry a holding note and keep the withdrawn sentence
+      in quotation. `docs/RESULTS.md` 6l is the corrected comparison on both sets, and
+      `tests/test_documents_are_current.py` keeps the retired figures from reappearing.
+- [ ] Write the new headline, from work item 9.7's results and not before. The
       early-warning claim was retired at Objective.md 1.1 and the contextual-class claim
-      is now in the same position. Held pending review; nothing is rewritten yet.
+      is now in the same position (D39). No replacement claim is stated meanwhile: the
+      measured state of the current decision layer is recorded in `docs/RESULTS.md` 6l
+      and `docs/MODELS.md` 22, and it is not a front-page claim.
+- [ ] Work item 9.7 (`docs/MODELS.md` 23, pre-registered 2026-09-02, not run): study A
+      the matched-false-alarm curve and study B the reduction study, one bundle load
+      together; C leave-one-out cross-prediction and D the injected-fault study, scoped
+      with costs and not built.
 - [ ] A scoring set whose events are selected for the contextual property rather than
       assumed to have it (D39 consequence 5). ESA-ADB may not contain one at `n >= 20`.
 - [ ] Open decisions carried (`docs/PHASE2.md` section 6) - D14, the weight-cache key is still

@@ -248,8 +248,20 @@ deployment, on a real clock. **No wall-clock or "hours" figure may be derived
 from anything in this document** (Objective.md 1.1).
 
 What this project claims from Phase 1 is not earliness. It is that Sentinel is the
-**first and only observer of cross-channel relationship breaks** -- 28 of 32
-headline-cell events against a per-channel statistic's 3.
+**first and only observer of cross-channel relationship breaks** in an F'
+deployment -- a statement about the ecosystem, which stands.
+
+**(!) WITHDRAWN 2026-09-02.** The Phase 1 headline comparison is withdrawn
+pending re-measurement (D37, D38). The corrected baseline and the flying
+detector are compared in `docs/RESULTS.md` 6l: on the pre-registered gate metric
+the forecaster leads on `m1-g8.9.10` (F0.5 **0.804** against **0.676**) at a
+third of the alarm rate, and **trails on `m1-ss5`** (0.593 against 0.663) at
+1.4x. The cross-channel catch comparison is re-run under work item 9.7
+(`docs/MODELS.md` 23).
+
+The clause that used to close this paragraph -- "28 of 32 headline-cell events
+against a per-channel statistic's 3" -- is withdrawn with it. Section 6l is the
+comparison; section 1a is what the correction did to the claim.
 
 **(!) MEASURED 2026-08-28: the term is the whole of the number.** From the first
 actual threshold crossing, `lstm-telemanom`'s median lead is **+0.0** on both
@@ -1474,6 +1486,102 @@ replaceable in orbit, and what the C++ component must be designed to
 recalibrate. Recorded, not reopened: D28 stands, D25 stands as the Phase 1
 layer, and the recalibration question is Phase 2's first decision on the
 decision layer.
+
+## 6l. Work items 9.5 and 9.6: the corrected floor beside the flying detector
+
+**Added 2026-09-02.** Sections 6h to 6k compare the three architectures against
+each other. None of them compares the selected architecture against the floor
+*after* the floor was corrected, because the correction came later (D37). This
+section is that comparison, on both channel sets, and it is where the withdrawn
+Phase 1 headline points.
+
+Every figure is read from the two named artifacts and nothing here was
+recomputed:
+
+```
+  rstd, corrected   runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json
+  gru-quantile      runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json
+```
+
+Both carry `sets: ["m1-g8.9.10", "m1-ss5"]`; the subset is scored from the same
+bundle load, which is why there is no separate `m1-ss5` artifact.
+
+**GATE -- `m1-g8.9.10`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | rare-FA | alarms / 1k nominal |
+|---|---|---|---|---|---|---|
+| `rstd` (the floor, corrected) | 0.676 | **34/46** | **25/32** | 84/127 (0.661) | 3/48 | 0.00244 |
+| **`gru-quantile`** (flies) | **0.804** | 27/46 | 22/32 | **139/157 (0.885)** | **1/48** | **0.00066** |
+
+**`m1-ss5`**
+
+| Detector | **F0.5** | recall | **MVGS** | precision | rare-FA | alarms / 1k nominal |
+|---|---|---|---|---|---|---|
+| **`rstd`** (the floor, corrected) | **0.663** | **34/42** | **25/31** | 73/115 (0.635) | 3/48 | 0.00386 |
+| `gru-quantile` (flies) | 0.593 | 26/42 | 21/31 | **101/172 (0.587)** | 3/48 | **0.00276** |
+
+### (!) The gate-metric result is not the same on the two sets, and only one has been quoted
+
+**On the gate set the forecaster leads by 0.128. On `m1-ss5` the corrected floor
+leads by 0.070.** D38 consequence 1, `docs/STATUS.md`, `docs/RESULTS.md` 1a and
+`CHANGELOG.md` 0.6.1 all state the first and none states the second. Both
+figures were in the artifacts on 2026-09-01; they had never been put in one
+table.
+
+```
+  m1-g8.9.10   gru-quantile 0.804   rstd 0.676    forecaster +0.128
+  m1-ss5       gru-quantile 0.593   rstd 0.663    floor       +0.070
+```
+
+The alarm-rate advantage is also set-dependent and only the larger has been
+quoted: **3.71x** on the gate set, which is the "third of the alarm rate" every
+document repeats, and **1.40x** on `m1-ss5`.
+
+This does not overturn D28, which compared LSTM, GRU and TCN against each other
+and never involved `rstd`; `docs/DECISIONS.md` D28 already records the GRU's
+0.593 on `m1-ss5` and says "those numbers travel with the decision". What it
+overturns is the habit of quoting the gate set alone when the subset disagrees.
+`tests/test_both_sets_reported.py` exists precisely to make single-set
+publication structurally impossible, and it did not catch this because the two
+figures were published in different sections rather than in one partial
+artifact.
+
+**Read together, the honest summary of the pair is:** the forecaster wins the
+gate metric on one set and loses it on the other; it is the more precise
+detector on the gate set (0.885 against 0.661) and the less precise one on the
+subset (0.587 against 0.635); and it is quieter on both, by 3.71x and 1.40x.
+
+### Per event: the catches are nested on both sets
+
+From `runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json`, reported
+in full by id in `docs/MODELS.md` 22.11:
+
+```
+  m1-g8.9.10   both 27   only-GRU 0   only-rstd 7   neither 12
+  m1-ss5       both 26   only-GRU 0   only-rstd 8   neither  8
+```
+
+**There is no event on either set that `gru-quantile` catches and the corrected
+`rstd` misses** (D38). The two detectors are ordered, not complementary, in the
+sense D25 established for `lstm-whitened` and `lstm-quantile`, and a union buys
+nothing.
+
+Of the 32 headline-cell events on the gate set, **3 are truly contextual** by
+the 0.1/99.9 training envelope -- `id_121`, `id_153`, `id_157` -- and the same
+three are the contextual set on `m1-ss5`'s 31 (D39, replicated in 22.11).
+**Neither detector catches any of them, on either set**: `gru-quantile` 0/3 and
+`rstd` 0/3, at reaches of 0.11 to 0.61 against a threshold of 1. Contextual is a
+property relative to a watched channel set (D40).
+
+### What this section does not settle
+
+The comparison above is at each detector's own calibrated threshold, which is
+the frozen 99.9th percentile of its own anomaly-masked fitting window (D25). A
+detector that alarms more will catch more, and these two alarm at rates that
+differ by 3.71x and 1.40x. **The two have never been compared at a matched
+false-alarm rate**, and until they are, neither the 0.128 nor the 0.070 is a
+like-for-like result. That is work item 9.7 study A, pre-registered at
+`docs/MODELS.md` 23.3 with its predictions at 23.8.
 
 ## 7. What these numbers say
 
