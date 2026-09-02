@@ -1487,7 +1487,12 @@ thresholding is what is throwing it away.
 **The trivial baseline still did not win, and still not for the reason
 predicted.** `mavg` genuinely detects -- 25/32 headline-cell -- but buys it with
 19,909 alarms at 2.3% precision. F0.5 and the adoption number both see through
-it.
+it. **(!) Corrected 2026-09-02 (D37): both of those are pre-fix.** `mavg`
+re-scored is **27/32 (was 25/32)** on 8,099 alarms at 14.2% precision (section
+2). The 25/32 here is `mavg`'s old figure and **not `rstd`'s corrected 25/32**,
+which it collides with by coincidence. The conclusion is unchanged and is
+stronger: the baseline detects more than this paragraph credited it with, and
+still loses on F0.5 and on adoption.
 
 **The two sets remain two regimes.** `lstm-telemanom` scores 0.664 on `m1-ss5`
 against 0.269 on `m1-g8.9.10`, and prefers opposite values of k on each. Group 8

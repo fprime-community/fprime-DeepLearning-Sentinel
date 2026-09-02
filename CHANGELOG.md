@@ -14,6 +14,85 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.2] - 2026-09-01 - Phase 2 work item 9.6: auditing the corrected floor
+
+The audit of a result that overturned a thesis, pre-registered at `e31533d` before a
+figure was computed. It found the floor clean and two things worse than the correction
+had been. Zero new capability; one bundle load, 15 Class B and 1 Class A against a
+budget of 20; cached weights, nothing refitted, the weight store unchanged at 86 files.
+
+### Added - work item 9.6, 2026-09-01
+
+- **`docs/MODELS.md` 22**, fourteen predictions L1 to L14 with their falsifications, and
+  `scripts/floor_audit.py`. Artifact
+  `runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json`. The audit reproduces
+  every published scorecard count exactly -- 27/46, 34/46, 22/32, 25/32 -- before it says
+  anything new.
+- **The corrected floor is not leaking, and work item 9.5's numbers stand as measured.**
+  L1 to L4 all hold: perturbing a future sample changes rows before `t` by exactly 0.0
+  with a working control; `fit` sees only the masked training window through the same
+  `harness.py:144` line every detector uses; the fallback scale is unreachable; and
+  `RollingStd.threshold_from` **is** `Detector.threshold_from`, the same function object
+  the GRU's calibration calls. The catches are sustained, not stray: excluding
+  footprint-1 events, 0 of 25 are single-step and the alarm covers a median 95% of the
+  event.
+- **D38 -- `gru-quantile` catches a strict subset of the floor's events on Mission 1.**
+  Both 27, only-GRU 0, only-`rstd` 7, neither 12 on the gate set; 26/0/8/8 on `m1-ss5`.
+  There is not one event on either set, in any taxonomy cell, that the flying detector
+  catches and the corrected floor misses. The seven it misses are short and sharp --
+  footprints 1, 1, 1, 1, 24, 28, 54 -- where its own 105-span EWMA smooths the excursion
+  away. The per-event argument for the forecaster is withdrawn on these two sets; its
+  case rests on the quality of the same catches, which is what D3's gate metric measures.
+- **D39 -- the headline cell is not the contextual class, and the contextual class is
+  caught by nothing.** Of the 32 headline-cell events, 3 are truly contextual by the
+  0.1/99.9 training envelope and 6 by hard min/max, against 8 to 16 predicted. The other
+  29 breach at least one channel's own envelope. The three genuinely contextual events
+  are caught by neither detector, at reaches of 0.11 to 0.61 against a threshold of 1. On
+  the evidence available this project has no measured instance of catching a contextual
+  anomaly. Stated carefully because an envelope is not a limit: breaching one does not
+  establish that a limit would have tripped, only the converse.
+- **The state-adaptation hypothesis is dead and backwards.** The GRU's score does not
+  collapse inside a sustained event -- median half-life 2,805 and 6,284 steps, and it
+  never halves in a third of them -- while `rstd`'s halves in about its own 120-step
+  window, 114 and 112. Whatever causes the GRU's misses, it is not that it learns the
+  anomaly. No structural remedy was scoped, because 22.3 made scoping conditional on the
+  hypothesis holding and it did not.
+- **Two predictions were refuted in the direction the work item was commissioned to
+  avoid**, which 22.4 said in advance to watch for. And L5's own definition was defective:
+  it did not condition on footprint, so nine footprint-1 events counted as stray ticks
+  when a one-step crossing on a one-step event is a perfect catch. Recorded Refuted
+  anyway, because a definition that needed fixing after seeing the data is what
+  pre-registration exists to expose.
+
+### Added - work item 9.6 follow-up, 2026-09-02
+
+- **`docs/MODELS.md` 22.11**, the four answers the audit's own artifact held and 22.6 to
+  22.10 did not read: the four sets by id, fold, cell and footprint for both channel sets;
+  the fact that every only-`rstd` event is in fold 1, and that six of the seven are the
+  same six section 14 recorded as the GRU's fold-1 losses against the LSTM; `m1-ss5`'s 31
+  headline-cell events classified, replicating D39 at 3/31 on the same three event ids;
+  and the correction of the work item's brief, whose "twelve GRU-missed events" are in
+  fact `lstm-quantile` misses of which `gru-quantile` recovered seven. Zero bucket
+  operations.
+- **D40 -- "truly contextual" is defined relative to a watched channel set.** Hard
+  min/max contextual goes from 6/32 on twelve channels to 18/31 on six while the 0.1/99.9
+  count stays at 3, verified as a strict superset relation with no violations. The
+  mechanism is monotonicity. D39's headline and all five of its consequences stand,
+  better supported than before.
+- **`tests/test_documents_are_current.py`**, three checks: no new live occurrence of a
+  claim `Objective.md` 1.1 has retired, every tracked document ASCII, and a test count a
+  live document states matching what pytest collects. The stated counts were 493 and 473
+  against 508 collected; both are corrected.
+
+### Held - not done, and not quietly
+
+- **The restatement of the central claim** in every document that carries it. Nine
+  sentences still assert a ratio D37 falsified and D38 reversed, and they are pinned by
+  the new test rather than fixed. Held pending review (`docs/STATUS.md` section 7).
+- **Two gaps in the audit's instrument**, named in 22.10 and priced in 22.11: GRU run
+  lengths were never recorded, and `lead_of` cannot separate a crossing at onset from an
+  alarm already running. One bundle load together, 15 Class B and 1 Class A.
+
 ## [0.6.1] - 2026-09-01 - Phase 2 work item 9.5: the floor was wrong
 
 A D8 correctness fix and the re-score it forced. Zero new capability; one published
@@ -45,6 +124,12 @@ claim falsified.
   The sentence this repository has quoted since work item 4 -- "a per-channel statistic
   finds three; a forecaster over the channel set finds twenty-eight" -- is about arithmetic,
   and is corrected everywhere it appears with the old figure beside it.
+  **(!) CORRECTED 2026-09-02: that last clause was not true when it was written.** The
+  sweep corrected every scorecard *table* and left the *prose claim* standing in nine
+  sentences, including `Objective.md` 1.1's KEPT block, which is the passage
+  `docs/INDEX.md` sends every reader to first. The restatement is held pending review at
+  `docs/STATUS.md` section 7 on D39; `tests/test_documents_are_current.py` now pins the
+  nine so the set cannot grow while it waits.
 - **What survives.** On the gate metric D3 fixed before any of this was measured -- event-wise
   F0.5, never bare recall -- `gru-quantile` still clears the corrected floor **0.804 to
   0.676**, reaching comparable recall at **a third of the alarm rate** with precision 0.885
