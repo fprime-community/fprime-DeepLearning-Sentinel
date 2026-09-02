@@ -223,7 +223,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (493 tests, zero R2 operations).
+  (508 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -237,7 +237,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 493 tests
+.venv/bin/python -m pytest -q                                    # 508 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1
