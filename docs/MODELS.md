@@ -3691,3 +3691,270 @@ steps on average -- but it is not settled per event, and settling it needs a
 second bundle load this section's budget does not allow. Separately, run lengths
 were instrumented for `rstd` and **not** for the GRU, so 22.6's L5 finding has no
 forecaster comparison. Both are gaps in the instrument, not in the data.
+
+### 22.11 The rows 22.6 to 22.10 did not read
+
+**Added 2026-09-02. No prediction is attached to this subsection, and that
+is deliberate.** Every figure below is derived from the artifact work item
+9.6 already committed --
+`runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json` -- and
+those figures were seen before this subsection was written. A
+pre-registration written after its own answers are known is theatre, and
+22.4 exists to prevent exactly that, so this is filed as a **derivation from
+a committed artifact** rather than as a new experiment. It spends **zero
+bucket operations**: no bundle is loaded, no weight is read, nothing is
+refitted, and the weight store stays at 86 files.
+
+It exists because the work item's brief asked for four things that 22.6 to
+22.10 reported only as counts, or did not report at all.
+
+#### The four sets, by id
+
+The brief asked for the four sets "with ids, folds, footprints" and to lead
+the report with the only-GRU set. 22.7 and D38 give the counts and seven
+footprints; the ids have never been published. **Reach** is the peak score
+inside the event span divided by that detector's own calibrated threshold,
+so 1.00 is the crossing and anything below it is a miss with its distance
+stated.
+
+**`m1-g8.9.10`** -- 46 scorable `Anomaly` events over folds 0, 1 and 2; both
+**27**, only-GRU **0**, only-`rstd` **7**, neither **12**.
+
+**only-GRU: 0 events. The set is empty.** There is no event on this set that
+`gru-quantile` catches and the corrected `rstd` misses, in any taxonomy
+cell. That is D38 stated as a list instead of a count, and the list has
+nothing in it.
+
+**only-`rstd`: 7 events.**
+
+| event | fold | cell | footprint | GRU reach | `rstd` reach |
+|---|---|---|---|---|---|
+| `id_142` | 1 | MVGS | 54 | 0.62 | 6.39 |
+| `id_122` | 1 | MVGS | 28 | 0.60 | 6.34 |
+| `id_124` | 1 | MVGS | 24 | 0.60 | 6.02 |
+| `id_129` | 1 | MVGP | 1 | 0.60 | 6.01 |
+| `id_130` | 1 | MVGP | 1 | 0.61 | 5.24 |
+| `id_132` | 1 | MVGP | 1 | 0.55 | 6.43 |
+| `id_140` | 1 | MVGP | 1 | 0.61 | 6.01 |
+
+**neither: 12 events.**
+
+| event | fold | cell | footprint | GRU reach | `rstd` reach |
+|---|---|---|---|---|---|
+| `id_89` | 0 | MVGS | 8,995 | 0.39 | 0.89 |
+| `id_13` | 0 | MVGS | 5,459 | 0.29 | 0.52 |
+| `id_96` | 0 | MVGS | 4,537 | 0.27 | 0.64 |
+| `id_91` | 0 | MVLS | 55 | 0.22 | 0.53 |
+| `id_20` | 1 | MVLS | 16,227 | 0.13 | 0.60 |
+| `id_138` | 1 | MVGS | 1,787 | 0.18 | 0.61 |
+| `id_121` | 1 | MVGS | 257 | 0.11 | 0.54 |
+| `id_118` | 1 | MVGP | 1 | 0.08 | 0.53 |
+| `id_11` | 2 | MVLS | 1,375 | 0.21 | 0.68 |
+| `id_157` | 2 | MVGS | 51 | 0.24 | 0.57 |
+| `id_153` | 2 | MVGS | 10 | 0.18 | 0.61 |
+| `id_42` | 2 | UVLP | 1 | 0.17 | 0.61 |
+
+**both: 27 events** -- `id_12`, `id_10`, `id_101`, `id_103`, `id_102`,
+`id_93`, `id_107`, `id_90`, `id_109`, `id_110`, `id_114`, `id_134`,
+`id_116`, `id_145`, `id_18`, `id_183`, `id_177`, `id_160`, `id_176`,
+`id_150`, `id_149`, `id_184`, `id_166`, `id_187`, `id_186`, `id_165`,
+`id_172`.
+
+**`m1-ss5`** -- 42 scorable `Anomaly` events over folds 0, 1 and 2; both
+**26**, only-GRU **0**, only-`rstd` **8**, neither **8**.
+
+**only-GRU: 0 events. The set is empty.** There is no event on this set that
+`gru-quantile` catches and the corrected `rstd` misses, in any taxonomy
+cell. That is D38 stated as a list instead of a count, and the list has
+nothing in it.
+
+**only-`rstd`: 8 events.**
+
+| event | fold | cell | footprint | GRU reach | `rstd` reach |
+|---|---|---|---|---|---|
+| `id_145` | 1 | MVGS | 6,300 | 0.88 | 2.40 |
+| `id_122` | 1 | MVGS | 1 | 0.99 | 6.06 |
+| `id_124` | 1 | MVGS | 1 | 0.99 | 3.91 |
+| `id_129` | 1 | MVGP | 1 | 0.99 | 3.90 |
+| `id_130` | 1 | MVGP | 1 | 0.99 | 5.33 |
+| `id_132` | 1 | MVGP | 1 | 0.91 | 3.92 |
+| `id_140` | 1 | MVGP | 1 | 0.99 | 3.90 |
+| `id_142` | 1 | MVGS | 1 | 0.99 | 3.89 |
+
+**neither: 8 events.**
+
+| event | fold | cell | footprint | GRU reach | `rstd` reach |
+|---|---|---|---|---|---|
+| `id_89` | 0 | MVGS | 4,117 | 0.47 | 0.90 |
+| `id_96` | 0 | MVGS | 2,574 | 0.32 | 0.64 |
+| `id_138` | 1 | MVGS | 1,786 | 0.20 | 0.62 |
+| `id_118` | 1 | MVGP | 1 | 0.14 | 0.54 |
+| `id_121` | 1 | MVGS | 1 | 0.15 | 0.39 |
+| `id_157` | 2 | MVGS | 51 | 0.37 | 0.56 |
+| `id_153` | 2 | MVGS | 10 | 0.26 | 0.60 |
+| `id_42` | 2 | UVLP | 1 | 0.24 | 0.61 |
+
+**both: 26 events** -- `id_101`, `id_10`, `id_102`, `id_103`, `id_90`,
+`id_12`, `id_93`, `id_107`, `id_109`, `id_110`, `id_114`, `id_134`,
+`id_116`, `id_18`, `id_149`, `id_150`, `id_160`, `id_165`, `id_166`,
+`id_172`, `id_176`, `id_177`, `id_183`, `id_184`, `id_186`, `id_187`.
+
+#### Every only-`rstd` event is in fold 1
+
+Stated as an observation, with no mechanism claimed. Of the 7 only-`rstd`
+events on `m1-g8.9.10`, **all 7 are in fold 1**; of the 8 on `m1-ss5`, **all
+8 are in fold 1**. The gate set's folds carry 15, 15 and 16 scorable events,
+so the events were available in the other two folds and the entire nesting
+gap between the two detectors still lands in one of them.
+
+This is consistent with what section 14 already recorded from a different
+direction: `docs/MODELS.md` :1514-1517 names six fold-1 events the GRU
+**lost** when it replaced the LSTM -- `id_122`, `id_124`, `id_129`,
+`id_130`, `id_140`, `id_142` -- and six of the seven here are those same
+events. The seventh, `id_132`, is the one section 14 declined to score
+either way at a reach of 0.553. So D38's only-`rstd` set is not a new
+population; it is the fold-1 loss D26 already paid for, now visible against
+a floor that was not broken.
+
+What it is not is an explanation. Nothing here says why fold 1, and no
+mechanism is proposed.
+
+#### Claim B on `m1-ss5`: the 31 the brief asked for and 22.8 did not report
+
+The brief asked to "classify the 32 (and `m1-ss5`'s 31)". 22.8 and D39
+report the gate set alone. The artifact carries `envelope_breach_quantile`,
+`envelope_breach_minmax` and `channels_breaching` populated for every
+`m1-ss5` row as well, because `floor_audit.py`'s per-event loop runs
+identically for each member task, so the second half of the question was
+answerable all along.
+
+```
+                                              m1-g8.9.10      m1-ss5
+  channels watched                                    12           6
+  MVGS events                                         32          31
+  truly contextual, 0.1/99.9 envelope                  3           3
+  at least one channel leaves the envelope            29          28
+  contextual by hard min/max                           6          18
+```
+
+**`m1-ss5` replicates D39 exactly on the strict reading, and on the same
+three events.** The contextual set is `id_121`, `id_153`, `id_157` on both
+channel sets -- the identical ids, found on a six-channel view and a
+twelve-channel one. D39's most serious finding was measured once; it now has
+an independent corroboration, and this subsection is where it is recorded.
+
+**And neither detector catches any of them on `m1-ss5` either**:
+`gru-quantile` **0/3**, `rstd` **0/3**, against 21/28 and 25/28 on the
+envelope-breaching remainder. The two catch counts inside the contextual
+class are zero on both sets, which is the honest size of the claim and is
+what D39 consequence 2 already says.
+
+#### The loose reading is view-dependent; the strict one is not
+
+22.2 fixed the hard min/max as a second reading and said in advance that
+"where the two disagree that disagreement is the finding". It is, and it is
+larger than 22.8 saw, because 22.8 only ever looked at one channel set.
+
+```
+  contextual by 0.1/99.9 envelope    12 channels   3/32     6 channels   3/31
+  contextual by hard min/max         12 channels   6/32     6 channels  18/31
+  of the min/max set, caught by either detector     0                12
+```
+
+Halving the watched channels leaves the strict count at 3 and moves the
+loose count from 6/32 to 18/31. The reason is mechanical and it is not a
+defect: an event is classified contextual when **no watched channel** leaves
+its envelope, so removing channels removes chances to breach and can only
+move events into the contextual class, never out of it. The strict reading
+did not move because the 0.1/99.9 envelope is tight enough that the events
+breaching it breach on channels present in both views.
+
+**The consequence is a definition, not a number.** "Truly contextual" is not
+a property of an event. It is a property of an event *relative to a watched
+channel set*, and a figure quoted without naming that set is
+underdetermined. On the six-channel view 12 of the 18 min/max-contextual
+events are caught by at least one detector, where on the twelve-channel view
+none of the 6 are -- the same detectors, the same threshold recipe, a
+different set of channels to be contextual with respect to. Recorded as
+**D40**.
+
+This qualifies D39's second reading and leaves its first intact. D39's
+headline figure is the 0.1/99.9 one, it is the conservative direction, and
+it is now measured at 3/32 and 3/31 on two views. **Nothing in D39's
+consequences changes.**
+
+#### The brief's "twelve GRU-missed events" is a mis-citation
+
+The work item's brief asked to cross the overlap sets with "the twelve
+GRU-missed events on record (`docs/MODELS.md` 14 and 16)". **The twelve on
+record are not GRU-missed.** Section 14 defines them at :1297-1313 as the
+twelve events `lstm-telemanom` catches and **`lstm-quantile`** misses -- the
+set work item 5 was commissioned to attack. Section 14.8.2 then records at
+:1497-1505 that `gru-quantile` **recovered 7 of them**. Crossing the audit
+against "the twelve GRU-missed events" would cross it against a set that
+does not exist.
+
+Two questions do exist in its place, and both are answerable from the
+committed artifact.
+
+**Of the historical twelve, which does the corrected `rstd` catch?** 8 of
+the 12 that are scorable on the gate set.
+
+| event | in the twelve | GRU | `rstd` | GRU reach | `rstd` reach |
+|---|---|---|---|---|---|
+| `id_12` | recovered by GRU | yes | yes | 1.27 | 6.04 |
+| `id_20` | still GRU-missed | no | no | 0.13 | 0.60 |
+| `id_89` | still GRU-missed | no | no | 0.39 | 0.89 |
+| `id_90` | recovered by GRU | yes | yes | 1.27 | 6.02 |
+| `id_93` | recovered by GRU | yes | yes | 1.25 | 6.48 |
+| `id_107` | recovered by GRU | yes | yes | 1.29 | 6.48 |
+| `id_109` | recovered by GRU | yes | yes | 1.27 | 5.47 |
+| `id_110` | recovered by GRU | yes | yes | 1.23 | 5.94 |
+| `id_114` | recovered by GRU | yes | yes | 1.28 | 5.39 |
+| `id_132` | still GRU-missed | no | yes | 0.55 | 6.43 |
+| `id_138` | still GRU-missed | no | no | 0.18 | 0.61 |
+| `id_157` | still GRU-missed | no | no | 0.24 | 0.57 |
+
+So of the 5 of the twelve the GRU still misses -- `id_20`, `id_89`,
+`id_132`, `id_138`, `id_157` -- the corrected floor catches **1**, `id_132`,
+and misses the other **4**, which sit in the `neither` set above. The floor
+does not rescue the events the architecture gate could not.
+
+**And `gru-quantile`'s actual miss list on this set is 19, not 12** --
+`id_11`, `id_118`, `id_121`, `id_122`, `id_124`, `id_129`, `id_13`,
+`id_130`, `id_132`, `id_138`, `id_140`, `id_142`, `id_153`, `id_157`,
+`id_20`, `id_42`, `id_89`, `id_91`, `id_96`. Of those 19 the corrected
+`rstd` catches 7 and misses 12. The coincidence that the audit's `neither`
+set also numbers 12 is a coincidence and nothing more; it shares 4 members
+with the historical twelve.
+
+#### What is still open, and what it would cost
+
+22.10 named two gaps in the instrument and this subsection closes neither,
+because both need data the artifact does not carry. They are restated here
+with a price so a later work item can decide rather than rediscover.
+
+**GRU run lengths were never instrumented.** `runs_of` is called once, on
+`rstd`'s alarm mask, at `scripts/floor_audit.py:260`; there is no
+`gru_runs`, `gru_longest_run` or `gru_median_run` field. So 22.6's L5
+finding -- that the catches are sustained rather than stray -- has no
+forecaster comparison, and the sustained-catch claim is established for the
+floor alone.
+
+**L6 cannot separate "crossed at onset" from "an alarm was already
+running".** `lead_of` at `:184-188` returns the negated index of the first
+in-span alarm step and never inspects the mask before the span, so it is
+structurally incapable of a positive value and carries no information about
+alarm state at onset. 22.10 bounds it arithmetically at 75 steps on average
+over 34 caught events and leaves it unsettled per event.
+
+**Both are one bundle load, together: 15 Class B and 1 Class A**, both
+channel sets, all folds, from cached weights, by extending
+`scripts/floor_audit.py` with three fields and re-running it. Nothing else
+in this subsection costs anything. The month stands at 3 Class A and 56
+Class B against a ceiling of 50,000 each.
+
+Not attempted here, and named so it is not mistaken for an omission: why
+fold 1. The concentration is reported above as an observation and no
+mechanism is proposed for it.
+

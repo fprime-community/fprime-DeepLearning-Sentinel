@@ -2457,3 +2457,81 @@ invisible to limit checking**, and that the three which are, nothing here catche
    contextual property rather than assumed to have it. ESA-ADB may not contain one
    at n >= 20; `docs/HARNESS.md`'s own rule would stamp anything smaller
    UNDERPOWERED. That is a Phase 3 question and is not answered here.
+
+---
+
+## D40. "Truly contextual" is defined relative to a watched channel set, and the loose reading does not survive a change of view
+
+**DATE** 2026-09-02 | **STATUS** resolved as a definition. It qualifies D39's second
+reading and leaves its first intact
+
+**CONTEXT.** D39 measured how many of the 32 `Multivariate/Global/Subsequence`
+events on `m1-g8.9.10` are truly contextual -- no watched channel outside its own
+training envelope -- and reported **3/32 by the 0.1/99.9 envelope, 6/32 by hard
+min/max**. `docs/MODELS.md` 22.2 had fixed both readings in advance and said that
+"where the two disagree that disagreement is the finding". The disagreement was
+recorded and not investigated, because work item 9.6 classified one channel set
+and the brief had asked for two.
+
+**EVIDENCE.** The committed audit artifact
+`runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json` carries the
+envelope fields for `m1-ss5` as well as the gate set, so the second half was
+answerable at zero cost. `m1-ss5` is a strict six-channel subset of the gate
+set's twelve, scored on the same folds, and its MVGS set is the gate set's 32
+minus `id_13`.
+
+```
+                                          m1-g8.9.10      m1-ss5
+  channels watched                                12           6
+  contextual, 0.1/99.9 envelope                 3/32        3/31
+  contextual, hard min/max                      6/32       18/31
+  of the min/max set, caught by either detector    0          12
+```
+
+**The strict reading does not move and the loose one triples.** The contextual set
+under the 0.1/99.9 envelope is the same three events on both views --
+`id_121`, `id_153`, `id_157` -- which is an independent corroboration of D39's
+headline figure on a different channel set, and it is the first this project has.
+Under hard min/max the count goes from 6 to 18. Verified as a strict superset
+relation with no violations: every event contextual on twelve channels is
+contextual on six.
+
+**The mechanism is monotonicity, not a defect.** An event is classified contextual
+when **no** watched channel leaves its envelope, so removing channels removes
+chances to breach and can only move events into the class, never out of it. The
+strict reading held because the 0.1/99.9 envelope is tight enough that the events
+breaching it breach on channels present in both views.
+
+**ALTERNATIVES.** Report the min/max figure without the qualifier, as D39 does.
+Drop the min/max reading and keep only the 0.1/99.9 one. Record the dependence as
+a property of the definition and carry both.
+
+**Against the first.** A count that triples when six channels are removed is not a
+property of the events, and quoting it unqualified invites a reader to treat it as
+one. **Against the second.** 22.2 fixed both readings before the numbers existed
+and deleting the inconvenient one after the fact is the failure the
+pre-registration exists to prevent; the disagreement is evidence, not noise.
+
+**CONSEQUENCE.**
+
+1. **"Truly contextual" is a property of an event relative to a watched channel
+   set, not of the event.** Every figure for it names the channel set it is
+   contextual with respect to, or it is underdetermined. This applies to D39's
+   own 6/32, which is hereby read as "6 of 32 on the twelve-channel view".
+2. **D39's headline is unchanged and is now better supported.** The 0.1/99.9
+   reading is the conservative direction, it is what D39 leads with, and it is
+   measured at 3/32 and 3/31 on two views with the same three event ids. **None of
+   D39's five consequences changes**, including that neither detector catches any
+   of the three on either set -- `gru-quantile` 0/3 and `rstd` 0/3 both times.
+3. **It constrains the open item at `docs/STATUS.md` 7** -- a scoring set whose
+   events are selected for the contextual property rather than assumed to have it.
+   That selection is now known to be meaningless without a named channel set, and
+   a set assembled on a narrow view would inflate its own contextual count by
+   construction. Any such set states its view first.
+4. **It does not license widening or narrowing the watched channel set to move the
+   number.** Choosing a view after seeing what it does to the count is the oracle
+   sweep `docs/MODELS.md` section 7 refuses, and it stays refused. The two views
+   here are the ones the harness already pairs (`tasks.paired_with`), scored
+   together in one pass, and neither was chosen for its answer.
+5. **No detector, threshold, weight or decision layer changes.** This is a
+   statement about what a definition means. Recorded in `docs/MODELS.md` 22.11.
