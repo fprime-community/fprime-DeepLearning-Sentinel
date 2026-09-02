@@ -4383,3 +4383,97 @@ before this, D38 made only-GRU look structurally zero, and it is not.
 **Nothing was retrained, no threshold moved, the weight store is unchanged at 86
 files, and no artifact under `runs/` was written.** This subsection is arithmetic
 over a committed artifact.
+
+### 23.14 Studies C and D, costed. Nothing is built
+
+**2026-09-02, zero bucket operations.** 23.5 and 23.6 said what C and D are.
+This says what they cost, which is the deliverable, and it is written before
+either is approved because a design honest about its own cost is cheapest to
+abandon on paper.
+
+#### C -- leave-one-out cross-prediction
+
+Parameter counts are derived from the architecture, not quoted: two GRU layers of
+80, horizon 10, `C` channels. The model is checked against a real artifact --
+at `C = 6` it gives **64,860**, and `runs/_weights/055d4af3db3f92eefeb06f4c78e37142.npz`
+holds exactly 64,860 learned parameters. At `C = 12` it gives **71,160**, which
+is `gru-quantile`'s published figure.
+
+```
+  baseline gru-quantile, C = 12      params  71,160     MAC/tick  70,080
+```
+
+| design | params | x base | MAC/tick | x base | fits / files |
+|---|---|---|---|---|---|
+| **(a)** `C` independent models, each `C-1 -> 1` | 744,120 | 10.46x | 732,480 | 10.5x | 12 fits, 12 files |
+| **(b)** one shared trunk, target channel masked, `C` passes | **71,160** | **1.00x** | 840,960 | 12.0x | 1 fit, 1 file |
+| **(c)** `C` input projections, shared recurrence, `C` passes | 99,960 | 1.40x | 732,480 | 10.5x | 1 fit, 1 file |
+
+**M10 holds as written and was the wrong quantity to have predicted.** It named
+`<= 2x` on **parameters**, and design (b) is 1.00x. But no leave-one-out design
+avoids `C` recurrent passes: the exclusion has to hold per target channel, and a
+single shared recurrent state mixes every channel at layer 0, so isolation
+requires `C` states however the weights are arranged. **Every form costs about
+`C` times the arithmetic**, 10.5x to 12.0x here. That is a Phase 4 envelope
+question (Objective.md 12) before it is a Phase 3 accuracy question, and 23.8
+should have predicted MACs. Recorded as a defect in the prediction, not in the
+result.
+
+**M11 holds, and for a sharper reason than "the shapes do not fit".** For design
+(b) the shapes fit **exactly**: `l0_w_ih` is `(3*80, n_inputs = 12)` either way,
+so a leave-one-out model of that shape is byte-compatible with a version-1
+`model.bin`, and a version-1 reader would load it and **run it once instead of
+twelve times**, silently computing the wrong residual. Compatibility is the
+hazard here, not the obstacle. `docs/MODEL_FILE.md` already closes it: the
+header carries `reserved0` and `reserved1`, and the standing rule is that a
+**non-zero reserved field is refused, not tolerated** -- so declaring
+leave-one-out in one of them makes every existing reader refuse the file, which
+is a format change by construction and the safe outcome. `arch_id` reserves 2
+and 3 for LSTM and TCN and could take a fourth value on the same argument.
+
+**What C would still need before a line is written**: its own pre-registration;
+a decision on whether the frozen decision layer is re-derived with it (D23, D25),
+since a relationship-measuring residual reaching a channel-blind reduction
+throws away what it was built to produce; and a training-time estimate, which is
+not derivable from parameter counts and is the one number this scoping does not
+have.
+
+#### D -- the injected-fault study
+
+**Operations: none of its own.** The injections are built in memory from nominal
+windows of the fitting data, and the scoring uses the same resident arrays as A
+and B. Run in one script with them, D adds **0 Class B and 0 Class A** to the
+15 and 1 that A and B already cost.
+
+**(!) A constraint that changes the design, and it is Rule 1.** An injected set
+is real telemetry with values altered, so writing one to disk creates a **cached
+dataset derived from telemetry on local disk**, which `docs/HARNESS.md` section
+5 Rule 1 forbids and `tests/test_no_local_persistence.py` enforces -- and the
+ban was tightened at work item 9 to cover `runs/` too. **So the injected set is
+never stored as values.** What is stored under `runs/` is the **recipe**: fold,
+window indices, the driver and target channel ids, the family, its parameters
+and the seed -- metadata that regenerates the set exactly, in process, at no
+bucket cost. That also makes D reproducible from cold, which storing arrays
+would not.
+
+**Blindness.** Whoever writes the injector knows every answer, so blindness
+cannot be a matter of care. The recipe is generated and committed under its own
+hash **before** any detector is run against it, and the scoring script reads
+only the recipe and emits per-event catch flags; the mapping from event id to
+family and parameters is not read by the scorer. That is checkable after the
+fact from the two artifacts, which is the point.
+
+**Detectability, and the honest failure mode.** 23.7 defines a detectable
+injection as one whose peak reach under *some* detector in the study exceeds
+1.0. An injection detectable by nothing is a property of the injection, and
+23.8's M12 already names the outcome where the envelope constraint and
+detectability prove incompatible as **a finding, not a failure**: it would mean
+the contextual class as this project defines it is not reachable by residual
+thresholding at all. On the evidence from 23.13 that is a live possibility --
+the three real contextual events rank 38th, 42nd and 45th of 46 by GRU reach --
+and D is the instrument that would settle it at `n >= 50` instead of `n = 3`.
+
+**What D would still need**: the driver/target pairs, which require a
+correlation study on nominal data that is itself one pass over the same load;
+and a decision on whether injections land in test windows only, which they must,
+since a fold's fitting window sets that fold's threshold.
