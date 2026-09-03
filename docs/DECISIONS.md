@@ -2881,3 +2881,68 @@ gate metric was never the only axis. Adoption would need its own pre-registratio
 5. **The headline must be written from this entry.** It is held at `docs/STATUS.md`
    section 7 and is written once, for approval, from work item 9.7 studies A and B and
    work item 9.8 together.
+
+---
+
+## D45. Every alarm the forecaster raises begins inside a labelled span; its false alarms are overhang, not spurious alarms in quiet time
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It changes how the precision
+figure should be read and changes no detector
+
+**CONTEXT.** Every scorecard in this repository counts an alarm outside a labelled
+span as a false alarm, and that definition had never been checked. D44 left the
+forecaster with no measured lead over a rate-matched per-channel range check, which
+made one question worth asking: are the alarms it raises in nominal periods early
+warnings the metrics have been scoring as error? `docs/MODELS.md` 25 pre-registered
+the test -- a permutation test against a circular-shift null, primary fixed at
+`W = 10,000` on the gate set -- and named a null result as the finding.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T185207Z-precursor.json`, one bundle load,
+cached weights. The population is in-range nominal time: scorable, not anomaly, not
+rare event, and every watched channel strictly inside its own training min/max (D43).
+
+```
+                     nominal steps   in-range nominal      alarm RANGES starting there
+  m1-g8.9.10          10,675,488     10,675,463 (100%)              0
+  m1-ss5              10,875,689     10,875,683 (100%)              6
+```
+
+**All 157 of `gru-quantile`'s alarm ranges on the gate set begin inside a labelled
+anomaly or rare-event span.** None begins in quiet, in-range nominal time. Its 142
+nominal-flagged steps are the **tails** of alarms that started inside a labelled span
+and ran past its end.
+
+The test could not run at its primary because the population was empty. S2 predicted
+at least 20 eligible alarm starts and measured 0 and 6; at `n = 6` the subset is
+UNDERPOWERED by `docs/HARNESS.md` section 1 and no p-value is quoted from it. The
+permutation itself was verified on planted signal first -- p = 0.009 at a rate ratio
+of 3.98, against 0.72 on randomly placed alarms of the same count -- so the null is
+the data's and not the instrument's.
+
+**ALTERNATIVES.** Read it as good news for precision. Read it as a null result and
+stop. Record what it establishes and what it does not, and change nothing.
+
+**Against the first.** It is not good news, only *different* news: the alarms are
+still counted against precision and the events are still missed. **Against the
+second.** A study that fails on power rather than on effect has found something about
+the detector, and saying only "no clustering" would hide it.
+
+**CONSEQUENCE.**
+
+1. **The forecaster's false-alarm count is not spurious alarms in quiet time.** It is
+   spent on where alarms *end*, not where they begin. That is a different defect from
+   the one the metrics have implied, and a smaller one -- and it means alarm-width
+   control, not alarm suppression, is where its precision could be recovered.
+2. **There is no precursor population on this data**, so the early-warning argument
+   gains nothing here. D44 stands: no measured lead over a rate-matched range check,
+   and now no nominal-period alarms that could have been early either.
+3. **Where those 157 ranges do begin is not measured.** The script recorded
+   eligibility and not its complement, so the split between anomaly spans and
+   rare-event spans is unknown and needs another bundle load. Named rather than left
+   to be found.
+4. **No detector, threshold, weight or decision layer changes.** The harness's
+   definition of a false alarm is unchanged; what changes is what a reader should
+   conclude from the number it produces.
+5. **It does not license reading precision as better than it is.** 18 of 157 ranges on
+   the gate set are unmatched and they are still unmatched; this entry explains their
+   origin, it does not excuse them.

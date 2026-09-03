@@ -14,6 +14,41 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.5] - 2026-09-03 - Work item 9.9 study 2: the precursor test came back empty
+
+Pre-registered at `docs/MODELS.md` 25 before a figure existed, then run in one bundle
+load: 1 Class A and 15 Class B, cached weights, nothing refitted during the run.
+
+### Added - the precursor test, 2026-09-03
+
+- **D45 -- every alarm the forecaster raises begins inside a labelled span.** All 157
+  of `gru-quantile`'s alarm ranges on `m1-g8.9.10` start inside a labelled anomaly or
+  rare-event span; **none** begins in quiet, in-range nominal time. Its 142
+  nominal-flagged steps are the tails of alarms that started inside a labelled span and
+  ran past its end. So its false-alarm count is spent on where alarms *end*, not where
+  they begin -- a different defect from the one the metrics imply, and a smaller one.
+- **The study failed on power, not on effect, and that is a prediction refuted.** S2
+  predicted at least 20 eligible alarm starts per set and measured **0** and **6**. The
+  primary test could not run; at n=6 the subset is UNDERPOWERED and no p-value is
+  quoted from it, exactly as 25.3 said in advance.
+- **The permutation was verified before it was spent**: on planted precursors it
+  returns p = 0.009 under the circular-shift null at a rate ratio of 3.98, and 0.72 on
+  randomly placed alarms of the same count. The null is the data's, not the test's.
+- **No precursor population means the early-warning argument gains nothing here.** D44
+  stands: no measured lead over a rate-matched range check, and now no nominal-period
+  alarms that could have been early either.
+
+### Known gaps
+
+- **Where those 157 ranges begin** -- the split between anomaly and rare-event spans --
+  is not instrumented. One bundle load. Named rather than left to be found.
+- **The weight store is 89 files, not the 86 quoted since work item 9.6.** The three
+  additions are synthetic-fixture weights written by this section's offline dry runs,
+  which pass `--allow-fit` because the fixture has no cache. The in-run invariant held:
+  the count was identical before and after the Mission 1 run, so nothing was refitted on
+  Mission 1 data. Recorded because a quoted invariant that quietly changes is worse than
+  one that moves for a stated reason.
+
 ## [0.6.4] - 2026-09-03 - Phase 2 work item 9.8: the yardstick the forecaster does not clear
 
 Pre-registered at `docs/MODELS.md` 24 before a figure existed, then run in one bundle

@@ -20,7 +20,10 @@ forecaster speak first (D44). At every one of those crossings the channel that
 raised the alarm is already past 100 sigma of its own training distribution. Under
 the definition a limit check would actually hold -- training min/max, not the
 0.1/99.9 band -- the contextual class is 6/32 and 18/31, and the flying detector
-catches **none** of the gate set's six at its own operating point (D43). **Studies A
+catches **none** of the gate set's six at its own operating point (D43). **And the
+precursor test came back empty**: all 157 of the forecaster's alarm ranges on the gate
+set begin inside a labelled span, so its nominal-flagged steps are overhang rather than
+independent alarms and there is no precursor population to test (D45). **Studies A
 and B ran earlier**, at 1 Class A
 and 15 Class B: at a **matched alarm rate the nesting reverses** -- held to the
 forecaster's alarm rate the floor finds 7 of 32 headline-cell events, not 25, and the
@@ -250,6 +253,16 @@ HOUSEKEEPING
       even swept to precision 0.5. M9 held on the gate set, closed analytically -- no
       Study B arm can reach F0.5 0.804 at any precision. `l2`'s F0.5 on `m1-ss5` is
       still uncomputed and is the one piece left.
+- [x] Work item 9.9 study 2, the precursor test - **done 2026-09-03** at 1 Class A and
+      15 Class B (`docs/MODELS.md` 25.8, D45). S2 refuted on both sets and the study
+      failed on power rather than effect: 0 and 6 eligible alarm starts against a
+      predicted 20. The permutation was verified on planted signal first.
+- [ ] Where the forecaster's 157 alarm ranges begin, split between anomaly and
+      rare-event spans. Not instrumented; one bundle load (D45 consequence 3).
+- [ ] Work item 9.9 study 1, SMAP/MSL - staged. Stage 1 is ingest plus the per-event
+      visibility diagnostic only: of the labelled contextual anomalies, how many stay
+      inside their own training min/max. Stage 2 runs only on approval. Not a test of
+      the cross-channel thesis - Objective.md 9.2 stands.
 - [x] Work item 9.8, parts 1 to 4 - **done 2026-09-03** at 1 Class A and 15 Class B
       (`docs/MODELS.md` 24.9, D43, D44, `docs/RESULTS.md` 6m). Two of the three
       predictions written against interest fired.

@@ -5178,4 +5178,74 @@ Or write the headline, which is held at `docs/STATUS.md` section 7.
 
 ### 25.8 OBSERVED
 
-Reserved. Nothing has run.
+**2026-09-03. One bundle load, 1 Class A and 15 Class B**, both channel sets, all
+folds, cached weights, nothing refitted during the run. Artifact
+`runs/m1-g8.9.10/_forensics/2026-09-03T185207Z-precursor.json`.
+
+**Stop-and-report trigger 2 fired: S2 is refuted on both sets, and the reason is
+the finding.** There is no precursor population to test, because the forecaster
+raises **no independent alarm in in-range nominal time at all**.
+
+```
+                        nominal steps   eligible (in-range)   eligible alarm STARTS
+  m1-g8.9.10             10,675,488     10,675,463 (100.00%)          0
+  m1-ss5                 10,875,689     10,875,683 (100.00%)          6
+```
+
+**All 157 of `gru-quantile`'s alarm ranges on the gate set begin inside a
+labelled anomaly or rare-event span.** Not one begins in quiet, in-range nominal
+time. Its 142 nominal-flagged steps (24.9) are therefore **overhang** -- the tails
+of alarms that started inside a labelled span and ran past its end -- and not
+independent alarms that could have been early warnings of anything.
+
+On `m1-ss5` six independent starts exist. One of them falls in a 100,000-step
+pre-anomaly window against a null mean of 32, a rate ratio of **0.03x** -- far
+*fewer* than chance rather than more. At **n = 6** that is UNDERPOWERED by
+`docs/HARNESS.md` section 1's own rule and **no p-value from it is quoted as
+evidence either way**, exactly as S2 said in advance.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **S1** | the eligible region is >= 50% of nominal test time | **100.00%** on both sets -- only 25 and 6 nominal steps in ~10.7M are out of range | **Held, overwhelmingly** |
+| **S2** | >= 20 eligible alarm starts per set | **0** and **6** | **REFUTED on both sets. Trigger 2 fired** |
+| **S3** | primary: rate ratio > 1 at W=10,000 with p < 0.05 under the circular shift | **not evaluable.** The observed statistic is 0 of 0 alarms on the gate set | **No verdict.** S2's power condition was not met and 25.3 said in advance that no p-value would be quoted from an underpowered set |
+| **S4** | the two nulls agree in direction | they do -- both null means track each other at every W, and both give p = 1.0000 | **Held, vacuously.** With an observed statistic of 0 the agreement carries no information |
+| **S5** | the effect is present at W=1,000 as well as W=10,000 | no effect at any W | **No verdict**, for S3's reason |
+| **S6** | `m1-ss5` agrees in direction with the gate set | both are at or below chance | **Held, vacuously** |
+
+#### What this actually establishes, and what it does not
+
+**Establishes.** The forecaster's false-alarm count is not made of spurious alarms
+in quiet time. Every alarm range it raises on the gate set starts inside something
+the labels already mark, so the precision figure is being spent on **where alarms
+end**, not on where they begin. That is a different defect from the one the
+metrics have implied, and a smaller one.
+
+**Does not establish** that the forecaster has no early-warning capability. The
+test looked for alarms that *begin* in nominal time and there are none; it cannot
+speak about the ones that begin inside a labelled span, and D44 already measured
+that those do not precede a rate-matched range check. It also cannot say **where**
+those 157 ranges begin among anomaly and rare-event spans -- the script recorded
+eligibility, not the complement -- and settling that needs another bundle load
+this section's budget does not allow.
+
+**And the null is reported as the finding**, which is what 25.3's S3 committed to
+in advance. What was not anticipated is that the study would fail on power rather
+than on effect: 25.3 predicted at least 20 eligible alarm starts and there were
+zero. That is a prediction refuted, not a study that could not be run.
+
+#### The instrument, and one bookkeeping fact
+
+The permutation was verified before it was spent: on planted precursors it returns
+p = 0.009 under the circular shift and 0.0001 under uniform placement at a rate
+ratio of 3.98, and on randomly placed alarms of the same count it returns 0.72 and
+0.80. It has power and it is calibrated; the null here is the data's, not the
+test's.
+
+**The weight store is 89 files, not the 86 quoted since work item 9.6.** The three
+additions are dated 2026-09-03 11:41 and are **synthetic-fixture weights** written
+by this section's offline dry runs, which pass `--allow-fit` because the fixture
+has no cache. The in-run invariant held -- the count was identical before and
+after the Mission 1 run -- so nothing was refitted on Mission 1 data. Recorded
+because a quoted invariant that quietly changes is worse than one that moves for a
+stated reason.
