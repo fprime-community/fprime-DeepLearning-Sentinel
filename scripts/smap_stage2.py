@@ -120,6 +120,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--acknowledge-tripwire", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="smoke: first N channels")
+    ap.add_argument("--visibility", required=True,
+                    help="the stage 1 artifact, named rather than discovered")
     args = ap.parse_args(argv)
 
     cfg = C.load_r2_config()
@@ -221,13 +223,17 @@ def main(argv=None) -> int:
                 best = (float(m), rate, caught)
         matched[arm] = best if best else (float(GRID[-1]), *at(arm, GRID[-1]))
     return report(matched, events, per_channel, base_rate, nominal_total,
-                  client, cfg, ledger, budget, before, after, excluded)
+                  client, cfg, ledger, budget, before, after, excluded,
+                  args.visibility)
 
 
 def report(matched, events, per_channel, base_rate, nominal_total,
-           client, cfg, ledger, budget, before, after, excluded) -> int:
-    vis = json.loads(sorted(Path("runs/smap-msl/_forensics").glob("*visibility.json"))[-1]
-                     .read_text())
+           client, cfg, ledger, budget, before, after, excluded, visibility) -> int:
+    # Named explicitly, never discovered. `check_no_list` bans directory
+    # globbing in any module that reaches R2, and it is right to: a run whose
+    # inputs depend on whatever happens to be on disk is not reproducible from
+    # the artifact it cites. The stage 1 artifact is passed in and recorded.
+    vis = json.loads(Path(visibility).read_text())
     key = {(v["channel"], v["start"], v["end"]): v for v in vis["sequences"]}
     for e in events:
         v = key.get((e["channel"], e["start"], e["end"]))
@@ -275,6 +281,7 @@ def report(matched, events, per_channel, base_rate, nominal_total,
            "scorable_note": ("no history bridges train->test, so the first warmup "
                              "steps of each test array are not scorable"),
            "matched_on": "pooled nominal-step false-alarm rate = gru+cmd at its own threshold",
+           "stage1_artifact": str(visibility),
            "nominal_steps": nominal_total, "base_rate": base_rate,
            "weight_store": {"before": before, "after": after},
            "populations": {k: len(v) for k, v in pops.items()},
