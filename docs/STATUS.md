@@ -300,6 +300,17 @@ HOUSEKEEPING
       80.0%); and the paper's own pruning ablation reproduces in direction on both
       datasets. **Pruning costs the paper 7.3 points of SMAP recall and nothing on MSL;
       it costs this reproduction 32.3 and 22.2. Pruning triples the gap.**
+- [x] **Rung 1, pruning - done 2026-09-03** (`docs/MODELS.md` 26.21, 26.22). The
+      divergence was located by reading telemanom's `errors.py` beside ours: their
+      extra ladder rung excludes buffered anomaly shoulders, ours does not, so ours is
+      always higher and prunes more. Confirmed on **1,721 of 1,721** calls. Fixing it
+      recovers **15.3** points of recall (44.9% -> 60.2%) but costs **32.1** of
+      precision (76.3% -> 44.2%), against the paper's 80.0/87.5. **Real, material, and
+      not the whole gap** - at least one further divergence sits upstream of pruning,
+      in candidate-sequence generation. **Not adopted into the source** (D8).
+- [ ] **Rung 1b**: telemanom excludes anomalies found in *previous* windows from its
+      rung and accumulates that set across batches; this reproduction does not track it
+      at all. Named in 26.21.1, not fixed. **The next thing to read, not to guess.**
 - [ ] **The improvement ladder on the 38**, one lever per pre-registration, each
       measured against stage 4's **10/38** baseline, target published-parity recall
       (~80%) on the in-range population. **D50 names the first lever: pruning**, ahead

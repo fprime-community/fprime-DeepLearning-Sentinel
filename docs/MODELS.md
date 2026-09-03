@@ -6178,6 +6178,54 @@ Month stands at 181 Class A and 1,431 Class B of 50,000 each.
 and the rest of the section is built on it; or if the weight store moves; or above 200
 Class B.
 
-### 26.22 OBSERVED
+### 26.22 OBSERVED -- the divergence is real, and it is not the whole gap
 
-Reserved. Nothing has run.
+**2026-09-03. 1 Class A and 165 Class B**, cached weights, **weight store +0**, 66
+seconds, 6 channels refused by D17's guard. Artifact
+`runs/smap-msl/_forensics/2026-09-03T231613Z-pruning-fix.json`.
+
+```
+   arm      set        recall              precision
+   current  Total    44/98   44.9%       45/59    76.3%
+   fixed    Total    59/98   60.2%       65/147   44.2%
+   paper    Total            80.0%                87.5%
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **X3** | the corrected rung is <= the current one on every channel, strictly less on a majority | **1,721 of 1,721** calls `<=`, strictly less on **1,672** | **HELD, universally.** 26.21.1's reading of the two sources is right in direction, without exception |
+| **X1** | recall recovers to **>= 65.0%** | **60.2%**, up 15.3 points from 44.9% | **REFUTED.** The direction is right and the size is not: still 19.8 points below the paper |
+| **X2** | precision holds **>= 65.0%** | **44.2%**, down 32.1 points from 76.3% | **REFUTED, and by more than X1 gained** |
+| **X4** | MSL gains more recall than SMAP | MSL **+16.6** (27.8->44.4), SMAP **+14.6** (54.8->69.4) | **Held, narrowly** |
+
+#### What this settles
+
+**The divergence is confirmed and it is material.** X3 held on every one of 1,721
+calls, so the reading of `non_anom_max` against our `normal_max` was correct, and
+fixing it recovers **15.3 points** of recall -- roughly two fifths of the 35.1-point
+gap D50 measured.
+
+**And it is not the whole gap.** Correcting it alone trades precision away at a worse
+rate than the paper achieves: we move from 44.9/76.3 to 60.2/44.2, while the paper
+sits at 80.0/87.5 -- **better than both of our arms on both axes at once.** Our
+detector is producing far more candidate sequences than theirs at the same operating
+point: 59 predicted ranges before the fix, **147** after, against the paper's implied
+~91. So at least one further divergence sits **upstream of pruning**, in how candidate
+sequences are generated.
+
+**26.21.1 already named a candidate that was not fixed here**: telemanom excludes
+anomalies found in **previous windows** (`errors_all.i_anom`) from its rung, and
+processes the stream in batches accumulating that set, which this reproduction does
+not track at all. That is the next thing to read, not the next thing to guess.
+
+#### And it vindicates not adopting the fix into the source
+
+26.21.2 kept the correction in the study script because `src/sentinel_models/telemanom.py`
+is on the ESA-ADB path and D8 requires a correctness fix to escalate first. Had it been
+adopted directly, every published `lstm-telemanom` precision figure in this repository
+would have fallen by roughly thirty points **in exchange for an incomplete recall
+recovery**. The caution was not procedural politeness; it was the right call, and the
+measurement is what shows it.
+
+**No source file changed. No ESA-ADB figure moved. The fix is measured, recorded, and
+not adopted.**
