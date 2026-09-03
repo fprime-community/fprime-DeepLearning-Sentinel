@@ -6229,3 +6229,79 @@ measurement is what shows it.
 
 **No source file changed. No ESA-ADB figure moved. The fix is measured, recorded, and
 not adopted.**
+
+## 26.23 Pre-registration: rung 1b, cross-window anomaly tracking
+
+**Written and committed before a single figure is computed.** 26.22 confirmed the
+pruning rung as a real divergence (1,721 of 1,721 calls) worth 15.3 points of recall,
+and established it is not the whole gap: the fixed arm emits **147** candidate ranges
+against the paper's implied **~91**, at 44.2% precision against 87.5%. 26.21.1 named
+the unfixed candidate. This section implements it.
+
+### 26.23.1 What is implemented
+
+**Telemanom accumulates anomalies across windows and excludes them from the rung.**
+`errors.py:365-371` builds the candidate set as the window's absolute indices minus
+`np.append(errors_all.i_anom, adj_i_anom)` -- **this window's** anomalies *and*
+**every anomaly found in every previous window**. `process_batches` appends
+`window.i_anom + prior_idx` after pruning, so the accumulator holds **surviving**
+anomalies in absolute coordinates. This reproduction tracks nothing across segments.
+
+The effect is monotone and in the same direction as 1a: excluding more indices can
+only lower the rung, which enlarges the final ladder step, which makes the `>= p`
+reset more likely, which prunes **less**. So 1b should move recall up again -- and
+the open question is what it does to the 147.
+
+Implemented **in the study script**, not in `src/sentinel_models/telemanom.py`, for
+26.21.2's reason: that module is on the ESA-ADB path and D8 requires a correctness fix
+to escalate first with both numbers kept.
+
+### 26.23.2 (!) A second divergence, named now and deliberately not fixed
+
+Reading `process_batches` beside `channel_ratios` shows a structural difference that
+1b does **not** address, recorded here so it cannot later look like a discovery:
+
+```
+  telemanom   sliding windows of error_window, stride batch_size; each window's
+              surviving anomalies are UNIONED into one set across all windows
+              (errors.py: self.i_anom = append(self.i_anom, window.i_anom + prior_idx))
+
+  ours        the same sliding windows, but a sequence is clipped to the judged
+              segment (telemanom.py: lo, hi = max(lo, offset), min(hi, ...)) so
+              each index is judged ONCE, by the segment it falls in
+```
+
+Every index is judged by roughly `error_window / stride` overlapping windows in their
+implementation and by one segment in ours. A union over thirty verdicts is more
+permissive than one verdict. **That is a candidate for the remaining gap and it is not
+touched here**, because 1b was commissioned as one lever and changing two at once
+would make neither attributable.
+
+### 26.23.3 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **Y1** | **the commissioned target.** Candidate ranges fall from **147** toward the paper's implied ~91 -- to **110 or fewer** | above 110. Tracking would then not be what is generating the excess candidates, and 26.23.2's union difference becomes the leading explanation |
+| **Y2** | precision recovers to **>= 60.0%**, from 44.2% and against the paper's 87.5% | below 60.0%. Pruning less while emitting fewer candidates should raise precision; if it does not, the two effects are cancelling and the model of the algorithm is wrong |
+| **Y3** | recall **holds near 60% or rises**: **>= 58.0%**, from 60.2% | below 58.0%. Tracking prunes *less*, so recall falling would contradict the monotonicity argued in 26.23.1 |
+| **Y4** | the tracked rung is **<= the untracked rung on every call**, the structural check X3 passed for 1a | any call where it is greater, which would mean the reading of `errors_all.i_anom` is wrong in direction. **A stop**, as X3's was |
+
+**Deliberately not predicted.** Whether the reproduction reaches Table 2 after 1b --
+26.23.2 names a divergence still outstanding, so parity is not expected and claiming
+it either way would prejudge the next reading. Nothing about the forecaster: the
+forecaster is not the gap, which is why rungs (a), (b) and (d) are not pre-registered
+until the candidate count matches.
+
+### 26.23.4 Cost and stop-and-report
+
+**One read from cached weights: 165 Class B and 1 Class A.** No fit; the LSTM weights
+are on disk. Weight store expected to grow by **0**. Month stands at 182 Class A and
+1,596 Class B of 50,000 each.
+
+**Stop and report** if Y4 is refuted; if the weight store moves; or above 200 Class B.
+**And if a further divergence remains after 1b, it is named from the source before
+anything else is run** -- 26.23.2 is the first instalment of that.
+
+### 26.24 OBSERVED
+
+Reserved. Nothing has run.
