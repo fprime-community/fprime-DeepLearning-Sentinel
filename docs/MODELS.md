@@ -6364,3 +6364,74 @@ still does not: **146 against ~91**.
 `src/sentinel_models/telemanom.py` as a D8 correctness fix only when the reproduction
 matches Table 2 within tolerance. At 60.2/44.5 against 80.0/87.5 it does not, so both
 corrections stay in the study script and every ESA-ADB figure stands untouched.
+
+## 26.25 Pre-registration: rung 1c, the overlapping-window union
+
+**Written and committed before a single figure is computed.** 26.24 left the union
+difference as the only remaining structural divergence this reading has found, and
+candidates at **146** against the paper's implied **~91**.
+
+### 26.25.1 (!) The faithful pipeline is non-causal, and that must be said first
+
+Telemanom's window is `[prior_idx, prior_idx + error_window)` -- it runs **forward**
+from its start, and every index inside it is judged using data from the whole window,
+including samples **ahead** of that index. Our window is `[seg_lo - span, seg_hi)` and
+trails. That choice is deliberate and this repository states it in as many words:
+
+> *a detector that peeks at future samples is not something that can fly, and the
+> harness should not measure one that does* (`baselines.py:37-38`, and
+> `telemanom.py`'s module docstring at :40-46).
+
+**So reproducing the published algorithm faithfully means reproducing a non-causal
+detector.** That is legitimate for the purpose -- matching a published benchmark
+number requires running the published algorithm -- and it is **not** legitimate as a
+flight configuration.
+
+**This changes what a successful 1c would license.** If parity is reached, the three
+corrections cannot simply be escalated into `src/sentinel_models/telemanom.py`: doing
+so would make `lstm-telemanom` non-causal and regress the project's own flight rule,
+on the very path `rstd` is compared against. The escalation would have to either
+adopt the causal subset only, or keep the faithful pipeline as a **benchmark-only
+arm** that is never a flight candidate and is labelled so wherever it appears.
+**Recorded now so the escalation decision is made with it rather than after it.**
+
+### 26.25.2 What is implemented
+
+Windows of `error_window`, stride `stride`, from index 0. Per window: `eps` and
+sequences over the whole window; pruning with 1a's rung and 1b's accumulator; then
+the **surviving sequences' absolute indices are unioned** into one set, unclipped.
+The predicted ranges are the consecutive groups of that union -- `process_batches`'s
+`self.i_anom = np.append(self.i_anom, window.i_anom + prior_idx)` followed by
+`consecutive_groups`. In the study script, not the source (26.21.2, D8).
+
+### 26.25.3 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **Z1** | **the commissioned target.** Candidate ranges converge toward the paper's ~91 -- into **[70, 115]**, from 146 | outside that band. Above it, the union is not the remaining difference; below it, the union over-merges and the ranges are fewer and wider than the paper's, which is a different failure and is reported as one |
+| **Z2** | precision recovers to **>= 70.0%**, from 44.5% and against the paper's 87.5% | below 70.0% |
+| **Z3** | recall rises toward 80.0% -- to **>= 70.0%**, from 60.2% | below 70.0%. **Z2 and Z3 must hold together**: the paper is better than every arm of ours on both axes at once, so a fix that trades one for the other is not the fix |
+| **Z4** | the union set is a **superset** of the segment-clipped set on every channel | any channel where it is not, which would mean the reading of `process_batches` is wrong in direction. **A stop**, as X3 and Y4 were |
+
+**Deliberately not predicted.** Whether parity is reached -- 26.25.1 makes a
+successful 1c a benchmark result rather than a flight one, and predicting a verdict on
+the escalation is not this section's to make. Nothing about the forecaster: rungs (a),
+(b) and (d) remain unregistered until candidates match.
+
+### 26.25.4 Cost, stop-and-report, and what follows
+
+**One read from cached weights: 165 Class B and 1 Class A.** No fit; weight store
+expected to grow by **0**. Month stands at 183 Class A and 1,761 Class B of 50,000.
+
+**Stop and report** if Z4 is refuted; if the weight store moves; or above 200 Class B.
+
+**If 1c closes the gap within tolerance**, the three corrections are escalated together
+as a D8 correctness fix -- both numbers kept, every ESA figure re-stated from new
+artifacts -- **subject to 26.25.1**: the causal question is settled first, because a
+non-causal `lstm-telemanom` is not a thing this project may ship without saying so.
+**If it does not**, the next divergence is named from the source before anything else
+runs, which is the rule 1b was held to and 26.23.2 satisfied in advance.
+
+### 26.26 OBSERVED
+
+Reserved. Nothing has run.
