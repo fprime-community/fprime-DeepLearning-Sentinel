@@ -5714,6 +5714,68 @@ Stop and report if: **V13 is refuted** and there is again no operating point; **
 refuted**, in which case V17 is withdrawn rather than scored; any ESA-ADB figure,
 task, weight or manifest moves; or more than 200 Class B.
 
-### 26.16 OBSERVED
+### 26.16 OBSERVED -- stage 3, and it closes the study unmeasured
 
-Reserved. Nothing has run.
+**2026-09-03. 1 Class A and 165 Class B**, cached weights, weight store **+0**.
+Artifact `runs/smap-msl/_forensics/2026-09-03T210913Z-stage3.json`.
+
+**V13 is refuted, in the wrong direction, and 26.15.4 makes that a stop.**
+
+```
+  gru-quantile+cmd nominal-step alarm rate
+    stage 2, train-split calibration            10.4682%
+    stage 3, commissioning-window calibration   32.5104%     <- V13 predicted < 1%
+```
+
+**Recalibrating the way flight would made it three times worse**, and the cause is
+the limitation 26.15.1 fixed in advance: *"A 99.9th percentile needs about 1,000
+samples to be an interior quantile. At 500 it **is** the maximum of the commissioning
+window."* A short window's maximum is far below a long stream's, so the threshold
+falls and the alarm rate rises. The estimator note was the binding constraint and it
+was written before the run.
+
+```
+  arm         mult   nominal    in-range ctx   out-of-range   in-range point      all
+    gru+cmd  1.000  32.5104%          20/33            2/3            7/8       66/92
+    gru      1.000  32.0076%          21/33            2/3            8/8       76/92
+    rstd     1.000  27.9373%          13/33            1/3            8/8       67/92
+    range    1.000  12.5883%           5/33            2/3            7/8       60/92
+```
+
+**These are not results and are not reported as any.** At a third of nominal time
+alarming, 20/33 means the detector is on for a third of the mission and happened to
+be on during 20 events. Nine channels were excluded -- four by D17's guard, five by
+the commissioning-length rule (`C-1`, `C-2`, `T-12`, `T-13`, `D-16`) -- leaving
+33 of the 39, as 26.15.1 said it would.
+
+| # | Prediction | Outcome |
+|---|---|---|
+| **V13** | nominal rate falls below 1% | **REFUTED. 32.51%**, worse than stage 2's 10.47% |
+| **V14** | `rstd` reaches the matched rate without saturating | **Held vacuously.** Every arm sits at multiplier 1.000 because the target rate is 32.5% and trivially met. It carries no information |
+| **V15** | forecaster catches 12-28 of the surviving in-range contextual | **No verdict.** 20/33 is inside the band and means nothing at this alarm rate |
+| **V16** | the range check's matched multiplier is `w < 1.0` | **No verdict, and a reporting correction.** `w = 1.000`, but under commissioning recalibration the range check's *base* threshold is no longer the training min/max, so 26.9's "0 by construction" argument **does not apply** -- which is why it catches 5/33 here. The script printed the stage 2 message on the first pass; it is corrected and the message is not quoted |
+| **V17** | conditional on `w < 1.0`: forecaster beats the range check by >= 8 | **Withdrawn**, V16 having no verdict |
+| **V18** | **D6**: the commanded arm catches more | **No verdict, and it leans the other way.** 20/33 commanded against **21/33** uncommanded, and 66/92 against 76/92 overall. At a 32% alarm rate that is noise, not an answer, but nothing here supports commands helping |
+
+#### What the three stages establish, together
+
+**On SMAP/MSL this decision layer cannot be calibrated at all, by either route.**
+The train split does not transfer (D48). The commissioning window is too short for
+the percentile to be a percentile, so it degenerates to a short-window maximum and
+alarms three times more. Both failures have **one root**: the 99.9th-percentile rule
+needs a long, representative calibration window, and this dataset provides neither.
+
+That is a real and bounded finding, and it is the third time this project has
+measured the same thing from a different angle -- D18 (telemanom's dynamic threshold
+degenerates under a good forecaster), D29 (`m1-g3`: a floor calibrated on early data
+sat under 86.7% of a later window), and now D48 with stage 3's failed remedy.
+
+**What was never measured, and is now recorded as unmeasured**: whether a forecaster
+sees in-range anomalies a limit check cannot. Stage 1 built the population -- 39 of
+43, six and a half times ESA-ADB's (D46) -- and stages 2 and 3 could not obtain an
+operating point to score it at. **The question this study existed to answer is still
+open, and the reason is calibration rather than detection.**
+
+**D6 is still open.** The ablation is correctly wired and ran twice, and both times at
+an alarm rate that makes the comparison meaningless. Nothing here answers it, and
+26.16 does not pretend to.

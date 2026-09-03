@@ -265,7 +265,21 @@ HOUSEKEEPING
       against **11 of 61** point, a 72.7-point gap - the population ESA-ADB does not
       have, six and a half times D43's 6/32. Wu & Keogh's triviality critique is
       confirmed for the point class and refuted for the contextual one.
-- [ ] Work item 9.9 study 1 **stage 2** - warranted, not run, needs approval:
+- [x] Work item 9.9 study 1 **stages 2 and 3** - **run 2026-09-03, and both closed
+      without a detector comparison** (`docs/MODELS.md` 26.13, 26.16, D47, D48). On
+      SMAP/MSL this decision layer cannot be calibrated by either route: the train
+      split does not transfer (`rstd` at 50x still alarms on 15.57% of nominal time),
+      and a commissioning window short enough to exist makes the 99.9th percentile a
+      short-window maximum, which is worse - 32.51% against 10.47%. Both failures have
+      one root: the percentile rule needs a long, representative calibration window
+      and this dataset provides neither.
+- [ ] **The question stage 1 built a population for is still open.** 39 of 43 labelled
+      contextual sequences are genuinely in range (D46), six and a half times
+      ESA-ADB's, and no operating point could be obtained to score them at. The
+      obstacle is calibration, not detection.
+- [ ] **D6 is still open.** The command ablation is correctly wired and ran twice,
+      both times at an alarm rate that makes the comparison meaningless.
+- [ ] (superseded) stage 2 as originally scoped:
       `gru-quantile` with the command columns as exogenous inputs (D6), against `rstd`
       and a calibrated range check, on the paper's own split, at a matched nominal
       rate, on the 39 and on all 104. Still not a test of the cross-channel thesis -

@@ -122,6 +122,9 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=0, help="smoke: first N channels")
     ap.add_argument("--visibility", required=True,
                     help="the stage 1 artifact, named rather than discovered")
+    ap.add_argument("--commissioning", type=int, default=0, metavar="MIN_SCORABLE",
+                    help="stage 3 (26.15): recalibrate on the test stream's leading "
+                         "nominal prefix, requiring MIN_SCORABLE steps after warm-up")
     args = ap.parse_args(argv)
 
     cfg = C.load_r2_config()
@@ -171,11 +174,44 @@ def main(argv=None) -> int:
 
         n = len(test)
         warm = max(w for _, _, w in arms.values())
-        scorable = np.zeros(n, dtype=bool)
-        scorable[min(warm, n):] = True     # no history bridges train->test, 26.13
         anomaly = np.zeros(n, dtype=bool)
         for (a, b), _ in seqs.get(cid, []):
             anomaly[a:b + 1] = True
+
+        if args.commissioning:
+            # 26.15: recalibrate on the leading nominal prefix of this channel's
+            # own test stream -- work item 10's in-orbit path. Calibration and
+            # scoring are DISJOINT: the threshold comes from [warm, first), and
+            # only [first, n) is scored, so no step is both calibrated on and
+            # scored. Every labelled event lies in the scored half by
+            # construction, because `first` IS the first anomaly's start.
+            starts = [a for (a, _), _ in seqs.get(cid, [])]
+            first = min(starts) if starts else n
+            avail = first - min(warm, first)
+            if avail < args.commissioning:
+                excluded[cid] = {"commissioning": f"{avail} scorable prefix steps "
+                                                  f"< {args.commissioning}"}
+                print(f"    {cid}: EXCLUDED -- commissioning prefix {avail} < {args.commissioning}")
+                continue
+            scorable = np.zeros(n, dtype=bool)
+            scorable[first:] = True
+            window = slice(min(warm, first), first)
+            recal = {}
+            for name, (series, _thr, w_) in arms.items():
+                seg = np.asarray(series[window], dtype=np.float64)
+                seg = seg[np.isfinite(seg)]
+                if seg.size == 0:
+                    recal = None
+                    break
+                recal[name] = (series, float(np.quantile(seg, 0.999)), w_)
+            if recal is None:
+                excluded[cid] = {"commissioning": "no finite prefix scores"}
+                print(f"    {cid}: EXCLUDED -- no finite prefix scores")
+                continue
+            arms = recal
+        else:
+            scorable = np.zeros(n, dtype=bool)
+            scorable[min(warm, n):] = True  # no history bridges train->test, 26.13
         per_channel[cid] = {"n": n, "warmup": warm,
                             "scorable": scorable, "nominal": scorable & ~anomaly,
                             "arms": {k: (v[0], v[1]) for k, v in arms.items()}}
@@ -224,11 +260,12 @@ def main(argv=None) -> int:
         matched[arm] = best if best else (float(GRID[-1]), *at(arm, GRID[-1]))
     return report(matched, events, per_channel, base_rate, nominal_total,
                   client, cfg, ledger, budget, before, after, excluded,
-                  args.visibility)
+                  args.visibility, args.commissioning)
 
 
 def report(matched, events, per_channel, base_rate, nominal_total,
-           client, cfg, ledger, budget, before, after, excluded, visibility) -> int:
+           client, cfg, ledger, budget, before, after, excluded, visibility,
+           commissioning) -> int:
     # Named explicitly, never discovered. `check_no_list` bans directory
     # globbing in any module that reaches R2, and it is right to: a run whose
     # inputs depend on whatever happens to be on disk is not reproducible from
@@ -268,11 +305,18 @@ def report(matched, events, per_channel, base_rate, nominal_total,
         print(f"  {arm:9s} {m:7.3f} {rate*100:8.4f}% {cells}")
 
     w = rows["range"]["multiplier"]
-    print(f"\n  V7: the range check's matched multiplier is w = {w:.3f} "
-          f"({'BELOW 1.0 as predicted' if w < 1.0 else 'AT OR ABOVE 1.0 -- V7 REFUTED'})")
-    if w >= 1.0:
-        print("      -> it catches the in-range population 0 by construction; the")
-        print("         comparison is UNINFORMATIVE, not a win. V8 is withdrawn (26.9).")
+    print(f"\n  range check matched multiplier w = {w:.3f}")
+    if commissioning:
+        # The "0 by construction" argument holds ONLY when the range check's base
+        # threshold IS the training min/max. Under commissioning recalibration the
+        # base moved, so w is relative to the recalibrated bar and the construction
+        # argument does not apply -- which is why it catches in-range events here.
+        print("      (stage 3: the base threshold was recalibrated, so w is NOT")
+        print("       relative to the training min/max and 26.9's 'by construction'")
+        print("       argument does not apply. V16 is read against this note.)")
+    elif w >= 1.0:
+        print("      -> at or above 1.0 it catches the in-range population 0 by")
+        print("         construction; UNINFORMATIVE, not a win. V8 withdrawn (26.9).")
 
     out = {"pre_registration": "docs/MODELS.md 26.7-26.12", "dataset": "smap-msl/v1",
            "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -281,6 +325,7 @@ def report(matched, events, per_channel, base_rate, nominal_total,
            "scorable_note": ("no history bridges train->test, so the first warmup "
                              "steps of each test array are not scorable"),
            "matched_on": "pooled nominal-step false-alarm rate = gru+cmd at its own threshold",
+           "commissioning_min_scorable": commissioning,
            "stage1_artifact": str(visibility),
            "nominal_steps": nominal_total, "base_rate": base_rate,
            "weight_store": {"before": before, "after": after},
@@ -288,7 +333,8 @@ def report(matched, events, per_channel, base_rate, nominal_total,
            "excluded_channels": excluded,
            "arms": rows, "events": events}
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-    path = Path("runs/smap-msl/_forensics") / f"{stamp}-stage2.json"
+    tag = "stage3" if commissioning else "stage2"
+    path = Path("runs/smap-msl/_forensics") / f"{stamp}-{tag}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     out["operations"] = budget.as_dict()
     path.write_text(json.dumps(out, indent=2))

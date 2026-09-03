@@ -14,6 +14,61 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.7] - 2026-09-03 - Stages 2 and 3: the population is real and cannot be scored
+
+Two runs at 1 Class A and 165 Class B each, plus one discarded. Both close without a
+detector comparison, and the reason is calibration rather than detection.
+
+### Added - D47, an absolute constant that should have been relative
+
+- **`error_window` is 2100, fixed for ESA-ADB where a fold is ~3.5M steps.** The
+  median SMAP/MSL training series is 2,690, so the warm-up (250 + 2100) consumed whole
+  channels: 16 of 81 test arrays sat entirely inside it and 48 of 81 had their
+  threshold computed from warm-up scores. Corrected on SMAP/MSL only to telemanom's
+  own proportional definition, `SMOOTHING_PERC * len(series)`; ESA-ADB keeps 2,100,
+  because the same formula on a 3.5M-step fold gives 175,000. **This is D17's class of
+  defect** - a constant that should have been relative, disabling what it configures
+  without erroring.
+
+### Added - D48, and the bound it puts on D25
+
+- **No train-calibrated threshold transfers on SMAP/MSL, for any arm.** `rstd` at
+  **fifty times** its calibrated threshold still alarms on **15.57%** of nominal
+  steps, where it runs at 0.024% on ESA-ADB; the forecaster's own threshold admits
+  10.47%. Every calibrated arm fails at once, which rules out a detector-specific
+  cause: the test-split residual scale is far larger than the train-split scale.
+- **It is a replication, not a new result.** D29 found it on ESA-ADB - a floor
+  calibrated on early data sat under 86.7% of a later window's nominal residual on
+  `m1-g3`. SMAP/MSL is the same finding on independent data and in a sharper form.
+  **D25 is bounded, not withdrawn**: the frozen static quantile describes a stationary
+  regime. Every ESA-ADB figure stands.
+- It also explains telemanom's dynamic threshold, which this project reproduced and
+  rejected on ESA-ADB (D18). Both results are about the data, not the rule.
+
+### Stage 3 - the remedy, pre-registered, and refuted
+
+- **Recalibrating on a commissioning window made it worse: 10.47% -> 32.51%.** The
+  cause is the estimator limitation 26.15.1 fixed **in advance**: a 99.9th percentile
+  needs ~1,000 samples to be interior, so at 500 it is the commissioning maximum, and
+  a short window's maximum is far below a long stream's. **V13 refuted**, which
+  26.15.4 had named a stop.
+- Both routes fail for one reason: the percentile rule needs a long, representative
+  calibration window and this dataset provides neither.
+
+### Not measured, and recorded as unmeasured
+
+- **Whether a forecaster sees in-range anomalies a limit check cannot.** Stage 1 built
+  the population - 39 of 43, six and a half times ESA-ADB's (D46) - and no operating
+  point could be obtained to score it at. **D6 is still open** for the same reason:
+  the ablation is correctly wired, ran twice, and both times at an alarm rate that
+  makes the comparison meaningless.
+
+### Process
+
+- A commit went in with `tests/test_no_list.py` failing, because a `check_no_list`
+  failure was piped through `tail -2` and its closing line misread as a pass. Fixed in
+  the following commit rather than rewritten (`c429683`).
+
 ## [0.6.6] - 2026-09-03 - Work item 9.9 study 1 stage 1: a contextual population that is real
 
 SMAP/MSL ingested and the visibility diagnostic run. 164 Class A to upload, 165 Class B
