@@ -14,6 +14,74 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.4] - 2026-09-03 - Phase 2 work item 9.8: the yardstick the forecaster does not clear
+
+Pre-registered at `docs/MODELS.md` 24 before a figure existed, then run in one bundle
+load: 1 Class A and 15 Class B, cached weights, nothing refitted, weight store unchanged
+at 86 files. All six reproduction checks passed before anything new was read.
+
+### Added - work item 9.8, 2026-09-03
+
+- **D44 -- at a matched alarm rate a per-channel range check beats the forecaster on
+  both sets, and the forecaster never speaks first.** The envelope is the fitting
+  window's own per-channel min/max under `train_mask`, widened until its nominal-step
+  rate matches. On `m1-g8.9.10` it catches **34/46 and 25/32 at 0.0000% nominal, F0.5
+  0.934**, against `gru-quantile`'s 27/46, 22/32, 0.0013% and 0.804; on `m1-ss5`
+  34/42 and 25/31. The catches are nested against the forecaster -- only-GRU **0** at
+  the matched point on both sets. And in **0 of 53** caught events does the forecaster
+  fire first: median lead +0.0, mean -105.1 and -0.3, with the range check earlier on
+  14 of them by up to 2,638 timesteps. This is the most serious result the project has
+  produced, and it retires the last proxy the early-warning argument had on Phase 1
+  evidence.
+- **The mechanism is amplitude.** At every one of those 53 first crossings the channel
+  that raised the alarm is already outside 3 sigma of its own anomaly-masked
+  fitting-window distribution -- median 103.8 and 102.9, minimum 6.6, none below 3.
+  Stated with its caveat: ESA-ADB is min-max scaled per group, so 3 sigma is a low bar
+  at this scale. The bar was fixed before the numbers existed and was not moved.
+- **D43 -- contextual is the training-window min/max, not the 0.1/99.9 band.** A real
+  limit sits outside a channel's historical range, so the tightest bar any limit could
+  hold is min/max, and D39 measured a quantity tighter than the claim it was testing.
+  The class is **6/32** and **18/31**, reproducing 22.11 and D40 exactly from a
+  different script. Over the gate set's six the flying detector catches **none** at its
+  own operating point and **one** -- `id_89` -- only when loosened to the floor's alarm
+  rate. D39 consequence 2 survives the change of definition; D39 and D40 are re-read and
+  neither is edited.
+- **`docs/RESULTS.md` 6m**, the per-event tables, and `scripts/reduction_and_curve.py`
+  extended with the per-channel bar, the range check, the amplitude z-scores and
+  event-wise F0.5 along the sweep.
+
+### Fixed - a defect this section's own cross-check caught
+
+- **The envelope breach was computed with `>=` where the published definition is
+  strict.** An event that *touches* a channel's historical extreme has not *left* it,
+  and ESA-ADB's per-group min-max scaling makes exact boundary values common: the first
+  run disagreed with the floor audit on 2 gate-set and 14 `m1-ss5` events, every one at
+  a reach of exactly 1.000. Under the strict rule the counts reproduce the floor audit
+  exactly, 11/11 and 24/24. No re-run was needed -- the disagreement can only occur at
+  `w = 1.0`, and no matched operating point sits there. The script now carries a
+  `STRICT` rule with the reason.
+
+### Closed - carried from work item 9.7
+
+- **M4 refuted**: swept to the alarm rate where event-wise precision first falls below
+  0.5, neither detector catches any of the three 0.1/99.9-contextual events on either
+  set. **M9 held on the gate set**, closed analytically: event-wise F0.5 at perfect
+  precision is `1.25R/(0.25+R)`, so no Study B arm above 9/46 recall can reach 0.804.
+  `l2`'s F0.5 on `m1-ss5` is not computed and is named as the one gap.
+
+### Predictions - two of the three written against interest fired
+
+- **Refuted**: N4 (positive median lead -- measured +0.0), N5 (60% breaching after our
+  emission -- measured 0 of 53), N6 (raw z inside 3 sigma -- measured 0 of 53), N7 (3
+  misses recovered by the per-channel bar -- measured 0 on the gate set), N1 as written.
+- **Held**: N2 by one event on a loosened detector, N8, N3 at one of its two matched
+  points, M9.
+
+### Held - still not written
+
+- **The headline.** It is written once, from work items 9.7 and 9.8 together, for
+  approval. Nothing is written to a claim site meanwhile, and `main` stays held.
+
 ## [0.6.3] - 2026-09-02 - Phase 2 work item 9.7: the comparison made like for like
 
 The false headline withdrawn, and the two studies that could be run, run. One bundle

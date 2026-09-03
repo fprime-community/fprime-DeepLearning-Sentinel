@@ -63,7 +63,10 @@ it is superseded. The 3 was `baselines._rolling` accumulating in float32 and is
 **25** (D37). The 28 of 32 is `lstm-telemanom`'s, a detector disqualified at 22
 of 48 commanded manoeuvres; the detector that flies scores **22/32**. And the
 flying detector catches a **strict subset** of the corrected floor's events on
-both Mission 1 sets (D38).
+both Mission 1 sets (D38) -- which D41 later showed is a property of the two
+thresholds and not of the two detectors, and D44 later made moot: at a matched
+alarm rate a per-channel range check beats the forecaster on both sets and the
+forecaster never speaks first.
 
 **(!) WITHDRAWN 2026-09-02.** The Phase 1 headline comparison is withdrawn
 pending re-measurement (D37, D38). The corrected baseline and the flying

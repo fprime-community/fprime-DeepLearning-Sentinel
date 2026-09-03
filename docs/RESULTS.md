@@ -1624,6 +1624,86 @@ caught and nominal steps flagged, not alarm ranges classified, so the 0.128 and
 0.070 gaps are stated only at the frozen point. Closing that costs one further
 bundle load (`docs/MODELS.md` 23.15).
 
+## 6m. Work item 9.8: the forecaster against a per-channel range check
+
+**Added 2026-09-03.** Section 6l compared the flying detector against the corrected
+statistical floor. This compares it against the thing the component exists to
+improve on: a **per-channel range check**, built from the fitting window's own
+min/max and widened until it is exactly as noisy as the forecaster.
+
+Every figure from `runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`,
+one bundle load, cached weights, nothing refitted. Pre-registered at
+`docs/MODELS.md` 24 before any of it was computed; adjudicated at 24.9.
+
+### The comparison, at a matched nominal-step alarm rate
+
+| `m1-g8.9.10` | recall | MVGS | nominal-step | **F0.5** |
+|---|---|---|---|---|
+| `gru-quantile`, frozen | 27/46 | 22/32 | 0.0013% | 0.804 |
+| **per-channel range check**, w=1.106 | **34/46** | **25/32** | **0.0000%** | **0.934** |
+| per-channel bar, matched w=1.651 | 25/46 | 22/32 | 0.0012% | 0.805 |
+
+| `m1-ss5` | recall | MVGS | nominal-step | **F0.5** |
+|---|---|---|---|---|
+| `gru-quantile`, frozen | 26/42 | 21/31 | 0.0141% | 0.593 |
+| **per-channel range check**, w=0.672 | **34/42** | **25/31** | **0.0002%** | 0.543 |
+| per-channel bar, matched w=1.494 | 29/42 | 22/31 | 0.0117% | **0.700** |
+
+**At an equal or lower alarm rate the range check catches more than the forecaster
+on both sets.** The catches are nested against it -- only-GRU **0** at the matched
+point on both sets, only-range-check 7 and 8.
+
+### The lead, which is what the section exists to measure
+
+```
+  timesteps from our first crossing to the first channel leaving the envelope
+    m1-g8.9.10   n=27   median +0.0   mean -105.1   forecaster first  0/27  (0%)
+    m1-ss5       n=26   median +0.0   mean   -0.3   forecaster first  0/26  (0%)
+```
+
+**Not once in 53 caught events does the forecaster speak first.** 39 fire at the
+same step; on 14 the range check is earlier, by up to 2,638 timesteps. D44.
+
+### Why: the crossings are amplitude excursions
+
+At the first crossing, the raw value of the channel attaining the maximum residual,
+against that channel's own anomaly-masked fitting-window distribution:
+
+```
+  m1-g8.9.10   n=27   min |z| 6.60    median 103.84   max 26,602
+  m1-ss5       n=26   min |z| 17.72   median 102.94   max 117.58
+    inside 3 sigma: 0 of 53
+```
+
+There is no crossing on either set at which the raw channel is still ordinary.
+Read with the caveat 24.9 states: ESA-ADB is min-max scaled per group, so a
+fitting-window standard deviation can be small next to a full-range excursion and
+3 sigma is a low bar at this scale. The bar was fixed before the numbers existed
+and is not moved; at 0 of 53 with a median above 100 the direction is not in doubt.
+
+### The contextual class, under the definition a limit check would hold
+
+```
+  MVGS events, no channel leaving its training min/max (D43)
+    m1-g8.9.10   6/32     ids id_121, id_13, id_153, id_157, id_89, id_96
+    m1-ss5      18/31
+
+  caught over the gate set's six
+    frozen        gru 0/6    rstd 0/6      matched-loud   gru 1/6   rstd 0/6
+```
+
+The one catch is `id_89`, and only with the forecaster loosened to the floor's
+alarm rate. At the operating point it flies with, it catches none of the six.
+
+### What this section does not settle
+
+Whether either detector fires **before** an event begins. Both figures are the
+first in-span step at or above threshold, so the comparison is like for like and
+neither can be credited with warning ahead of the label -- the same instrument gap
+`docs/MODELS.md` 22.10 named. And the range check is **not a flight proposal**: its
+width was swept against a measured alarm rate, which is not how a mission sets a
+limit. It is a yardstick, and the forecaster does not clear it.
+
 ## 7. What these numbers say
 
 **The forecaster works and the decision rule does not.** `lstm-quantile` and

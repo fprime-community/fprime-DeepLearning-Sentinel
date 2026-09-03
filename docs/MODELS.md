@@ -4842,7 +4842,195 @@ section together, and it is written for approval rather than committed.
 
 ### 24.9 OBSERVED
 
-Reserved. Nothing has run.
+**2026-09-03. One bundle load, 1 Class A and 15 Class B**, both channel sets, all
+folds, cached weights, weight store unchanged at 86 files. Artifact
+`runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`.
+
+**The gate passed first.** All six reproduction checks: `max` 27/46 and 22/32,
+`rstd` 34/46 and 25/32 on the gate set; 26/42, 21/31 and 34/42, 25/31 on
+`m1-ss5`; denominators 46/32 and 42/31. Only then was anything new read.
+
+**(!) A defect in this section's own instrument, found by its own cross-check and
+fixed before any figure was reported.** Part 1's min/max flag is the `w = 1.0`
+case of part 2's envelope, which is why it was computed there and cross-checked
+against the floor audit. The first run disagreed on **2** gate-set and **14**
+`m1-ss5` events, and every one of them had an envelope reach of exactly
+**1.000**: the script compared `>=` where the published definition is strict.
+An event that *touches* a channel's historical extreme has not *left* it, and
+`scripts/envelope_proxy.py:115`, `scripts/floor_audit.py` and D39, D40 and
+22.11 all use `(x < lo) | (x > hi)`. ESA-ADB is min-max scaled per group, so
+values sitting exactly on a training extreme are common rather than rare. Under
+the strict rule the counts reproduce the floor audit **exactly, 11/11 and 24/24
+over all events and 6/32 and 18/31 over the headline cell**, and the script now
+carries a `STRICT` rule with the reason. **No re-run was needed**: an exact
+float equality occurs only at `w = 1.0`, every other multiplier on the grid is
+unaffected, and no matched operating point is at 1.0.
+
+#### Part 1 -- contextual under the definition a limit check would hold
+
+```
+  min/max-contextual, MVGS      m1-g8.9.10  6/32      m1-ss5  18/31
+    gate set ids   id_121, id_13, id_153, id_157, id_89, id_96
+```
+
+The gate set's six are the three the 0.1/99.9 band already found (`id_121`,
+`id_153`, `id_157`) plus `id_13`, `id_89` and `id_96` -- the three large
+fold-0 events in the `neither` set of 22.11. Caught, at each operating point:
+
+```
+  m1-g8.9.10, over the 6      gru-quantile   rstd    neither
+    frozen thresholds              0/6        0/6      6/6
+    matched-quiet                  0/6        0/6      6/6
+    matched-loud                   1/6        0/6      5/6
+
+  m1-ss5, over the 18
+    frozen thresholds              9/18      12/18     6/18
+    matched-quiet                  9/18       1/18     9/18
+    matched-loud                  11/18      12/18     6/18
+```
+
+**The one catch on the gate set is `id_89`**, footprint 8,995, at the
+matched-loud point -- the forecaster loosened to the floor's alarm rate, thirteen
+times its own. At its own operating point it catches none of the six.
+
+#### Part 2 -- lead against a per-channel range check, and it is the finding
+
+The envelope is built from the fitting window only, with `train_mask` applied --
+the same window and mask `gru-quantile`'s own calibration uses -- then widened
+by a single factor until its nominal-step rate matches the forecaster's.
+
+```
+  m1-g8.9.10                    recall    MVGS    nominal      F0.5
+    gru-quantile, frozen         27/46   22/32   0.0013%      0.804
+    range check, matched w=1.106 34/46   25/32   0.0000%      0.934
+
+  m1-ss5
+    gru-quantile, frozen         26/42   21/31   0.0141%      0.593
+    range check, matched w=0.672 34/42   25/31   0.0002%      0.543
+```
+
+**At an equal or lower alarm rate the range check catches more than the
+forecaster on both sets**, and on the gate set its event-wise F0.5 is 0.934
+against 0.804. The overlap at the matched point is **both 27, only-GRU 0,
+only-envelope 7, neither 12** on the gate set and **26 / 0 / 8 / 8** on
+`m1-ss5`: the forecaster catches nothing the range check misses.
+
+**And the lead, which is what part 2 exists to measure:**
+
+```
+  timesteps from our first crossing to the first channel leaving the envelope
+    m1-g8.9.10   n=27   median +0.0   mean -105.1   we fire first  0/27  (0%)
+    m1-ss5       n=26   median +0.0   mean   -0.3   we fire first  0/26  (0%)
+```
+
+**Not once in 53 caught events does the forecaster speak before the range
+check.** On 39 of them the two fire at the same step; on 14 the range check is
+earlier, by up to 2,638 timesteps.
+
+**A limitation, the same one 22.10 named.** Both figures are the first in-span
+step at or above threshold, so neither can distinguish "crossed at onset" from
+"an alarm was already running". The *comparison* is like for like -- both
+detectors are measured the same way -- but neither can be said to have warned
+before the labelled event began.
+
+#### Part 3 -- the amplitude mechanism
+
+At the first crossing, the raw value of the channel attaining the maximum
+residual, against that channel's own anomaly-masked fitting-window mean and
+standard deviation:
+
+```
+                     raw |z| at our first crossing
+  m1-g8.9.10   n=27   min 6.60    median 103.84   max 26,602
+  m1-ss5       n=26   min 17.72   median 102.94   max 117.58
+    below 3 sigma: 0 of 53        below 10 sigma: 1 of 53
+```
+
+**There is no crossing, on either set, at which the raw channel is still inside
+3 sigma.** The median is a hundred standard deviations outside its training
+distribution. The forecaster is not crossing on subtle relationship breaks; it
+crosses once the channel that raised it is already far outside anything the
+fitting window contained.
+
+**Stated with its own caveat**: ESA-ADB is min-max scaled per group, so a
+channel's fitting-window standard deviation can be very small next to an
+excursion spanning the scaled range, and a "3 sigma" bar is low for data at this
+scale. The bar was fixed in 24.2 before the numbers existed and is not moved
+now. The direction is not in doubt at 0 of 53 with a median of 103.
+
+#### Part 4 -- per-channel noise floors, at the matched rate
+
+```
+  m1-g8.9.10                        recall    MVGS    nominal     F0.5
+    gru-quantile, frozen             27/46   22/32   0.0013%     0.804
+    per-channel bar, matched w=1.651 25/46   22/32   0.0012%     0.805
+    per-channel bar, cut at 1.0      28/46   23/32   0.2678%     0.044   [informational]
+
+  m1-ss5
+    gru-quantile, frozen             26/42   21/31   0.0141%     0.593
+    per-channel bar, matched w=1.494 29/42   22/31   0.0117%     0.700
+    per-channel bar, cut at 1.0      34/42   25/31   0.2510%     0.460   [informational]
+```
+
+24.2 fixed the natural cut as informational and it is: at 1.0 the arm is 206x
+louder than the flying detector on the gate set, and its F0.5 collapses to 0.044.
+**At a matched rate it is a tie on the gate set** -- 22/32 either way, F0.5 0.805
+against 0.804 -- **and better on `m1-ss5`**, 22/31 against 21/31 at F0.5 0.700
+against 0.593. It recovers **0** of the forecaster's 19 gate-set misses and
+**3** of its 16 on `m1-ss5` (`id_130`, `id_132`, `id_142`).
+
+#### PREDICTED against MEASURED
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **N1** | the gate set's 6 min/max-contextual ids are a subset of `m1-ss5`'s 18 | 5 of the 6 are; **`id_13` is not scorable on `m1-ss5` at all** -- it is the one MVGS event the subset view drops | **Refuted as written, held on the 5 common events.** The prediction assumed a common event set and the two sets differ by one |
+| **N2** | at a matched-rate point, `gru-quantile` catches **>= 1** of the gate set's 6; central estimate 2 | **1**, `id_89`, and only at matched-loud -- the forecaster run at the floor's alarm rate, 13x its own. **0** at its own operating point and 0 at matched-quiet | **Held, at the bottom of its band and on a loosened detector** |
+| **N3** | on `m1-ss5`, over the 18, the forecaster's matched-rate catch count exceeds the floor's | matched-quiet **9 against 1**; matched-loud **11 against 12** | **Held at matched-quiet, refuted at matched-loud.** The prediction named "the matched points" without saying which, and they disagree |
+| **N4** | the per-event lead has a **positive median** on both sets | median **+0.0** on both, mean **-105.1** and **-0.3** | **REFUTED. Stop-and-report trigger 3 fired** |
+| **N5** | **>= 60%** of caught events breach the envelope after our emission | **0 of 53**, on both sets | **REFUTED, at the floor of the range** |
+| **N6** | raw \|z\| inside 3 sigma for **>= 60%** of crossings while the residual exceeds it | **0 of 53**; median raw \|z\| **103.84** and **102.94** | **REFUTED, at the floor of the range** |
+| **N7** | the per-channel bar recovers **>= 3** of the 19 gate-set misses at a matched rate | **0** on the gate set; 3 on `m1-ss5` | **Refuted on the set it was stated for** |
+| **N8** | it recovers **0** of `id_121`, `id_153`, `id_157` at a matched rate | **0**, on both sets | **Held** |
+
+**Two of the three predictions written in the direction that would hurt fired.**
+N4 and N7 are refuted; N2 held, by one event, on a detector loosened to thirteen
+times its own alarm rate.
+
+#### M4 and M9, carried from work item 9.7 and now closed
+
+**M4 -- refuted.** It predicted that swept down to the alarm rate at which
+event-wise precision first falls below 0.5, `rstd` catches at least one of the
+three 0.1/99.9-contextual events and `gru-quantile` catches none. Measured:
+**neither catches any**, on either set. `max` reaches precision 0.393 at
+`m = 0.588` with 33/46 recall and `rstd` 0.223 at `m = 0.718` with 35/46, and the
+contextual three are absent at both.
+
+**M9 -- held on the set it was stated for.** No Study B arm beats
+`gru-quantile`'s 0.804 F0.5 on the gate set, and it is closed **analytically**
+rather than by measurement: event-wise F0.5 at perfect precision is
+`1.25R / (0.25 + R)`, so `l2` and `sum` at 9/46 are bounded by **0.549** and
+`k2`, `k3` at 8/46 by **0.513**. None can reach 0.804 however precise. On
+`m1-ss5` `l2`'s bound is 0.890 against the forecaster's 0.593, so it *could*
+beat it; that arm was not swept and its F0.5 there is **not computed**. Part 4's
+per-channel arm, which did not exist when M9 was written, ties the gate set at
+0.805 and beats `m1-ss5` at 0.700.
+
+#### What this section did not measure
+
+`l2`'s event-wise F0.5 on `m1-ss5` -- the four Study B arms were not in the swept
+set, so only the analytic bound is available there and it does not settle it.
+Whether either detector fires before an event begins: 24.9's part 2 note and
+22.10 name the same instrument gap, and it needs the alarm state before the span,
+which nothing here records.
+
+#### Triggers
+
+**Trigger 3 fired** -- N4 refuted -- and it is the subject of D43. Trigger 1 did
+not: the reproduction gate passed all six checks. Trigger 2 did not: N2 held.
+Trigger 4 did not: no frozen figure moved and the weight store is unchanged at 86
+files. Trigger 5 did not: 15 Class B against 20, month at 6 Class A and 86 Class
+B of 50,000 each. Trigger 6 did not: every part-4 comparison above is stated at
+the matched rate and the natural cut is labelled informational on both sets.
 
 ### 24.10 Scoped, not run
 

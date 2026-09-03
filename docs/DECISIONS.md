@@ -2729,3 +2729,155 @@ twelve-channel set is disqualifying on its own.
    this result; `lstm-whitened` is the standing evidence against expecting much.
 4. **`l2` on `m1-ss5` is recorded and not acted on**, so that a future proposal has
    to argue against the gate set rather than discover the subset result fresh.
+
+---
+
+## D43. Contextual is the training-window min/max, not the 0.1/99.9 band; the class is larger and almost none of it is caught
+
+**DATE** 2026-09-03 | **STATUS** resolved as a definition. It re-reads D39 and D40 and
+edits neither
+
+**CONTEXT.** D39 measured the contextual class with the **0.1/99.9 quantile pair** of
+the fitting window and found 3/32. That band is this project's own noise envelope. It
+is not a limit and no limit check ever held it: a real RED or YELLOW limit sits
+**outside** a channel's historical operating range, so the tightest bar any limit could
+possibly hold is the training-window **min/max**. D39 therefore measured a quantity
+tighter than the claim it was testing, and under-counted the class it was counting.
+22.2 had fixed both readings in advance and 22.11 published both; `docs/MODELS.md` 24
+adopts the second as primary.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`, one bundle
+load. The envelope is the fitting window's per-channel min/max with `train_mask`
+applied -- no test sample, no test label, the same window `gru-quantile` calibrates on.
+
+```
+  MVGS events, no channel leaving its training min/max
+    m1-g8.9.10 (12 channels)   6/32      ids id_121, id_13, id_153, id_157, id_89, id_96
+    m1-ss5      (6 channels)  18/31
+```
+
+Both reproduce 22.11 and D40 exactly, which is the check that matters: the same
+figures, from a different script, on a different pass.
+
+**And the class is still almost entirely uncaught.** Over the gate set's six:
+
+```
+    frozen thresholds        gru 0/6    rstd 0/6    neither 6/6
+    matched-quiet            gru 0/6    rstd 0/6    neither 6/6
+    matched-loud             gru 1/6    rstd 0/6    neither 5/6
+```
+
+The single catch is **`id_89`**, footprint 8,995, and only at matched-loud -- the
+forecaster loosened to the floor's alarm rate, thirteen times its own. At the operating
+point it flies with, it catches **none of the six**.
+
+**ALTERNATIVES.** Keep the 0.1/99.9 reading as primary. Adopt min/max and edit D39.
+Adopt min/max, re-read D39 and D40, and leave both standing.
+
+**Against the first.** It measures the wrong quantity for the claim; that is the
+finding, not a preference. **Against the second.** D39 measured what it said it
+measured and said so; a record corrected in hindsight is not a record.
+
+**CONSEQUENCE.**
+
+1. **The primary contextual figure is 6/32 on the twelve-channel view and 18/31 on the
+   six-channel view.** D39's 3/32 stands as the 0.1/99.9 reading and is now the
+   conservative sub-case rather than the headline.
+2. **D40 is not repealed and applies more sharply.** The min/max count is the
+   view-dependent one -- 19% against 58% of the headline cell on two views of the same
+   data -- so every contextual figure names the channel set it is contextual with
+   respect to, this entry's included.
+3. **D39 consequence 2 survives the change of definition.** It said this project has no
+   measured instance of catching a contextual anomaly. Under the corrected and larger
+   definition it has **one**, `id_89`, and only with the detector run at thirteen times
+   its own alarm rate. At the flying operating point the count is still zero.
+4. **The motivating claim is still not tested by this data.** 26 of 32 gate-set
+   headline-cell events leave a channel's historical range, and Objective.md 2.3's
+   argument is about the ones that do not. What would settle it remains D39 consequence
+   5's scoring set, or work item 9.7's study D.
+5. **No detector, threshold, weight or decision layer changes.**
+
+---
+
+## D44. At a matched alarm rate a per-channel range check beats the forecaster on both sets, and the forecaster never speaks first
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It is the most serious result
+this project has produced
+
+**CONTEXT.** The component exists to warn *before* a per-channel limit trips.
+Objective.md 1.1 retired the only lead figure the project had (D21) and left the claim
+resting on a Phase 3 measurement against a real clock. ESA-ADB carries no dictionary
+limits, so `docs/MODELS.md` 24 part 2 built the honest proxy: widen a per-channel
+range check until it is exactly as noisy as the forecaster, then measure how many
+timesteps earlier the forecaster speaks. 24.4's N4 predicted a positive median lead on
+both sets and named the refutation as a stop-and-report trigger.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`. The
+envelope is per-channel training min/max from the fitting window with `train_mask`
+applied -- no test sample, no test label, the same window and mask the forecaster's own
+calibration uses -- widened by one shared factor until its nominal-step rate matches.
+
+```
+  m1-g8.9.10                    recall    MVGS    nominal      F0.5
+    gru-quantile, frozen         27/46   22/32   0.0013%      0.804
+    range check, matched w=1.106 34/46   25/32   0.0000%      0.934
+
+  m1-ss5
+    gru-quantile, frozen         26/42   21/31   0.0141%      0.593
+    range check, matched w=0.672 34/42   25/31   0.0002%      0.543
+```
+
+**At an equal or lower alarm rate the range check catches more on both sets**, and the
+overlap is nested against the forecaster: **both 27, only-GRU 0, only-range-check 7,
+neither 12** on the gate set, and 26 / 0 / 8 / 8 on `m1-ss5`.
+
+**And the lead is not there.**
+
+```
+  timesteps from our first crossing to the first channel leaving the envelope
+    m1-g8.9.10   n=27   median +0.0   mean -105.1   forecaster first  0/27
+    m1-ss5       n=26   median +0.0   mean   -0.3   forecaster first  0/26
+```
+
+**Not once in 53 caught events does the forecaster speak before the range check.** On
+39 they fire at the same step; on 14 the range check is earlier, by up to 2,638
+timesteps.
+
+**And the mechanism is amplitude.** At every one of those 53 first crossings the
+channel that raised the alarm is already outside 3 sigma of its own anomaly-masked
+fitting-window distribution -- median **103.8** and **102.9**, minimum **6.6**, none
+below 3. The forecaster is not crossing on a subtle relationship break; it crosses once
+the raw value is already far outside anything the fitting window contained.
+
+**ALTERNATIVES.** Treat the range check as a leaky comparison. Adopt it. Record it and
+change nothing.
+
+**Against the first.** It is built from fitting data only, under `train_mask`, through
+the same window the forecaster calibrates on, and it is *quieter* than the forecaster
+at the compared point rather than louder. There is no advantage to remove.
+**Against the second.** Nothing here is a flight proposal: a range check that needs its
+width swept against a labelled alarm rate is not a limit a mission would set, and D3's
+gate metric was never the only axis. Adoption would need its own pre-registration.
+
+**CONSEQUENCE.**
+
+1. **On this data the forecaster has no measured advantage over a per-channel range
+   check** -- not on recall, not on false-alarm rate, not on F0.5 on the gate set, and
+   not on lead. Every statement in this repository that Sentinel sees what a
+   per-channel check cannot is withdrawn for these two sets, on the evidence of this
+   entry rather than on D38's, which D41 had already qualified.
+2. **The early-warning argument has no surviving proxy on Phase 1 evidence.** D21
+   retired "+26" against the labelled event start; this retires the remaining proxy
+   against a per-channel check. Objective.md 1.1's "the break-to-limit-trip lead is a
+   Phase 3 deliverable and is unmeasured" is now the whole of the claim, and Phase 3
+   has to earn it against a real clock and real limits.
+3. **What is not touched.** D25, D28, D29 and the frozen decision layer stand -- D28
+   compared LSTM, GRU and TCN against each other and never involved a range check, and
+   nothing here moves a forecaster figure. `gru-quantile` remains the selected
+   architecture; what changes is what may be claimed for it.
+4. **The packaging claim is untouched and is now the load-bearing one.** Nothing else
+   in an F' deployment watches the relationships between channels; that is a statement
+   about the ecosystem, verified in Objective.md 3, and no measurement here bears on it.
+5. **The headline must be written from this entry.** It is held at `docs/STATUS.md`
+   section 7 and is written once, for approval, from work item 9.7 studies A and B and
+   work item 9.8 together.

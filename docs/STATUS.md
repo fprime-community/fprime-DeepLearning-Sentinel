@@ -11,7 +11,17 @@ withdrawn from all ten documents that carried it** and replaced by a holding not
 by a new claim -- `docs/RESULTS.md` 6l is the corrected comparison on both channel sets,
 and it shows the forecaster leading the gate metric on `m1-g8.9.10` (0.804 to 0.676) and
 **trailing on `m1-ss5` (0.593 to 0.663)**, which no document had stated. Work item 9.7
-is pre-registered (`docs/MODELS.md` 23). **Studies A and B have now run**, at 1 Class A
+is pre-registered (`docs/MODELS.md` 23). **2026-09-03: work item 9.8 ran, and it is
+the most serious result the project has produced.** At a matched alarm rate a
+**per-channel range check** built from the fitting window's own min/max catches
+**34/46** against the forecaster's 27/46 on the gate set at a *lower* false-alarm
+rate, F0.5 0.934 against 0.804 -- and in **0 of 53** caught events does the
+forecaster speak first (D44). At every one of those crossings the channel that
+raised the alarm is already past 100 sigma of its own training distribution. Under
+the definition a limit check would actually hold -- training min/max, not the
+0.1/99.9 band -- the contextual class is 6/32 and 18/31, and the flying detector
+catches **none** of the gate set's six at its own operating point (D43). **Studies A
+and B ran earlier**, at 1 Class A
 and 15 Class B: at a **matched alarm rate the nesting reverses** -- held to the
 forecaster's alarm rate the floor finds 7 of 32 headline-cell events, not 25, and the
 forecaster catches 20 the floor misses, so D38's strict subset is a calibration
@@ -235,9 +245,14 @@ HOUSEKEEPING
 - [x] Work item 9.7 studies C and D scoped with costs, not built - **done 2026-09-02**
       (`docs/MODELS.md` 23.14). Every leave-one-out form costs about C times the
       arithmetic; an injected set may never be stored as values under Rule 1.
-- [ ] Close M4 and M9: event-wise F0.5 along the swept curve. One bundle load, 15
-      Class B and 1 Class A, by adding `mask_to_ranges` and `eventwise.score` to
-      `scripts/reduction_and_curve.py`. Not spent.
+- [x] Close M4 and M9 - **done 2026-09-03** in work item 9.8's single load
+      (`docs/MODELS.md` 24.9). M4 refuted: neither detector catches a contextual event
+      even swept to precision 0.5. M9 held on the gate set, closed analytically -- no
+      Study B arm can reach F0.5 0.804 at any precision. `l2`'s F0.5 on `m1-ss5` is
+      still uncomputed and is the one piece left.
+- [x] Work item 9.8, parts 1 to 4 - **done 2026-09-03** at 1 Class A and 15 Class B
+      (`docs/MODELS.md` 24.9, D43, D44, `docs/RESULTS.md` 6m). Two of the three
+      predictions written against interest fired.
 - [ ] A scoring set whose events are selected for the contextual property rather than
       assumed to have it (D39 consequence 5). ESA-ADB may not contain one at `n >= 20`.
 - [ ] Open decisions carried (`docs/PHASE2.md` section 6) - D14, the weight-cache key is still
