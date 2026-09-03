@@ -5617,3 +5617,103 @@ rather than another 24 minutes of fitting.
 
 Recorded as **D47**, in D17's family: an absolute constant that should have been
 relative, silently disabling the thing it configures.
+
+## 26.15 Pre-registration: stage 3, the commissioning-window operating point
+
+**Written and committed before a single figure is computed.** (Numbered 26.15 rather
+than 26.10, which is 26's named risk and is not overwritten.)
+
+D48 established that no threshold calibrated on SMAP/MSL's **train** split describes
+its **test** split -- `rstd` at fifty times its threshold still alarms on 15.57% of
+nominal steps. So stage 2 had no operating point and made no comparison. Stage 3
+obtains one **the way flight would**.
+
+**The commissioning window.** Each channel's threshold is recalibrated on the
+**leading nominal prefix of its own test stream**: steps `[0, first labelled anomaly)`,
+which are labelled nominal and contain no anomaly of either class. This is exactly
+the in-orbit recalibration path work item 10 implements -- a threshold uplinked after
+a commissioning period on the vehicle's own data (D29's consequence, Objective.md
+14.10) -- and D48 is the measured case for why it exists.
+
+**This is not tuning on the test set, and the reasons are structural rather than
+promised.** The window contains **no labelled anomaly**, so no label of the kind
+being scored enters it. It is applied **identically to all four arms**, so no arm is
+advantaged. Its length rule is **fixed below, before the numbers exist**. And nothing
+is swept to maximise a result: the matched-rate comparison is the same instrument
+23.3 and 24.2 already use. What it *is* is a change of calibration window, from a
+split that D48 showed does not transfer to one that flight would actually use, and
+26.16 will report it as such.
+
+### 26.15.1 Definitions fixed in advance
+
+- **Commissioning window**: `[0, first_anomaly_start)` on the test array, minus the
+  channel's warm-up (250 + `SMOOTHING_PERC * len(train)`, D47). What remains are the
+  **scorable commissioning steps**.
+- **The length rule, primary**: a channel is scored only if it has **>= 500 scorable
+  commissioning steps**. Measured now, before any detector runs, so the exclusions are
+  a stated fact and not a later choice:
+
+```
+  min scorable    channels    of the 39    of the 4 out-of-range    of the 11 in-range point
+        250            75           37                      3                            8
+        500            72           33                      3                            8       <- primary
+       1000            57           26                      0                            6
+```
+
+  **The primary rule keeps 33 of the 39**, comfortably past `docs/HARNESS.md` section
+  1's `n >= 20`. 250 and 1000 are **pre-declared sensitivity** and neither can become
+  the primary afterwards.
+- **(!) A limitation of the estimator, stated now.** A 99.9th percentile needs about
+  1,000 samples to be an interior quantile. At 500 it **is the maximum of the
+  commissioning window**. That is still a defensible flight rule -- "the largest score
+  seen during commissioning" -- but it is not the same statistic D25 computes over
+  millions of ESA-ADB steps, and no figure here is placed beside one.
+- **Everything else is unchanged**: the same four arms, the same per-channel scoring,
+  the paper's own split for fitting, matched on pooled nominal-step false-alarm rate,
+  `k/n` throughout, the Wu & Keogh diagnostic beside every catch, and the 4 and the 11
+  reported separately.
+
+### 26.15.2 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **V13** | with commissioning-window calibration, `gru-quantile+cmd`'s nominal-step alarm rate falls **below 1%**, from stage 2's 10.47% | **>= 1%**. The recalibration would then not have fixed what D48 diagnosed, and stage 3 has no operating point either -- in which case SMAP/MSL cannot be scored by this decision layer at all, and that is the finding |
+| **V14** | `rstd` reaches the matched rate **within the sweep**, rather than saturating at the grid maximum as it did in stage 2 | saturation again, which would say the regime shift is not what the commissioning window fixes |
+| **V15** | at a matched rate, `gru-quantile+cmd` catches **12 to 28** of the surviving in-range contextual sequences; central estimate **19** | outside the band. **This is the number the whole three-stage study exists to produce** |
+| **V16** | the range check's measured matched multiplier is **`w < 1.0`** | **`w >= 1.0`**, in which case it catches the in-range population **0 by construction**, the comparison is **uninformative rather than a win**, and V17 is **withdrawn** rather than scored -- the same rule 26.9 applied to V8, and it fired there |
+| **V17** | conditional on `w < 1.0`: the forecaster's catch count on the in-range population exceeds the range check's by **>= 8** | a margin **<= 0**. The forecaster would have no advantage on the one population built to favour it, on the one dataset that carries enough of it, and the in-limits claim would be finished on both datasets |
+| **V18** | **D6, at last answered**: the commanded arm catches **more** of the in-range contextual than the uncommanded arm | equal or fewer, which answers D6 **no**: commands do not help, and every telemanom-minus-commands figure in this project loses nothing by the omission |
+
+**Deliberately not predicted.** Which channels carry the catches. `rstd`'s catch
+count, reported as the floor. Lead time, which the paper's split gives no comparable
+anchor for and which D44 settled on ESA-ADB.
+
+### 26.15.3 The named risk
+
+**That the calibration window was changed after a result nobody wanted.** It was --
+D48 is that result, and 26.15 exists because of it. What makes it defensible rather
+than convenient is that the window contains **no labelled anomaly**, that it is
+applied **identically to every arm** including the two that could beat the
+forecaster, that its length rule and exclusions are **fixed above before any figure
+exists**, and that **V13 can close stage 3 the same way D48 closed stage 2**. If the
+recalibration does not produce a usable operating point, that is reported and the
+study ends unmeasured for the second time.
+
+**And the standing one**: this is the third stage on a dataset added after a bad
+result. 26's first paragraph still governs -- **none of it is cross-channel
+evidence**, Objective.md 9.2 stands, and SMAP/MSL remains 81 unsynchronised
+univariate streams.
+
+### 26.15.4 Cost and stop-and-report
+
+**One read from cached weights: 165 Class B and 1 Class A.** The month stands at 176
+Class A and 606 Class B of 50,000 each, per-run tripwire 1,000. No fit is repeated;
+D47 already demonstrated the weight store grows by 0 on a re-run.
+
+Stop and report if: **V13 is refuted** and there is again no operating point; **V16 is
+refuted**, in which case V17 is withdrawn rather than scored; any ESA-ADB figure,
+task, weight or manifest moves; or more than 200 Class B.
+
+### 26.16 OBSERVED
+
+Reserved. Nothing has run.
