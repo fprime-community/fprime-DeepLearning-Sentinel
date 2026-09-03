@@ -4606,3 +4606,256 @@ are all settled on quantities that were recorded.
 **What this does not touch.** No detector, threshold, weight or decision layer
 moved; no arm is proposed for adoption, and 23.11 trigger 6 makes that a
 separate decision; `m2-ss1` and `m1-g3` were not loaded; `main` is untouched.
+
+## 24. Pre-registration: cross-channel detection before the per-channel check (work item 9.8)
+
+**Written and committed before a single figure is computed.** Work items 9.5 to 9.7
+took the project's headline apart. The floor was corrected and rose (D37). The flying
+detector was found to catch a strict subset of it (D38) -- and that turned out to be an
+artifact of the two sitting at very different alarm rates: held to the forecaster's
+rate the floor finds **7 of 32** headline-cell events rather than 25, and the
+forecaster catches **20** the floor misses (D41). No cross-channel aggregation recovers
+anything `max` misses, so D23 closed as answered no (D42). Through all of it the
+contextual claim stayed dead: **3/32** by the 0.1/99.9 band, caught by nothing (D39),
+with the count depending on the watched channel set (D40).
+
+**The headline is held** (`docs/STATUS.md` section 7). This section is the evidence it
+will be written from, and it is written before the evidence exists.
+
+Four parts, one bundle load, cached weights, nothing refitted. Nothing here changes a
+detector, a threshold, a weight, the frozen decision layer or `main`.
+
+### 24.1 The four parts, and why each is asked
+
+1. **Contextual, redefined as the literature means it.** D39 measured the contextual
+   class with the **0.1/99.9 quantile band** of the fitting window. That band is this
+   project's own noise envelope; it is not a limit, and no limit check ever held it. A
+   real RED or YELLOW limit sits **outside** a channel's historical range, so the
+   tightest bar any limit could possibly hold is the training-window **min/max**. Under
+   that reading the class is larger, and D39 measured the wrong quantity for the claim
+   it was testing.
+2. **Lead against a per-channel range check, per event, at a matched alarm rate.** The
+   project's purpose is warning *before* a limit trips, and Objective.md 1.1 retired
+   the only lead figure it had. ESA-ADB carries no dictionary limits, so the honest
+   proxy is: widen a per-channel envelope until it is exactly as noisy as we are, and
+   measure how many timesteps earlier we speak.
+3. **The amplitude mechanism.** If the residual crosses only when the raw channel is
+   already extreme, then the forecaster is an expensive magnitude detector and the
+   cross-channel story is decoration. This is the test that could show that.
+4. **Per-channel noise floors.** D23 named channel-blindness in two forms. Study B
+   closed the first -- aggregation across channels (D42). The second is untested: one
+   loud channel sets a **single global bar** for eleven quiet ones, so a quiet channel
+   must become as surprising as the loudest to be heard at all.
+
+### 24.2 Definitions fixed in advance
+
+Fixed here so they cannot be chosen after the answer is visible.
+
+- **Contextual (this section's primary reading)**: an event where **no watched channel
+  leaves its own training-window min/max** at any step inside the event span, the
+  envelope built from fitting data only with `train_mask` applied. This is the
+  construction `scripts/envelope_proxy.py:95-110` already uses and 22.2 already
+  reported beside the quantile pair. **It is a lower bound on the in-limits class**: a
+  real limit is wider than the historical range, so an event that never leaves min/max
+  cannot have tripped one, and the implication runs only that way.
+- **Per D40, every contextual count names the channel set it is contextual with respect
+  to.** That rule is not repealed by the change of definition; it applies to the
+  min/max reading exactly as it applied to the quantile one, and more sharply, since
+  the min/max count is the view-dependent one.
+- **Widened per-channel envelope (part 2)**: per channel, the training-window min/max
+  centre-scaled by a single factor `w` shared across channels, `w` swept until the
+  envelope's **nominal-step alarm rate** equals `gru-quantile`'s on the same fold. The
+  alarm is "any watched channel outside its widened envelope", the same
+  `first_break` rule as `scripts/envelope_proxy.py:113-119`.
+- **Lead against that check**: for a caught event, the first in-span step at which any
+  channel leaves the widened envelope, **minus** our honest emission step -- positive
+  means we spoke first. Both in test-window coordinates, both in **timesteps, never
+  hours** (`docs/HARNESS.md` section 4). Our emission is the harness's own re-dated
+  alarm start (`harness.py:208-224`); in quantile mode `last_emission` is `None` and
+  the crossing **is** the emission, so for `gru-quantile` this is the first crossing.
+- **Raw z and residual z (part 3)**: at the first crossing inside an event, the raw
+  channel's value minus its anomaly-masked fitting-window mean over that window's
+  standard deviation; beside it, the smoothed residual on the same channel over the
+  same window's residual standard deviation. The channel is the one attaining the
+  maximum smoothed residual at that step.
+- **The per-channel bar (part 4)**: per channel, the **0.999 quantile of that channel's
+  own smoothed residual** over the anomaly-masked fitting window -- **D25's recipe
+  applied per column**, not a new recipe. Each column is divided by its own bar, the
+  maximum is taken across channels, and the cut is 1.0.
+  `Detector.threshold_from` (`src/sentinel_eval/detector.py:127-132`) cannot produce
+  this: its `np.isfinite` mask flattens a `(T, C)` matrix and it returns a single
+  scalar pooled over every channel and step. `np.nanquantile(..., 0.999, axis=0)` is
+  used explicitly and the difference is stated because it is the whole point of part 4.
+- **Matched operating point**: equal **nominal-step false-alarm rate**, computed on the
+  same fold's clean nominal steps. Unchanged from 23.7. Not equal alarm count, not
+  equal precision.
+
+**(!) Part 4 is not a per-channel scaler and does not breach D2.**
+`src/sentinel_eval/normalisation.py` refuses `per_channel_zscore` and its relatives and
+`tests/test_no_per_channel_scaler.py` enforces it, because rescaling **input values**
+per channel erases the amplitude ratios between related channels -- the information the
+cross-channel claim rests on. Part 4 normalises **residuals**, after the multivariate
+forecast has already used those ratios. `telemanom.py:362-437` and `oscfar.py:279-348`
+both already do this. Identity normalisation on inputs is untouched.
+
+**(!) Part 4's arm is louder than `gru-quantile` by construction, and the comparison is
+made at a matched rate only.** "Any channel over its own 99.9th percentile" is roughly
+`C` chances to exceed a 99.9th percentile where `gru-quantile` has one. Reporting its
+recall beside the forecaster's at the natural cut would repeat exactly the error D41
+was written to correct. **Every comparison against `gru-quantile` is stated at the
+multiplier where their nominal-step rates are equal. The cut-at-1.0 figure is reported
+for completeness, is labelled informational, and no verdict, no prediction and no
+sentence of any headline rests on it. N7 and N8 are adjudicated at the matched rate
+only.**
+
+### 24.3 What is already published, and is therefore not predicted
+
+A prediction written after its own answer is theatre; 22.4 said so and 22.11 was filed
+as a derivation rather than an experiment for exactly this reason. Three quantities
+this section uses are **already in print** and no `N` is spent on them:
+
+```
+  min/max-contextual, 12-channel view   6/32     docs/MODELS.md 22.11, D40
+  min/max-contextual,  6-channel view  18/31     docs/MODELS.md 22.11, D40
+  caught by either detector, frozen      0  and  12
+```
+
+What is new in part 1 is the **ids**, and the catch counts at the **matched-rate**
+operating points D41 established rather than at the frozen thresholds. Those are
+predicted below.
+
+The operating points themselves are also already measured (23.15) and are inputs here,
+not results:
+
+```
+  m1-g8.9.10   matched-quiet  rstd x7.435       matched-loud  gru x0.346
+  m1-ss5       matched-quiet  rstd x6.083       matched-loud  gru x0.936
+```
+
+**And the nearest prior art for part 4 is on record.** `lstm-oscfar`'s bare local order
+statistic -- a per-channel calibrated threshold -- reached 21/46 recall, **19/32
+headline cell**, 85 alarm ranges and a **+26.0** median lead at a 0.1% budget
+(`docs/DECISIONS.md` D20's OUTCOME block). That is LSTM-era, pre-correction, and on a
+different rule; it settles nothing. It is quoted because N7 should be written against
+the best available prior rather than against a blank page.
+
+### 24.4 PREDICTED
+
+Committed before the script runs. `N2`, `N4` and `N7` are stated in the direction that
+would hurt.
+
+**Part 1 -- contextual under the min/max reading.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **N1** | the gate set's **6** min/max-contextual ids are a **subset** of `m1-ss5`'s **18** | any gate-set id absent from `m1-ss5`'s. D40 established that removing watched channels can only move events **into** the class, so a violation would mean the two envelopes are not nested and D40's monotonicity argument is wrong |
+| **N2** | at the matched-rate operating points, `gru-quantile` catches **>= 1** of the gate set's 6, central estimate **2** | **0**. This is the sharpest number in the work item. A catch here is the project's **first measured detection of an event no limit check could have seen**; zero leaves D39 consequence 2 standing exactly as written -- no measured instance, on the corrected definition as well as the old one |
+| **N3** | on `m1-ss5`, over the 18, `gru-quantile`'s catch count at matched rate **exceeds** the corrected `rstd`'s | the floor equalling or beating it, which would put the one set where the contextual class is large in the floor's hands |
+
+**Part 2 -- lead against a per-channel range check at a matched alarm rate.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **N4** | the per-event lead has a **positive median** on **both** sets | a median **<= 0** on either. That would say a range check as noisy as we are sees these events no later than we do, and the early-warning argument loses its last proxy on this data -- with Objective.md 1.1's retirement of "+26" already standing, there would be nothing left to replace it with before Phase 3 |
+| **N5** | **>= 60%** of caught events have their first envelope breach **after** our emission | below **50%** |
+
+**Part 3 -- the amplitude mechanism.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **N6** | at the first crossing, the raw channel's z stays inside **3 sigma** for **>= 60%** of caught events while the residual's z exceeds it | below **40%**. The forecaster would then be crossing mostly when the raw value is already extreme, and the cross-channel account of what it does would be a description of a magnitude detector |
+
+**Part 4 -- per-channel noise floors, adjudicated at the matched rate only.**
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **N7** | at a matched nominal-step rate, the per-channel bar recovers **>= 3** of `gru-quantile`'s **19** gate-set misses | **0**, which closes D23's second form the way D42 closed its first: neither aggregating across channels nor giving each channel its own bar recovers anything, and the channel-blind decision layer costs no measured event on this data |
+| **N8** | it recovers **0** of the three 0.1/99.9-contextual events (`id_121`, `id_153`, `id_157`) at the matched rate | any of the three, which would be a first and would require D39 to be re-read a second time |
+
+**Deliberately not predicted.** Which channel part 3's crossings land on. Whether part
+4's arm beats `gru-quantile` on F0.5 -- M9 is being closed in the same run and naming a
+favourite here would contaminate it. The size of part 2's lead beyond its sign and
+median. Anything about `m2-ss1` or `m1-g3`, which are spent (D29) and not loaded.
+
+### 24.5 The named risk
+
+**That this work item is the third attempt to find the forecaster a win.** 9.6 withdrew
+the per-event argument, 9.7 restored it at a matched rate, and this one redefines the
+contextual class in a direction that makes the class larger. A reader is entitled to
+ask whether the definition moved because the answer was inconvenient.
+
+The defence is that the direction was **stated before it was measured and is stated
+against interest**: 22.2 fixed both readings in advance, 22.11 published the min/max
+figures beside the quantile ones, and D40 recorded that the min/max reading is the
+**unstable** one -- 6/32 against 18/31 on two views of the same data. Adopting it makes
+the class larger *and* the count more fragile, and 24.2 keeps D40's naming rule rather
+than dropping it. N2 then names zero as the outcome that leaves D39 untouched.
+
+The second protection is that **nothing here can rescue the claim by itself**. Part 1
+can only change the size of the class; it takes N2 to put a single event in it, and N2
+is one number with no band to hide in.
+
+### 24.6 Cost
+
+**One bundle load: 15 Class B and 1 Class A**, both channel sets, all folds, every arm,
+from cached weights. Parts 2, 3 and 4 each need per-channel data that nothing caches;
+part 1 needs no new data at all and is a join of two committed artifacts. The month
+stands at **4 Class A and 71 Class B** of 50,000 each, tripwire 1,000 per run.
+
+`scripts/reduction_and_curve.py` is extended rather than replaced, so this is the same
+single load Studies A and B used. **M4 and M9, left unresolved at 23.15 because
+event-wise F0.5 was never instrumented along the sweep, are closed in the same run at
+no additional cost.**
+
+**Every new code path is exercised on the offline synthetic fixture, at zero
+operations, before anything is spent.**
+
+### 24.7 Stop and report
+
+1. **The reproduction gate fails.** The `max` arm and `rstd` must reproduce 27/46,
+   22/32, 34/46, 25/32 on the gate set and 26/42, 21/31, 34/42, 25/31 on `m1-ss5`
+   before **any** new figure in this section is read. A failure means the extension
+   broke something and its new numbers are worthless until that is found. Report the
+   failure and nothing else.
+2. **N2 refuted** -- zero contextual catches under the corrected definition too.
+3. **N4 refuted** -- the range check is not later than we are.
+4. Any figure belonging to a frozen artifact moves: `gru-quantile`'s scorecard, the
+   decision layer, a weight, a held-back score.
+5. More than **20 Class B** in the run, or the per-run tripwire at 1,000.
+6. Any part-4 comparison is about to be stated at the natural cut rather than at the
+   matched rate.
+
+### 24.8 What this decides, and what it may not
+
+**Decides.** Whether the contextual class is larger under the definition the literature
+means, and whether anything catches an event inside it (parts 1, N2, N3). Whether this
+project has a measurable lead over a per-channel range check at its own alarm rate
+(part 2, N4, N5). Whether the forecaster's crossings are cross-channel or amplitude
+(part 3, N6). Whether per-channel calibration recovers anything the global bar misses,
+which is D23's second form (part 4, N7, N8). And M4 and M9, carried from 9.7.
+
+**May not.** Move any threshold, retrain anything, alter the frozen decision layer
+(D25), adopt part 4's arm, re-score a held-back set, or touch `main`. Edit D39 or D40 --
+a new entry re-reads them and both stand as written. Or write the headline: that is
+held at `docs/STATUS.md` section 7, it is written once from Studies A and B and this
+section together, and it is written for approval rather than committed.
+
+### 24.9 OBSERVED
+
+Reserved. Nothing has run.
+
+### 24.10 Scoped, not run
+
+- **The matched-rate curve as a mission-selectable operating point** for the toolkit's
+  pre-launch sanity report (`docs/STATUS.md` section 7). A mission picks an alarm rate
+  it can absorb and reads the recall that comes with it; the curve is documented before
+  launch and **never tuned on results**, which is `scripts/oscfar_curve.py`'s standing
+  rule and section 7's refusal of the oracle sweep.
+- **The fold-1 floor rise as the target for forecaster improvement.** Every only-`rstd`
+  event on both sets is in fold 1 (22.11), and six of the seven are the events the GRU
+  lost to a floor 1.81x higher (section 14 at :1517-1520). Training window, seed, and
+  the in-flight fine-tuning tiers of Objective.md 14.10 are the levers; none is pulled
+  here.
+- **Study D, the injected relationship breaks** -- `>= 50` events, every channel kept
+  inside its envelope, scored blind -- costed at 23.14 and deferred until after work
+  item 10.
