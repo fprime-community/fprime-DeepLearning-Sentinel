@@ -3193,3 +3193,74 @@ V20 prediction was refuted in the same run. The finding is real and it is not ge
    different encoding, and nothing about ESA-ADB, whose telecommands remain unwired.
 4. **No detector, threshold or weight changes.** `gru-quantile` flies without commands
    and always has; this removes a reason to revisit that, rather than creating one.
+
+---
+
+## D50. The reproduction gap against telemanom is the pruning step, not the forecaster and not the scoring rule
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It names the first lever for the
+improvement ladder and it re-reads D18
+
+**CONTEXT.** This project reproduced telemanom and has reported figures against it since
+work item 4, with a documented deviation -- no command inputs (D6, since closed as D49).
+Work item 9.9 stage 5 was commissioned on the hypothesis that the gap between our
+figures and the published ones is **the scoring rule**. `docs/MODELS.md` 26.19.1 checked
+that in the source before running anything and found there is only one rule:
+`eventwise.detected` is "fires anywhere inside the span", any-overlap, which is
+Hundman's recall rule; precision is predicted ranges overlapping a truth range over all
+predicted ranges, which is his precision rule; and `PRUNING_P = 0.13` is his published
+pruning value, sitting in our detection stack. **The hypothesis was untestable, so the
+question became the size and location of the gap.**
+
+**EVIDENCE.** `lstm-telemanom` as published and without commands, per channel, on the
+paper's own split, scored over 98 sequences (6 channels refused by D17's guard), twice
+-- once at the published `p = 0.13` and once at `p = 0`, the paper's own ablation.
+
+```
+   p      set        our recall      paper      our precision     paper
+   0.13   Total    44/98   44.9%     80.0%     45/59    76.3%     87.5%
+   0.00   Total    72/98   73.5%     84.8%     92/329   28.0%     48.9%
+```
+
+**Precision reproduces within 11.2 points. Recall is 35.1 points short.** And the
+paper's own ablation says where the difference lives -- compare what pruning *costs*
+each implementation in recall:
+
+```
+    paper   SMAP    92.8% -> 85.5%     7.3 points lost
+    ours    SMAP    87.1% -> 54.8%    32.3 points lost
+    paper   MSL     69.4% -> 69.4%     0.0 points lost
+    ours    MSL     50.0% -> 27.8%    22.2 points lost
+```
+
+**Pruning costs the paper 7.3 points on SMAP and nothing on MSL; it costs this
+reproduction 32.3 and 22.2.** Without pruning we are 11.3 points short of the paper;
+with it, 35.1. **Pruning triples the gap.**
+
+The direction of the ablation reproduces on both datasets in both metrics, so the
+detection stack has the paper's internal structure -- what differs is the magnitude of
+one stage's effect.
+
+**ALTERNATIVES.** Attribute the gap to the missing commands. Attribute it to the
+forecaster. Localise it to pruning and say so.
+
+**Against the first.** It was the available excuse and the evidence is against it: D49
+measured commands making the detector **worse** on this data, and stage 5's ablation
+locates the difference in a stage commands do not touch. **Against the second.**
+Precision within 11.2 points and the ablation reproducing in direction are not the
+signature of a broken forecaster.
+
+**CONSEQUENCE.**
+
+1. **The reproduction is closer to the published method than the headline figure
+   suggests**, and the divergence is in one identified stage rather than diffuse.
+2. **Pruning is the first lever any improvement ladder should touch** -- ahead of
+   lookback, cell type, seed ensembles or epoch policy, because those are guesses and
+   this is measured.
+3. **It does not vindicate or indict the method**, and 26.19.3 forbade claiming either.
+   Every ESA-ADB figure stands; nothing here moves one.
+4. **It re-reads D18.** That entry recorded the published dynamic threshold degenerating
+   under a good forecaster on ESA-ADB. This is a second published component behaving
+   differently in our hands than in the authors'. Neither is evidence the method is
+   wrong; both are evidence that **a reproduction is a measurement with its own error
+   bars**, and one of them is now quantified.

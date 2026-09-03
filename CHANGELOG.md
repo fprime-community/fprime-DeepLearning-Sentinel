@@ -14,6 +14,41 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.9] - 2026-09-03 - Stage 5: the reproduction gap is the pruning step
+
+One read at 1 Class A and 165 Class B, plus a discarded run whose 75 fits are reused.
+
+### Corrected before running - the hypothesis was untestable
+
+- Stage 5 was commissioned to score two ways, "Hundman's overlap-after-pruning rule and
+  our event-wise rule", on the hypothesis that the gap is the scoring rule. **There is
+  only one rule.** `eventwise.detected` is "fires anywhere inside the span" -- any
+  overlap, Hundman's recall rule; precision is predicted ranges overlapping a truth
+  range over all predicted ranges, his precision rule; and `PRUNING_P = 0.13` is his
+  published value, in our detection stack. Checked in the source, before spending.
+
+### Added - D50, and the paper's Table 2 retrieved rather than recalled
+
+- **Precision reproduces within 11.2 points** (76.3% against 87.5%); **recall is 35.1
+  short** (44.9% against 80.0%), over 98 sequences.
+- **The paper's own ablation reproduces in direction on both datasets and both
+  metrics**, so our detection stack has its internal structure.
+- **And it localises the gap.** Pruning costs the paper **7.3** points of SMAP recall
+  and **0.0** on MSL; it costs this reproduction **32.3** and **22.2**. Without pruning
+  we are 11.3 points short of the paper; with it, 35.1. **Pruning triples the gap.**
+- The available excuse is ruled out rather than used: the gap is **not** the missing
+  command inputs, because D49 measured commands making the detector worse and the
+  ablation locates the difference in a stage commands do not touch.
+- **It re-reads D18.** A second published component behaves differently in our hands
+  than in the authors'. Neither is evidence the method is wrong; both are evidence that
+  a reproduction is a measurement with its own error bars, and one is now quantified.
+
+### Process
+
+- A first stage 5 run fitted 75 channels and then failed in the scoring code -- `Event`
+  takes `segments`, not `channels`, which is a derived property. The fits were cached,
+  so the corrected re-run took 57 seconds and cost one read. My error.
+
 ## [0.6.8] - 2026-09-03 - Stage 4: the dynamic threshold works, and D6 is answered
 
 Two reads at 1 Class A and 165 Class B each; the first discarded for a defect of mine.

@@ -292,6 +292,19 @@ HOUSEKEEPING
       makes the detector **worse** at a matched rate - 6/38 against 10/38 in-range
       contextual, 33/100 against 47/100 overall. Every telemanom-minus-commands figure
       in this project loses nothing by the omission.
+- [x] **Work item 9.9 stage 5 - done 2026-09-03** (`docs/MODELS.md` 26.19, 26.20, D50).
+      The commissioned hypothesis was untestable: our event-wise rule **is** Hundman's
+      overlap rule, in the same code path, after his published pruning. What the run
+      measured instead is where the reproduction gap lives. Precision reproduces within
+      **11.2** points (76.3% against 87.5%); recall is **35.1** short (44.9% against
+      80.0%); and the paper's own pruning ablation reproduces in direction on both
+      datasets. **Pruning costs the paper 7.3 points of SMAP recall and nothing on MSL;
+      it costs this reproduction 32.3 and 22.2. Pruning triples the gap.**
+- [ ] **The improvement ladder on the 38**, one lever per pre-registration, each
+      measured against stage 4's **10/38** baseline, target published-parity recall
+      (~80%) on the in-range population. **D50 names the first lever: pruning**, ahead
+      of lookback, cell type, seed ensembles and epoch policy, because those are guesses
+      and pruning is measured.
 - [ ] **Route B, scoped and not run** (`docs/MODELS.md` 26.17.4): the commissioning
       window's median + k*MAD, a robust small-sample threshold for the case 26.16
       failed. No `k` is chosen.

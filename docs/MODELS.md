@@ -6032,6 +6032,71 @@ trigger.
 **Stop and report** if the fits stall on more than 10 channels under D17's guard; if
 more than 200 Class B; or if any ESA-ADB figure, task or manifest moves.
 
-### 26.20 OBSERVED
+### 26.20 OBSERVED -- stage 5, and the gap is the pruning step
 
-Reserved. Nothing has run.
+**2026-09-03. 1 Class A and 165 Class B**, plus one discarded run whose fits are
+reused. Weight store **+0** on the scored run; 6 channels refused by D17's guard, so
+the population is **98 sequences** rather than 104. **57 seconds**, against the ~15
+minutes 26.19.4 estimated -- because the discarded run had already paid for the fits.
+Artifact `runs/smap-msl/_forensics/2026-09-03T221211Z-stage5.json`.
+
+```
+   p      set        our recall      paper      our precision     paper
+   0.13   MSL      10/36   27.8%     69.4%     10/14    71.4%     92.6%
+   0.13   SMAP     34/62   54.8%     85.5%     35/45    77.8%     85.5%
+   0.13   Total    44/98   44.9%     80.0%     45/59    76.3%     87.5%
+
+   0.00   MSL      18/36   50.0%     69.4%     21/87    24.1%     75.8%
+   0.00   SMAP     54/62   87.1%     92.8%     71/242   29.3%     43.0%
+   0.00   Total    72/98   73.5%     84.8%     92/329   28.0%     48.9%
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **V25** | pooled recall more than 10 points short of 80.0%, i.e. below 70.0% | **44.9%** -- 35.1 points short | **HELD** |
+| **V26** | both per-dataset recalls below their published counterparts | MSL 27.8% against 69.4%; SMAP 54.8% against 85.5% | **HELD** |
+| **V27** | disabling pruning moves precision **down** and recall **up** on both datasets | MSL 71.4%->24.1% and 27.8%->50.0%; SMAP 77.8%->29.3% and 54.8%->87.1% | **HELD on both datasets in both directions.** The detection stack has the paper's internal structure |
+| **V28** | our precision within 15 points of the paper's 87.5% | **76.3%**, a gap of **11.2** | **HELD** |
+
+#### The gap is concentrated in pruning, and that is measurable rather than inferred
+
+**Precision reproduces; recall does not; and the paper's own ablation says where the
+difference lives.** Compare what pruning *costs* each implementation in recall:
+
+```
+                    without pruning -> with pruning        recall lost
+    paper   SMAP        92.8%  ->  85.5%                      7.3 points
+    ours    SMAP        87.1%  ->  54.8%                     32.3 points
+    paper   MSL         69.4%  ->  69.4%                      0.0 points
+    ours    MSL         50.0%  ->  27.8%                     22.2 points
+```
+
+**Pruning costs the paper 7.3 points on SMAP and nothing at all on MSL. It costs this
+reproduction 32.3 and 22.2.** Without pruning our total recall is **73.5%** against
+the paper's 84.8% -- 11.3 points short. With it, 44.9% against 80.0% -- **35.1 points
+short.** Pruning triples the gap.
+
+So the reproduction is closer to the paper than the headline figure suggests, and
+**the divergence is in one stage**: the pruning rule at `p = 0.13`, which in our
+implementation removes roughly four times as much recall as it does in theirs. The
+forecaster and the scoring rule are not where the difference is -- 26.19.1 established
+the scoring rule is literally the same code path, and V28 shows precision within 11
+points.
+
+#### What this does and does not say
+
+**It does not vindicate or indict the method**, and 26.19.3 forbade claiming either.
+**It does not attribute the gap to the missing command inputs**, which was the
+available excuse: D49 measured commands making things *worse* on this data, and stage
+5's own ablation locates the difference somewhere else entirely.
+
+**It does name a lever.** `telemanom.py`'s pruning is the single stage where this
+reproduction and the published one diverge most, and it is the first thing an
+improvement ladder should touch -- ahead of lookback, cell type, seeds or epochs,
+because those are guesses and this is measured.
+
+**And it re-reads D18.** That entry recorded the published dynamic threshold
+degenerating under a good forecaster on ESA-ADB. Stage 5 shows a second published
+component behaving differently in our hands than in the authors'. Neither is evidence
+the published method is wrong; both are evidence that **a reproduction is a
+measurement with its own error bars**, and this project has now quantified one of them.
