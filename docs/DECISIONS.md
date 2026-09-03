@@ -3264,3 +3264,70 @@ signature of a broken forecaster.
    differently in our hands than in the authors'. Neither is evidence the method is
    wrong; both are evidence that **a reproduction is a measurement with its own error
    bars**, and one of them is now quantified.
+
+---
+
+## D51. The reproduction gap is in candidate-sequence generation, and four other causes are eliminated
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It closes two levers with their
+sizes measured and names the remaining one from the source
+
+**CONTEXT.** D50 measured a 35.1-point recall gap against telemanom's published Table 2
+and localised it to pruning. Work item 9.9's rungs 1a and 1b then read telemanom's
+`errors.py` beside `src/sentinel_models/telemanom.py` and corrected two divergences,
+each in the study script rather than the source (D8, and 26.21.2).
+
+**EVIDENCE.** Cached weights, 98 sequences, three reads.
+
+```
+   arm                  recall     precision    candidate ranges
+     as-is             44.9%         76.3%            59
+     + 1a rung fix     60.2%         44.2%           147
+     + 1b tracking     60.2%         44.5%           146
+     paper             80.0%         87.5%           ~91
+```
+
+**Four candidate causes are now eliminated, each by measurement rather than argument:**
+
+1. **The scoring rule.** There is only one -- `eventwise.detected` is any-overlap,
+   which is Hundman's rule, after his published pruning at `p = 0.13` (26.19.1).
+2. **The missing command inputs.** D49 measured commands making the detector *worse*
+   on this data, and the divergences found sit in a stage commands do not touch.
+3. **The pruning rung.** Real, confirmed on 1,721 of 1,721 calls, and worth **+15.3
+   points of recall** -- a large share of the gap, but it costs 32.1 points of
+   precision and leaves 19.8 points of recall outstanding.
+4. **Cross-window anomaly tracking.** Real, confirmed on 1,721 of 1,721 calls, and
+   worth **one candidate range in 147**.
+
+**What remains is upstream of all of them.** Telemanom unions each window's surviving
+anomalies across every overlapping window (`process_batches`); this reproduction clips
+each sequence to the judged segment (`channel_ratios`), so an index is judged once
+rather than about `error_window / stride` times. That changes **which indices are
+anomalous at all**, not which sequences survive pruning.
+
+**ALTERNATIVES.** Keep tuning the forecaster. Adopt the two corrections now. Name the
+remaining divergence and stop until it is read.
+
+**Against the first.** The forecaster is not the gap: precision reproduced within 11.2
+points at the outset (D50), and every divergence found since is in the detection
+stack. Lookback, cell type and seed ensembles all tune the forecaster.
+**Against the second.** The reproduction does not match Table 2, and adopting a
+correction that halves published precision to buy an incomplete recall recovery is the
+trade 26.22 already showed is not worth making blind.
+
+**CONSEQUENCE.**
+
+1. **Two levers are closed with their sizes measured**, both read from the source and
+   both right in direction on every call. That is the standard the remaining lever is
+   held to before it is run.
+2. **The forecaster rungs stay unregistered.** Lookback, LSTM-versus-GRU and seed
+   ensembles are not pre-registered until the candidate count matches the paper's --
+   146 against ~91 today -- because they aim at a stage the evidence has cleared.
+3. **No source file changes and no ESA-ADB figure moves.** Both corrections remain in
+   the study script. Escalating them to `src/sentinel_models/telemanom.py` as a D8
+   correctness fix, with both numbers kept and the ESA figures re-stated from
+   artifacts, happens only when the reproduction matches Table 2 within tolerance.
+4. **It generalises past this dataset.** A reproduction can agree with a published
+   method on architecture, hyperparameters, scoring rule and pruning constant and still
+   differ by 35 points, because the difference lives in how a stream is segmented for
+   judgement -- a detail papers rarely specify and code always does.

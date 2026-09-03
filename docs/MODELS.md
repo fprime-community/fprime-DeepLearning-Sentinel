@@ -6302,6 +6302,65 @@ are on disk. Weight store expected to grow by **0**. Month stands at 182 Class A
 **And if a further divergence remains after 1b, it is named from the source before
 anything else is run** -- 26.23.2 is the first instalment of that.
 
-### 26.24 OBSERVED
+### 26.24 OBSERVED -- rung 1b is directionally right and numerically negligible
 
-Reserved. Nothing has run.
+**2026-09-03. 1 Class A and 165 Class B**, cached weights, **weight store +0**, 42
+seconds. Artifact `runs/smap-msl/_forensics/2026-09-03T232750Z-rung1b.json`.
+
+```
+   arm      set        recall            precision        ranges
+   1a only  Total    59/98   60.2%     65/147   44.2%       147
+   1a+1b    Total    59/98   60.2%     65/146   44.5%       146
+   paper    Total            80.0%              87.5%       ~91
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **Y4** | the tracked rung is <= the untracked one on every call | **1,721 of 1,721** | **HELD, universally.** The reading of `errors_all.i_anom` is right in direction, as X3's was for 1a |
+| **Y1** | candidate ranges fall from 147 to **110 or fewer** | **146** -- one range | **REFUTED** |
+| **Y2** | precision recovers to **>= 60.0%** | **44.5%**, from 44.2% | **REFUTED** |
+| **Y3** | recall holds at **>= 58.0%** | **60.2%**, unchanged | **Held** |
+
+#### The pre-registered consequence, which fires
+
+Y1's refutation clause said it in advance: *"Tracking would then not be what is
+generating the excess candidates, and 26.23.2's union difference becomes the leading
+explanation."* **It does.** Cross-window tracking is a genuine divergence -- confirmed
+on every one of 1,721 calls -- and correcting it moves one range in 147. The reason is
+visible in our own loop: because our verdicts are clipped to the judged segment, the
+accumulated `found` set overlaps only a sliver of each window's reference region, so
+excluding it barely lowers the rung.
+
+**Two levers are now closed, and their sizes are known**: the rung definition (1a) is
+worth **+15.3 points of recall**, cross-window tracking (1b) is worth **one candidate
+range**. Both were read from the source rather than guessed, and both were right in
+direction on every call.
+
+#### What remains, named from the source and not run
+
+26.23.2 named it before either ran, and it is now the leading explanation:
+
+```
+  telemanom   each window's surviving anomalies are UNIONED across all overlapping
+              windows -- errors.py process_batches:
+              self.i_anom = np.append(self.i_anom, window.i_anom + prior_idx)
+
+  ours        a sequence is clipped to the judged segment --
+              telemanom.py: lo, hi = max(lo, offset), min(hi, window.shape[0])
+              so each index is judged once, not ~error_window/stride times
+```
+
+Fixing it means replacing per-segment verdicts with a union over overlapping windows,
+which changes **which indices are anomalous at all** rather than which sequences
+survive pruning -- a change upstream of everything 1a and 1b touched, and the only
+remaining structural difference this reading has found.
+
+**It is not run here.** 26.23.4 required any further divergence to be named from the
+source before anything else is run, and the standing instruction is that the
+forecaster rungs stay unregistered until the candidate count matches the paper's. It
+still does not: **146 against ~91**.
+
+**And no escalation.** The corrected pruning and tracking go into
+`src/sentinel_models/telemanom.py` as a D8 correctness fix only when the reproduction
+matches Table 2 within tolerance. At 60.2/44.5 against 80.0/87.5 it does not, so both
+corrections stay in the study script and every ESA-ADB figure stands untouched.

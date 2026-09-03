@@ -308,9 +308,14 @@ HOUSEKEEPING
       precision (76.3% -> 44.2%), against the paper's 80.0/87.5. **Real, material, and
       not the whole gap** - at least one further divergence sits upstream of pruning,
       in candidate-sequence generation. **Not adopted into the source** (D8).
-- [ ] **Rung 1b**: telemanom excludes anomalies found in *previous* windows from its
-      rung and accumulates that set across batches; this reproduction does not track it
-      at all. Named in 26.21.1, not fixed. **The next thing to read, not to guess.**
+- [x] **Rung 1b - done 2026-09-03** (`docs/MODELS.md` 26.23, 26.24, D51). Cross-window
+      tracking is a real divergence, confirmed on **1,721 of 1,721** calls, and worth
+      **one candidate range in 147**. Directionally right, numerically negligible.
+- [ ] **Rung 1c, named from the source and not run**: telemanom unions each window's
+      surviving anomalies across all overlapping windows; we clip each sequence to the
+      judged segment, so an index is judged once rather than ~30 times. It changes
+      **which indices are anomalous at all**. Candidates stand at **146 against the
+      paper's ~91**.
 - [ ] **The improvement ladder on the 38**, one lever per pre-registration, each
       measured against stage 4's **10/38** baseline, target published-parity recall
       (~80%) on the in-range population. **D50 names the first lever: pruning**, ahead
