@@ -3008,3 +3008,64 @@ own approval, and this entry does not grant it.
    expecting the labels not to hold up. They held up.
 5. **No ESA-ADB figure, task, weight, manifest or decision changes.** D43 and D44 stand
    exactly as written; this adds a dataset on which their question can be asked again.
+
+---
+
+## D47. `error_window` is an absolute constant where it should be proportional, and it silently disabled scoring on short series
+
+**DATE** 2026-09-03 | **STATUS** resolved as a correctness fix, scoped to the dataset
+that exposed it. In D17's family
+
+**CONTEXT.** Work item 9.9 study 1 stage 2 ran `gru-quantile` per channel on SMAP/MSL
+and returned a pooled nominal-step alarm rate of **12.59%**. On ESA-ADB the same
+detector runs at 0.0013%. A detector alarming on an eighth of nominal time is not a
+detector, so the run was investigated rather than written up.
+
+**EVIDENCE.** `ForecastDetector.warmup_steps` (`detectors.py:290-297`) is
+`hyper.window + config.error_window` = 250 + 2100 = **2,350**. `error_window` is
+`ERROR_WINDOW_BATCH * ERROR_WINDOW_COUNT` (`telemanom.py:118`), an **absolute** 2,100
+fixed against ESA-ADB, where a fold is ~3.5M steps. The median SMAP/MSL training
+series is **2,690 steps**.
+
+```
+  channels whose entire test array sits inside the warm-up    16 / 81
+  channels with <500 non-warm-up training steps to calibrate   48 / 81
+  pooled nominal-step rate                                   12.5852%
+  A-4, a channel long enough to be unaffected, verified          0.14%
+```
+
+Two failures, both silent. Sixteen channels contributed **zero scorable steps**, so
+their events could never be caught while still sitting in the denominator. Forty-eight
+had their 99.9th-percentile threshold computed mostly from warm-up-region scores, which
+are not forecasts at all.
+
+**This is D17 again.** telemanom's published `min_delta` was an absolute quantity in
+the units of the loss, which on ESA-ADB made the early-stopping bar negative and kept
+every fit at its first epoch. Here an absolute window sized for one dataset consumes
+an entire series on another. **The class of defect is the same: a constant that should
+have been relative, disabling the thing it configures without erroring.**
+
+**ALTERNATIVES.** Exclude the short channels and keep the absolute window. Scale
+`error_window` to the series. Abandon the study and report the transfer failure.
+
+**Against the first.** It would drop the population the study exists to measure below
+the `n >= 20` line, so V5's gate would fail after the fact rather than before it.
+**Against the third.** The defect is in a constant, not in the method, and a fixable
+constant is not a finding about transfer.
+
+**CONSEQUENCE.**
+
+1. **On SMAP/MSL, `error_window = SMOOTHING_PERC * len(series)`** -- telemanom's own
+   proportional definition, `telemanom.py:84`. The warm-up falls from 2,350 to 384 on
+   a median channel.
+2. **ESA-ADB keeps 2,100 and nothing there moves.** The same formula on a 3.5M-step
+   fold gives 175,000, which is a different detector rather than a correction. **This
+   is a per-dataset choice, not a universal fix**, and it is recorded as one.
+3. **The discarded run's figures are not results** and appear nowhere as such. They
+   are quoted in `docs/MODELS.md` 26.14 only as evidence of the defect.
+4. **Weights are untouched.** The cache key is over `hyper` and `error_window` is in
+   `config`, so the re-run reuses the fits already on disk.
+5. **It sharpens the open toolkit item.** Objective.md 10.2's data-sufficiency grading
+   now has a concrete rule to enforce: a fitting window must exceed the warm-up by a
+   stated margin, and a detector whose warm-up consumes its own calibration window
+   should refuse rather than return 12%.

@@ -5522,3 +5522,44 @@ against a month at 173 Class A and 269 Class B of 50,000 each, per-run tripwire
 ### 26.13 OBSERVED
 
 Reserved. Nothing has run.
+
+### 26.14 Amendment to 26.8: `error_window` is proportional, not absolute
+
+**Written 2026-09-03, after a run that was discarded and before the run that
+replaced it.** The predictions V6 to V12 are **unchanged**, the populations are
+unchanged, and the falsification is still stated against the **measured** matched
+multiplier. What changes is one constant that was wrong for this data.
+
+**The defect.** `ForecastDetector.warmup_steps` is `hyper.window +
+config.error_window` = 250 + 2100 = **2,350 steps**. That is sized for ESA-ADB,
+where one fold's test window is ~3.5 million steps and 2,350 is negligible. The
+median SMAP/MSL training series is **2,690 steps**. Measured on the discarded run:
+
+```
+  channels whose ENTIRE test array sits inside the warm-up   16 / 81
+  channels with <500 non-warm-up TRAINING steps                48 / 81
+  pooled nominal-step alarm rate                            12.5852%
+  the same rate on a healthy channel (A-4), verified directly   0.14%
+```
+
+So 16 channels' events were uncatchable by construction while still counted in the
+denominator, and 48 channels' 99.9th-percentile thresholds were computed mostly
+from warm-up-region scores that mean nothing. **The discarded run's figures --
+9/38, 7/38, `w = 1.000` -- are artefacts of that and are not reported as results.**
+
+**The correction.** `error_window` becomes `SMOOTHING_PERC * len(series)`, which is
+telemanom's own proportional definition (`telemanom.py:84`, 0.05), rather than the
+absolute `ERROR_WINDOW_BATCH * ERROR_WINDOW_COUNT` = 2100 fixed for ESA-ADB. On a
+2,690-step series that is 134, and the warm-up falls from 2,350 to **384**.
+
+**It is applied to SMAP/MSL only, and ESA-ADB keeps 2,100.** The same formula on a
+3.5-million-step fold would give 175,000, which is not a correction but a different
+detector. This is a **per-dataset choice, not a universal fix**, and saying otherwise
+would overclaim it. No ESA-ADB figure moves and no ESA-ADB code path is touched.
+
+**Weights are not invalidated.** The cache key is over `hyper`; `error_window` lives
+in `config`, so the 145 fits already on disk are reused and the re-run costs reads
+rather than another 24 minutes of fitting.
+
+Recorded as **D47**, in D17's family: an absolute constant that should have been
+relative, silently disabling the thing it configures.
