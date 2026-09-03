@@ -101,6 +101,37 @@ one. Thresholds must be recalibrable in orbit without retraining (Objective.md
 10.2 fix 4, 14.10), and the loader must treat a threshold as a parameter with
 a provenance, not a constant.
 
+## 5b. What work item 10 must provide, measured rather than assumed
+
+**Added 2026-09-03 from D47, D48 and `docs/MODELS.md` 26.16.** Work item 10 is the
+in-orbit threshold recalibration path -- file uplink, human-approved reload
+(Objective.md 14.10). Work item 9.9 measured what it has to survive, on a second
+spacecraft dataset, and the answer is a requirement rather than a preference.
+
+**1. Recalibration needs a minimum window, and the component must know it.** The
+frozen decision layer's threshold is the **99.9th percentile** of the detector's own
+score. That statistic needs roughly **1,000 samples** to be an interior quantile; below
+it, it is simply the maximum of whatever window it saw. Measured on SMAP/MSL: a
+commissioning window of 500 scorable steps produced a threshold so low that the
+detector alarmed on **32.5%** of nominal time -- three times worse than the
+train-calibrated threshold it was meant to repair (26.16).
+
+**2. Or a robust small-sample estimator instead.** A median plus `k * MAD` is stable at
+`n = 500` where a 99.9th percentile is not. Scoped at 26.17.4 as Route B and not yet
+run; if work item 10 must recalibrate from short commissioning windows, this is the
+estimator question it has to settle first.
+
+**3. And the warm-up must be proportional, not absolute.** D47: `error_window` was a
+constant sized for ESA-ADB's million-step folds, and on 2,690-step series it consumed
+whole channels -- 16 of 81 test arrays sat entirely inside the warm-up. A recalibration
+routine that does not check its window against its own warm-up will silently return a
+threshold computed from nothing.
+
+**The failure mode to design against** is that all three are **silent**. None raised;
+each returned a number. The component should refuse -- `Objective.md` 10.2's
+data-sufficiency grading is the place for it -- rather than uplink a threshold derived
+from a window too short to support it.
+
 ## 6. Decisions carried open into Phase 2
 
 - **D14** -- the weight-cache key is positional; fields for the GRU and TCN

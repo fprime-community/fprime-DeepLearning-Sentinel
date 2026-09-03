@@ -5779,3 +5779,101 @@ open, and the reason is calibration rather than detection.**
 **D6 is still open.** The ablation is correctly wired and ran twice, and both times at
 an alarm rate that makes the comparison meaningless. Nothing here answers it, and
 26.16 does not pretend to.
+
+## 26.17 Pre-registration: stage 4, Route 1 -- the published dynamic threshold
+
+**Written and committed before a single figure is computed.**
+
+D48 established that no *static* threshold calibrated on SMAP/MSL's train split
+transfers to its test split, and 26.16 that a commissioning window short enough to
+exist is too short for a 99.9th percentile to be a percentile. Both failures are
+about a **fixed** cut derived from one window and applied to another.
+
+**telemanom's own threshold does not do that.** Its nonparametric dynamic threshold
+recomputes the cut from a trailing window of the stream being scored, so there is no
+train-to-test transfer to fail. `ForecastDetector.threshold_from` returns **1.0** in
+NDT mode (`detectors.py:401-412`) because the operating point lives inside the score.
+That is Route 1, and it is the published method rather than a variant of ours.
+
+**It is also the arm this project reproduced and rejected on ESA-ADB** (D18): the
+dynamic rule degenerated under a good forecaster, 92.6% of windows selecting the
+range minimum. On stationary folds the static quantile won. Stage 4 asks the same
+question on the regime where the static quantile is the one that fails, so **a result
+either way is about the regime and not about the rule**, exactly as D48 says.
+
+**26's first paragraph still governs.** None of this is cross-channel evidence;
+Objective.md 9.2 stands.
+
+### 26.17.1 Definitions fixed in advance
+
+- **The arm**: `gru-telemanom` -- `GRUForecastDetector`, NDT mode -- **with the
+  command columns as exogenous inputs**, per channel, on the paper's own split. The
+  uncommanded arm is scored beside it at no extra cost, because mode changes only the
+  detection stack and both reuse the **weights already fitted in stage 2**. No fit is
+  repeated.
+- **`error_window` scales to the stream the NDT thresholds**, which is the test
+  series: `SMOOTHING_PERC * len(test)` (D47's rule, applied to the scored stream
+  rather than the fitting one, because that is the window the dynamic threshold
+  actually reads). Stated because it differs from stages 2 and 3, which scaled to
+  `train`.
+- **(!) The gate, and it is checked before any comparison.** The pooled nominal-step
+  alarm rate of `gru-telemanom+cmd` must be **under 1%**. Above it, stage 4 Route 1
+  has no operating point either, **no comparison is reported**, and Route B is the
+  fallback (26.17.4). This is the same gate stages 2 and 3 failed, applied first
+  rather than discovered last.
+- **The sweep is widened to 5,000.** In stage 2 `rstd` saturated at the grid maximum
+  of 50 and still alarmed on 15.57%; a grid that cannot reach the target cannot
+  produce a matched comparison. Fixed here, before the numbers.
+- **Everything else is unchanged**: matched on pooled nominal-step false-alarm rate,
+  the same populations from stage 1, `k/n` throughout, the Wu & Keogh diagnostic
+  beside every catch, the 4 and the 11 reported separately, and channels excluded only
+  by D17's guard.
+
+### 26.17.2 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **V19** | **the gate.** `gru-telemanom+cmd`'s pooled nominal-step alarm rate is **under 1%** | **>= 1%.** Route 1 then has no operating point, no comparison is reported, and the study moves to Route B. Stages 2 and 3 both failed here and this is the third attempt |
+| **V20** | at a matched rate, `gru-telemanom+cmd` catches **12 to 28** of the surviving in-range contextual sequences; central **19** | outside the band. **This is the number the whole four-stage study exists to produce**, and it is the same band V15 carried, unchanged |
+| **V21** | `rstd` reaches the matched rate **within the widened sweep** rather than saturating | saturation again at 5,000, which would say no multiplier makes the floor quiet on this data and the matched comparison is unobtainable for it |
+| **V22** | the range check's measured matched multiplier is **`w < 1.0`** relative to the training min/max | **`w >= 1.0`**, in which case it catches the in-range population **0 by construction**, the comparison is **uninformative rather than a win**, and V23 is **withdrawn** rather than scored -- the rule that already fired on V8 and V16 |
+| **V23** | conditional on `w < 1.0`: `gru-telemanom+cmd` beats the range check by **>= 8** on the in-range population | a margin **<= 0**, which would finish the in-limits claim on both datasets |
+| **V24** | **D6**: the commanded NDT arm catches **more** in-range contextual than the uncommanded one | equal or fewer, answering D6 **no** on the one dataset that carries commands |
+
+**Deliberately not predicted.** Whether the NDT degenerates the way D18 found on
+ESA-ADB -- that is worth measuring and naming a direction for it would prejudge the
+regime question stage 4 exists to ask. `rstd`'s catch count, reported as the floor.
+
+### 26.17.3 The named risk
+
+**Fourth attempt, same dataset, after three failures.** What limits it: **V19 is a
+gate checked first**, so a failed run produces no comparison rather than a weak one;
+the band in V20 is **unchanged from V15**, so it cannot be widened to fit; V22 carries
+forward the rule that has already fired twice; and 26.17's opening states that a
+result either way is about the regime, which stops a Route 1 success being read as
+vindication of the dynamic rule that ESA-ADB rejected.
+
+### 26.17.4 Route B, scoped and not run
+
+If V19's gate fails, the fallback is a **robust small-sample threshold**: the
+commissioning window's **median + k * MAD** rather than its 99.9th percentile.
+The median and MAD are stable at `n = 500` where a 99.9th percentile is just the
+maximum, which is precisely why 26.16 failed. It would need `k` fixed in advance,
+the same commissioning window and exclusions, and its own pre-registration. **It is
+not run here and no `k` is chosen now**, because choosing one after seeing Route 1's
+numbers is the thing this section is arranged to prevent.
+
+### 26.17.5 Cost and stop-and-report
+
+**One read, no fits: 165 Class B and 1 Class A.** Weights are reused from stage 2 --
+mode changes the detection stack, not the cache key -- so the weight store is expected
+to grow by **0**, as it did on both re-runs. Month stands at 177 Class A and 771
+Class B of 50,000 each.
+
+Stop and report if: **V19's gate fails** (report the rate and nothing else, then Route
+B); **V22 is refuted** (withdraw V23 rather than score it); the weight store moves; or
+more than 200 Class B.
+
+### 26.18 OBSERVED
+
+Reserved. Nothing has run.
