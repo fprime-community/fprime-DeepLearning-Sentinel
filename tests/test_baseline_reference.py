@@ -2,9 +2,12 @@
 
 `baseline_reference` is what `flight/src/Baseline.cpp` is transcribed from, so
 these tests do two jobs. They pin the reference against an implementation nobody
-in this repository wrote -- `numpy.nanstd` -- and they pin the size of the
-divergence from `baselines._rolling`, so that D37's numbers cannot rot and the
-repair scoped in `docs/MODELS.md` 21 has a regression test waiting for it.
+in this repository wrote -- `numpy.nanstd` -- and they pin its agreement with
+`baselines._rolling`.
+
+Three of them were written at work item 9 to pin the SIZE of a divergence, with
+instructions to invert themselves if it ever closed. Work item 9.5 closed it, so
+they are inverted and the numbers they used to pin are kept in their docstrings.
 """
 from __future__ import annotations
 
@@ -77,35 +80,43 @@ def test_a_channel_that_never_moves_has_zero_spread_not_a_negative_variance():
 
 # -- the defect it deliberately does not copy (D37) --------------------------
 
-def test_rolling_disagrees_with_the_rule_and_by_how_much():
-    """D37's headline number, pinned so it cannot rot.
+def test_rolling_now_agrees_with_the_rule():
+    """INVERTED at work item 9.5, which is what the previous version asked for.
 
-    If this test starts failing because the gap has CLOSED, `_rolling` has been
-    fixed -- that is work item 9.5 (`docs/MODELS.md` 21), and this test should
-    then be inverted rather than deleted.
+    This test used to assert `gap > 1.0` -- that `_rolling` disagreed with the
+    flight rule by more than the quantity being measured -- and its own docstring
+    said: "If this test starts failing because the gap has CLOSED, `_rolling` has
+    been fixed ... and this test should then be inverted rather than deleted."
+    It has been (D8 correctness fix, D37, `docs/MODELS.md` 21), so it is.
+
+    The measurement it used to pin, kept because deleting it would delete the
+    evidence: on this data the gap was **7.6584e+00** against a true sigma of
+    3.0. It is now 1.8284e-08.
     """
     values = offset(steps=8000, channels=12, seed=9)
     gap = np.abs(_rolling(values, W, "std") - br.spread(values))[W:].max()
-    assert gap > 1.0, (
-        "_rolling now agrees with the rule; if it was fixed, see docs/MODELS.md 21 "
-        f"and invert this test. Measured gap {gap:.4e}")
+    assert gap < 1e-5, f"the harness and the flight rule have diverged again: {gap:.4e}"
 
 
-def test_rolling_produces_spurious_zeros_that_the_rule_does_not():
-    """The other half of the defect: cancellation drives variance negative and
-    the floor at `baselines.py:55` clamps it to exactly zero."""
+def test_rolling_no_longer_produces_spurious_zeros():
+    """The other half of the defect, also inverted.
+
+    Cancellation drove the variance negative and the floor at `baselines.py:55`
+    clamped it to exactly zero: 3,975 of them against float64's 1,123 on this
+    project's own fixture. Both are now zero.
+    """
     values = offset(steps=8000, channels=12, seed=9)
     defective = (_rolling(values, W, "std")[W:] == 0.0).sum()
     correct = (br.spread(values)[W:] == 0.0).sum()
-    assert defective > correct, f"{defective} spurious zeros against {correct}"
+    assert defective == correct == 0, f"{defective} zeros against {correct}"
 
 
-def test_the_two_agree_when_the_data_is_benign():
-    """The defect is scale-dependent, not universal -- said precisely.
+def test_the_two_agree_in_the_benign_regime_as_they_always_did():
+    """Unit-normal data is where `_rolling` was usable even before the fix.
 
-    Unit-normal data over a few hundred steps is the regime where `_rolling` is
-    still usable, and the flight rule agrees with it there. That is why the
-    defect survived: nothing in the test suite ever ran it on offset data.
+    Kept because it is the record of why the defect survived so long: nothing in
+    the test suite had ever run it on offset data, and in this regime there was
+    nothing to see.
     """
     values = unit_normal(steps=400, channels=6, seed=11)
     assert np.abs(_rolling(values, W, "std") - br.spread(values))[W:].max() < 1e-5

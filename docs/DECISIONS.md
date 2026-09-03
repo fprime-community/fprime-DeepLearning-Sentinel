@@ -1261,11 +1261,15 @@ it survived, and nobody would have checked what it measured.
 
 ## D23. The decision layer is channel-blind; the cross-channel claim rests on the forecaster alone
 
-**DATE** 2026-08-27 | **STATUS** OPEN -- structural, resolve before the architecture gate
+**DATE** 2026-08-27 | **STATUS** OPEN -- structural, resolve before the architecture gate. **(!) CLOSED 2026-09-02 by D42**: `k`-of-`n` was re-derived at `k = 2` and `k = 3` alongside L2 and sum, and no reduction recovers an event `max` misses. The finding below is unchanged; the open question is answered no
 
 **CONTEXT.** Objective.md 2.4 defines the target class as one where every channel
 is individually legal while the combination is wrong, and `docs/RESULTS.md`
-reports 28 of 32 headline-cell events caught against `rstd`'s 3. Where in the
+reports 28 of 32 headline-cell events caught against `rstd`'s 3. **(!) Both
+figures are superseded (D37, D38); the corrected comparison is
+`docs/RESULTS.md` 6l. D23's finding does not depend on either -- it is about
+where in the pipeline the claim is expressed, not about how many events it
+catches -- and the entry is left as written.** Where in the
 pipeline that claim is actually expressed had never been written down.
 
 **EVIDENCE.** Every stage between the forecast and the alarm, inspected:
@@ -1744,6 +1748,12 @@ rare alarm sitting inside the LSTM's two -- did not transfer.
 4/424, `tcn-quantile` 6/424 rare-event false alarms; **0 nominal-step alarms in
 4,155,841** for all three; the per-channel floors 84/424 with 17.3% of nominal
 time (`rstd`) and 122/424 (`mavg`). T1, T2, T6 held; T3 held on the ordering.
+**(!) The two floor figures are corrected 2026-09-01 (D37): `rstd` is 22/424 with
+0.003% of nominal time, not 84/424 with 17.3%, and `mavg` is 208/424. The
+forecaster figures are unmoved and were not recomputed. This entry's conclusion
+is unchanged -- 4/424 against 22/424, and 0 nominal-step alarms against 126 --
+and its evidence is cleaner, because the floor it is measured against now
+works.**
 That is the number that goes in front of a mission.
 
 *The recipe, on a later period of the same spacecraft.* `m1-g3` fold 0 held as
@@ -2200,8 +2210,8 @@ deployment to Sentinel's internals and complicates the unit test for no gain.
 
 ## D37. `baselines._rolling` computes its prefix sums in float32 and loses the statistic. The flight baseline transcribes the rule, not the implementation
 
-**DATE** 2026-09-01 | **STATUS** resolved for work item 9; the repair is scoped as
-`docs/MODELS.md` 21 and is **open**
+**DATE** 2026-09-01 | **STATUS** resolved. The repair ran at work item 9.5 and
+falsified a published claim; see the closing block of this entry
 
 **CONTEXT.** Work item 9 must transcribe the `rstd` statistical baseline into flight C++
 under work item 8's golden-vector discipline: seeded vectors, Python-versus-C++ match at
@@ -2273,3 +2283,913 @@ item whose budget is zero.
    this entry will record it when it is made.
 6. **D8's exemption is what makes the repair legitimate.** `docs/HARNESS.md`: the harness
    is closed to scope changes, never to correctness fixes. This is a correctness fix.
+
+**(!) RESOLVED 2026-09-01, work item 9.5, and the outcome falsified a published claim.**
+`baselines._rolling` now promotes to float64 before squaring and accumulates with
+`dtype=np.float64`; the gap against the flight rule closes from 7.6584e+00 to 1.8284e-08
+and the spurious zeros disappear. Re-scored at a cost of 41 Class B and 3 Class A:
+
+```
+  m1-g8.9.10  rstd   F0.5   0.250 -> 0.676     MVGS   3/32 -> 25/32
+                     recall  3/46 -> 34/46     lead  -1,512 -> +0.0
+  m1-ss5      rstd   F0.5    undefined -> 0.663    MVGS  0/31 -> 25/31
+  m2-ss1      rstd   nominal-step FA  17.30% -> 0.003%   rare  84/424 -> 22/424
+  m1-g3       rstd   F0.5   0.029 -> 0.351     MVGS  3/10 -> 8/10
+```
+
+**The falsification pre-registered in `docs/MODELS.md` 21.4 fired.** It named 22/32 -- the
+GRU's headline cell -- as the line past which "the project's central claim ... is in
+serious question and this document says so in those words". The corrected floor reached
+**25/32**. A per-channel statistic finds twenty-five of the thirty-two cross-channel
+events, not three; the three was an artifact of this defect, and every restatement of it
+is corrected in place with the old figure beside it.
+
+**What that does and does not overturn.** The gate metric was fixed as event-wise F0.5,
+never bare recall, by D3 and before any of this was measured: on it `gru-quantile` still
+clears the corrected floor 0.804 to 0.676, reaching comparable recall at a third of the
+alarm rate with precision 0.885 against 0.661. D28's architecture gate never involved
+`rstd`; D25 and D29 are untouched, and D29's evidence is cleaner, because the floor it is
+compared against on Mission 2 now works. What is overturned is the ratio -- three against
+twenty-eight -- that this repository had used as its headline, and W1's reasoning about
+which way the threshold would move, which was exactly backwards and is recorded as Wrong
+in 21.9.
+
+**And a limit the fix does not remove.** `sqrt(S2/n - (S1/n)^2)` loses accuracy as the
+square of `|mean|/sigma` at any precision: negligible at the ratios ESA-ADB's min-max
+scaling produces, total at 1e8, and silently zero at 1e9. `baseline_reference.py` and
+therefore `flight/src/Baseline.cpp` share it exactly.
+`tests/test_rolling_precision.py` pins the boundary. Making the form unconditionally
+stable is an algorithm change that would move the flight golden vectors, and is reported
+rather than taken.
+
+---
+
+## D38. `gru-quantile` catches a strict subset of the corrected floor's events on Mission 1
+
+**DATE** 2026-09-01 | **STATUS** resolved as a finding. It changes no selection and
+retires one argument
+
+**CONTEXT.** Work item 9.5 corrected `baselines._rolling` and the floor rose from
+F0.5 0.250 to 0.676 and from 3/32 to 25/32 headline-cell events (D37). Work item 9.6
+was commissioned to audit that result before the restatement was allowed to stand,
+and pre-registered fourteen predictions in `docs/MODELS.md` 22 before computing
+anything. L9 named the sharpest one: **if the forecaster catches no event the floor
+misses, the thesis has no per-event evidence on this set.**
+
+**EVIDENCE.** One bundle load, 15 Class B, cached weights, nothing refitted. The audit
+reproduces every published scorecard count exactly -- 27/46, 34/46, 22/32, 25/32 --
+before reporting anything new.
+
+```
+  m1-g8.9.10   both 27   only-GRU 0   only-rstd 7   neither 12
+  m1-ss5       both 26   only-GRU 0   only-rstd 8   neither  8
+```
+
+**Not one event, on either set, in any taxonomy cell, is caught by `gru-quantile`
+and missed by the corrected `rstd`.** The seven the floor catches and the
+forecaster misses have footprints of 1, 1, 1, 1, 24, 28 and 54 steps, with `rstd`
+reaches of 5.2 to 6.4 against the GRU's 0.55 to 0.62.
+
+**And the floor is not leaking**, which is the first thing a result like this must
+survive. L1 to L4 all hold: perturbing a future sample changes rows before `t` by
+exactly 0.0 with a working control; `fit` sees only the masked training window
+through the same `harness.py:144` line every detector uses; the fallback scale is
+unreachable; and `RollingStd.threshold_from` **is** `Detector.threshold_from`, the
+same function object the GRU's calibration calls. The catches are sustained rather
+than stray: excluding events whose footprint is 1, **0 of 25** are single-step and
+the alarm covers a median 95% of the footprint.
+
+**ALTERNATIVES.** Treat the nesting as an artifact of the corrected floor.
+Re-open the architecture gate. Record it as a finding and change nothing.
+
+**Against the first two.** The nesting is not an artifact: the audit reproduces the
+harness's own counts and the four named leaks are all refuted. Re-opening the gate
+would be answering the wrong question -- D28 compared LSTM, GRU and TCN against each
+other on event-wise F0.5 and never involved `rstd`, and nothing in this audit moves
+any forecaster figure or their ordering.
+
+**CONSEQUENCE.**
+
+1. **`gru-quantile` remains the selected architecture and the flying detector.**
+   D28, D25 and D29 are untouched. On D3's gate metric -- event-wise F0.5, fixed
+   before any of this -- it clears the corrected floor 0.804 to 0.676, with
+   precision 139/157 against 84/127 and 0.00066 alarms per thousand nominal steps
+   against 0.0024.
+
+   **(!) COMPLETED 2026-09-02, and this consequence was written one set short.**
+   That comparison is `m1-g8.9.10` only. On **`m1-ss5` the corrected floor leads
+   the same gate metric, 0.663 to 0.593**, and the alarm-rate advantage is 1.40x
+   rather than 3.71x. Both figures were in the artifacts this entry was written
+   from -- `runs/m1-g8.9.10/rstd/2026-09-01T220201Z-70632603.json` and
+   `runs/m1-g8.9.10/gru-quantile/2026-08-28T222635Z-6d146f5d.json`, each carrying
+   both sets -- and neither this entry, `docs/STATUS.md`, `docs/RESULTS.md` 1a nor
+   `CHANGELOG.md` 0.6.1 states the second. They are now in one table at
+   `docs/RESULTS.md` 6l. **The selection does not change**: D28 compared the three
+   architectures against each other, never against `rstd`, and it already records
+   the GRU's 0.593 on `m1-ss5`. What changes is that the gate-metric sentence is
+   no longer quotable in the singular, and the withdrawal note now carries both
+   sets.
+2. **The per-event argument for the forecaster is withdrawn on Mission 1.** It
+   catches nothing the floor does not. Its case rests entirely on the *quality* of
+   the same catches -- fewer alarms, higher precision -- which is a real and
+   measured difference and is what the gate metric was chosen to capture. Every
+   statement in this repository that the forecaster sees events a per-channel
+   statistic cannot is withdrawn for these two sets.
+3. **What the two detectors are is now measured rather than assumed**: ordered, not
+   complementary, in exactly the sense D25 established for `lstm-whitened` and
+   `lstm-quantile`. A union buys nothing, and none is proposed.
+
+   **(!) QUALIFIED 2026-09-02 (`docs/MODELS.md` 23.13). "Ordered" is true at these
+   two thresholds and is not a property of the two detectors.** Held to the **same
+   number of catches** rather than to their own calibrated thresholds, the
+   forecaster sees **6** events on the gate set and **2** on `m1-ss5` that the floor
+   does not, and only-GRU is non-zero at **39 of 46** and **31 of 42** matched-recall
+   levels. The two are not rank-identical. Derived at zero operations from the same
+   audit artifact, whose per-event reaches reproduce the published catch flags on
+   176 of 176 pairs. The nesting reported above appears because the floor is allowed
+   to catch seven more events; at equal counts it disappears. **Consequence 2 stands
+   as written for the flying configuration** -- these are the thresholds in the
+   repository -- but the per-event argument is withdrawn *at this operating point*,
+   not at every operating point, and 23.13 is where the difference is stated.
+   Whether the forecaster keeps an advantage at a matched **false-alarm** rate is
+   work item 9.7 study A and is unmeasured; matched recall is not matched cost.
+4. **This does not generalise beyond Mission 1 without measurement.** `m2-ss1` and
+   `m1-g3` carry no per-event overlap analysis, and none is run here.
+
+---
+
+## D39. The headline cell is not the contextual class, and the contextual class is caught by nothing
+
+**DATE** 2026-09-01 | **STATUS** resolved as a finding. It is the more serious of the two
+
+**CONTEXT.** Objective.md 2.3 motivates this entire project with Hundman's finding
+that 41% of real spacecraft anomalies are contextual -- every channel inside its
+limits while the combination or the trajectory is wrong -- and states that a
+per-channel limit check cannot see them. The project has treated the 32
+`Multivariate/Global/Subsequence` events on `m1-g8.9.10` as that class since work
+item 4. **It was never measured.** `docs/MODELS.md` 22 called it Claim B and
+pre-registered L13 and L14 to test it.
+
+**EVIDENCE.** Per event, whether any watched channel leaves its own training
+envelope at any step inside the event span. The envelope is the 0.1/99.9 quantile
+pair over the fold's fitting window with `train_mask` applied -- fitting data only,
+no test sample and no test label -- the construction `scripts/envelope_proxy.py`
+already uses. Definition fixed in 22.2 before the numbers existed.
+
+```
+  truly contextual, no channel outside its own envelope :  3/32   (6/32 by hard min/max)
+  at least one channel leaves its envelope              : 29/32
+```
+
+Predicted 8 to 16. Measured 3.
+
+**And neither detector catches any of the three.**
+
+```
+  id_121  footprint 257   GRU reach 0.110   rstd reach 0.544   channels breaching 0
+  id_153  footprint  10   GRU reach 0.178   rstd reach 0.608   channels breaching 0
+  id_157  footprint  51   GRU reach 0.238   rstd reach 0.572   channels breaching 0
+```
+
+Neither comes within half its threshold. `rstd` scores 0/3; `gru-quantile` scores
+0/3. L14's 86-point gap between contextual and breaching recall is real, and it is
+not evidence for the forecaster, because the forecaster's gap runs 76 points the
+same way.
+
+**A related fact, from cached forensics at zero cost.** None of the 32 events is
+single-channel to the watched view: 21 touch all 12 channels and the fewest touches
+5. So the events are genuinely multivariate; what they are not is *contextual*.
+Multi-channel and contextual are different claims and only the second is the
+project's.
+
+**Stated carefully, because an envelope is not a limit.** A real RED or YELLOW limit
+sits *outside* a channel's historical envelope, so breaching the envelope does not
+establish that a limit would have tripped; the implication runs only the other way.
+What is established is that **29 of 32 are not in the class that is provably
+invisible to limit checking**, and that the three which are, nothing here catches.
+
+**CONSEQUENCE.**
+
+1. **Objective.md 2.3's motivating claim is not tested by `m1-g8.9.10`'s headline
+   cell.** The cell is 29/32 envelope-breaching. Whatever this project has
+   demonstrated on this set, it is not that it catches anomalies a limit check
+   cannot see.
+2. **The three events that are provably in that class are missed by both
+   detectors**, at reaches of 0.11 to 0.61. On the evidence available, this project
+   has **no** measured instance of catching a contextual anomaly.
+3. **No detector, threshold or decision layer changes on this finding.** It is a
+   statement about what the evidence supports, not about what the component should
+   do, and acting on 3 events would be acting on n=3.
+4. **The honest version of the project's claim, for every document that states
+   it**: this is a reusable flight component that packages a published detection
+   method, measured against a floor on a set whose headline cell is largely
+   limit-visible. The early-warning claim was already retired (Objective.md 1.1);
+   the contextual-class claim is now in the same position and is retired by this
+   entry until a set exists that tests it.
+5. **What would settle it** is a scoring set whose events are selected for the
+   contextual property rather than assumed to have it. ESA-ADB may not contain one
+   at n >= 20; `docs/HARNESS.md`'s own rule would stamp anything smaller
+   UNDERPOWERED. That is a Phase 3 question and is not answered here.
+
+---
+
+## D40. "Truly contextual" is defined relative to a watched channel set, and the loose reading does not survive a change of view
+
+**DATE** 2026-09-02 | **STATUS** resolved as a definition. It qualifies D39's second
+reading and leaves its first intact
+
+**CONTEXT.** D39 measured how many of the 32 `Multivariate/Global/Subsequence`
+events on `m1-g8.9.10` are truly contextual -- no watched channel outside its own
+training envelope -- and reported **3/32 by the 0.1/99.9 envelope, 6/32 by hard
+min/max**. `docs/MODELS.md` 22.2 had fixed both readings in advance and said that
+"where the two disagree that disagreement is the finding". The disagreement was
+recorded and not investigated, because work item 9.6 classified one channel set
+and the brief had asked for two.
+
+**EVIDENCE.** The committed audit artifact
+`runs/m1-g8.9.10/_forensics/2026-09-01T230303Z-floor-audit.json` carries the
+envelope fields for `m1-ss5` as well as the gate set, so the second half was
+answerable at zero cost. `m1-ss5` is a strict six-channel subset of the gate
+set's twelve, scored on the same folds, and its MVGS set is the gate set's 32
+minus `id_13`.
+
+```
+                                          m1-g8.9.10      m1-ss5
+  channels watched                                12           6
+  contextual, 0.1/99.9 envelope                 3/32        3/31
+  contextual, hard min/max                      6/32       18/31
+  of the min/max set, caught by either detector    0          12
+```
+
+**The strict reading does not move and the loose one triples.** The contextual set
+under the 0.1/99.9 envelope is the same three events on both views --
+`id_121`, `id_153`, `id_157` -- which is an independent corroboration of D39's
+headline figure on a different channel set, and it is the first this project has.
+Under hard min/max the count goes from 6 to 18. Verified as a strict superset
+relation with no violations: every event contextual on twelve channels is
+contextual on six.
+
+**The mechanism is monotonicity, not a defect.** An event is classified contextual
+when **no** watched channel leaves its envelope, so removing channels removes
+chances to breach and can only move events into the class, never out of it. The
+strict reading held because the 0.1/99.9 envelope is tight enough that the events
+breaching it breach on channels present in both views.
+
+**ALTERNATIVES.** Report the min/max figure without the qualifier, as D39 does.
+Drop the min/max reading and keep only the 0.1/99.9 one. Record the dependence as
+a property of the definition and carry both.
+
+**Against the first.** A count that triples when six channels are removed is not a
+property of the events, and quoting it unqualified invites a reader to treat it as
+one. **Against the second.** 22.2 fixed both readings before the numbers existed
+and deleting the inconvenient one after the fact is the failure the
+pre-registration exists to prevent; the disagreement is evidence, not noise.
+
+**CONSEQUENCE.**
+
+1. **"Truly contextual" is a property of an event relative to a watched channel
+   set, not of the event.** Every figure for it names the channel set it is
+   contextual with respect to, or it is underdetermined. This applies to D39's
+   own 6/32, which is hereby read as "6 of 32 on the twelve-channel view".
+2. **D39's headline is unchanged and is now better supported.** The 0.1/99.9
+   reading is the conservative direction, it is what D39 leads with, and it is
+   measured at 3/32 and 3/31 on two views with the same three event ids. **None of
+   D39's five consequences changes**, including that neither detector catches any
+   of the three on either set -- `gru-quantile` 0/3 and `rstd` 0/3 both times.
+3. **It constrains the open item at `docs/STATUS.md` 7** -- a scoring set whose
+   events are selected for the contextual property rather than assumed to have it.
+   That selection is now known to be meaningless without a named channel set, and
+   a set assembled on a narrow view would inflate its own contextual count by
+   construction. Any such set states its view first.
+4. **It does not license widening or narrowing the watched channel set to move the
+   number.** Choosing a view after seeing what it does to the count is the oracle
+   sweep `docs/MODELS.md` section 7 refuses, and it stays refused. The two views
+   here are the ones the harness already pairs (`tasks.paired_with`), scored
+   together in one pass, and neither was chosen for its answer.
+5. **No detector, threshold, weight or decision layer changes.** This is a
+   statement about what a definition means. Recorded in `docs/MODELS.md` 22.11.
+
+---
+
+## D41. At a matched alarm rate the nesting reverses; D38's strict subset is a calibration artifact
+
+**DATE** 2026-09-02 | **STATUS** resolved as a finding. It qualifies D38 heavily and
+restores the forecaster's per-event case
+
+**CONTEXT.** D38 measured that `gru-quantile` catches a strict subset of the
+corrected `rstd`'s events on both Mission 1 sets and withdrew the per-event
+argument for the forecaster. That comparison is at each detector's **own**
+calibrated threshold, and at those thresholds the floor alarms on **eighteen times**
+more nominal steps than the forecaster on the gate set. A detector that alarms more
+catches more. `docs/MODELS.md` 23.3 pre-registered the like-for-like comparison and
+23.8's M1 to M3 named the numbers before it ran.
+
+**EVIDENCE.** One bundle load, 1 Class A and 15 Class B, cached weights, nothing
+refitted, weight store unchanged at 86 files. Artifact
+`runs/m1-g8.9.10/_forensics/2026-09-02T193623Z-reduction-and-curve.json`.
+The `max` arm reproduces `gru-quantile`'s published scorecard on both sets --
+27/46, 22/32 and 26/42, 21/31 -- before anything new is reported.
+
+```
+  m1-g8.9.10                     recall    MVGS   nominal-step rate
+    frozen      gru-quantile      27/46   22/32       0.0013%
+    frozen      rstd              34/46   25/32       0.0240%
+    matched-quiet  rstd  x7.435    7/46    7/32       0.0009%
+    matched-loud   gru   x0.346   35/46   26/32       0.0174%
+```
+
+**Held to the forecaster's alarm rate the floor finds 7 of 32 headline-cell events,
+not 25.** Allowed the floor's alarm rate the forecaster reaches 26/32 against the
+floor's 25/32. The four sets at each point:
+
+```
+  m1-g8.9.10          both  only-GRU  only-rstd  neither
+    frozen              27       0         7        12     <- D38
+    matched-quiet        7      20         0        19
+    matched-loud        34       1         0        11
+
+  m1-ss5
+    frozen              26       0         8         8     <- D38
+    matched-quiet       11      15         0        16
+    matched-loud        32       0         2         8
+```
+
+**At every matched operating point on both sets only-`rstd` is 0 or 2**, and on the
+gate set the containment runs the other way: the forecaster catches 20 events the
+floor misses when the two are equally quiet.
+
+**ALTERNATIVES.** Leave D38 as the standing reading. Withdraw D38. Record the
+matched-point result beside it and keep both.
+
+**Against the first two.** D38 is not wrong: at the thresholds both detectors
+actually fly with, its counts are exactly right and they reproduce here. Withdrawing
+it would discard a correct measurement. What it lacked was the comparison that makes
+a count mean something, and that is now made.
+
+**CONSEQUENCE.**
+
+1. **The per-event argument for the forecaster is restored, at a matched alarm
+   rate.** D38 consequence 2 withdrew it; that withdrawal was correct for the frozen
+   configuration and wrong as a general statement. Both readings stand together:
+   at its own operating point the forecaster catches nothing the floor misses; at
+   the floor's operating point, or with the floor held to its own, it catches
+   substantially more.
+2. **No selection, threshold, weight or decision layer changes.** D25, D28, D29 and
+   the frozen 99.9th percentile are untouched. The sweep is a measurement and
+   `scripts/oscfar_curve.py`'s rule applies: the threshold is swept, never chosen,
+   and no operating point is recommended from the curve.
+3. **D39 and D40 are unaffected and nothing here rehabilitates the contextual
+   claim.** At both matched points neither detector catches any of `id_121`,
+   `id_153` or `id_157`. The headline cell is still 3/32 contextual and the
+   contextual class is still caught by nothing.
+4. **Every comparison of two detectors in this repository is now suspect if it is
+   drawn at their own thresholds.** That is the general lesson and it is larger than
+   this pair: F0.5 is the gate metric precisely because it prices recall against
+   precision, and a bare per-event overlap does not.
+
+---
+
+## D42. D23 closes as answered no: no cross-channel reduction recovers anything `max` misses
+
+**DATE** 2026-09-02 | **STATUS** resolved. Supersedes D23's OPEN status; D23's finding
+stands and its open question is now answered
+
+**CONTEXT.** D23 has been open since 2026-08-27: the forecaster is multivariate and
+the decision layer is twelve univariate detectors and a vote, `k`-of-`n` was tuned
+against 182 alarm ranges when there are now 3,548, and the entry required that "any
+threshold proposal that goes forward re-derives `k`-of-`n` rather than inheriting
+it". Nothing had. `docs/MODELS.md` 23.4 pre-registered the re-derivation and 23.8's
+M5 to M9 named the outcomes.
+
+**EVIDENCE.** The same single bundle load as D41. Under the frozen calibration recipe
+-- the same 99.9th quantile of the same anomaly-masked fitting window, identity
+normalisation -- max-across-channels was replaced by L2, sum, and `k`-of-`n` at
+`k = 2` and `k = 3`. All five reductions come from one forecast pass over the same
+per-channel smoothed errors, so no detector was added and `gru-quantile` was not
+touched: the `max` arm **is** the flying detector and reproduces its scorecard.
+
+```
+  m1-g8.9.10   arm    recall   MVGS   nominal steps flagged
+                max    27/46   22/32       142
+                l2      9/46    9/32         2
+                sum     9/46    9/32         0
+                k2      8/46    8/32         0
+                k3      8/46    8/32        12
+
+  m1-ss5        max    26/42   21/31     1,536
+                l2     26/42   21/31     1,124
+                sum     7/42    7/31       945
+                k2      7/42    7/31       826
+                k3      7/42    7/31       833
+```
+
+**Every arm's catch set is a strict subset of `max`'s, on both sets.** Not one arm
+recovers a single one of `gru-quantile`'s 19 gate-set misses, none of the seven
+fold-1 events the floor catches, and none of the three contextual events -- and every
+arm runs at a **lower** nominal-step rate than `max`, so the failure is not a
+threshold handicap.
+
+**The one improvement is precision on one set.** On `m1-ss5` `l2` matches `max`
+event for event, 26/42 and 21/31 on the same events, at 1,124 nominal steps flagged
+against 1,536 -- 27% fewer. On the gate set the same arm collapses to 9/46.
+
+**And the mechanism inverts D23's premise.** Aggregating across twelve channels
+raises the calibrated floor faster than it raises an anomaly's peak, because the
+anomalies are concentrated in a few channels while the noise is spread across all of
+them. `max` wins because cross-channel evidence is **sparse**, not because the
+decision layer was never asked to look.
+
+**A bound on the claim, from 23.2 and stated before the run.** All four arms are
+downstream of the `np.abs` at `detectors.py:465` that removes the sign, so all four
+are **sign-blind**: they aggregate magnitude and test co-occurrence, not
+relationship. This answers D23's question as D23 posed it -- `k`-of-`n` re-derived,
+plus two aggregations it did not ask for -- and it does **not** test a signed
+relationship layer. The one signed layer this project built, `lstm-whitened`, was
+measured and declined at D25 for the same reason: it added nothing at fourteen times
+the nominal-step rate.
+
+**ALTERNATIVES.** Keep D23 open pending a signed reduction. Adopt `l2` on `m1-ss5`'s
+evidence. Close D23 as answered and record what remains untested.
+
+**Against the first.** D23's question was `k`-of-`n`, and it is answered. Holding an
+entry open for a different question makes the register a wish list.
+**Against the second.** One set, no gate-metric measurement, and 23.11 trigger 6 makes
+adoption a separate decision with its own pre-registration. `l2`'s collapse on the
+twelve-channel set is disqualifying on its own.
+
+**CONSEQUENCE.**
+
+1. **D23 is closed as answered no.** Its finding is unchanged and is not withdrawn:
+   the decision layer is channel-blind and the cross-channel claim rests on the
+   forecaster. What is settled is that the four reductions available to it recover
+   nothing, so the channel-blindness is not costing measured events on this data.
+2. **No arm is adopted and none is proposed.** The frozen decision layer stands (D25).
+3. **What remains untested is a signed reduction** -- D23's own nominal residual
+   covariance, 144 floats at `C = 12`. It is not scoped here and it is not implied by
+   this result; `lstm-whitened` is the standing evidence against expecting much.
+4. **`l2` on `m1-ss5` is recorded and not acted on**, so that a future proposal has
+   to argue against the gate set rather than discover the subset result fresh.
+
+---
+
+## D43. Contextual is the training-window min/max, not the 0.1/99.9 band; the class is larger and almost none of it is caught
+
+**DATE** 2026-09-03 | **STATUS** resolved as a definition. It re-reads D39 and D40 and
+edits neither
+
+**CONTEXT.** D39 measured the contextual class with the **0.1/99.9 quantile pair** of
+the fitting window and found 3/32. That band is this project's own noise envelope. It
+is not a limit and no limit check ever held it: a real RED or YELLOW limit sits
+**outside** a channel's historical operating range, so the tightest bar any limit could
+possibly hold is the training-window **min/max**. D39 therefore measured a quantity
+tighter than the claim it was testing, and under-counted the class it was counting.
+22.2 had fixed both readings in advance and 22.11 published both; `docs/MODELS.md` 24
+adopts the second as primary.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`, one bundle
+load. The envelope is the fitting window's per-channel min/max with `train_mask`
+applied -- no test sample, no test label, the same window `gru-quantile` calibrates on.
+
+```
+  MVGS events, no channel leaving its training min/max
+    m1-g8.9.10 (12 channels)   6/32      ids id_121, id_13, id_153, id_157, id_89, id_96
+    m1-ss5      (6 channels)  18/31
+```
+
+Both reproduce 22.11 and D40 exactly, which is the check that matters: the same
+figures, from a different script, on a different pass.
+
+**And the class is still almost entirely uncaught.** Over the gate set's six:
+
+```
+    frozen thresholds        gru 0/6    rstd 0/6    neither 6/6
+    matched-quiet            gru 0/6    rstd 0/6    neither 6/6
+    matched-loud             gru 1/6    rstd 0/6    neither 5/6
+```
+
+The single catch is **`id_89`**, footprint 8,995, and only at matched-loud -- the
+forecaster loosened to the floor's alarm rate, thirteen times its own. At the operating
+point it flies with, it catches **none of the six**.
+
+**ALTERNATIVES.** Keep the 0.1/99.9 reading as primary. Adopt min/max and edit D39.
+Adopt min/max, re-read D39 and D40, and leave both standing.
+
+**Against the first.** It measures the wrong quantity for the claim; that is the
+finding, not a preference. **Against the second.** D39 measured what it said it
+measured and said so; a record corrected in hindsight is not a record.
+
+**CONSEQUENCE.**
+
+1. **The primary contextual figure is 6/32 on the twelve-channel view and 18/31 on the
+   six-channel view.** D39's 3/32 stands as the 0.1/99.9 reading and is now the
+   conservative sub-case rather than the headline.
+2. **D40 is not repealed and applies more sharply.** The min/max count is the
+   view-dependent one -- 19% against 58% of the headline cell on two views of the same
+   data -- so every contextual figure names the channel set it is contextual with
+   respect to, this entry's included.
+3. **D39 consequence 2 survives the change of definition.** It said this project has no
+   measured instance of catching a contextual anomaly. Under the corrected and larger
+   definition it has **one**, `id_89`, and only with the detector run at thirteen times
+   its own alarm rate. At the flying operating point the count is still zero.
+4. **The motivating claim is still not tested by this data.** 26 of 32 gate-set
+   headline-cell events leave a channel's historical range, and Objective.md 2.3's
+   argument is about the ones that do not. What would settle it remains D39 consequence
+   5's scoring set, or work item 9.7's study D.
+5. **No detector, threshold, weight or decision layer changes.**
+
+---
+
+## D44. At a matched alarm rate a per-channel range check beats the forecaster on both sets, and the forecaster never speaks first
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It is the most serious result
+this project has produced
+
+**CONTEXT.** The component exists to warn *before* a per-channel limit trips.
+Objective.md 1.1 retired the only lead figure the project had (D21) and left the claim
+resting on a Phase 3 measurement against a real clock. ESA-ADB carries no dictionary
+limits, so `docs/MODELS.md` 24 part 2 built the honest proxy: widen a per-channel
+range check until it is exactly as noisy as the forecaster, then measure how many
+timesteps earlier the forecaster speaks. 24.4's N4 predicted a positive median lead on
+both sets and named the refutation as a stop-and-report trigger.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T172705Z-reduction-and-curve.json`. The
+envelope is per-channel training min/max from the fitting window with `train_mask`
+applied -- no test sample, no test label, the same window and mask the forecaster's own
+calibration uses -- widened by one shared factor until its nominal-step rate matches.
+
+```
+  m1-g8.9.10                    recall    MVGS    nominal      F0.5
+    gru-quantile, frozen         27/46   22/32   0.0013%      0.804
+    range check, matched w=1.106 34/46   25/32   0.0000%      0.934
+
+  m1-ss5
+    gru-quantile, frozen         26/42   21/31   0.0141%      0.593
+    range check, matched w=0.672 34/42   25/31   0.0002%      0.543
+```
+
+**At an equal or lower alarm rate the range check catches more on both sets**, and the
+overlap is nested against the forecaster: **both 27, only-GRU 0, only-range-check 7,
+neither 12** on the gate set, and 26 / 0 / 8 / 8 on `m1-ss5`.
+
+**And the lead is not there.**
+
+```
+  timesteps from our first crossing to the first channel leaving the envelope
+    m1-g8.9.10   n=27   median +0.0   mean -105.1   forecaster first  0/27
+    m1-ss5       n=26   median +0.0   mean   -0.3   forecaster first  0/26
+```
+
+**Not once in 53 caught events does the forecaster speak before the range check.** On
+39 they fire at the same step; on 14 the range check is earlier, by up to 2,638
+timesteps.
+
+**And the mechanism is amplitude.** At every one of those 53 first crossings the
+channel that raised the alarm is already outside 3 sigma of its own anomaly-masked
+fitting-window distribution -- median **103.8** and **102.9**, minimum **6.6**, none
+below 3. The forecaster is not crossing on a subtle relationship break; it crosses once
+the raw value is already far outside anything the fitting window contained.
+
+**ALTERNATIVES.** Treat the range check as a leaky comparison. Adopt it. Record it and
+change nothing.
+
+**Against the first.** It is built from fitting data only, under `train_mask`, through
+the same window the forecaster calibrates on, and it is *quieter* than the forecaster
+at the compared point rather than louder. There is no advantage to remove.
+**Against the second.** Nothing here is a flight proposal: a range check that needs its
+width swept against a labelled alarm rate is not a limit a mission would set, and D3's
+gate metric was never the only axis. Adoption would need its own pre-registration.
+
+**CONSEQUENCE.**
+
+1. **On this data the forecaster has no measured advantage over a per-channel range
+   check** -- not on recall, not on false-alarm rate, not on F0.5 on the gate set, and
+   not on lead. Every statement in this repository that Sentinel sees what a
+   per-channel check cannot is withdrawn for these two sets, on the evidence of this
+   entry rather than on D38's, which D41 had already qualified.
+2. **The early-warning argument has no surviving proxy on Phase 1 evidence.** D21
+   retired "+26" against the labelled event start; this retires the remaining proxy
+   against a per-channel check. Objective.md 1.1's "the break-to-limit-trip lead is a
+   Phase 3 deliverable and is unmeasured" is now the whole of the claim, and Phase 3
+   has to earn it against a real clock and real limits.
+3. **What is not touched.** D25, D28, D29 and the frozen decision layer stand -- D28
+   compared LSTM, GRU and TCN against each other and never involved a range check, and
+   nothing here moves a forecaster figure. `gru-quantile` remains the selected
+   architecture; what changes is what may be claimed for it.
+4. **The packaging claim is untouched and is now the load-bearing one.** Nothing else
+   in an F' deployment watches the relationships between channels; that is a statement
+   about the ecosystem, verified in Objective.md 3, and no measurement here bears on it.
+5. **The headline must be written from this entry.** It is held at `docs/STATUS.md`
+   section 7 and is written once, for approval, from work item 9.7 studies A and B and
+   work item 9.8 together.
+
+---
+
+## D45. Every alarm the forecaster raises begins inside a labelled span; its false alarms are overhang, not spurious alarms in quiet time
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It changes how the precision
+figure should be read and changes no detector
+
+**CONTEXT.** Every scorecard in this repository counts an alarm outside a labelled
+span as a false alarm, and that definition had never been checked. D44 left the
+forecaster with no measured lead over a rate-matched per-channel range check, which
+made one question worth asking: are the alarms it raises in nominal periods early
+warnings the metrics have been scoring as error? `docs/MODELS.md` 25 pre-registered
+the test -- a permutation test against a circular-shift null, primary fixed at
+`W = 10,000` on the gate set -- and named a null result as the finding.
+
+**EVIDENCE.** `runs/m1-g8.9.10/_forensics/2026-09-03T185207Z-precursor.json`, one bundle load,
+cached weights. The population is in-range nominal time: scorable, not anomaly, not
+rare event, and every watched channel strictly inside its own training min/max (D43).
+
+```
+                     nominal steps   in-range nominal      alarm RANGES starting there
+  m1-g8.9.10          10,675,488     10,675,463 (100%)              0
+  m1-ss5              10,875,689     10,875,683 (100%)              6
+```
+
+**All 157 of `gru-quantile`'s alarm ranges on the gate set begin inside a labelled
+anomaly or rare-event span.** None begins in quiet, in-range nominal time. Its 142
+nominal-flagged steps are the **tails** of alarms that started inside a labelled span
+and ran past its end.
+
+The test could not run at its primary because the population was empty. S2 predicted
+at least 20 eligible alarm starts and measured 0 and 6; at `n = 6` the subset is
+UNDERPOWERED by `docs/HARNESS.md` section 1 and no p-value is quoted from it. The
+permutation itself was verified on planted signal first -- p = 0.009 at a rate ratio
+of 3.98, against 0.72 on randomly placed alarms of the same count -- so the null is
+the data's and not the instrument's.
+
+**ALTERNATIVES.** Read it as good news for precision. Read it as a null result and
+stop. Record what it establishes and what it does not, and change nothing.
+
+**Against the first.** It is not good news, only *different* news: the alarms are
+still counted against precision and the events are still missed. **Against the
+second.** A study that fails on power rather than on effect has found something about
+the detector, and saying only "no clustering" would hide it.
+
+**CONSEQUENCE.**
+
+1. **The forecaster's false-alarm count is not spurious alarms in quiet time.** It is
+   spent on where alarms *end*, not where they begin. That is a different defect from
+   the one the metrics have implied, and a smaller one -- and it means alarm-width
+   control, not alarm suppression, is where its precision could be recovered.
+2. **There is no precursor population on this data**, so the early-warning argument
+   gains nothing here. D44 stands: no measured lead over a rate-matched range check,
+   and now no nominal-period alarms that could have been early either.
+3. **Where those 157 ranges do begin is not measured.** The script recorded
+   eligibility and not its complement, so the split between anomaly spans and
+   rare-event spans is unknown and needs another bundle load. Named rather than left
+   to be found.
+4. **No detector, threshold, weight or decision layer changes.** The harness's
+   definition of a false alarm is unchanged; what changes is what a reader should
+   conclude from the number it produces.
+5. **It does not license reading precision as better than it is.** 18 of 157 ranges on
+   the gate set are unmatched and they are still unmatched; this entry explains their
+   origin, it does not excuse them.
+
+---
+
+## D46. SMAP/MSL's labelled contextual class is genuinely in range, and it is the population ESA-ADB does not have
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It unblocks a study and settles
+what Wu & Keogh's critique does and does not cover
+
+**CONTEXT.** D43 measured that only **6 of 32** headline-cell events on `m1-g8.9.10`
+stay inside their channels' training min/max, and D44 that a rate-matched per-channel
+range check beats the forecaster on both Mission 1 sets and is never later. The claim
+the project exists to test -- that a forecaster sees what a limit check cannot -- has
+therefore never had a population large enough to test it on. `docs/MODELS.md` 26
+pre-registered the question of whether SMAP/MSL carries one, and V5 made `n >= 20`
+a gate on whether anything further would run.
+
+**Objective.md 9.2 is not reversed and this entry does not reverse it.** SMAP and MSL
+are 81 unsynchronised univariate streams; nothing here is cross-channel evidence.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`,
+1 Class A and 165 Class B, manifest-addressed. Column 0 is telemetry and the rest are
+one-hot commands; the envelope is that channel's training-split min/max, strict.
+`P-2`'s duplicate label row is counted once, so 105 rows give 104 sequences.
+
+```
+  in range        contextual  39/43  (90.7%)      point  11/61  (18.0%)
+                  gap                             +72.7 percentage points
+  SMAP            contextual  26/26 (100.0%)      point   8/42
+  MSL             contextual  13/17  (76.5%)      point   3/19
+```
+
+Against D43's **6/32 (18.8%)** on ESA-ADB's headline cell, this is a population **six
+and a half times larger** and five times denser.
+
+**ALTERNATIVES.** Treat the labels as unreliable and stop. Accept them and run stage 2.
+Record what they support, and gate stage 2 on approval.
+
+**Against the first.** The diagnostic separates the two labelled classes by 72.7
+points, in the direction the labels claim, on both spacecraft. That is the labels
+carrying real information, measured rather than assumed. **Against the second.** Stage
+2 is a training run on a dataset this project has documented as demoted; it needs its
+own approval, and this entry does not grant it.
+
+**CONSEQUENCE.**
+
+1. **Wu & Keogh's triviality critique is confirmed for the point class and refuted for
+   the contextual class.** 82% of point anomalies leave their channel's historical
+   range and a range check finds them without a model; 91% of contextual anomalies do
+   not. The benchmark is trivial in the part their paper measured and not trivial in
+   the part this project needs. Both halves are recorded, because reporting only the
+   second would be the selective reading their paper is about.
+2. **Objective.md 9.2's demotion stands and is now better specified.** SMAP/MSL remains
+   unusable for the cross-channel claim and is now demonstrably usable for the
+   in-limits claim, which are different claims. `docs/DATA.md` carries the role.
+3. **Stage 2 is warranted and does not run without approval.** `gru-quantile` with the
+   command columns as exogenous inputs -- D6, open since work item 4 -- against `rstd`
+   and a calibrated range check, on the paper's own split, at a matched nominal rate.
+4. **A prediction was wrong in the comfortable direction and is recorded loudest.** V1
+   put the in-range contextual count at 15 to 30 and it is 39. The band was set
+   expecting the labels not to hold up. They held up.
+5. **No ESA-ADB figure, task, weight, manifest or decision changes.** D43 and D44 stand
+   exactly as written; this adds a dataset on which their question can be asked again.
+
+---
+
+## D47. `error_window` is an absolute constant where it should be proportional, and it silently disabled scoring on short series
+
+**DATE** 2026-09-03 | **STATUS** resolved as a correctness fix, scoped to the dataset
+that exposed it. In D17's family
+
+**CONTEXT.** Work item 9.9 study 1 stage 2 ran `gru-quantile` per channel on SMAP/MSL
+and returned a pooled nominal-step alarm rate of **12.59%**. On ESA-ADB the same
+detector runs at 0.0013%. A detector alarming on an eighth of nominal time is not a
+detector, so the run was investigated rather than written up.
+
+**EVIDENCE.** `ForecastDetector.warmup_steps` (`detectors.py:290-297`) is
+`hyper.window + config.error_window` = 250 + 2100 = **2,350**. `error_window` is
+`ERROR_WINDOW_BATCH * ERROR_WINDOW_COUNT` (`telemanom.py:118`), an **absolute** 2,100
+fixed against ESA-ADB, where a fold is ~3.5M steps. The median SMAP/MSL training
+series is **2,690 steps**.
+
+```
+  channels whose entire test array sits inside the warm-up    16 / 81
+  channels with <500 non-warm-up training steps to calibrate   48 / 81
+  pooled nominal-step rate                                   12.5852%
+  A-4, a channel long enough to be unaffected, verified          0.14%
+```
+
+Two failures, both silent. Sixteen channels contributed **zero scorable steps**, so
+their events could never be caught while still sitting in the denominator. Forty-eight
+had their 99.9th-percentile threshold computed mostly from warm-up-region scores, which
+are not forecasts at all.
+
+**This is D17 again.** telemanom's published `min_delta` was an absolute quantity in
+the units of the loss, which on ESA-ADB made the early-stopping bar negative and kept
+every fit at its first epoch. Here an absolute window sized for one dataset consumes
+an entire series on another. **The class of defect is the same: a constant that should
+have been relative, disabling the thing it configures without erroring.**
+
+**ALTERNATIVES.** Exclude the short channels and keep the absolute window. Scale
+`error_window` to the series. Abandon the study and report the transfer failure.
+
+**Against the first.** It would drop the population the study exists to measure below
+the `n >= 20` line, so V5's gate would fail after the fact rather than before it.
+**Against the third.** The defect is in a constant, not in the method, and a fixable
+constant is not a finding about transfer.
+
+**CONSEQUENCE.**
+
+1. **On SMAP/MSL, `error_window = SMOOTHING_PERC * len(series)`** -- telemanom's own
+   proportional definition, `telemanom.py:84`. The warm-up falls from 2,350 to 384 on
+   a median channel.
+2. **ESA-ADB keeps 2,100 and nothing there moves.** The same formula on a 3.5M-step
+   fold gives 175,000, which is a different detector rather than a correction. **This
+   is a per-dataset choice, not a universal fix**, and it is recorded as one.
+3. **The discarded run's figures are not results** and appear nowhere as such. They
+   are quoted in `docs/MODELS.md` 26.14 only as evidence of the defect.
+4. **Weights are untouched.** The cache key is over `hyper` and `error_window` is in
+   `config`, so the re-run reuses the fits already on disk.
+5. **It sharpens the open toolkit item.** Objective.md 10.2's data-sufficiency grading
+   now has a concrete rule to enforce: a fitting window must exceed the warm-up by a
+   stated margin, and a detector whose warm-up consumes its own calibration window
+   should refuse rather than return 12%.
+
+---
+
+## D48. A frozen static threshold describes a stationary regime; on SMAP/MSL no train-calibrated threshold transfers, for any arm
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It bounds where D25 applies and
+replicates D29's `m1-g3` result on a second spacecraft dataset
+
+**CONTEXT.** D25 froze the decision layer as one label-free global quantile -- the
+99.9th percentile of the detector's own score over an anomaly-masked fitting window --
+and it has carried every ESA-ADB result since. Work item 9.9 stage 2 applied it
+unchanged to SMAP/MSL, per channel, on the paper's own train/test split.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T205255Z-stage2.json`, after
+D47's warm-up correction, cached weights, 77 of 81 channels.
+
+```
+  arm         multiplier   nominal-step rate
+    gru+cmd        1.000            10.4682%
+    gru            1.106             8.1890%
+    rstd          50.000            15.5654%
+    range          1.106            10.2814%
+```
+
+**`rstd` at fifty times its calibrated threshold still alarms on 15.57% of nominal
+steps**, where the same detector runs at 0.024% on ESA-ADB. No multiplier in the sweep
+makes it quiet. The forecaster's own 99.9th-percentile threshold admits **10.47%** of
+nominal time. Every calibrated arm fails the same way at once, which is what rules out
+a detector-specific cause: the **residual scale on the test split is far larger than on
+the train split**, so a threshold that describes the first does not describe the second.
+
+**This is not new, it is a replication.** D29 already found it on ESA-ADB: a floor
+calibrated on early data "sat under 86.7% of one later window's nominal residual" on
+`m1-g3`, the later period of the same spacecraft, and the consequence recorded there
+was that **thresholds are parameters with a provenance, recalibrated in orbit**. What
+SMAP/MSL adds is the same finding on a **second, independent dataset**, and in a much
+sharper form -- there the shift degraded a floor, here it destroys every arm at once.
+
+**And it explains a design choice this project reproduced and rejected.** telemanom's
+threshold is **dynamic**, recomputed from a trailing window of the stream being scored
+(D18). On ESA-ADB, where the regime is stationary across folds, that dynamic rule
+degenerated under a good forecaster and the static quantile beat it. On SMAP/MSL the
+static quantile is the one that fails. **Both results are about the data, not the
+rule**, and neither generalises without saying which regime it was measured in.
+
+**ALTERNATIVES.** Treat it as a SMAP/MSL defect. Abandon D25. Bound D25 and recalibrate
+the way flight would.
+
+**Against the first.** It is a property of the split the paper defines, and telemanom's
+own dynamic threshold exists because of it. **Against the second.** D25 is measured and
+correct on the regime it was measured on, and nothing here touches an ESA-ADB figure.
+
+**CONSEQUENCE.**
+
+1. **D25 is bounded, not withdrawn.** The frozen static quantile describes a
+   **stationary** regime -- one where the fitting window's residual scale predicts the
+   scored window's. Every ESA-ADB result stands; the recipe is not portable to a
+   regime shift, and that condition is now stated rather than assumed.
+2. **It is the second measurement of the same thing** (D29's `m1-g3`), on independent
+   data, and it upgrades "recalibrate in orbit" from a recommendation to a
+   requirement: a mission that froze a ground-calibrated threshold and flew it through
+   a regime change would alarm on a tenth of nominal time.
+3. **Stage 2 produces no detector comparison** and none is reported. `docs/MODELS.md`
+   26.13 records V6, V9, V10 as No Verdict for this reason, V7 refuted, and V8
+   withdrawn by the pre-registration's own rule.
+4. **It sharpens work item 10 rather than blocking it.** WI10 is the in-orbit
+   recalibration path -- file uplink, human-approved reload (Objective.md 14.10) --
+   and this is the measured case for why it exists.
+5. **No detector, threshold, weight or ESA-ADB figure changes.**
+
+---
+
+## D49. D6 answered: on the only data that carries commands, conditioning on them makes the detector worse
+
+**DATE** 2026-09-03 | **STATUS** resolved. Closes D6, open since work item 4
+
+**CONTEXT.** D6 has been open since 2026-08-26. Every figure in this project is
+**telemanom-minus-commands**: the published method feeds its forecaster encoded command
+information and this project's reproduction never did, because ESA-ADB's telecommands
+were not wired into a trained fit. `TelemanomCommanded` exists as the other arm and the
+ablation had never run on trained weights. `docs/RESEARCH.md` marks the external
+evidence as the thinnest and most consequential in the project: ESA's own baselines got
+**worse** precision when telecommands were added, though they cannot exploit them.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T212818Z-stage4-ndt.json`.
+SMAP/MSL carries per-channel command inputs -- 24 one-hot columns on SMAP, 54 on MSL --
+which is why the dataset was ingested (D46). The two arms differ in **that alone**:
+identical architecture, hyperparameters, seed, weights and detection stack, the
+commanded arm setting `wants_commands` on the instance and passing the command columns
+as exogenous inputs. Both run the published dynamic threshold, at essentially the same
+alarm rate.
+
+```
+  arm                     nominal-step rate   in-range contextual   all sequences
+    gru-telemanom + cmd            0.6838%            6/38               33/100
+    gru-telemanom                  0.6820%           10/38               47/100
+```
+
+**The commanded arm is worse on every population, at a matched alarm rate.** 6 against
+10 on the in-range contextual sequences, 33 against 47 overall, 1/4 against 0/4 and 1/9
+against 2/9 on the two coverage checks. The rates differ by 0.0018 percentage points,
+so this is not an operating-point artefact.
+
+**ALTERNATIVES.** Call it a null and leave D6 open. Conclude commands hurt. Conclude
+commands hurt **on this data, with this encoding**.
+
+**Against the first.** The direction is consistent across every population and the
+rates are matched to three decimal places; that is an answer, not a null.
+**Against the second.** One dataset, one encoding, 77 channels, and a forecaster whose
+V20 prediction was refuted in the same run. The finding is real and it is not general.
+
+**CONSEQUENCE.**
+
+1. **D6 is closed: adding command inputs did not help, and measurably hurt.** Every
+   telemanom-minus-commands figure in this project loses nothing by the omission, and
+   the reproduction's most-cited gap is now measured rather than outstanding.
+2. **It agrees with the external evidence `docs/RESEARCH.md` flagged as thin.** ESA's
+   baselines got worse precision with telecommands; so does this forecaster, which
+   *can* exploit them in principle. That the two agree does not make either strong.
+3. **Bounded to what was measured.** One-hot command indicators, SMAP/MSL, per-channel
+   univariate models, the published dynamic threshold. It says nothing about a
+   different encoding, and nothing about ESA-ADB, whose telecommands remain unwired.
+4. **No detector, threshold or weight changes.** `gru-quantile` flies without commands
+   and always has; this removes a reason to revisit that, rather than creating one.

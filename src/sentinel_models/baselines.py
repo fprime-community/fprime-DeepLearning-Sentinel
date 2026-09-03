@@ -37,11 +37,23 @@ def _rolling(values: np.ndarray, window: int, want: str) -> np.ndarray:
     Trailing rather than centred: a detector that peeks at future samples is not
     something that can fly, and the harness should not measure one that does.
     """
-    filled = np.nan_to_num(values, nan=0.0)
+    # float64, and the promotion has to happen HERE rather than at the
+    # concatenate below. The bundle's values are float32 (`bundle.py:169`), so
+    # the original code squared them in float32 and accumulated the prefix sums
+    # in float32 too, then promoted only when `np.concatenate` met a float64
+    # `np.zeros`. Differencing two large float32 prefix sums to recover a small
+    # second moment is catastrophic cancellation, and the variance floor below
+    # then clamps the negative result to zero. Measured before the fix, on
+    # N(1000, 3): 7.6584e+00 of error against a true sigma of 3.0, and 3,975
+    # spurious exact zeros against float64's 1,123 on this project's own
+    # fixture. A D8 correctness fix, not a scope change; see `docs/DECISIONS.md`
+    # D37 and `docs/MODELS.md` 21. `tests/test_rolling_precision.py` pins it.
+    filled = np.nan_to_num(values, nan=0.0).astype(np.float64)
     present = np.isfinite(values).astype(np.float64)
 
     def trailing_sum(a: np.ndarray) -> np.ndarray:
-        cumulative = np.concatenate([np.zeros((1,) + a.shape[1:]), np.cumsum(a, axis=0)])
+        cumulative = np.concatenate([np.zeros((1,) + a.shape[1:]),
+                                     np.cumsum(a, axis=0, dtype=np.float64)])
         upper = cumulative[1:]
         lower = np.concatenate([np.zeros((min(window, a.shape[0]),) + a.shape[1:]),
                                 cumulative[1:max(1, a.shape[0] - window + 1)]])

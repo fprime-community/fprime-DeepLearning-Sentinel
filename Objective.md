@@ -52,10 +52,53 @@ a positive figure would say *we spoke before the annotation begins*, not *we
 spoke before the spacecraft was in danger*. The two are different quantities and
 only the second is the product claim.
 
-**KEPT, and it is the stronger claim anyway:** Sentinel is the **first and only
-observer of cross-channel relationship breaks**. On `m1-g8.9.10` a forecaster
-over the channel set finds 28 of 32 headline-cell events where a per-channel
-statistic finds 3. Nothing else in an F' deployment is watching for them at all.
+**KEPT, and narrower than it was:** nothing else in an F' deployment watches
+the relationships between channels at all. That is a statement about the F'
+ecosystem, verified in section 3, and nothing in D37, D38 or D39 touches it.
+
+**WITHDRAWN, and it was the evidence offered for the sentence above.** This
+used to continue: "On `m1-g8.9.10` a forecaster over the channel set finds 28 of
+32 headline-cell events where a per-channel statistic finds 3." Every figure in
+it is superseded. The 3 was `baselines._rolling` accumulating in float32 and is
+**25** (D37). The 28 of 32 is `lstm-telemanom`'s, a detector disqualified at 22
+of 48 commanded manoeuvres; the detector that flies scores **22/32**. And the
+flying detector catches a **strict subset** of the corrected floor's events on
+both Mission 1 sets (D38) -- which D41 later showed is a property of the two
+thresholds and not of the two detectors, and D44 later made moot: at a matched
+alarm rate a per-channel range check beats the forecaster on both sets and the
+forecaster never speaks first.
+
+**(!) RESTATED 2026-09-03, and this is the claim.**
+
+**Sentinel catches anomalies a limit check can never see.** On NASA's SMAP/MSL
+telemetry, **39 of 43** labelled contextual anomalies stay entirely inside their
+channel's historical range; **no per-channel statistic reaches a flyable alarm rate
+there** -- a rolling standard deviation at 5,000x its calibrated threshold still
+alarms on 15.17% of nominal steps; and the forecaster **under a dynamic threshold**
+operates at **0.68%** and catches **10 of 38** -- the baseline now being improved.
+
+**(!) Read the configuration with the claim, never apart from it.** That 10 of 38 is
+`gru-telemanom` -- the **published dynamic threshold**, not D25's frozen static
+quantile -- scored **per channel, univariate, without command conditioning**, on
+SMAP/MSL's 81 unsynchronised streams. **It is not the configuration that flies
+today**, which is `gru-quantile`: multivariate, static quantile. The component ships
+both rules and a mission selects one, because which rule is needed is a property of
+the telemetry regime and not of the method (D48, D49, `docs/MODELS.md` 26.18).
+**And it is 26%**: ten of thirty-eight, on one dataset, with no floor available to
+compare against at that alarm rate.
+
+**Subordinate, and the reason the component ships both:** on ESA-ADB -- stationary
+folds, gross faults -- a **calibrated per-channel range check is sufficient and
+better**, catching 34/46 and 25/32 at an equal or lower alarm rate against the
+forecaster's 27/46 and 22/32, and the forecaster never speaks first across 53 caught
+events (D44). The full record is unchanged in `docs/RESULTS.md` 6l and 6m and in
+D43 to D49.
+
+**What it replaced**, kept for the record: the Phase 1 headline comparison was
+withdrawn on 2026-09-02 pending re-measurement (D37, D38), and the corrected
+baseline beside the flying detector is in `docs/RESULTS.md` 6l -- the forecaster
+leading on `m1-g8.9.10` (F0.5 0.804 against 0.676) and trailing on `m1-ss5` (0.593
+against 0.663). Work items 9.7, 9.8 and 9.9 are the re-measurement.
 
 **The break-to-limit-trip lead is a Phase 3 deliverable and is unmeasured.**
 ESA-ADB carries no dictionary limits and its timestamps are anonymised and
@@ -258,8 +301,9 @@ have.** Measured by inspecting every stage between the forecast and the alarm
 (docs/MODELS.md section 11, docs/DECISIONS.md D23).
 
 **The forecaster is multivariate. The decision layer is not.** One model predicts
-every channel from every channel, which is why 28 of 32 cross-channel events are
-caught. Everything after that point sees C independent error series: smoothing,
+every channel from every channel, which is why **22 of 32** headline-cell events
+are caught (was "28 of 32", which was `lstm-telemanom`'s; D37, D38).
+The mechanism below is unchanged by the correction; only the number is. Everything after that point sees C independent error series: smoothing,
 thresholding, sequence-finding, pruning and persistence each take **one channel
 at a time**. The k-of-n channel agreement is the only stage that looks at more
 than one, and what it tests is **co-occurrence, not relationship** -- k channels

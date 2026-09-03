@@ -438,6 +438,8 @@ addition nobody re-examines.
 | 2026-08-25 | **`m1-g3` task** -- Mission1 group 3, 8 channels | A held-back recall set nominated before decision-layer tuning began. `m1-ss5` cannot serve: it is a strict subset of the primary carrying the same events | Additive only; no existing task definition changed |
 | 2026-08-25 | **`--no-cache` flag** | Weight persistence is now permitted for iteration, so a published result needs a way to be reproduced from cold | Additive only; default behaviour unchanged |
 
+| 2026-09-03 | **SMAP/MSL ingest** -- `smap-msl/v1/`, 162 arrays, its own `_manifest/smap_msl.json` | Work item 9.9 study 1. ESA-ADB's headline cell is 6/32 min-max-contextual (D43) and nothing catches it; SMAP/MSL carries 43 labelled contextual sequences of 105 and per-channel commands, which is D6's open question. Explicitly **not** a cross-channel test -- Objective.md 9.2 stands | **Additive only.** A separate manifest object; `_manifest/manifest.json` byte-identical; `Catalog.load` and every ESA-ADB task untouched; no existing module changed; the ingest writes only under `smap-msl/v1/` and its own manifest. Every array verified against the canonical `labeled_anomalies.csv` before upload, 82/82 rows, 0 mismatches |
+
 ### The first case, recorded here
 
 `Bundle.subset` rebuilt its ground truth from the labels alone and never read
@@ -526,6 +528,17 @@ Stop-and-report trigger: the baseline scores well on headline-cell recall.
 
 The trigger fired. `mavg` scored **29/31 (0.935)** on `m1-ss5` and **25/32
 (0.781)** on `m1-g8.9.10`. Four checks located the cause:
+
+**(!) Both figures are pre-D37 and are left standing as the record of what this
+pre-registration measured.** `mavg` reads `baselines._rolling`, which accumulated
+its prefix sums in float32 and lost the statistic (D37, `docs/MODELS.md` 21), so
+the numbers above are not the ones a reader should quote. Re-scored, `mavg`'s
+headline cell is **27/32** on `m1-g8.9.10` and **26/31** on `m1-ss5`
+(`docs/RESULTS.md` 2). And the `25/32` above is **`mavg`'s old figure, not
+`rstd`'s corrected 25/32** -- the two collide by coincidence and are different
+detectors in different eras. Nothing in the conclusion below moves: a baseline
+that buys recall with alarms is what section 1 and D3 exist to see through, and
+it bought more of them, not fewer.
 
 * a random detector reached only 10/31 at **twice** mavg's alarm budget, so
   existence-recall was not degenerate and the detection was real;

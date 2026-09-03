@@ -48,14 +48,20 @@ alarms for 42 events. The gate metric became event-wise F0.5, and bare recall is
 alone anywhere (D3, `docs/HARNESS.md` section 7). Four more defects followed, all in the
 measurement design, all recorded (`docs/NARRATIVE.md` section 2). The floor was set: a rolling
 standard deviation at F0.5 0.250, 3 of 32 headline-cell events (`docs/RESULTS.md` section 1).
+**(!) Corrected 2026-09-01: those two figures were wrong. The floor is F0.5 0.676 and 25 of
+32 (D37). What follows is the Phase 1 story as it was lived, against the floor as it was
+then believed; `docs/RESULTS.md` 1a states what the correction does to the conclusion.**
 
 ### The reproduction, and the constant that had disabled training
 
 Work item 4 reproduced telemanom's detection method with one multivariate LSTM (91,640
 parameters), trained in PyTorch and scored through a plain-NumPy forward pass held to torch at
 1e-5 - the blueprint the C++ will be transcribed from (`docs/MODELS.md` sections 2-3). The thesis
-held at once: **28 of 32 headline-cell events against the floor's 3** (`docs/RESULTS.md` section
-2). The false-alarm rate did not: 22 of 48 commanded manoeuvres alarmed on, and a third of the
+appeared to hold at once: **28 of 32 headline-cell events against the floor's 3** (`docs/RESULTS.md`
+section 2) -- **(!) and neither figure survived. The floor's 3 was an arithmetic defect and is 25
+(D37); the 28 is `lstm-telemanom`'s and the detector that flies scores 22/32; and the flying
+detector catches a strict subset of the corrected floor's events (D38). Section 6l is the
+corrected comparison.** The false-alarm rate did not: 22 of 48 commanded manoeuvres alarmed on, and a third of the
 published method's input - the telecommands - had never been wired in (D6).
 
 Then a published constant turned out to have disabled training. telemanom's `min_delta = 3e-4`
@@ -92,8 +98,17 @@ start of an alarm range that `error_buffer` had widened backwards from a crossin
 happened. Measured from the crossing, the median lead is **0.0**, and fifteen of thirty-eight
 detections on the gate set had no emission overlapping the event at all (D21, `docs/RESULTS.md`
 section 6f). The claim "+26 timesteps of early warning" was retired in Objective.md section 1.1
-and the stronger, surviving claim stated in its place: the first and only observer of cross-channel
-breaks in an F' deployment. The break-to-limit lead remains a Phase 3 measurement on a real clock.
+and the surviving claim stated in its place: the first and only observer of cross-channel
+breaks in an F' deployment -- which is a statement about what an F' deployment contains, and
+stands. **(!) The catch comparison that used to be offered as its evidence is withdrawn
+(D37, D38); see `docs/RESULTS.md` 6l and work item 9.7.**
+
+**(!) And the claim was restated on 2026-09-03, after Phase 1 closed.** Sentinel catches
+anomalies a limit check can never see: on SMAP/MSL, 39 of 43 labelled contextual anomalies stay
+entirely in range, no per-channel statistic reaches a flyable alarm rate there, and the
+forecaster under a **dynamic** threshold operates at 0.68% and catches 10 of 38 (D46, D48,
+`docs/MODELS.md` 26.18). That result is `gru-telemanom` per channel and univariate, **not** the
+`gru-quantile` configuration this report describes, and it post-dates every measurement below. The break-to-limit lead remains a Phase 3 measurement on a real clock.
 
 ### Three architectures, one variable
 
@@ -137,7 +152,13 @@ nothing would be re-tuned (`docs/MODELS.md` section 18).
 **On the independent spacecraft the recipe held.** Fit on a third of an unseen mission's history,
 calibrated on its own nominal residual with no label and no tuning, the LSTM, the GRU and the TCN
 alarmed on **4, 4 and 6 of 424 rare events and on none of 4,155,841 nominal timesteps**. The
-per-channel floors did not: `rstd` alarmed on a sixth of nominal time. The union's Mission-1
+per-channel floors did not, on the numbers available at the time: `rstd` was recorded
+as alarming on a sixth of nominal time. **(!) Corrected 2026-09-01 (D37): that 17.30%
+was an artifact of `baselines._rolling`'s float32 accumulation. Re-scored, `rstd` alarms
+on 126 of 4,155,841 nominal steps -- 0.003%, not a sixth -- and on 22 of 424 rare events
+rather than 84. The forecasters still win the adoption number decisively, 4/424 against
+22/424 and 0 nominal-step alarms against 126, so D29 stands; the margin it is quoted
+against does not.** The union's Mission-1
 economy did not transfer - its eight rare alarms were the members' four and four, disjoint - and
 its recall edge evaporated on `m1-g3`; `gru-quantile` flies alone (D29).
 

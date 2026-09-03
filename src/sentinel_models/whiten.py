@@ -2,7 +2,8 @@
 
 `docs/DECISIONS.md` D23 and `docs/MODELS.md` sections 11 and 12. The forecaster
 is multivariate -- one model predicts every channel from every channel, which is
-why 28 of 32 cross-channel events are caught -- and everything downstream of it
+why 22 of 32 headline-cell events are caught (was "28 of 32", which was
+`lstm-telemanom`'s; D37, D38) -- and everything downstream of it
 sees C independent error series. Smoothing, thresholding, sequence-finding and
 pruning each take one channel at a time; `k`-of-`n` is the only stage that looks
 at more than one, and it tests **co-occurrence, not relationship**.

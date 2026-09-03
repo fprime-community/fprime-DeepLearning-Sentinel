@@ -20,7 +20,46 @@ restatement.
 | CATS | Synthetic stress test | Full root-cause metadata. Always mark as synthetic |
 | SMAP/MSL | Legacy comparability only | Discredited (Wu & Keogh, TKDE 2023) and its channels are not synchronised with each other, so our core claim could not be demonstrated on it. See `Objective.md` section 9.2 |
 
-Only ESA-ADB is ingested so far. `opssat-ad/v1/` and `cats/v1/` are later tasks.
+**SMAP/MSL is now ingested too, for work item 9.9 study 1** -- and its role is unchanged
+from the table above. It is **legacy comparability only** and it is **not** a test of the
+cross-channel claim: Objective.md 9.2 stands, its 81 channels are unsynchronised
+univariate streams. What it carries that ESA-ADB does not is a labelled contextual
+population seven times larger and per-channel command inputs (D6).
+
+```
+  prefix          smap-msl/v1/{train,test}/<channel>.npy   162 arrays, 172.9 MB
+  labels          smap-msl/v1/labeled_anomalies.csv        sha256 057ce2d6c8875982...
+  manifest        _manifest/smap_msl.json                  a SEPARATE object
+  source          kaggle patrickfleith/nasa-anomaly-detection-dataset-smap-msl
+                  (the dataset the telemanom README itself now names; the
+                  original S3 mirror returns 403)
+  upstream        https://github.com/khundman/telemanom          Apache-2.0
+  ingested        2026-09-03, 164 Class A, 0 Class B
+  shape           SMAP 55 channels x 25 columns, MSL 27 x 55;
+                  column 0 is telemetry, the rest are one-hot commands
+```
+
+**The manifest is a separate object on purpose.** `src/sentinel_data/manifest.py`
+hard-codes the single dataset key `esa-adb` and `Catalog.load` reads it, so extending
+that module would put every published ESA-ADB result at risk for no benefit.
+`_manifest/manifest.json` is byte-identical; the ingest writes only under
+`smap-msl/v1/` and `_manifest/smap_msl.json`.
+
+**Every array was verified against the canonical labels before a byte was uploaded.**
+`labeled_anomalies.csv` was fetched from `khundman/telemanom` directly rather than from
+the redistribution, and each channel's test-array length was checked against
+`num_values` and every anomaly span against that length. **82 of 82 rows agreed, 0
+mismatches.** A single failure would have aborted the upload.
+
+**(!) One labelling defect, recorded rather than silently deduplicated.** `P-2` appears
+**twice** in `labeled_anomalies.csv`, both SMAP, with conflicting spans `[5350, 6575]`
+and `[5300, 6420]`, both class `point`. So the dataset has **81 unique channels, not
+the 82 rows** its own label file implies. It is carried in the manifest's
+`labelling_defects` field. This is a live instance of the "mislabelled ground truth"
+flaw Wu & Keogh (TKDE 2023) name, found before any modelling.
+
+Only ESA-ADB and SMAP/MSL are ingested so far. `opssat-ad/v1/` and `cats/v1/` are later
+tasks.
 
 ## 2. Where it lives
 
