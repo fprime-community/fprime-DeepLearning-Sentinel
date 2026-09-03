@@ -5410,3 +5410,115 @@ falsification will be stated against the **measured** matched-rate multiplier an
 not "by construction": on `m1-ss5` that multiplier was **0.672**, tighter than the
 training range, and a range check tightened below the training range does catch
 in-range events.
+
+### 26.7 Stage 2, pre-registered. What runs, and what it is not
+
+**Written and committed before a single detector is fitted.** V5's gate cleared at
+n = 39, so stage 2 is warranted. **26's first paragraph still governs**: SMAP and
+MSL are 81 unsynchronised univariate streams (Objective.md 9.2), nothing here is
+cross-channel evidence, and no figure below may be quoted as such. What is being
+tested is the **in-limits** claim -- can a forecaster see anomalies that never leave
+their channel's historical range, which a range check cannot -- and **D6**, open
+since work item 4 because every figure in this project is telemanom-minus-commands.
+
+**Three detectors, per channel, on the paper's own split.** `train.npy` fits and
+calibrates; `test.npy` is scored. That is the split Hundman et al. defined and it is
+what makes this comparable to their numbers; it is **not** comparable to this
+project's forward-chained ESA-ADB folds and no figure is placed beside one.
+
+```
+  gru-quantile+cmd   telemetry column 0, command columns 1..n as EXOGENOUS inputs
+  gru-quantile       the same, commands withheld        <- the pair IS D6's ablation
+  rstd               trailing standard deviation, window 120, on column 0
+  range check        per-channel training min/max, widened by a swept multiplier
+```
+
+**The commanded pair differ in that alone** -- identical architecture,
+hyperparameters, seed and detection stack -- which is what makes it an ablation
+rather than a comparison, in `TelemanomCommanded`'s own words
+(`detectors.py:838-851`). No `gru-commanded` is added to the registry: the flag is
+set on the instance, as work item 9.7's reduction arms were computed without adding
+detectors.
+
+### 26.8 Definitions fixed in advance
+
+- **Calibration recipe, unchanged**: threshold is the **99.9th percentile** of the
+  reduced score over the **fitting** window, `Detector.threshold_from`. The paper's
+  `train` split carries no labelled anomalies, so the anomaly mask is all-true and
+  the recipe applies unaltered.
+- **Nominal step**: a test step not inside any labelled anomaly span, of either
+  class. **Matched operating point**: equal nominal-step false-alarm rate, pooled
+  across all 81 channels. Unchanged from 23.7 and 24.2.
+- **The range check's multiplier `w`** is swept until its pooled nominal-step rate
+  equals the commanded forecaster's. **`w` is measured, not assumed**, and every
+  claim about the range check is stated against the measured value.
+- **Populations, fixed by stage 1 and not re-derived**: **39** in-range contextual,
+  **4** out-of-range contextual, **11** in-range point, **104** sequences in total
+  after `P-2`'s duplicate is counted once. All four are reported; none is the
+  headline on its own.
+- **Every catch carries the Wu & Keogh diagnostic beside it** -- whether that
+  sequence leaves its channel's training min/max, and by how many steps -- so a
+  catch on a trivially-visible event can never be read as a catch on a hard one.
+- **`D-12`** has 312 training rows, fewer than 100 usable windows at window 250.
+  It is fitted anyway and **flagged**; it carries one out-of-range point sequence
+  and none of the 39, so it cannot move the headline population. Recorded here so
+  the exclusion cannot be made later.
+- `k/n` throughout; `n < 20` stamped UNDERPOWERED. The 4 and the 11 are below that
+  line by construction and are reported as coverage checks, never as comparisons.
+
+### 26.9 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **V6** | at a matched nominal rate, `gru-quantile+cmd` catches **15 to 32** of the **39** in-range contextual sequences; central estimate **24** | a count outside the band. This is the number the whole two-stage study exists to produce: the first measurement of whether this method sees events a range check provably cannot |
+| **V7** | the range check's matched multiplier is **`w < 1.0`** -- the envelope must tighten *inside* the training range to be as quiet as the forecaster | **`w >= 1.0`**, in which case the range check catches **0 of 39 by construction** and the comparison is **uninformative, not a win**. It is reported in those words and V8 is withdrawn rather than counted |
+| **V8** | conditional on `w < 1.0`: the forecaster's catch count on the 39 exceeds the range check's by **>= 10** sequences | a margin **<= 0**. The forecaster would then have no advantage on the one population built to favour it, and the in-limits claim would be finished on this data as well as on ESA-ADB |
+| **V9** | `gru-quantile+cmd`'s event-wise F0.5 over all **104** at its own operating point is **0.40 to 0.75** | outside the band. Hundman et al. report F1 near 0.71 on this benchmark; a figure far below would mean the recipe does not transfer, and far above would need explaining |
+| **V10** | **D6, finally tested.** The commanded arm catches **more** of the 39 than the uncommanded arm | equal or fewer, which answers D6 **no** on this data: commands do not help, and the project's telemanom-minus-commands figures lose nothing by the omission |
+| **V11** | both detectors catch a **higher fraction** of the 4 out-of-range contextual than of the 39 in-range | a lower fraction, which would invert the expected difficulty ordering and put the diagnostic itself in question. `n = 4`, a coverage check |
+| **V12** | at the matched `w`, the range check catches **<= 2** of the 11 in-range point sequences | more than 2, which would say the tightened envelope is finding in-range events generally rather than the contextual ones specifically. `n = 11`, a coverage check |
+
+**Deliberately not predicted.** Which channels carry the catches. `rstd`'s figures,
+reported as the floor and not predicted. Anything about lead time -- the paper's
+split gives no comparable emission anchor and D44 already settled lead on ESA-ADB.
+
+### 26.10 The named risk
+
+**That a dataset was added after a bad result and will now be reported selectively.**
+The protections are that the populations were fixed by stage 1 **before** any
+detector existed; that **all four** are reported, including the 4 and the 11 that can
+only complicate the story; that **V7 names the condition under which the range-check
+comparison is worthless** and requires it be called uninformative rather than a win;
+and that 26.7 forbids quoting any of it as cross-channel evidence.
+
+**And the honest limit.** 39 sequences across 26 channels, each a separate univariate
+model, is not a demonstration that this method works. It is one measurement, on a
+benchmark this project has documented as discredited in the part Wu & Keogh measured
+(D46), of a claim ESA-ADB could not test at all.
+
+### 26.11 Cost
+
+**Measured before committing to it.** One GRU fit on a median channel takes **8.8
+seconds**; all 81 train series together are 196,321 steps, **6% of one ESA-ADB
+fold**. So **162 fits -- both arms -- is about 24 minutes on this machine**, and no
+rented GPU is warranted. `rstd` and the range check need no fit.
+
+Reads are 162 arrays plus the manifest and labels: **165 Class B and 1 Class A**,
+against a month at 173 Class A and 269 Class B of 50,000 each, per-run tripwire
+1,000. Weights are written to `runs/_weights` and the store is expected to grow by
+**162 files**, which is the one place this study legitimately moves an invariant.
+
+### 26.12 Stop and report
+
+1. **V7 refuted** -- `w >= 1.0`. Report the range-check comparison as uninformative
+   and withdraw V8 rather than scoring it.
+2. **V8 refuted** -- the forecaster has no margin on the 39.
+3. **V10 refuted** -- commands do not help, and D6 is answered no.
+4. Any ESA-ADB figure, task, weight, manifest or decision moves. Nothing here
+   touches them; the weight store growing by 162 SMAP/MSL entries is expected and
+   is not that.
+5. More than 200 Class B, or the per-run tripwire at 1,000.
+
+### 26.13 OBSERVED
+
+Reserved. Nothing has run.
