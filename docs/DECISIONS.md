@@ -2946,3 +2946,65 @@ the detector, and saying only "no clustering" would hide it.
 5. **It does not license reading precision as better than it is.** 18 of 157 ranges on
    the gate set are unmatched and they are still unmatched; this entry explains their
    origin, it does not excuse them.
+
+---
+
+## D46. SMAP/MSL's labelled contextual class is genuinely in range, and it is the population ESA-ADB does not have
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It unblocks a study and settles
+what Wu & Keogh's critique does and does not cover
+
+**CONTEXT.** D43 measured that only **6 of 32** headline-cell events on `m1-g8.9.10`
+stay inside their channels' training min/max, and D44 that a rate-matched per-channel
+range check beats the forecaster on both Mission 1 sets and is never later. The claim
+the project exists to test -- that a forecaster sees what a limit check cannot -- has
+therefore never had a population large enough to test it on. `docs/MODELS.md` 26
+pre-registered the question of whether SMAP/MSL carries one, and V5 made `n >= 20`
+a gate on whether anything further would run.
+
+**Objective.md 9.2 is not reversed and this entry does not reverse it.** SMAP and MSL
+are 81 unsynchronised univariate streams; nothing here is cross-channel evidence.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`,
+1 Class A and 165 Class B, manifest-addressed. Column 0 is telemetry and the rest are
+one-hot commands; the envelope is that channel's training-split min/max, strict.
+`P-2`'s duplicate label row is counted once, so 105 rows give 104 sequences.
+
+```
+  in range        contextual  39/43  (90.7%)      point  11/61  (18.0%)
+                  gap                             +72.7 percentage points
+  SMAP            contextual  26/26 (100.0%)      point   8/42
+  MSL             contextual  13/17  (76.5%)      point   3/19
+```
+
+Against D43's **6/32 (18.8%)** on ESA-ADB's headline cell, this is a population **six
+and a half times larger** and five times denser.
+
+**ALTERNATIVES.** Treat the labels as unreliable and stop. Accept them and run stage 2.
+Record what they support, and gate stage 2 on approval.
+
+**Against the first.** The diagnostic separates the two labelled classes by 72.7
+points, in the direction the labels claim, on both spacecraft. That is the labels
+carrying real information, measured rather than assumed. **Against the second.** Stage
+2 is a training run on a dataset this project has documented as demoted; it needs its
+own approval, and this entry does not grant it.
+
+**CONSEQUENCE.**
+
+1. **Wu & Keogh's triviality critique is confirmed for the point class and refuted for
+   the contextual class.** 82% of point anomalies leave their channel's historical
+   range and a range check finds them without a model; 91% of contextual anomalies do
+   not. The benchmark is trivial in the part their paper measured and not trivial in
+   the part this project needs. Both halves are recorded, because reporting only the
+   second would be the selective reading their paper is about.
+2. **Objective.md 9.2's demotion stands and is now better specified.** SMAP/MSL remains
+   unusable for the cross-channel claim and is now demonstrably usable for the
+   in-limits claim, which are different claims. `docs/DATA.md` carries the role.
+3. **Stage 2 is warranted and does not run without approval.** `gru-quantile` with the
+   command columns as exogenous inputs -- D6, open since work item 4 -- against `rstd`
+   and a calibrated range check, on the paper's own split, at a matched nominal rate.
+4. **A prediction was wrong in the comfortable direction and is recorded loudest.** V1
+   put the in-range contextual count at 15 to 30 and it is 39. The band was set
+   expecting the labels not to hold up. They held up.
+5. **No ESA-ADB figure, task, weight, manifest or decision changes.** D43 and D44 stand
+   exactly as written; this adds a dataset on which their question can be asked again.

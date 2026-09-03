@@ -14,6 +14,55 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.6] - 2026-09-03 - Work item 9.9 study 1 stage 1: a contextual population that is real
+
+SMAP/MSL ingested and the visibility diagnostic run. 164 Class A to upload, 165 Class B
+to read back; the month stands at 173 Class A and 269 Class B of 50,000 each.
+
+### Added - the dataset, 2026-09-03
+
+- **`smap-msl/v1/` in R2**, 162 arrays and the canonical `labeled_anomalies.csv`, under
+  its own `_manifest/smap_msl.json`. `_manifest/manifest.json` is untouched: the ingest
+  writes only under `smap-msl/v1/` and its own manifest, because `manifest.py`
+  hard-codes the single key `esa-adb` and `Catalog.load` reads it. Recorded in
+  `docs/HARNESS.md` 5a's register of authorised additions, additive-only.
+- **Every array verified against the canonical labels before upload** -- fetched from
+  `khundman/telemanom` directly rather than from the redistribution -- 82 of 82 rows,
+  0 mismatches, with the script written to abort before the first put.
+- **A labelling defect recorded, not deduplicated silently.** `P-2` appears twice with
+  conflicting spans, so the dataset has 81 unique channels rather than the 82 its own
+  label file implies. Carried in the manifest's `labelling_defects` field.
+
+### Added - D46, the finding
+
+- **The labelled contextual class is genuinely in range.** 39 of 43 contextual
+  sequences stay strictly inside their channel's training min/max, against 11 of 61
+  point -- a **72.7-point gap**, in the direction the labels claim, on both spacecraft
+  (SMAP 26/26, MSL 13/17). Against D43's 6/32 on ESA-ADB's headline cell this is a
+  population six and a half times larger and five times denser.
+- **Wu & Keogh's triviality critique, answered precisely.** Confirmed for the point
+  class -- 82% breach their range and a one-liner finds them. Refuted for the
+  contextual class -- 91% do not. Both halves recorded, because reporting only the
+  second would be the selective reading their paper is about.
+- **Objective.md 9.2 stands and is better specified.** SMAP/MSL is still unusable for
+  the cross-channel claim and is now demonstrably usable for the in-limits claim.
+  No figure here may be quoted as cross-channel evidence.
+
+### Predictions - one wrong in the comfortable direction
+
+- **V1 refuted**: 15 to 30 in-range contextual predicted, **39** measured. The band was
+  set expecting the labels not to hold up; they held up. Recorded loudest for that
+  reason. **V2 refuted by one** (11 of 61 against a predicted 10). **V3, V4, V5 held**,
+  V5 being the gate at n >= 20 that decides whether stage 2 is worth running.
+
+### Held - stage 2 does not run without approval
+
+- `gru-quantile` with the command columns as exogenous inputs (D6, open since work item
+  4), against `rstd` and a calibrated range check, on the paper's own split, at a
+  matched nominal rate. Its falsification will be stated against the measured
+  matched-rate multiplier, not "by construction" -- on `m1-ss5` that multiplier was
+  0.672, tighter than the training range.
+
 ## [0.6.5] - 2026-09-03 - Work item 9.9 study 2: the precursor test came back empty
 
 Pre-registered at `docs/MODELS.md` 25 before a figure existed, then run in one bundle

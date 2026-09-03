@@ -5340,3 +5340,73 @@ here and does not run without approval.
 ### 26.6 OBSERVED
 
 Reserved. Nothing has run.
+
+### 26.6 OBSERVED
+
+**2026-09-03. 1 Class A and 165 Class B**, manifest-addressed reads through
+`_manifest/smap_msl.json`, no LIST. Artifact `runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`.
+The month stands at 173 Class A and 269 Class B of 50,000 each.
+
+**105 label rows become 104 sequences**, because `P-2`'s duplicate row is counted
+once as 26.1 fixed in advance. 43 `contextual`, 61 `point`.
+
+```
+  in range -- no step of column 0 outside the channel's training min/max, strict
+
+    contextual   39/43   (90.7%)
+    point        11/61   (18.0%)
+    gap                  +72.7 percentage points
+
+    SMAP   contextual 26/26 (100.0%)   point  8/42   gap +81.0 pp
+    MSL    contextual 13/17  (76.5%)   point  3/19   gap +60.7 pp
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **V1** | 15 to 30 of the 43 contextual sequences are in range, central 22 | **39** | **REFUTED, and in the direction that helps.** The labels mean *more* than predicted, not less. On SMAP every one of the 26 is in range |
+| **V2** | <= 10 of the point sequences are in range | **11 of 61** | **Refuted by one.** The denominator is 61 rather than 62 because `P-2`'s duplicate is counted once. The sanity check the prediction was for is intact: 82% of point anomalies breach |
+| **V3** | the in-range fraction among contextual exceeds point by >= 30 points | **+72.7** | **Held, overwhelmingly** |
+| **V4** | SMAP and MSL agree in direction | **+81.0** and **+60.7** | **Held** |
+| **V5** | **the gate**: in-range contextual >= 20 | **39** | **Held.** Stage 2 is not underpowered by construction and the population survives |
+
+#### What this establishes
+
+**The labelled contextual class on SMAP/MSL is real by our own diagnostic**, and it
+is the population ESA-ADB does not have. Against D43's 6/32 (18.8%) on the gate
+set's headline cell, SMAP/MSL's labelled contextual class is **39/43 (90.7%)**
+in range -- a population **six and a half times larger in absolute terms** and five
+times denser.
+
+**And Wu & Keogh's triviality critique is answered precisely rather than in
+general.** Their charge is that trivial one-liners reach state of the art on this
+benchmark. On the **point** class this diagnostic agrees with them: 82% breach
+their channel's historical range and a range check would see them without a model.
+On the **contextual** class it does not: 91% stay inside, so those events are
+**not** reachable by a range check at any width that respects the training range.
+The benchmark is trivial in the part Wu & Keogh measured and not trivial in the
+part this project needs. Both halves are stated because only reporting the second
+would be the selective reading their paper is about.
+
+#### What it does not establish
+
+**Nothing about detection, and nothing about the cross-channel claim.** No detector
+ran. 26's first paragraph stands: SMAP and MSL are 81 unsynchronised univariate
+streams (Objective.md 9.2) and no figure here may be quoted as cross-channel
+evidence. What stage 1 has produced is a **denominator**, not a result.
+
+**And V1's refutation is recorded as a prediction wrong in the comfortable
+direction**, which is the kind that needs saying loudest. The band 15 to 30 was
+set expecting the labels to hold up badly; they held up well. That is a mis-set
+prior about the data, and it is left exactly as written.
+
+#### Stage 2, unblocked but not run
+
+V5's gate is cleared at n = 39, past `docs/HARNESS.md` section 1's threshold of 20.
+Stage 2 -- `gru-quantile` **with the command columns as exogenous inputs**, the D6
+path that has been open since work item 4, against `rstd` and a calibrated range
+check, on the paper's own train/test split, scored at a matched nominal rate on the
+39 and on all 104 -- **is warranted and does not run without approval.** Its
+falsification will be stated against the **measured** matched-rate multiplier and
+not "by construction": on `m1-ss5` that multiplier was **0.672**, tighter than the
+training range, and a range check tightened below the training range does catch
+in-range events.

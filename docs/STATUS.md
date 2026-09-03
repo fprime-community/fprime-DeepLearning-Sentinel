@@ -259,10 +259,17 @@ HOUSEKEEPING
       predicted 20. The permutation was verified on planted signal first.
 - [ ] Where the forecaster's 157 alarm ranges begin, split between anomaly and
       rare-event spans. Not instrumented; one bundle load (D45 consequence 3).
-- [ ] Work item 9.9 study 1, SMAP/MSL - staged. Stage 1 is ingest plus the per-event
-      visibility diagnostic only: of the labelled contextual anomalies, how many stay
-      inside their own training min/max. Stage 2 runs only on approval. Not a test of
-      the cross-channel thesis - Objective.md 9.2 stands.
+- [x] Work item 9.9 study 1 stage 1 - **done 2026-09-03**, 164 Class A to ingest and
+      165 Class B to read back (`docs/MODELS.md` 26.6, D46). **39 of 43** labelled
+      contextual sequences stay strictly inside their channel's training min/max
+      against **11 of 61** point, a 72.7-point gap - the population ESA-ADB does not
+      have, six and a half times D43's 6/32. Wu & Keogh's triviality critique is
+      confirmed for the point class and refuted for the contextual one.
+- [ ] Work item 9.9 study 1 **stage 2** - warranted, not run, needs approval:
+      `gru-quantile` with the command columns as exogenous inputs (D6), against `rstd`
+      and a calibrated range check, on the paper's own split, at a matched nominal
+      rate, on the 39 and on all 104. Still not a test of the cross-channel thesis -
+      Objective.md 9.2 stands.
 - [x] Work item 9.8, parts 1 to 4 - **done 2026-09-03** at 1 Class A and 15 Class B
       (`docs/MODELS.md` 24.9, D43, D44, `docs/RESULTS.md` 6m). Two of the three
       predictions written against interest fired.
