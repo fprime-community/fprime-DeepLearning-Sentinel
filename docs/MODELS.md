@@ -6100,3 +6100,84 @@ degenerating under a good forecaster on ESA-ADB. Stage 5 shows a second publishe
 component behaving differently in our hands than in the authors'. Neither is evidence
 the published method is wrong; both are evidence that **a reproduction is a
 measurement with its own error bars**, and this project has now quantified one of them.
+
+## 26.21 Pre-registration: the pruning divergence, located and fixed
+
+**Written and committed before a single figure is computed.** D50 measured that
+pruning triples the reproduction gap: it costs the paper 7.3 points of SMAP recall and
+0.0 on MSL, and costs this reproduction 32.3 and 22.2. This section locates the
+divergence in the source, states the fix, and predicts the result.
+
+### 26.21.1 The divergence, read from both implementations
+
+Telemanom's `prune_anoms` and ours agree on structure -- sort sequence peaks
+descending, append one extra rung, walk down normalised drops, and reset the removal
+list whenever a drop reaches `p`. Two things differ.
+
+**1. The extra rung. This is the one that matters.**
+
+```
+  telemanom (errors.py:363-371)   candidates = all indices MINUS i_anom
+                                  (which is BUFFERED) minus prior anomalies;
+                                  non_anom_max = max(e_s over candidates)
+
+  ours (telemanom.py:308-309)     normal_max = max(e_s[e_s < eps])
+                                  over the whole series
+```
+
+Our anomalous spans are buffered too (`_buffered`, `telemanom.py:209-224`), so the
+high shoulders flanking each anomaly sit **below** `eps` and are therefore **included**
+in our `normal_max` while telemanom **excludes** them. **Our extra rung is therefore
+greater than or equal to theirs, always.** A higher final rung makes the last step
+smaller, so it fails the `>= p` test that would have reset the removal list, and more
+sequences are pruned. **That is exactly the direction D50 measured.** Telemanom also
+excludes anomalies found in previous windows (`errors_all.i_anom`), which we do not
+track at all.
+
+**2. Ties.** Telemanom removes **every** sequence whose peak equals the sorted value
+(`np.argwhere(E_seq_max == E_seq_max_sorted[i])`); we remove the single sequence at
+that rank. On tied peaks theirs prunes more.
+
+**Not a divergence, checked:** telemanom discards single-point sequences
+(`if not g[0] == g[-1]`) and so do we (`if hi - lo > 1`).
+
+### 26.21.2 What is changed, and what is deliberately not
+
+The corrected pruning is implemented **in the study script as an alternative arm**,
+**not** in `src/sentinel_models/telemanom.py`. That module is on the ESA-ADB path:
+changing `prune` would move every published `lstm-telemanom` figure in this
+repository, and D8's rule is that a correctness fix **escalates first, with both
+numbers kept** -- the way D37 handled `_rolling`. **So this section measures the fix
+and does not adopt it.** If it is confirmed, adopting it into the source is its own
+decision with the ESA-ADB re-score priced, and nothing here pre-empts that.
+
+Everything else is unchanged from 26.19.2: `lstm-telemanom`, no commands, per channel,
+the paper's own split, cached weights, `p = 0.13`, scored over the same 98 sequences.
+
+### 26.21.3 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **X1** | **the commissioned target.** With the corrected rung, pooled recall recovers to **within 15 points of the paper's 80.0%** -- that is, **at or above 65.0%**, from 44.9% | below 65.0%. The located divergence would then not be the cause, or not the whole cause, and 26.21.1's reading of the two sources would be wrong about its size |
+| **X2** | **precision is held**: it stays **at or above 65.0%**, from 76.3% and against the paper's 87.5% | below 65.0%. Recovering recall by pruning less must cost some precision -- the paper's own ablation shows 43.0% at `p = 0` on SMAP -- and X2 says how much is acceptable before the fix is a trade rather than a correction |
+| **X3** | the corrected rung is **less than or equal to** the current one on every channel, and strictly less on a majority | any channel where it is greater, which would mean 26.21.1's reading of `non_anom_max` is wrong in direction, not just in size |
+| **X4** | MSL gains **more** recall than SMAP, because the paper loses 0.0 points there to pruning and we lose 22.2 -- the larger discrepancy is MSL's | SMAP gaining more, which would leave the per-dataset pattern unexplained |
+
+**Deliberately not predicted.** Whether the tie-handling difference matters -- it is
+fixed in the same arm and not isolated, because isolating a difference that may affect
+no channel is not worth a read. Whether the fix should be adopted into the source;
+that is 26.21.2's separate decision.
+
+### 26.21.4 Cost
+
+**One read from cached weights: 165 Class B and 1 Class A.** No fit -- the 75 LSTM
+weight files are on disk from stage 5. The weight store is expected to grow by **0**.
+Month stands at 181 Class A and 1,431 Class B of 50,000 each.
+
+**Stop and report** if X3 is refuted, because the source reading would then be wrong
+and the rest of the section is built on it; or if the weight store moves; or above 200
+Class B.
+
+### 26.22 OBSERVED
+
+Reserved. Nothing has run.
