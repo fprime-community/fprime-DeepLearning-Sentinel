@@ -5942,3 +5942,96 @@ saturated at 50, which is exactly what 26.17.1 predicted a too-narrow grid would
 so the defect announced itself in the shape of the result. Found by checking the
 printed multiplier against the flag rather than by trusting either. **The second read
 is my error, not a design need**, and it is recorded as such.
+
+## 26.19 Pre-registration: stage 5, the reproduction against the paper's own numbers
+
+**Written and committed before a single figure is computed.**
+
+### 26.19.1 (!) The stated hypothesis is already answerable from the code, so it is corrected here
+
+Stage 5 was commissioned to score `lstm-telemanom` two ways -- "Hundman's
+overlap-after-pruning rule and our event-wise rule" -- on the hypothesis that **the
+gap is the scoring rule**. **There are not two rules.** Checked in the source before
+anything was run:
+
+- `eventwise.detected` (`src/sentinel_eval/metrics/eventwise.py:68-71`) is *"one event
+  is caught if the prediction fires anywhere inside it"* -- **any overlap**, which is
+  Hundman's recall rule.
+- `eventwise.score` computes precision as **predicted ranges overlapping any truth
+  range, over all predicted ranges** (`:98`, `:112`) -- Hundman's precision rule.
+- `PRUNING_P = 0.13` (`telemanom.py:88`) is the paper's own published pruning value,
+  and it is in our detection stack, not in our scoring.
+
+So our event-wise rule **is** the published rule, applied after the published pruning.
+The hypothesis as stated cannot be tested, because the two arms of the comparison are
+the same arm. **What is left, and is worth measuring, is the size and the cause of the
+reproduction gap** -- against the published figures, under the shared rule.
+
+**The paper's Table 2**, Non-Parametric with Pruning (`p = 0.13`), retrieved from the
+paper rather than recalled:
+
+```
+                  Precision   Recall   F0.5
+    MSL              92.6%     69.4%   0.69
+    SMAP             85.5%     85.5%   0.71
+    Total            87.5%     80.0%   0.71
+```
+
+and the paper's **own ablation**, the same rows without pruning (`p = 0`):
+
+```
+    MSL              75.8%     69.4%   0.61
+    SMAP             43.0%     92.8%   0.44
+    Total            48.9%     84.8%   0.47
+```
+
+### 26.19.2 What runs
+
+`lstm-telemanom` **as published and without commands** -- which is this project's
+documented deviation (D6), and the one candidate cause of a gap that D49 has already
+measured on a different architecture. Per channel, on the paper's own split, the
+published NDT with pruning at `p = 0.13`, scored with `eventwise.score` over **all**
+sequences rather than the in-range subset, because that is the population the paper's
+table covers. Then re-scored at `p = 0` from the same run, at no extra cost, to test
+the paper's own ablation.
+
+**Definitions unchanged** from 26.8 and 26.17.1: the paper's split, the D47
+proportional `error_window` scaled to the scored stream, channels excluded only by
+D17's guard, `k/n` throughout, `n < 20` stamped UNDERPOWERED.
+
+### 26.19.3 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **V25** | **the commissioned falsification, kept verbatim.** Our pooled recall under the shared rule falls **more than 10 points short** of the paper's **80.0%** -- that is, **below 70.0%** | **recall >= 70.0%**, which would mean the reproduction is faithful, there is no gap to explain, and the missing command inputs cost little. Either outcome is informative and this is the number stage 5 exists to produce |
+| **V26** | both per-dataset recalls fall **below** their published counterparts -- under **85.5%** on SMAP and **69.4%** on MSL | either exceeding its published value, which would make a pooled shortfall an artifact of dataset weighting rather than a reproduction gap |
+| **V27** | **the paper's own ablation reproduces in direction**: disabling pruning (`p = 0`) moves precision **down** and recall **up** on both datasets, as Table 2 shows (SMAP 85.5%/85.5% to 43.0%/92.8%) | either moving the other way. This tests whether our detection stack has the paper's *internal structure*, which a single matching number would not |
+| **V28** | our precision under the shared rule is **within 15 points** of the paper's **87.5%** | a larger gap, which would locate the difference in the alarm-generation stack rather than in the forecaster |
+
+**Deliberately not predicted.** Which of commands, hyperparameters or implementation
+detail carries any gap -- that needs an ablation per cause and this section runs one
+arm. **Not claimed either way**: that a faithful reproduction would validate the
+method, or that a gap would invalidate it.
+
+### 26.19.4 The named risk, cost, and stop-and-report
+
+**The risk** is that a shortfall gets attributed to whichever cause is convenient.
+26.19.3 forbids it: V25 measures the gap, V27 tests the structure, and the causes are
+listed as *not predicted*. D49 already measured that commands **hurt** on this data
+under a different architecture, so "the missing commands explain the gap" is a
+hypothesis with evidence against it, not a free explanation.
+
+**Cost.** `lstm-telemanom` is a different architecture from the cached GRU fits, so
+this needs **81 new fits**. A GRU fit was measured at **8.8 s** and the LSTM carries
+91,647 parameters against the GRU's 71,160 (1.29x), so **about 15 minutes** locally --
+no rented GPU is warranted, and the actual time is reported in 26.20. Reads: **165
+Class B and 1 Class A**. Month stands at 179 Class A and 1,101 Class B of 50,000.
+**The weight store is expected to grow by 81**, and that is expected rather than a
+trigger.
+
+**Stop and report** if the fits stall on more than 10 channels under D17's guard; if
+more than 200 Class B; or if any ESA-ADB figure, task or manifest moves.
+
+### 26.20 OBSERVED
+
+Reserved. Nothing has run.
