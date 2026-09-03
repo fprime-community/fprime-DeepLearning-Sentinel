@@ -41,8 +41,15 @@ MANIFEST_KEY = "_manifest/smap_msl.json"
 ARMS = ("gru+cmd", "gru", "rstd", "range")
 #: 26.8's sweep. Multipliers on each arm's own calibrated threshold; 1.0 is its
 #: natural operating point. For `range`, 1.0 is exactly the training min/max.
-GRID = np.unique(np.concatenate([np.geomspace(0.02, 1.0, 60),
-                                 np.geomspace(1.0, 50.0, 40), [1.0]]))
+def make_grid(top: float) -> np.ndarray:
+    """26.17.1 widens the top from 50 to 5,000: in stage 2 `rstd` saturated at the
+    grid maximum and still alarmed on 15.57%, and a grid that cannot reach the
+    target cannot produce a matched comparison."""
+    return np.unique(np.concatenate([np.geomspace(0.02, 1.0, 60),
+                                     np.geomspace(1.0, top, 60), [1.0]]))
+
+
+GRID = make_grid(50.0)
 
 
 def fetch(client, bucket, key):
@@ -71,10 +78,19 @@ def proportional_config(n: int):
                             stride=min(telemanom.ERROR_WINDOW_BATCH, max(1, window // 2)))
 
 
-def forecaster(cid, train, test, use_commands):
-    """Fit on `train`, score `test`. The recipe is unchanged: 99.9th percentile."""
-    det = registry.build("gru-quantile")
-    det.config = proportional_config(len(train))       # D47
+def forecaster(cid, train, test, use_commands, ndt=False):
+    """Fit on `train`, score `test`.
+
+    Quantile mode: the recipe is unchanged, the 99.9th percentile of the fitting
+    window. **NDT mode (26.17)**: `threshold_from` returns 1.0 because telemanom's
+    operating point lives inside the score, recomputed from a trailing window of
+    the stream being scored -- so there is no train-to-test transfer to fail, and
+    no fitting-window scoring pass is needed at all.
+    """
+    det = registry.build("gru-telemanom" if ndt else "gru-quantile")
+    # D47, and 26.17.1: in NDT mode the window that matters is the one the dynamic
+    # threshold reads, which is the scored stream, not the fitting one.
+    det.config = proportional_config(len(test) if ndt else len(train))
     if use_commands:
         det.wants_commands = True          # instance flag; no registry entry added
     v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
@@ -83,9 +99,12 @@ def forecaster(cid, train, test, use_commands):
     f_ctx, s_ctx = ctx_for(cid, len(v_tr), c_tr), ctx_for(cid, len(v_te), c_te)
     usable = np.ones(len(v_tr), dtype=bool)
     det.fit(v_tr, usable, f_ctx)
-    tr_raw = det.score(v_tr, None, f_ctx)
-    tr, _ = reduce_scores(tr_raw, len(v_tr))
-    thr = float(Detector.threshold_from(det, tr))
+    if ndt:
+        thr = float(det.threshold_from(None))      # 1.0; the cut is in the score
+    else:
+        tr_raw = det.score(v_tr, None, f_ctx)
+        tr, _ = reduce_scores(tr_raw, len(v_tr))
+        thr = float(Detector.threshold_from(det, tr))
     te_raw = det.score(v_te, None, s_ctx)
     te, _ = reduce_scores(te_raw, len(v_te))
     warm = int(getattr(det, "warmup_steps", 0))
@@ -122,10 +141,20 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=0, help="smoke: first N channels")
     ap.add_argument("--visibility", required=True,
                     help="the stage 1 artifact, named rather than discovered")
+    ap.add_argument("--ndt", action="store_true",
+                    help="stage 4 Route 1 (26.17): the published dynamic threshold")
+    ap.add_argument("--sweep-max", type=float, default=50.0,
+                    help="top of the multiplier grid; 26.17.1 widens it to 5000")
     ap.add_argument("--commissioning", type=int, default=0, metavar="MIN_SCORABLE",
                     help="stage 3 (26.15): recalibrate on the test stream's leading "
                          "nominal prefix, requiring MIN_SCORABLE steps after warm-up")
     args = ap.parse_args(argv)
+
+    # 26.17.1: the grid top is an argument and it must actually be used.
+    # It was not on the first stage 4 run: `rstd` and the range check
+    # saturated at 50 exactly as 26.17.1 said a too-narrow grid would.
+    global GRID
+    GRID = make_grid(args.sweep_max)
 
     cfg = C.load_r2_config()
     client, budget = ops.connect(cfg, acknowledge_tripwire=args.acknowledge_tripwire)
@@ -162,7 +191,7 @@ def main(argv=None) -> int:
         arms, stalls = {}, {}
         for name, use_cmd in (("gru+cmd", True), ("gru", False)):
             try:
-                arms[name] = forecaster(cid, train, test, use_cmd)
+                arms[name] = forecaster(cid, train, test, use_cmd, ndt=args.ndt)
             except Exception as exc:
                 stalls[name] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
         if stalls:
@@ -260,12 +289,12 @@ def main(argv=None) -> int:
         matched[arm] = best if best else (float(GRID[-1]), *at(arm, GRID[-1]))
     return report(matched, events, per_channel, base_rate, nominal_total,
                   client, cfg, ledger, budget, before, after, excluded,
-                  args.visibility, args.commissioning)
+                  args.visibility, args.commissioning, args.ndt)
 
 
 def report(matched, events, per_channel, base_rate, nominal_total,
            client, cfg, ledger, budget, before, after, excluded, visibility,
-           commissioning) -> int:
+           commissioning, ndt) -> int:
     # Named explicitly, never discovered. `check_no_list` bans directory
     # globbing in any module that reaches R2, and it is right to: a run whose
     # inputs depend on whatever happens to be on disk is not reproducible from
@@ -326,6 +355,7 @@ def report(matched, events, per_channel, base_rate, nominal_total,
                              "steps of each test array are not scorable"),
            "matched_on": "pooled nominal-step false-alarm rate = gru+cmd at its own threshold",
            "commissioning_min_scorable": commissioning,
+           "mode": "ndt (26.17 Route 1)" if ndt else "quantile",
            "stage1_artifact": str(visibility),
            "nominal_steps": nominal_total, "base_rate": base_rate,
            "weight_store": {"before": before, "after": after},
@@ -333,7 +363,7 @@ def report(matched, events, per_channel, base_rate, nominal_total,
            "excluded_channels": excluded,
            "arms": rows, "events": events}
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-    tag = "stage3" if commissioning else "stage2"
+    tag = "stage4-ndt" if ndt else ("stage3" if commissioning else "stage2")
     path = Path("runs/smap-msl/_forensics") / f"{stamp}-{tag}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     out["operations"] = budget.as_dict()

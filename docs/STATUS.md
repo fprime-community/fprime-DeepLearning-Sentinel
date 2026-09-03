@@ -273,7 +273,24 @@ HOUSEKEEPING
       short-window maximum, which is worse - 32.51% against 10.47%. Both failures have
       one root: the percentile rule needs a long, representative calibration window
       and this dataset provides neither.
-- [ ] **The question stage 1 built a population for is still open.** 39 of 43 labelled
+- [x] **Work item 9.9 study 1 stage 4 (Route 1) - done 2026-09-03** (`docs/MODELS.md`
+      26.18, D49). The published dynamic threshold passes the gate at **0.6838%** where
+      both static routes failed, and the forecaster catches **10 of 38** in-range
+      contextual sequences - the project's first measurement of the in-limits claim,
+      and below the 12-28 predicted. Neither `rstd` nor the range check can be brought
+      to that alarm rate at all: `rstd` at **5,000x** its threshold still alarms on
+      15.17%, so no comparison against them is available.
+- [x] **D6 closed (D49)**: on the only data carrying commands, conditioning on them
+      makes the detector **worse** at a matched rate - 6/38 against 10/38 in-range
+      contextual, 33/100 against 47/100 overall. Every telemanom-minus-commands figure
+      in this project loses nothing by the omission.
+- [ ] **Route B, scoped and not run** (`docs/MODELS.md` 26.17.4): the commissioning
+      window's median + k*MAD, a robust small-sample threshold for the case 26.16
+      failed. No `k` is chosen.
+- [ ] **The in-limits claim is measured but not settled.** 10/38 is 26%, on one
+      dataset, with no available comparison against a floor. It is not nothing and it
+      is not a vindication.
+- [ ] (superseded) **The question stage 1 built a population for.** 39 of 43 labelled
       contextual sequences are genuinely in range (D46), six and a half times
       ESA-ADB's, and no operating point could be obtained to score them at. The
       obstacle is calibration, not detection.

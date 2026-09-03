@@ -5874,6 +5874,71 @@ Stop and report if: **V19's gate fails** (report the rate and nothing else, then
 B); **V22 is refuted** (withdraw V23 rather than score it); the weight store moves; or
 more than 200 Class B.
 
-### 26.18 OBSERVED
+### 26.18 OBSERVED -- stage 4, and the gate finally passes
 
-Reserved. Nothing has run.
+**2026-09-03. Two reads at 1 Class A and 165 Class B each**; the first is discarded
+for a defect of mine recorded below. Cached weights, **weight store +0** -- no fit was
+repeated, because mode changes the detection stack and not the cache key, exactly as
+26.17.5 said. Artifact `runs/smap-msl/_forensics/2026-09-03T212818Z-stage4-ndt.json`.
+
+**V19's gate passes. 0.6838%.** For the first time in four stages there is an
+operating point: the dynamic threshold needs no train-to-test transfer, so the failure
+D48 recorded does not arise.
+
+```
+  arm           mult    nominal    in-range ctx   out-of-range   in-range pt      all
+    gru+cmd    1.000    0.6838%          6/38            1/4           1/9      33/100
+    gru        0.551    0.6820%         10/38            0/4           2/9      47/100
+    rstd    5000.000   15.1656%          0/38            1/4           0/9      21/100
+    range   5000.000    5.8373%          0/38            1/4           0/9      19/100
+```
+
+**Neither alternative can be brought to that operating point at all.** `rstd` at
+**five thousand times** its calibrated threshold still alarms on **15.17%** of nominal
+steps, and the range check on **5.84%**, against the forecaster's 0.68%. The sweep was
+widened to 5,000 precisely so this could be tested rather than assumed, and both
+saturate. **This is D48 in its strongest form**: no multiplier makes a static cut
+quiet on this data.
+
+**And it is the exact inverse of ESA-ADB.** There a rate-matched range check beat the
+forecaster on both sets and was never later (D44). Here a range check is not a viable
+detector at any width. **The two datasets give opposite answers, and both are about
+the regime rather than about detection** -- which is what 26.17 said a result either
+way would mean, written before the run.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **V19** | nominal rate under 1% | **0.6838%** | **HELD.** The first operating point in four stages |
+| **V20** | 12 to 28 of the in-range contextual; central 19 | **6/38** commanded, **10/38** uncommanded | **REFUTED**, both arms below the band |
+| **V21** | `rstd` reaches the matched rate within the widened sweep | saturates at **5,000**, still **15.17%** | **REFUTED** |
+| **V22** | the range check's matched multiplier is `w < 1.0` | **w = 5,000** | **REFUTED.** At `w >= 1` the envelope is wider than the training min/max, so an in-range event is inside it by definition and 0/38 is arithmetic, not a measurement |
+| **V23** | conditional on `w < 1.0`: forecaster beats the range check by >= 8 | -- | **WITHDRAWN**, by 26.17.2's own rule, for the third time in this study |
+| **V24** | **D6**: the commanded arm catches **more** | **6/38 commanded against 10/38 uncommanded**, at 0.6838% and 0.6820% -- the same rate | **REFUTED, and decisively in the opposite direction.** See D49 |
+
+#### What stage 4 establishes
+
+**A usable operating point exists on this data, and only the dynamic threshold
+reaches it.** That answers the question stages 2 and 3 could not, and it bounds D25
+from the other side: the static quantile is not merely inconvenient here, it is
+unreachable, while the rule ESA-ADB rejected (D18) is the one that works.
+
+**The forecaster catches 10 of 38 in-range contextual sequences at 0.68% of nominal
+time** -- events that, by stage 1's diagnostic, never leave their channel's historical
+range and which a limit check therefore cannot see. That is **the first measurement
+this project has of the in-limits claim**, and it is **below** what V20 predicted.
+It is not nothing and it is not a vindication: 10 of 38 is 26%.
+
+**No comparison against the floor or a range check is available**, because neither can
+be brought to that alarm rate. The honest statement is that **at an operating point
+the forecaster reaches and the alternatives cannot, it catches 10 of 38** -- not that
+it beat them.
+
+#### The defect in this section's own run
+
+**The first stage 4 run did not widen the sweep.** `--sweep-max 5000` was accepted
+and never used: the patch that was supposed to apply it targeted an anchor line that
+does not exist in this script, and failed silently. `rstd` and the range check
+saturated at 50, which is exactly what 26.17.1 predicted a too-narrow grid would do,
+so the defect announced itself in the shape of the result. Found by checking the
+printed multiplier against the flag rather than by trusting either. **The second read
+is my error, not a design need**, and it is recorded as such.

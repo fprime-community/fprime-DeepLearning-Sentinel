@@ -3138,3 +3138,58 @@ correct on the regime it was measured on, and nothing here touches an ESA-ADB fi
    recalibration path -- file uplink, human-approved reload (Objective.md 14.10) --
    and this is the measured case for why it exists.
 5. **No detector, threshold, weight or ESA-ADB figure changes.**
+
+---
+
+## D49. D6 answered: on the only data that carries commands, conditioning on them makes the detector worse
+
+**DATE** 2026-09-03 | **STATUS** resolved. Closes D6, open since work item 4
+
+**CONTEXT.** D6 has been open since 2026-08-26. Every figure in this project is
+**telemanom-minus-commands**: the published method feeds its forecaster encoded command
+information and this project's reproduction never did, because ESA-ADB's telecommands
+were not wired into a trained fit. `TelemanomCommanded` exists as the other arm and the
+ablation had never run on trained weights. `docs/RESEARCH.md` marks the external
+evidence as the thinnest and most consequential in the project: ESA's own baselines got
+**worse** precision when telecommands were added, though they cannot exploit them.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T212818Z-stage4-ndt.json`.
+SMAP/MSL carries per-channel command inputs -- 24 one-hot columns on SMAP, 54 on MSL --
+which is why the dataset was ingested (D46). The two arms differ in **that alone**:
+identical architecture, hyperparameters, seed, weights and detection stack, the
+commanded arm setting `wants_commands` on the instance and passing the command columns
+as exogenous inputs. Both run the published dynamic threshold, at essentially the same
+alarm rate.
+
+```
+  arm                     nominal-step rate   in-range contextual   all sequences
+    gru-telemanom + cmd            0.6838%            6/38               33/100
+    gru-telemanom                  0.6820%           10/38               47/100
+```
+
+**The commanded arm is worse on every population, at a matched alarm rate.** 6 against
+10 on the in-range contextual sequences, 33 against 47 overall, 1/4 against 0/4 and 1/9
+against 2/9 on the two coverage checks. The rates differ by 0.0018 percentage points,
+so this is not an operating-point artefact.
+
+**ALTERNATIVES.** Call it a null and leave D6 open. Conclude commands hurt. Conclude
+commands hurt **on this data, with this encoding**.
+
+**Against the first.** The direction is consistent across every population and the
+rates are matched to three decimal places; that is an answer, not a null.
+**Against the second.** One dataset, one encoding, 77 channels, and a forecaster whose
+V20 prediction was refuted in the same run. The finding is real and it is not general.
+
+**CONSEQUENCE.**
+
+1. **D6 is closed: adding command inputs did not help, and measurably hurt.** Every
+   telemanom-minus-commands figure in this project loses nothing by the omission, and
+   the reproduction's most-cited gap is now measured rather than outstanding.
+2. **It agrees with the external evidence `docs/RESEARCH.md` flagged as thin.** ESA's
+   baselines got worse precision with telecommands; so does this forecaster, which
+   *can* exploit them in principle. That the two agree does not make either strong.
+3. **Bounded to what was measured.** One-hot command indicators, SMAP/MSL, per-channel
+   univariate models, the published dynamic threshold. It says nothing about a
+   different encoding, and nothing about ESA-ADB, whose telecommands remain unwired.
+4. **No detector, threshold or weight changes.** `gru-quantile` flies without commands
+   and always has; this removes a reason to revisit that, rather than creating one.

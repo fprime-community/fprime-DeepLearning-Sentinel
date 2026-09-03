@@ -14,6 +14,46 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.8] - 2026-09-03 - Stage 4: the dynamic threshold works, and D6 is answered
+
+Two reads at 1 Class A and 165 Class B each; the first discarded for a defect of mine.
+Cached weights, weight store +0 -- no fit repeated, because mode changes the detection
+stack and not the cache key.
+
+### Added - the gate passes
+
+- **The published dynamic threshold reaches 0.6838% of nominal steps**, where both
+  static routes failed (D48, 26.16). It recomputes the cut from a trailing window of
+  the stream being scored, so there is no train-to-test transfer to fail.
+- **The forecaster catches 10 of 38 in-range contextual sequences at that rate** - the
+  project's **first measurement of the in-limits claim**, on events that by stage 1's
+  diagnostic never leave their channel's historical range. It is **below** the 12-28
+  predicted (V20 refuted), and 10 of 38 is 26%: not nothing, not a vindication.
+- **No comparison against the floor is available.** `rstd` at **5,000 times** its
+  calibrated threshold still alarms on 15.17%, and the range check on 5.84%. The sweep
+  was widened to 5,000 so this could be tested rather than assumed, and both saturate.
+  **This is the exact inverse of ESA-ADB**, where a rate-matched range check beat the
+  forecaster and was never later (D44). The two datasets answer oppositely, and both
+  answers are about the regime rather than about detection.
+
+### Added - D49, closing D6 after it was open since work item 4
+
+- **Conditioning on commands makes the detector worse.** At matched rates - 0.6838%
+  against 0.6820% - the commanded arm catches **6/38** in-range contextual against
+  **10/38** uncommanded, and **33/100** against **47/100** overall. The arms differ in
+  that alone: same architecture, hyperparameters, seed, weights and detection stack.
+- It agrees with the external evidence `docs/RESEARCH.md` flagged as the thinnest in
+  the project - ESA's baselines lost precision with telecommands too. Agreement does
+  not make either strong, and D49 bounds the finding to this encoding and this dataset.
+
+### Process
+
+- **The first stage 4 run did not widen the sweep.** `--sweep-max 5000` was accepted
+  and never used, because the patch meant to apply it targeted an anchor line that does
+  not exist in this script and failed silently. The defect announced itself in the
+  shape of the result -- both static arms pinned at exactly 50 -- and was caught by
+  checking the printed multiplier against the flag. The second read is my error.
+
 ## [0.6.7] - 2026-09-03 - Stages 2 and 3: the population is real and cannot be scored
 
 Two runs at 1 Class A and 165 Class B each, plus one discarded. Both close without a
