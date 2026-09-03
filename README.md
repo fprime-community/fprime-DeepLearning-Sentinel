@@ -75,9 +75,24 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
   range that `error_buffer` had widened backwards from a crossing that had already happened.
   Measured from the first crossing, the median lead is **0.0** on the gate set (D21,
   `docs/RESULTS.md` 6f). No wall-clock claim - no hours, no "~4h" - is made from Phase 1 evidence.
-- **Kept, and narrower than it was:** nothing else in an F' deployment watches the relationships
-  between channels at all, and on an independent spacecraft the same recipe alarms on one rare
-  event in a hundred and on no nominal timestep (D29). Both still hold.
+- **The claim, restated 2026-09-03:** **Sentinel catches anomalies a limit check can never
+  see.** On NASA's SMAP/MSL telemetry, **39 of 43** labelled contextual anomalies stay entirely
+  inside their channel's historical range; **no per-channel statistic reaches a flyable alarm
+  rate there** (a rolling standard deviation at 5,000x its threshold still alarms on 15.17% of
+  nominal steps); and the forecaster **under a dynamic threshold** operates at **0.68%** and
+  catches **10 of 38** -- the baseline now being improved (D46, D48, `docs/MODELS.md` 26.18).
+- **(!) Read the configuration with it.** That result is `gru-telemanom`, the published
+  **dynamic** threshold, scored **per channel, univariate, without commands** -- **not** the
+  `gru-quantile` configuration that flies today. The component ships both rules and a mission
+  selects one, because which rule is needed is a property of the regime, not the method. And
+  10 of 38 is **26%**, on one dataset, with no floor available to compare against there.
+- **Subordinate, and why both rules ship:** on ESA-ADB's stationary folds a calibrated
+  per-channel range check is **sufficient and better** -- 34/46 and 25/32 at an equal or lower
+  alarm rate against 27/46 and 22/32, and the forecaster never speaks first in 53 caught events
+  (D44). Full record in `docs/RESULTS.md` 6l and 6m.
+- **Also kept:** nothing else in an F' deployment watches the relationships between channels at
+  all, and on an independent spacecraft the same recipe alarms on one rare event in a hundred
+  and on no nominal timestep (D29). Both still hold.
 - **(!) Withdrawn 2026-09-02:** the sentence that used to sit here -- "a forecaster over the
   channel set finds 28 of 32 headline-cell events where a per-channel statistic finds 3" -- is
   withdrawn pending re-measurement (D37, D38). The 3 was an arithmetic defect and is 25; the 28

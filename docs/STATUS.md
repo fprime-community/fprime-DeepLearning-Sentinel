@@ -235,7 +235,15 @@ HOUSEKEEPING
       statistic finds 3" as live now carry a holding note and keep the withdrawn sentence
       in quotation. `docs/RESULTS.md` 6l is the corrected comparison on both sets, and
       `tests/test_documents_are_current.py` keeps the retired figures from reappearing.
-- [ ] Write the new headline, from work item 9.7's results and not before. The
+- [x] Write the new headline - **done 2026-09-03**, from work items 9.7 to 9.9
+      together. **Sentinel catches anomalies a limit check can never see**: on SMAP/MSL
+      39 of 43 labelled contextual anomalies stay entirely in range, no per-channel
+      statistic reaches a flyable alarm rate there, and the forecaster under a dynamic
+      threshold operates at 0.68% and catches 10 of 38 - the baseline now being
+      improved. The configuration travels with it: `gru-telemanom`, per channel,
+      univariate, no commands, **not** the `gru-quantile` that flies today. Applied at
+      Objective.md 1.1, README, `docs/RESULTS.md` 7 and `docs/PHASE1_REPORT.md`.
+- [ ] (superseded) Write the new headline, from work item 9.7's results and not before. The
       early-warning claim was retired at Objective.md 1.1 and the contextual-class claim
       is now in the same position (D39). No replacement claim is stated meanwhile: the
       measured state of the current decision layer is recorded in `docs/RESULTS.md` 6l

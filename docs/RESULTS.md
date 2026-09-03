@@ -247,9 +247,23 @@ carries no dictionary limits and its timestamps are anonymised and scaled
 deployment, on a real clock. **No wall-clock or "hours" figure may be derived
 from anything in this document** (Objective.md 1.1).
 
-What this project claims from Phase 1 is not earliness. It is that Sentinel is the
-**first and only observer of cross-channel relationship breaks** in an F'
-deployment -- a statement about the ecosystem, which stands.
+**What this project claims, restated 2026-09-03. Sentinel catches anomalies a limit
+check can never see.** On NASA's SMAP/MSL telemetry 39 of 43 labelled contextual
+anomalies stay entirely inside their channel's historical range (D46); no
+per-channel statistic reaches a flyable alarm rate there, a rolling standard
+deviation at 5,000x its calibrated threshold still alarming on 15.17% of nominal
+steps (D48); and the forecaster under a **dynamic** threshold operates at **0.68%**
+and catches **10 of 38** (`docs/MODELS.md` 26.18) -- the baseline now being improved.
+
+**(!) The configuration travels with the claim.** That is `gru-telemanom`, the
+published dynamic threshold, **per channel, univariate, without commands** -- not
+the `gru-quantile` configuration that flies today. On ESA-ADB's stationary folds a
+calibrated range check is sufficient and better (section 6m, D44), which is why the
+component ships both rules and a mission selects one. 10 of 38 is 26%.
+
+It remains true, separately, that Sentinel is the **first and only observer of
+cross-channel relationship breaks** in an F' deployment -- a statement about the
+ecosystem, which stands.
 
 **(!) WITHDRAWN 2026-09-02.** The Phase 1 headline comparison is withdrawn
 pending re-measurement (D37, D38). The corrected baseline and the flying

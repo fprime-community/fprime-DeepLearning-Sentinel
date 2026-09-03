@@ -101,7 +101,14 @@ section 6f). The claim "+26 timesteps of early warning" was retired in Objective
 and the surviving claim stated in its place: the first and only observer of cross-channel
 breaks in an F' deployment -- which is a statement about what an F' deployment contains, and
 stands. **(!) The catch comparison that used to be offered as its evidence is withdrawn
-(D37, D38); see `docs/RESULTS.md` 6l and work item 9.7.** The break-to-limit lead remains a Phase 3 measurement on a real clock.
+(D37, D38); see `docs/RESULTS.md` 6l and work item 9.7.**
+
+**(!) And the claim was restated on 2026-09-03, after Phase 1 closed.** Sentinel catches
+anomalies a limit check can never see: on SMAP/MSL, 39 of 43 labelled contextual anomalies stay
+entirely in range, no per-channel statistic reaches a flyable alarm rate there, and the
+forecaster under a **dynamic** threshold operates at 0.68% and catches 10 of 38 (D46, D48,
+`docs/MODELS.md` 26.18). That result is `gru-telemanom` per channel and univariate, **not** the
+`gru-quantile` configuration this report describes, and it post-dates every measurement below. The break-to-limit lead remains a Phase 3 measurement on a real clock.
 
 ### Three architectures, one variable
 
