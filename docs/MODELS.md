@@ -5519,9 +5519,63 @@ against a month at 173 Class A and 269 Class B of 50,000 each, per-run tripwire
    is not that.
 5. More than 200 Class B, or the per-run tripwire at 1,000.
 
-### 26.13 OBSERVED
+### 26.13 OBSERVED -- stage 2, and it does not produce a detector comparison
 
-Reserved. Nothing has run.
+**2026-09-03. Two runs; the first discarded for the defect D47 records, the second
+after it.** Artifact `runs/smap-msl/_forensics/2026-09-03T205255Z-stage2.json`.
+1 Class A and 165 Class B each. **The weight store grew by 0 on the second run**,
+which confirms 26.14's claim that `error_window` lives in `config` and not in the
+cache key: the fits were reused rather than repeated.
+
+**The populations shrank before any detector ran.** D17's first-epoch guard refused
+4 channels outright -- `E-3`, `G-1`, `D-11` on a stall and `D-12` for holding no
+complete sequence -- and a channel enters only if **both** forecaster arms fit, so
+the ablation stays paired. 77 of 81 channels scored, and the populations became
+**38** in-range contextual, **4** out-of-range contextual, **9** in-range point,
+**100** sequences. Every figure below is against those denominators.
+
+#### The finding: no train-calibrated threshold transfers on this data
+
+```
+  arm         multiplier   nominal-step rate    in-range contextual
+    gru+cmd        1.000            10.4682%              11/38
+    gru            1.106             8.1890%              11/38
+    rstd          50.000            15.5654%               0/38
+    range          1.106            10.2814%               0/38
+```
+
+**`rstd` at fifty times its calibrated threshold -- the top of the sweep -- still
+alarms on 15.57% of nominal steps.** On ESA-ADB it runs at 0.024%. A trailing
+standard deviation cannot be made quiet on this data by any multiplier the grid
+contains, and neither can the forecaster: its own 99.9th-percentile threshold admits
+**10.47%** of nominal time.
+
+That is not a property of any one detector. It is the **train-to-test regime shift**
+on SMAP/MSL: the residual scale on the test split is so much larger than on the train
+split that a threshold calibrated on the first does not describe the second, for any
+arm. **D48** records it.
+
+**So stage 2 has no usable operating point, and the comparison it was built to make
+cannot be made.** Reporting 11/38 as "the forecaster's catch count at a matched rate"
+would be reporting a number taken at 10% nominal alarms, which no mission would fly
+and which V6 was not asking for.
+
+| # | Prediction | Outcome |
+|---|---|---|
+| **V6** | forecaster catches 15-32 of the 39 at a matched rate | **No verdict.** The matched rate is 10.47% nominal. The measured 11/38 is not the quantity V6 asked for and is not reported as it |
+| **V7** | the range check's matched multiplier is **w < 1.0** | **REFUTED. w = 1.106** |
+| **V8** | forecaster beats the range check by >= 10 on the 39 | **Withdrawn**, by 26.9's own rule, because V7 was refuted. The range check's 0/38 is 0 **by construction** at w >= 1 and is uninformative, not a win. Recorded as the pre-registration required, not as a result |
+| **V9** | F0.5 over all 104 is 0.40 to 0.75 | **No verdict.** Not computed, and it would describe a 10%-alarm operating point if it had been |
+| **V10** | **D6**: the commanded arm catches more of the 39 | **No verdict.** Both arms catch 11/38. They are not identical -- 4/9 against 2/9 on in-range point, 54 against 56 overall, and different nominal rates -- so the command flag demonstrably takes effect, but D6 is not answered at an operating point this broken |
+| **V11** | both catch a higher fraction of the 4 out-of-range than of the 38 | **Consistent, not scored.** 2/4 against 11/38 for the forecaster and 2/4 against 0/38 for the range check, at n = 4 and at an unusable anchor |
+| **V12** | the range check catches <= 2 of the in-range point sequences | **Held trivially.** 0/9, and 0 by construction at w >= 1 -- the prediction was right for a reason that carries no information |
+
+**What survived stage 2 and is worth keeping**: the D6 wiring is correct, the
+populations are fixed and reproducible, D17's guard fired honestly on four channels
+rather than letting them through, and D47's correction did what 26.14 predicted it
+would. **What did not**: any statement about whether this method sees in-range
+anomalies. That needs an operating point, and stage 3 is pre-registered to obtain one
+the way flight would.
 
 ### 26.14 Amendment to 26.8: `error_window` is proportional, not absolute
 

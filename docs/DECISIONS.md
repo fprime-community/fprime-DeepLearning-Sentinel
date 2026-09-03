@@ -3069,3 +3069,72 @@ constant is not a finding about transfer.
    now has a concrete rule to enforce: a fitting window must exceed the warm-up by a
    stated margin, and a detector whose warm-up consumes its own calibration window
    should refuse rather than return 12%.
+
+---
+
+## D48. A frozen static threshold describes a stationary regime; on SMAP/MSL no train-calibrated threshold transfers, for any arm
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It bounds where D25 applies and
+replicates D29's `m1-g3` result on a second spacecraft dataset
+
+**CONTEXT.** D25 froze the decision layer as one label-free global quantile -- the
+99.9th percentile of the detector's own score over an anomaly-masked fitting window --
+and it has carried every ESA-ADB result since. Work item 9.9 stage 2 applied it
+unchanged to SMAP/MSL, per channel, on the paper's own train/test split.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T205255Z-stage2.json`, after
+D47's warm-up correction, cached weights, 77 of 81 channels.
+
+```
+  arm         multiplier   nominal-step rate
+    gru+cmd        1.000            10.4682%
+    gru            1.106             8.1890%
+    rstd          50.000            15.5654%
+    range          1.106            10.2814%
+```
+
+**`rstd` at fifty times its calibrated threshold still alarms on 15.57% of nominal
+steps**, where the same detector runs at 0.024% on ESA-ADB. No multiplier in the sweep
+makes it quiet. The forecaster's own 99.9th-percentile threshold admits **10.47%** of
+nominal time. Every calibrated arm fails the same way at once, which is what rules out
+a detector-specific cause: the **residual scale on the test split is far larger than on
+the train split**, so a threshold that describes the first does not describe the second.
+
+**This is not new, it is a replication.** D29 already found it on ESA-ADB: a floor
+calibrated on early data "sat under 86.7% of one later window's nominal residual" on
+`m1-g3`, the later period of the same spacecraft, and the consequence recorded there
+was that **thresholds are parameters with a provenance, recalibrated in orbit**. What
+SMAP/MSL adds is the same finding on a **second, independent dataset**, and in a much
+sharper form -- there the shift degraded a floor, here it destroys every arm at once.
+
+**And it explains a design choice this project reproduced and rejected.** telemanom's
+threshold is **dynamic**, recomputed from a trailing window of the stream being scored
+(D18). On ESA-ADB, where the regime is stationary across folds, that dynamic rule
+degenerated under a good forecaster and the static quantile beat it. On SMAP/MSL the
+static quantile is the one that fails. **Both results are about the data, not the
+rule**, and neither generalises without saying which regime it was measured in.
+
+**ALTERNATIVES.** Treat it as a SMAP/MSL defect. Abandon D25. Bound D25 and recalibrate
+the way flight would.
+
+**Against the first.** It is a property of the split the paper defines, and telemanom's
+own dynamic threshold exists because of it. **Against the second.** D25 is measured and
+correct on the regime it was measured on, and nothing here touches an ESA-ADB figure.
+
+**CONSEQUENCE.**
+
+1. **D25 is bounded, not withdrawn.** The frozen static quantile describes a
+   **stationary** regime -- one where the fitting window's residual scale predicts the
+   scored window's. Every ESA-ADB result stands; the recipe is not portable to a
+   regime shift, and that condition is now stated rather than assumed.
+2. **It is the second measurement of the same thing** (D29's `m1-g3`), on independent
+   data, and it upgrades "recalibrate in orbit" from a recommendation to a
+   requirement: a mission that froze a ground-calibrated threshold and flew it through
+   a regime change would alarm on a tenth of nominal time.
+3. **Stage 2 produces no detector comparison** and none is reported. `docs/MODELS.md`
+   26.13 records V6, V9, V10 as No Verdict for this reason, V7 refuted, and V8
+   withdrawn by the pre-registration's own rule.
+4. **It sharpens work item 10 rather than blocking it.** WI10 is the in-orbit
+   recalibration path -- file uplink, human-approved reload (Objective.md 14.10) --
+   and this is the measured case for why it exists.
+5. **No detector, threshold, weight or ESA-ADB figure changes.**
