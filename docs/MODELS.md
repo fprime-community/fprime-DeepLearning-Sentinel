@@ -5249,3 +5249,94 @@ has no cache. The in-run invariant held -- the count was identical before and
 after the Mission 1 run -- so nothing was refitted on Mission 1 data. Recorded
 because a quoted invariant that quietly changes is worse than one that moves for a
 stated reason.
+
+## 26. Pre-registration: is the labelled contextual class actually in range? (work item 9.9 study 1, stage 1)
+
+**Written and committed before a single figure is computed, and after the data was
+ingested but before it was read back.**
+
+**(!) This is not a test of the cross-channel thesis, and no result from it may be
+quoted as one.** Objective.md 9.2 demoted SMAP/MSL for a reason that has not
+changed: its 81 channels are **unsynchronised univariate streams**, so there are no
+genuine cross-channel relationships in them to find, and the project's core claim
+could not be proven on it even in principle. What this section tests is narrower and
+answerable: **whether a forecaster with command context beats a calibrated range
+check on anomalies that are genuinely inside their own historical range** -- the
+"invisible to a limit check" claim, not the cross-sensor one -- and D6, which has
+been open since work item 4 because every figure in this project is
+telemanom-minus-commands.
+
+**Stage 1, this section, is the visibility diagnostic only.** Of the 43 sequences
+the dataset labels `contextual`, how many actually stay inside their own channel's
+training min/max? That count is the **honest denominator** for anything stage 2
+could claim, and it is the direct answer to Wu & Keogh's triviality critique on this
+benchmark. **Stage 2 -- fitting `gru-quantile` with commands, `rstd` and the range
+check -- runs only on approval, and only if a population survives.**
+
+### 26.1 Definitions fixed in advance
+
+- **The telemetry channel is column 0.** SMAP arrays are 25 columns and MSL 55; all
+  but the first are one-hot command indicators. The envelope is built on column 0
+  alone, because a one-hot indicator has no meaningful range and including it would
+  make every event trivially "in range" on 24 or 54 constant columns.
+- **Training envelope**: `min` and `max` of column 0 over that channel's **`train`
+  array**, which is the split the paper defines and this section honours
+  (`docs/DATA.md`). No test sample enters it.
+- **In range**: an anomaly sequence where **no** step of column 0 inside `[lo, hi]`
+  leaves that envelope, **strictly** -- touching an extreme is not leaving it, the
+  rule 24.9 fixed after the strictness defect it caught.
+- **The population**: the 105 sequences of `labeled_anomalies.csv`, 43 `contextual`
+  and 62 `point`, verified against the arrays at ingest. `P-2`'s duplicate row is
+  **counted once** and the defect is recorded (`docs/DATA.md`).
+- Reported per spacecraft and pooled, as `k/n`, `n < 20` stamped UNDERPOWERED.
+
+### 26.2 PREDICTED
+
+The letter is **V**; C, D, E, F, G, L, M, N, P, R, S, T and W are taken.
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **V1** | of the **43** labelled `contextual` sequences, **15 to 30** stay strictly inside their channel's training min/max; central estimate **22** | a count outside that band. Low would mean the label does not mean what the paper says it means, which is Wu & Keogh's charge; high would mean ESA-ADB is the unusual set, not this one |
+| **V2** | of the **62** labelled `point` sequences, **<= 10** stay in range | more than 10. A point anomaly is an extreme value by definition, so this is the diagnostic's own sanity check -- if point anomalies read as in-range, the instrument is wrong, not the labels |
+| **V3** | the in-range **fraction** among `contextual` exceeds that among `point` by **>= 30 percentage points** | a gap below 30, which would say the two labels do not separate on this diagnostic at all and neither class can be trusted to mean what it says |
+| **V4** | SMAP and MSL agree in **direction** on V3 | opposite signs, which would make the pooled figure an average of two different datasets |
+| **V5** | **the decision gate.** The in-range `contextual` population is **>= 20**, the sample size `docs/HARNESS.md` section 1 requires before a recall is a comparison rather than a coverage check | below 20. **Stage 2 would then be underpowered by construction and does not run** -- and that, not a detector result, is the finding: the benchmark with the largest labelled contextual class in public spacecraft data would not carry enough of it to test the claim |
+
+**Deliberately not predicted.** Which channels carry the in-range events. Anything
+about detector performance -- no detector runs in stage 1. Whether the command
+columns help, which is stage 2's question and D6's.
+
+### 26.3 The named risk
+
+**That the definition of "in range" was chosen on ESA-ADB and is now being applied
+to a dataset where it may flatter us.** The mitigation is that it is D43's
+definition unchanged, strict, on the training split the paper itself defines, and
+that **V2 is a falsifiable sanity check in the opposite direction**: if the
+diagnostic cannot tell point anomalies from contextual ones, it is broken and V3
+says so.
+
+And the standing risk, stated for the fourth time: this is another dataset visited
+after a bad result. What protects against it is that **26.2's first paragraph
+forbids quoting any of this as cross-channel evidence**, and that V5 can close
+stage 2 before it starts.
+
+### 26.4 Cost
+
+Stage 1 reads the 81 `train` and 81 `test` arrays back through
+`_manifest/smap_msl.json`: **162 Class B and 1 Class A**, against a month at 172
+Class A and 104 Class B of 50,000 each, per-run tripwire 1,000. The ingest itself
+cost **164 Class A** and is already recorded in the ledger. Stage 2 is not costed
+here and does not run without approval.
+
+### 26.5 Stop and report
+
+1. **V5 refuted** -- fewer than 20 in-range contextual sequences. Stage 2 does not
+   run and the reason is reported.
+2. **V2 refuted** -- the diagnostic cannot separate point from contextual. The
+   instrument is wrong; report that and nothing else.
+3. Any ESA-ADB figure, task, weight or manifest moves. Nothing here touches them.
+4. More than 200 Class B in the run, or the per-run tripwire at 1,000.
+
+### 26.6 OBSERVED
+
+Reserved. Nothing has run.

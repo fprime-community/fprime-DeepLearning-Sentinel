@@ -438,6 +438,8 @@ addition nobody re-examines.
 | 2026-08-25 | **`m1-g3` task** -- Mission1 group 3, 8 channels | A held-back recall set nominated before decision-layer tuning began. `m1-ss5` cannot serve: it is a strict subset of the primary carrying the same events | Additive only; no existing task definition changed |
 | 2026-08-25 | **`--no-cache` flag** | Weight persistence is now permitted for iteration, so a published result needs a way to be reproduced from cold | Additive only; default behaviour unchanged |
 
+| 2026-09-03 | **SMAP/MSL ingest** -- `smap-msl/v1/`, 162 arrays, its own `_manifest/smap_msl.json` | Work item 9.9 study 1. ESA-ADB's headline cell is 6/32 min-max-contextual (D43) and nothing catches it; SMAP/MSL carries 43 labelled contextual sequences of 105 and per-channel commands, which is D6's open question. Explicitly **not** a cross-channel test -- Objective.md 9.2 stands | **Additive only.** A separate manifest object; `_manifest/manifest.json` byte-identical; `Catalog.load` and every ESA-ADB task untouched; no existing module changed; the ingest writes only under `smap-msl/v1/` and its own manifest. Every array verified against the canonical `labeled_anomalies.csv` before upload, 82/82 rows, 0 mismatches |
+
 ### The first case, recorded here
 
 `Bundle.subset` rebuilt its ground truth from the labels alone and never read
