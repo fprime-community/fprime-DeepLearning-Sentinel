@@ -5047,3 +5047,135 @@ the matched rate and the natural cut is labelled informational on both sets.
 - **Study D, the injected relationship breaks** -- `>= 50` events, every channel kept
   inside its envelope, scored blind -- costed at 23.14 and deferred until after work
   item 10.
+
+## 25. Pre-registration: are the forecaster's nominal-period alarms precursors, or noise? (work item 9.9 study 2)
+
+**Written and committed before a single figure is computed.** D44 measured that a
+per-channel range check, widened until it is exactly as noisy as the forecaster,
+catches more than the forecaster on both Mission 1 sets and is never later --
+0 of 53 caught events where we speak first. What that leaves untested is the
+forecaster's **other** output: the alarms it raises in nominal periods, which
+every scorecard in this repository counts as false.
+
+If those alarms cluster in the window **before** a later labelled anomaly, they
+are early warning that the event-wise metrics have been scoring as error. If they
+do not, they are noise, and D44's reading stands with nothing behind it.
+
+**A null result is the finding**, and this section says so before the test runs.
+
+Nothing here changes a detector, a threshold, a weight, the frozen decision layer
+or `main`. One bundle load, cached weights, nothing refitted.
+
+### 25.1 Why this is asked now
+
+Every alarm outside a labelled span is currently a false alarm by definition, and
+that definition has never been checked. `docs/HARNESS.md` section 1 counts them
+against precision and the adoption number, which is correct for a detector that is
+wrong -- and exactly backwards for one that is early. The two are
+indistinguishable on the metrics as they stand, and the only way to tell them
+apart is whether they land where a precursor would.
+
+The population is restricted to **in-range nominal time**, where every watched
+channel is inside its own training min/max, because that is the region a limit
+check cannot see (D43). An alarm there is the only kind that could be worth
+anything the range check of D44 does not already deliver.
+
+### 25.2 Definitions fixed in advance
+
+- **Eligible region**: test-window steps that are `scorable`, not `anomaly`, not
+  `rare_event`, **and** with every watched channel strictly inside its own
+  training-window min/max -- D43's envelope at `w = 1.0` under the strict rule
+  24.9 established. This is nominal time that is also invisible to a range check.
+- **Alarm start**: the first step of a maximal run of `gru-quantile`'s alarm mask
+  at its frozen threshold, counted only where that first step is in the eligible
+  region. Runs, not steps, so one claim to an operator counts once.
+- **Pre-anomaly window**: the `W` steps immediately before a labelled `Anomaly`
+  event's start, intersected with the eligible region. Overlapping windows are
+  merged, so an alarm is counted once however many events it precedes.
+- **Group match**: the alarm's attributed channel -- the one attaining the maximum
+  smoothed residual at that step -- shares an ESA `Group` with at least one channel
+  the event touches (`docs/HARNESS.md` 6a, `Event.channels`).
+- **W**: **primary 10,000 timesteps.** Sensitivity at **1,000** and **100,000**,
+  both reported, neither able to become the primary after the fact.
+- **Null 1, primary -- circular shift.** The fold's alarm indicator is rotated by a
+  uniformly random offset on the torus of its test window, 10,000 times. This
+  preserves the alarm process's own temporal structure -- its rate, its
+  autocorrelation, its clustering -- and randomises only its phase against the
+  anomalies. It is the null that cannot be beaten by "alarms are bursty".
+- **Null 2, secondary -- uniform placement.** The same number of alarm starts
+  placed uniformly at random in the eligible region, 10,000 draws. Simpler,
+  and wrong in the specific way null 1 is designed to survive; reported beside it
+  because a disagreement between the two is itself informative.
+- **Statistic**: the count of eligible alarm starts falling inside a group-matched
+  pre-anomaly window.
+- **Effect**: the rate ratio, observed divided by the null mean. **p**: one-sided
+  for clustering, `(1 + #{null >= observed}) / (1 + N)`.
+- Both channel sets, per fold and pooled, every count as `k/n`, `n < 20` stamped
+  UNDERPOWERED.
+
+### 25.3 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **S1** | the eligible region is **>= 50%** of nominal test time on the gate set -- in-range nominal time is the common case, not a corner | below 50%, which would mean a range check sees most of nominal time too and the population this study needs is thin |
+| **S2** | `gru-quantile` produces **>= 20** eligible alarm starts per set | below 20, in which case the set is stamped UNDERPOWERED and no p-value from it is quoted as evidence either way |
+| **S3** | **primary.** At `W = 10,000` on the gate set, under the circular-shift null, the rate ratio is **> 1** with **p < 0.05** | **p >= 0.05.** This is the study. A null result says the forecaster's nominal-period alarms are not precursors, the metrics have been right to count them as false, and D44's reading stands with nothing behind it. It is reported in those words |
+| **S4** | the two nulls agree in **direction** | disagreement, which would locate the effect in the alarm process's own burstiness rather than in its placement relative to anomalies -- and would make null 2's p-value the misleading one |
+| **S5** | the effect is present at `W = 1,000` as well as `W = 10,000` | an effect only at `W = 100,000`, which at 100k steps against a ~3.5M-step window is a third of nominal time and would indicate a wide-window artifact rather than a precursor |
+| **S6** | `m1-ss5` agrees in direction with the gate set | opposite signs, which would leave the result set-dependent in the way D41 and 6l already caught once |
+
+**Deliberately not predicted.** The size of the effect if there is one. Which
+group or which events carry it. Anything about `m2-ss1` or `m1-g3`, which are
+spent (D29) and are not loaded.
+
+### 25.4 The named risk
+
+**That this is the fourth attempt to find the forecaster a win**, after 9.6
+withdrew the per-event argument, 9.7 restored it at a matched rate, and 9.8 took
+it away again. A permutation test with three window lengths, two nulls and two
+channel sets offers twelve ways to produce a small p-value.
+
+The protections are that the primary is fixed here -- **`W = 10,000`, circular
+shift, gate set, one-sided** -- and everything else is declared sensitivity before
+any of it exists; that the structure-preserving null is the primary rather than the
+one easier to beat; and that **S3 names the null result as the finding** rather
+than as a failure.
+
+**And the honest limit, stated now.** A precursor effect cannot distinguish "the
+anomaly began before its label was written" from "an independent early signal".
+The labels are hindsight annotations by operations engineers (Objective.md 1.1),
+and an onset earlier than the annotation is the most likely explanation for any
+clustering this finds. That would still be useful -- it would mean the detector
+speaks before the label -- but it is **not** the same as predicting an event that
+has not started, and no wording will be allowed to blur the two.
+
+### 25.5 Cost
+
+**One bundle load: 15 Class B and 1 Class A**, both channel sets, all folds, from
+cached weights. The month stands at **6 Class A and 86 Class B** of 50,000 each,
+tripwire 1,000 per run. The permutation is arithmetic on resident arrays and costs
+nothing. Every new code path runs on the offline fixture first, at zero operations.
+
+### 25.6 Stop and report
+
+1. **S3 refuted** -- no clustering. Report it as the finding, in those words.
+2. **S2 refuted on both sets** -- too few eligible alarms to test anything. Report
+   the power failure rather than a p-value.
+3. **S4 refuted** -- the two nulls disagree.
+4. Any frozen figure moves: `gru-quantile`'s scorecard, a threshold, a weight.
+5. More than 20 Class B, or the per-run tripwire.
+
+### 25.7 What this decides, and what it may not
+
+**Decides** whether the forecaster's nominal-period alarms in the region a range
+check cannot see are placed like precursors or like noise, and therefore whether
+the event-wise metrics have been mis-scoring them.
+
+**May not** move a threshold, retrain anything, alter the frozen decision layer,
+re-score a held-back set, change how the harness counts a false alarm, or touch
+`main`. Re-open D44, which measured catches and lead and is not addressed by this.
+Or write the headline, which is held at `docs/STATUS.md` section 7.
+
+### 25.8 OBSERVED
+
+Reserved. Nothing has run.
