@@ -6496,3 +6496,64 @@ with **207** ranges against ~91, it is not met -- recall is now within 10.6 poin
 precision is 46.4 points away and moving further. All three corrections stay in the
 study script. `src/sentinel_models/telemanom.py` is untouched and every ESA-ADB figure
 stands.
+
+## 26.27 Pre-registration: rungs 1c-i and 1c-ii, isolated
+
+**Written and committed before a single figure is computed.** 26.26 stopped because
+the 1c arm changed the window **geometry** and the **aggregation** together, so its
+69.4% recall is unattributable. This separates them.
+
+**Both arms run from one bundle load, not two.** They need the same arrays, and
+`docs/MODELS.md` 22's budget note applies: two scripts would be two loads.
+
+```
+  1a+1b     trailing windows, verdicts CLIPPED to the judged segment   the baseline
+  1c-i      FORWARD windows,  verdicts CLIPPED                         geometry alone
+  1c-ii     trailing windows, verdicts UNIONED unclipped               aggregation alone
+  1c        forward + unioned                                          26.26, unattributable
+```
+
+### 26.27.1 PREDICTED
+
+The reasoning is stated so it can be wrong in public. **Union multiplies the chances
+of detection**: it lets any of the roughly `error_window / stride` windows covering an
+index carry the verdict, where clipping lets exactly one. **Geometry changes which
+data sets `eps`** for a given judged index, which can move a verdict either way. So
+the mechanism that should add recall is the aggregation, not the geometry.
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **Q1** | **1c-ii carries most of the gain**: its recall is **>= 66.0%**, against 1a+1b's 60.2% and the combined arm's 69.4% | below 66.0%. The aggregation would then not be the mechanism, and the recall would belong to the geometry -- the non-causal half |
+| **Q2** | **1c-i carries less**: its recall is **below 66.0%** | at or above 66.0%. Together with Q1 this is the substantive question, and **if Q1 fails and Q2 fails the recall is the geometry's**, which 26.25.1 says cannot be shipped |
+| **Q3** | both arms raise the range count above 1a+1b's **146** | either falling at or below 146, which would mean that change removes candidates rather than adding them and the model of it is wrong |
+| **Q4** | **the structural check Z4 should have been.** 1c-ii's alarm set is a **superset** of 1a+1b's on **every** channel, because the geometry is held fixed and only the aggregation changes | any channel where it is not. **A stop.** Unlike Z4 this one is a fair test, because exactly one thing differs between the two arms |
+
+**Deliberately not predicted.** Precision on either arm -- Q1 to Q3 are about where the
+recall comes from, and precision follows from the range count Q3 already covers.
+Parity with Table 2, for 26.25.1's reason.
+
+### 26.27.2 The flyable reproduction, defined in advance
+
+**`1a + 1b + 1c-ii` is the causal pipeline**: trailing windows, unioned verdicts, the
+corrected rung and cross-window tracking. It is the faithful reproduction **minus the
+one part this project may not fly**, and it is:
+
+- **the pipeline the 38 in-range contextual anomalies are re-measured on**, replacing
+  stage 4's `gru-telemanom` figure as the honest baseline; and
+- **the component's honest ceiling** on this benchmark -- whatever the non-causal arm
+  reaches is not available to any flight detector, ours or the authors'.
+
+Defined here, before the numbers, so it cannot be chosen afterwards to suit them.
+
+### 26.27.3 Cost and stop-and-report
+
+**One read, both arms, from cached weights: 165 Class B and 1 Class A.** Weight store
+expected to grow by **0**. Month stands at 184 Class A and 1,926 Class B of 50,000.
+
+**Stop and report** if Q4 is refuted; if the weight store moves; or above 200 Class B.
+**No escalation to `src/sentinel_models/telemanom.py` until the causal arm is
+understood**, which is this section's whole purpose.
+
+### 26.28 OBSERVED
+
+Reserved. Nothing has run.
