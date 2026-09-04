@@ -311,7 +311,18 @@ HOUSEKEEPING
 - [x] **Rung 1b - done 2026-09-03** (`docs/MODELS.md` 26.23, 26.24, D51). Cross-window
       tracking is a real divergence, confirmed on **1,721 of 1,721** calls, and worth
       **one candidate range in 147**. Directionally right, numerically negligible.
-- [ ] **Rung 1c, named from the source and not run**: telemanom unions each window's
+- [x] **Rung 1c - run 2026-09-03, and its structural check refuted** (`docs/MODELS.md`
+      26.25, 26.26). The arm changed **two** things at once - telemanom's forward window
+      geometry *and* the unclipped union - so Z4's superset check failed on 40 of 75
+      channels and the resulting 69.4% recall is real but **unattributable**. The stop
+      fired. Recall 60.2% -> 69.4%, precision 44.5% -> 41.1%, ranges 146 -> **207**
+      against the paper's ~91.
+- [ ] **Rungs 1c-i and 1c-ii, named and not run**: forward windows with clipped
+      verdicts, and trailing windows with unioned verdicts, as two arms - so the window
+      geometry and the aggregation become separately attributable. **26.25.1's flag
+      applies**: the forward geometry is the non-causal half and cannot be shipped, so
+      if it carries the recall the advantage is benchmark-only.
+- [ ] (superseded) **Rung 1c, named from the source and not run**: telemanom unions each window's
       surviving anomalies across all overlapping windows; we clip each sequence to the
       judged segment, so an index is judged once rather than ~30 times. It changes
       **which indices are anomalous at all**. Candidates stand at **146 against the

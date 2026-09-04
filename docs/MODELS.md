@@ -6432,6 +6432,67 @@ non-causal `lstm-telemanom` is not a thing this project may ship without saying 
 **If it does not**, the next divergence is named from the source before anything else
 runs, which is the rule 1b was held to and 26.23.2 satisfied in advance.
 
-### 26.26 OBSERVED
+### 26.26 OBSERVED -- Z4 refuted, the stop fires, and the arm changed two things
 
-Reserved. Nothing has run.
+**2026-09-03. 1 Class A and 165 Class B**, cached weights, **weight store +0**, 69
+seconds. Artifact `runs/smap-msl/_forensics/2026-09-03T234140Z-rung1c.json`.
+
+```
+   arm         set        recall            precision       ranges
+   1a+1b       Total    59/98   60.2%     65/146   44.5%      146
+   1a+1b+1c    Total    68/98   69.4%     85/207   41.1%      207
+   paper       Total            80.0%              87.5%      ~91
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **Z4** | the union set is a superset of the clipped set on **every** channel | **35 of 75** | **REFUTED. The pre-registered stop fires** |
+| **Z1** | ranges converge into [70, 115] | **207**, up from 146 | **REFUTED, and in the wrong direction** |
+| **Z2** | precision >= 70.0% | **41.1%**, down from 44.5% | **REFUTED** |
+| **Z3** | recall >= 70.0% | **69.4%**, up from 60.2% | **REFUTED by 0.6 points** |
+
+#### Why Z4 failed, and it is a defect in the arm rather than in the reading
+
+**The 1c arm changed two things at once.** Telemanom's window runs **forward** from
+its start; ours **trails**. Reproducing `process_batches` faithfully meant adopting
+both the forward geometry *and* the unclipped union -- and this implementation did,
+in one arm. Different window geometry chooses a different `eps` and therefore a
+different set of sequences, so the union is not a superset of the clipped set; it is
+a **different set**, adding on 35 channels and losing elsewhere.
+
+**That is exactly the error 26.23.2 refused to make one rung earlier**, in its own
+words: *"changing two levers at once would make neither attributable."* 1c did it
+anyway. Z4 was written as the structural check that would catch it, and it did.
+
+**So the 69.4% recall is real but unattributable.** It is what the forward-window
+union produces; it is not evidence that the *union* is worth 9.2 points, because the
+geometry moved underneath it.
+
+#### The next divergence, named from the source and not run
+
+Per 26.25.4's rule, named before anything else runs. The two changes must be
+separated into two arms:
+
+```
+  1c-i    forward windows, verdicts still CLIPPED to a segment
+          -> isolates the window geometry
+  1c-ii   trailing windows, verdicts UNIONED unclipped
+          -> isolates the aggregation
+```
+
+Together with the existing 1a+1b arm these three make the effect of each attributable.
+Neither is run here.
+
+**And 26.25.1's flag now has teeth.** The forward geometry is the non-causal half, and
+it is the half that cannot be shipped. If the isolation shows the geometry carries the
+recall and the union carries little, then the faithful pipeline's advantage is
+precisely the part this project may not fly -- which would be a finding about the
+benchmark rather than a lever for the component.
+
+#### No escalation
+
+The gate was parity with Table 2 within tolerance. At **69.4/41.1 against 80.0/87.5**,
+with **207** ranges against ~91, it is not met -- recall is now within 10.6 points and
+precision is 46.4 points away and moving further. All three corrections stay in the
+study script. `src/sentinel_models/telemanom.py` is untouched and every ESA-ADB figure
+stands.
