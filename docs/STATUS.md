@@ -317,7 +317,16 @@ HOUSEKEEPING
       channels and the resulting 69.4% recall is real but **unattributable**. The stop
       fired. Recall 60.2% -> 69.4%, precision 44.5% -> 41.1%, ranges 146 -> **207**
       against the paper's ~91.
-- [ ] **Rungs 1c-i and 1c-ii, named and not run**: forward windows with clipped
+- [x] **Rungs 1c-i and 1c-ii - done 2026-09-04** (`docs/MODELS.md` 26.27, 26.28, D52).
+      Q4 held 75/75. The decomposition is clean: **aggregation +15.3 points, forward
+      geometry -6.1**. The causal arm is the best arm. **The flyable reproduction
+      `1a+1b+1c-ii` reaches 75.5% recall against the paper's 80.0%** - within 4.5
+      points - at 44.3% precision against 87.5% with **221** ranges against ~91.
+      26.25.1's non-causal caveat is **withdrawn on evidence** (D52).
+- [ ] **The remaining gap is precision, not recall**: 221 candidate ranges against ~91.
+      A question about how many candidates survive, which the four rungs so far have not
+      addressed. Named, not run.
+- [ ] (superseded) **Rungs 1c-i and 1c-ii, named and not run**: forward windows with clipped
       verdicts, and trailing windows with unioned verdicts, as two arms - so the window
       geometry and the aggregation become separately attributable. **26.25.1's flag
       applies**: the forward geometry is the non-causal half and cannot be shipped, so

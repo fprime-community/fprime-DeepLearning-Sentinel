@@ -3331,3 +3331,66 @@ trade 26.22 already showed is not worth making blind.
    method on architecture, hyperparameters, scoring rule and pruning constant and still
    differ by 35 points, because the difference lives in how a stream is segmented for
    judgement -- a detail papers rarely specify and code always does.
+
+---
+
+## D52. The non-causal share of telemanom's recall is negative: looking ahead does not help this reproduction, it costs 6.1 points
+
+**DATE** 2026-09-04 | **STATUS** resolved as a finding. It removes a caveat rather than
+adding one, and it fixes the flyable reproduction's ceiling
+
+**CONTEXT.** `docs/MODELS.md` 26.25.1 flagged, before any of it ran, that reproducing
+telemanom faithfully means reproducing a **non-causal** detector: its window runs
+forward from its start and judges every index inside it using samples ahead of that
+index, where this project's windows trail on a stated rule -- *a detector that peeks at
+future samples is not something that can fly*. The concern was that a successful
+reproduction might owe its recall to the unshippable half, which would make the
+paper's number a benchmark artefact unavailable to any flight detector.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-04T003537Z-rung1c-isolated.json`,
+one read, cached weights, 98 sequences. Geometry and aggregation isolated:
+
+```
+  arm       recall     geometry / aggregation
+    1a+1b    60.2%     trailing / clipped
+    1c-ii    75.5%     trailing / unioned      <- causal
+    1c       69.4%     FORWARD  / unioned      <- non-causal
+```
+
+**Holding the aggregation fixed, the causal geometry reaches 75.5% and the non-causal
+reaches 69.4%.** The decomposition is clean: the aggregation is worth **+15.3** points
+and the forward geometry is worth **-6.1**.
+
+**One arm turned out not to exist.** "Forward with clipped verdicts" is the same
+computation as "forward with unioned verdicts", because a forward window's judged
+segment starts at the window start, so the clip is a no-op. The two rows agree to the
+digit. The prediction that asked to separate them (26.27's Q2) was ill-posed and is
+recorded Refuted with that reason.
+
+**ALTERNATIVES.** Record the non-causal share as unknown. Record it as zero. Record it
+as measured, including its sign.
+
+**Against the first two.** It is measured and it is negative, and rounding a negative
+finding to zero would be the same tidying this project refuses elsewhere.
+
+**CONSEQUENCE.**
+
+1. **There is no benchmark artefact to subtract.** 26.25.1's caveat is withdrawn on
+   evidence: nothing in the published recall, as reproduced here, depends on lookahead.
+   A flight detector is not handicapped against this benchmark by being causal.
+2. **The flyable reproduction is the best arm measured**, not a compromise. `1a + 1b +
+   1c-ii` reaches **75.5%** recall against the paper's 80.0% -- within **4.5 points** --
+   and it is the pipeline the 38 in-range contextual anomalies are re-measured on
+   (26.27.2, defined before these numbers existed).
+3. **The remaining gap is precision, and it is large**: 44.3% against 87.5%, with
+   **221** candidate ranges against the paper's implied ~91. That is a question about
+   how many candidates survive, not how many events are found, and the four rungs so
+   far have all been about the latter.
+4. **Still no escalation to `src/sentinel_models/telemanom.py`.** The causal arm is now
+   understood, which was 26.27.3's condition, but the gate is parity within tolerance
+   and precision does not meet it. Every correction stays in the study script and no
+   ESA-ADB figure moves.
+5. **It generalises.** A causality constraint is usually assumed to cost accuracy. Here
+   it bought 6.1 points, because a trailing window's threshold is set by data that
+   precedes the excursion rather than data contaminated by it -- which is the guard-cell
+   argument `docs/RESEARCH.md` records, measured for the first time in this project.

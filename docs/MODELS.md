@@ -6554,6 +6554,71 @@ expected to grow by **0**. Month stands at 184 Class A and 1,926 Class B of 50,0
 **No escalation to `src/sentinel_models/telemanom.py` until the causal arm is
 understood**, which is this section's whole purpose.
 
-### 26.28 OBSERVED
+### 26.28 OBSERVED -- the causal arm is the best arm
 
-Reserved. Nothing has run.
+**2026-09-04. One read, both arms, 1 Class A and 165 Class B**, cached weights,
+**weight store +0**, 58 seconds. Artifact `runs/smap-msl/_forensics/2026-09-04T003537Z-rung1c-isolated.json`.
+
+```
+   arm        recall            precision      ranges   geometry / aggregation
+   1a+1b     59/98   60.2%    65/146   44.5%     146    trailing / clipped
+   1c-i      68/98   69.4%    85/207   41.1%     207    FORWARD  / clipped
+   1c-ii     74/98   75.5%    98/221   44.3%     221    trailing / unioned
+   1c        68/98   69.4%    85/207   41.1%     207    FORWARD  / unioned
+   paper             80.0%             87.5%     ~91    (non-causal)
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **Q4** | 1c-ii's alarms are a superset of 1a+1b's on every channel | **75 of 75** | **HELD.** The fair structural test passes where Z4's unfair one failed |
+| **Q1** | 1c-ii carries most of the gain, recall **>= 66.0%** | **75.5%** -- above the combined arm's 69.4% | **HELD, and beyond the combined arm** |
+| **Q3** | both arms raise the range count above 146 | 207 and 221 | **Held** |
+| **Q2** | 1c-i carries less, recall **below 66.0%** | **69.4%** | **REFUTED -- and the prediction was ill-posed.** See below |
+
+#### (!) Q2 was ill-posed, and the numbers say so exactly
+
+**1c-i and 1c are identical, by construction.** With forward geometry the judged
+segment starts at the window start, so `offset = 0` and the clip
+`max(a, offset), min(b, len(w))` is a no-op -- "forward and clipped" and "forward and
+unioned" are the same computation. Their rows agree to the digit: 68/98, 85/207.
+
+So there is no "geometry alone with clipping" arm to have. **What the three distinct
+arms do decompose, cleanly:**
+
+```
+  aggregation   trailing/clipped -> trailing/unioned    60.2% -> 75.5%    +15.3
+  geometry      trailing/unioned -> FORWARD/unioned      75.5% -> 69.4%     -6.1
+```
+
+**The aggregation carries all of the recall and more. The forward geometry costs 6.1
+points.** Q1 is right about the mechanism; Q2 asked a question the implementation
+cannot pose.
+
+#### The non-causal share of the recall is negative
+
+26.25.1 flagged that the faithful pipeline is non-causal and warned that any advantage
+might be the unshippable part. **It is not.** Holding the aggregation fixed, the
+**causal** trailing geometry reaches **75.5%** and the non-causal forward geometry
+reaches **69.4%**. Looking ahead does not help this reproduction; it hurts it by 6.1
+points. **There is no benchmark artefact to subtract**, and D52 records that.
+
+#### Where the flyable reproduction stands
+
+`1a + 1b + 1c-ii`, defined in 26.27.2 before these numbers existed, is the causal
+pipeline and it is **the best arm measured**:
+
+```
+  recall      75.5%  against the paper's 80.0%    -- within 4.5 points
+  precision   44.3%  against 87.5%                -- 43.2 points short
+  ranges       221   against ~91                  -- 2.4x too many
+```
+
+**Recall is very nearly reproduced. Precision is not, and the range count says why**:
+the pipeline emits 221 candidate ranges where the paper's figures imply about 91. The
+remaining gap is entirely in **how many candidates survive**, not in how many events
+are found -- which is a different question from the one the last four rungs answered
+and it is not answered here.
+
+**No escalation.** 26.27.3 required the causal arm to be understood first; it now is,
+and the gate remains parity within tolerance, which 44.3% against 87.5% does not meet.
+All corrections stay in the study script and every ESA-ADB figure stands.
