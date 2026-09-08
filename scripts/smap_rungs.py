@@ -84,6 +84,19 @@ class Mech:
     inverse: bool = False       # errors.py:132-148  the reflected pass
     published_window: bool = False   # errors.py:84-93  adjust_window_size
     clip: bool = True           # errors.py:355-359. False = 1c-ii's unclipped union
+    #: A multiplier on epsilon. **A deviation from the source**, and the only
+    #: one here: the port emits a boolean decision with no dial, so matching it
+    #: to another arm's alarm rate (D41, D44) needs one introduced. 1.0 is the
+    #: published algorithm exactly; any other value is labelled as a deviation
+    #: wherever the arm is reported.
+    eps_mult: float = 1.0
+
+
+#: 27.8 measured arm L1 identical to A0, which is only a statement about the
+#: data if the conjunct can bind at all. `tests/test_smap_rungs_port.py` proves
+#: it can; these counters say how often it does on the real stream.
+CONJUNCT_BOUND = [0]
+CONJUNCT_TESTED = [0]
 
 
 def _groups(idx: np.ndarray) -> list[tuple[int, int]]:
@@ -180,9 +193,14 @@ def compare_to_epsilon(e_s, e_s_fwd, epsilon, y_win, window_num, batch_size,
         if not big_enough or not float(np.max(e_s_fwd)) > 0.05:
             return np.array([], dtype=np.int64), [], -1000000.0
 
-    above = e_s >= epsilon
+    above = e_s >= epsilon * mech.eps_mult
+    bound = 0
     if mech.magnitude:                                        # errors.py:342-343
-        above = above & (e_s > 0.05 * inter_range)
+        keep = above & (e_s > 0.05 * inter_range)
+        bound = int(above.sum() - keep.sum())   # how often the conjunct BINDS
+        above = keep
+    CONJUNCT_BOUND[0] += bound
+    CONJUNCT_TESTED[0] += 1
     i_anom = np.flatnonzero(above)
     if i_anom.size == 0:
         return np.array([], dtype=np.int64), [], -1000000.0
@@ -661,7 +679,12 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                                                         s["n_ranges"]).as_dict(),
                                 "precision_telemanom": Count(s["tp"],
                                                              s["tp"] + s["fp"]).as_dict(),
-                                "ranges": s["n_ranges"]})
+                                "ranges": s["n_ranges"],
+                                # 27.8: S1 and S2 could not be adjudicated because
+                                # the alarm sets were not retained. Ranges are the
+                                # set, compactly -- subset and superset checks read
+                                # straight off them.
+                                "alarm_ranges": mask_to_ranges(s["fired"])})
             offset += len(v["spans"])
         rate = flagged / max(1, nominal[cell][regime])
         results[name] = {
@@ -680,6 +703,35 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
               f"{100*tp/max(1,len(events[cell])):5.1f}%   ours {hits:3d}/{ranges:3d} "
               f"telemanom {tp:3d}/{tp+fp:3d} {100*tp/max(1,tp+fp):5.1f}%   "
               f"FP {fp:4d}   nominal {rate*100:7.4f}%")
+
+    # -- the structural checks, per channel (27.4 S1, S2) --------------------
+    def _mask(rows, arm, cid, n):
+        m = np.zeros(n, dtype=bool)
+        for r in rows:
+            if r["arm"] == arm and r["channel"] == cid:
+                for lo, hi in r["alarm_ranges"]:
+                    m[lo:hi] = True
+        return m
+
+    structural = {}
+    for lower, upper, kind in (("A0", "L1", "subset"), ("L1", "L2", "subset"),
+                               ("L2", "L3", "subset"), ("L3", "L4", "superset"),
+                               ("A0", "A2", "subset")):
+        if lower not in results or upper not in results:
+            continue
+        held, total = 0, 0
+        for cid, v in per_channel.items():
+            if results[lower]["cell"] not in v["built"]:
+                continue
+            a = _mask(per_ch_rows, lower, cid, v["n"])
+            b = _mask(per_ch_rows, upper, cid, v["n"])
+            ok = (not (b & ~a).any()) if kind == "subset" else (not (a & ~b).any())
+            held += int(ok); total += 1
+        structural[f"{upper}_{kind}_of_{lower}"] = [held, total]
+        print(f"  structural  {upper} {kind} of {lower}: {held}/{total}")
+
+    print(f"  magnitude conjunct bound on {CONJUNCT_BOUND[0]} indices "
+          f"across {CONJUNCT_TESTED[0]} window-passes")
 
     # -- the artifact, written BEFORE the ledger commit (75cc846) ------------
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
@@ -702,6 +754,9 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "events": {c: events[c] for c in cells},
         "stalls": stalls, "geometry": geometry,
         "weight_store": {"before": before, "after": after},
+        "structural_checks": structural,
+        "magnitude_conjunct": {"indices_removed": CONJUNCT_BOUND[0],
+                               "window_passes": CONJUNCT_TESTED[0]},
         "arms": results, "channels": per_ch_rows,
     }
     out["operations"] = budget.as_dict()

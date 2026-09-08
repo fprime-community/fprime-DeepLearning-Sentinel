@@ -804,3 +804,30 @@ that matches the paper's exactly on MSL, and five named mechanisms in the source
 that this stack does not implement. That is a better question than the one the
 ladder started with, and it was only reachable by getting the first one wrong in
 public.
+
+### The two bugs the smoke caught, and why they are worth a paragraph
+
+Work item 9.10 spent 7 Class B on a two-channel smoke before its 165-Class-B
+read, and the smoke's only stated purpose was to prove the weight-cache key still
+hit. Two defects were caught before a single operation was spent on the real run.
+
+**The fit context was dropping the channel id.** The new script built its
+`Context` with a literal placeholder where `scripts/smap_stage2.py` passes the
+channel. `context.channels` is the second element of the weight-cache key
+(`src/sentinel_models/detectors.py:421-424`), so every one of the **318 banked
+fits** would have missed, and the run would have silently refitted 152 models
+instead of reading them -- **D14's failure exactly**, which cost 45 minutes the
+first time and is still open as a decision. It was caught by reading the new
+`ctx_for` against the old one rather than by running anything.
+
+**The buffer dilation was quadratic.** Transcribing `errors.py:291-298` literally
+-- concatenate `i + arange(1, 100)` and `i - arange(1, 100)` for every exceeded
+index -- is correct and unusable: over twelve arms it is hours. Dilating the
+contiguous runs instead gives the identical set in linear time, which is the same
+argument `src/sentinel_models/telemanom.py:208-224` already makes for the same
+operation.
+
+**Neither would have announced itself.** The first produces correct numbers after
+an unnecessary hour of fitting and a weight store that has silently doubled; the
+second just looks like a slow script. The smoke was priced at 6 Class B in the
+pre-registration for the first of them, and it paid for itself twice.

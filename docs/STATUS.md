@@ -365,9 +365,29 @@ HOUSEKEEPING
       `channel_ratios`' 315-step opening suppression, which the measured `error_window`
       of **54 to 432** lets reach past the warm-up. Two faithful readings of the same
       prose differ by 2 events and 36 ranges.
-- [ ] **S1 and S2 were not computed** - a defect in the run's own instrument, not in the
-      arms. The per-channel structural stops must be instrumented before the next read.
-      **S3 held**: windows-per-index 3.0-7.2 proportional against 31.0 published.
+- [x] **The withheld arms released and adjudicated - 2026-09-08, zero new operations**
+      (`docs/MODELS.md` 27.9, D54). **The faithful port reproduces the paper's precision
+      and does not reproduce its recall**: F sits at **89.5% precision against 87.5%**,
+      on **4 false positives against a scaled target of 11**, and at **34.7% recall
+      against 80.0%**. That is the inverse of D50, where precision was 11.2 points short
+      and recall 35.1. On MSL, the one exactly like-for-like population, **the paper
+      catches 25 of 36 with 2 false alarms and this reproduction catches 3 with 1.**
+- [x] **The committed port supersedes the lost script (D54).** 1a+1b is now 57/98 and
+      62/110 against the recorded 59/98 and 65/146; 1c-ii is 74/98 and 100/237 against
+      74/98 and 98/221. Both kept everywhere. From here the port **is** 1a+1b and 1c-ii.
+- [ ] **D51 consequence 2 is discharged and the forecaster rungs open.** The candidate
+      count now matches - 38 predicted units against 96, 4 false positives against 12 -
+      so lookback, cell type, seed ensembles and epoch policy are reachable for the first
+      time. **What remains is the forecaster**, by elimination rather than by guess.
+- [ ] **S1 and S2 remain unadjudicated for that run** - a defect in the instrument, not
+      in the arms - and are **instrumented for the next**: per-channel alarm ranges are
+      retained in the artifact and the checks are computed in the script. **S3 held**:
+      windows-per-index 3.0-7.2 proportional against 31.0 published. **L1 is settled as
+      a property of the data**, not a transcription defect: `tests/test_smap_rungs_port.py`
+      builds windows where each mechanism must fire and shows it does.
+- [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
+      multiplier on epsilon - a deviation from the source, plumbed through and labelled,
+      and pre-registered before it is used.
 - [ ] **N1 refuted**, so the 38 still has no replacement: the port's nominal-step rate is
       1.5639% against stage 4's 0.6838%, and by 27.3's rule no comparison is drawn.
       **Stage 4's 10/38 stands unreplaced.**
@@ -425,7 +445,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (585 tests, zero R2 operations).
+  (591 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -439,7 +459,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 585 tests
+.venv/bin/python -m pytest -q                                    # 591 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1

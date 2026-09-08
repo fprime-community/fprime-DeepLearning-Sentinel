@@ -3486,3 +3486,94 @@ by a reader who was not there.
    source *was* read; the reading was not kept. A quotation whose original is not
    in the repository is an assertion with a line number on it, and this project
    spent four pre-registered rungs on a mechanism the source does not contain.
+
+---
+
+## D54. The committed port supersedes the lost script, and the faithful mechanisms reproduce the paper's precision while collapsing its recall
+
+**DATE** 2026-09-08 | **STATUS** resolved as a decision and a finding. It moves four
+published figures, opens the forecaster rungs D51 closed, and it deletes nothing
+
+**CONTEXT.** Work item 9.10's gate G1 refuted (`docs/MODELS.md` 27.8). The two arms
+exercising code in this repository reproduced exactly -- `telemanom.py` as-is at
+44/98 and 45/59, stage 4's swept arm at multiplier 0.551, 0.6820%, 47/100 and
+**10/38**. The two arms depending on the study script that was never committed did
+not: 57/98 and 110 ranges against a recorded 59/98 and 146, and 1c-ii's recall exact
+with its range count 16 out. The divergence was located in code that can be read
+(`telemanom.py:400-438`): series-level singleton dropping, and `channel_ratios`'
+315-step opening suppression, which the measured `error_window` of 54 to 432 lets
+reach past the warm-up. **Neither is a defect in either implementation.**
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-08T182416Z-wi910-port.json`, one
+read, cached weights, weight store +0.
+
+**Decision 1: the port is the record.** There are two faithful readings of "1a+1b"
+and only one of them has a source. The recorded figures are **superseded, not
+withdrawn**:
+
+```
+                    lost script      committed port
+    1a+1b          59/98, 65/146     57/98,  62/110
+    1c-ii          74/98, 98/221     74/98, 100/237
+```
+
+Both are kept everywhere either appears. **From here `1a+1b` and `1c-ii` mean the
+port**, and every figure derived from the lost script carries its provenance.
+
+**Decision 2: the withheld arms are released.** G1's stop said nothing else in the
+run is reported. With the record resolved, the remaining arms are adjudicated
+against 27.4's scaled target -- **78 TP and 11 FP** on this population -- under
+telemanom's own `TP/(TP+FP)` accounting:
+
+```
+    arm    set      recall              precision        FP    target FP
+    F      MSL      3/36    8.3%      3/4    75.0%        1        2
+    F      SMAP    31/62   50.0%     31/34   91.2%        3        9
+    F      Total   34/98   34.7%     34/38   89.5%        4       11
+    paper  Total   84/105  80.0%     84/96   87.5%       12
+```
+
+**The finding: the faithful port reproduces the paper's precision and does not
+reproduce its recall.** F2 held at the bottom of its band -- **4 false positives
+against a target of 11** -- and F3's precision half held at **89.5% against 87.5%**,
+better than the paper. F1 refuted badly: 34 true positives against a band of 70 to
+86. **On MSL, where the population matches the paper's exactly at 36, the paper
+catches 25 with 2 false alarms and this reproduction catches 3 with 1.**
+
+**This inverts D50.** There, precision reproduced within 11.2 points and recall was
+35.1 short. Here precision is 2 points **better** than published and recall is 45.3
+short. The five mechanisms bought every point of the precision gap and cost 23.5
+points of recall on the way.
+
+**ALTERNATIVES.** Keep the lost script's figures as the record and treat the port as
+a second opinion. Adopt the port and delete the old figures. Supersede, keeping both.
+
+**Against the first**: a figure whose generating code does not exist cannot be the
+record of a project whose rule is that a number is read from an artifact **and**
+reproducible. **Against the second**: `docs/HARNESS.md` 5a requires both numbers
+whenever one moves, and the two readings differing is itself the evidence.
+
+**CONSEQUENCE.**
+
+1. **Four figures are superseded and kept.** `docs/MODELS.md` 26.22, 26.24, 26.26,
+   26.28 and D51, D52 keep their values with the port's beside them.
+2. **D51 consequence 2 is discharged, and the forecaster rungs open.** It closed
+   lookback, cell type and seed ensembles "until the candidate count matches the
+   paper's". **It now does**: 38 predicted units against the paper's 96, and 4 false
+   positives against 12. Whatever remains is upstream of the detection stack.
+3. **The remaining gap is the forecaster, by elimination rather than by guess.**
+   Same population, same pruning constant, same published mechanisms, same scoring
+   rule: 3 of 36 against 25 of 36 on MSL. Everything downstream of the residual has
+   now been read from the source and implemented.
+4. **Stage 4's 10/38 stands unreplaced.** `FG`'s nominal-step rate is 1.5639%
+   against 0.6838%, and the port has **no dial** -- it emits a boolean decision --
+   so a matched-rate comparison needs a multiplier on epsilon, which is a deviation
+   from the source and is pre-registered as one before it is used.
+5. **L1 is a property of the data, not a transcription defect.**
+   `tests/test_smap_rungs_port.py` builds windows where each mechanism must fire and
+   shows it does. The next read counts how often the conjunct binds on the real
+   stream.
+6. **It generalises.** A reproduction can be made faithful mechanism by mechanism,
+   reach the published precision exactly, and still miss two thirds of the events --
+   because faithfulness in the decision layer cannot recover what the forecaster did
+   not see.

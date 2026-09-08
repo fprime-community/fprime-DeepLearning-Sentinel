@@ -7278,3 +7278,89 @@ binds and removes nothing.
 `src/sentinel_models/telemanom.py` is untouched. No ESA-ADB figure moves. Stage
 4's `10/38` stands. `docs/RESULTS.md` gains nothing from this run, because a run
 whose gate refuted has no result to put in a scorecard.
+
+### 27.9 The withheld arms, released and adjudicated (D54)
+
+27.8's stop said nothing else in the run is reported. D54 resolves the record --
+the committed port supersedes the lost script, both figures kept -- so the
+remaining arms are adjudicated here. **Zero new operations: every number is read
+from `runs/smap-msl/_forensics/2026-09-08T182416Z-wi910-port.json`.**
+
+**MSL first, because it is the only like-for-like population**: all six D17
+stalls are SMAP's, so our MSL denominator equals the paper's at 36.
+
+```
+   arm   set     recall            precision (TP/(TP+FP))     FP   target FP
+   A5    MSL     6/36   16.7%      6/10    60.0%               4        2
+   A5    SMAP   39/62   62.9%     39/56    69.6%              17        9
+   A5    Total  45/98   45.9%     45/66    68.2%              21       11
+   L2    MSL    15/36   41.7%     15/41    36.6%              26        2
+   L2    Total  51/98   52.0%     51/94    54.3%              43       11
+   L3    MSL     7/36   19.4%      7/15    46.7%               8        2
+   L3    Total  43/98   43.9%     43/68    63.2%              25       11
+   L4    MSL     7/36   19.4%      7/16    43.8%               9        2
+   L4    Total  44/98   44.9%     44/71    62.0%              27       11
+   L5    MSL     5/36   13.9%      5/6     83.3%               1        2
+   L5    Total  38/98   38.8%     38/43    88.4%               5       11
+   F     MSL     3/36    8.3%      3/4     75.0%               1        2
+   F     SMAP   31/62   50.0%     31/34    91.2%               3        9
+   F     Total  34/98   34.7%     34/38    89.5%               4       11
+   FG    MSL     3/36    8.3%      3/4     75.0%               1        2
+   FG    Total  39/100  39.0%     39/42    92.9%               3       11
+   paper MSL    25/36   69.4%     25/27    92.6%               2
+   paper Total  84/105  80.0%     84/96    87.5%              12
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **F2** | **the commissioned number.** F's false positives fall to 4 to 25, central 11, from 81 | **4** | **HELD**, at the bottom of the band |
+| **F3** | F within 12 points of 87.5% precision and 80.0% recall | precision **89.5%**, recall **34.7%** | **precision HELD and exceeded; recall REFUTED by 33 points** |
+| **F1** | F reaches 70 to 86 TP on 98 | **34** | **REFUTED, and badly** |
+| **F4** | F and L5 differ by 5 or fewer false positives | 4 against 5 | **HELD** |
+| **L1** | FP falls to 55 or fewer | 48, and **identical to A0 in every cell** | Held numerically; see below |
+| **L2** | FP to 40 or fewer | 43 | **REFUTED**, by three |
+| **L3** | FP to 28 or fewer | 25 | **HELD** |
+| **L4** | FP rises by 10 or fewer and TP rises by 2 or more | FP +2, TP **+1** | **half held, half REFUTED** |
+| **L5** | FP to 20 or fewer | 5 | **HELD**, by a wide margin |
+| **S3** | windows-per-index 8 or fewer proportional, 25 or more published | 3.0 to 7.2, and 31.0 | **HELD** |
+| **N1** | FG's nominal rate at or below 0.6838% | **1.5639%** | **REFUTED.** No comparison drawn |
+
+#### What this says, and it is the inverse of D50
+
+**The faithful port reproduces the paper's precision and does not reproduce its
+recall.** F sits at **89.5% against 87.5%** -- two points better than published,
+on 4 false positives against a scaled target of 11 -- and at **34.7% recall
+against 80.0%**.
+
+D50 measured the opposite shape: precision within 11.2 points and recall 35.1
+short. **Implementing the five mechanisms bought the whole precision gap and cost
+23.5 points of recall**, from A0's 58.2% to 34.7%. The ladder shows where: L3's
+guards cost 8.1 points of recall for 18 false positives, and L5's window regime
+cost another 5.1 for 20 more.
+
+**On MSL the comparison is exact and it is stark**: the paper catches **25 of 36
+with 2 false alarms**; this reproduction catches **3 of 36 with 1**.
+
+#### The consequence D51 held back
+
+D51 consequence 2 closed the forecaster rungs "until the candidate count matches
+the paper's -- 146 against ~91 today". **It now matches**: 38 predicted units
+against 96, and 4 false positives against 12. Every stage downstream of the
+residual has been read from the source and implemented. **What remains is the
+forecaster**, reached by elimination rather than by guess, and D54 opens those
+rungs.
+
+#### Three instrument facts, recorded rather than glossed
+
+1. **`L1` is a property of the data.** `tests/test_smap_rungs_port.py` builds a
+   window where the magnitude conjunct must fire and shows it does, and a control
+   where it must not and shows it does not. The transcription is right, so
+   `L1 == A0` says the conjunct never binds on this stream. **How often it binds
+   is now counted** and reported by the next read.
+2. **S1 and S2 remain unadjudicated for this run** and are instrumented for the
+   next: per-channel alarm ranges are retained in the artifact, and the subset and
+   superset checks are computed in the script.
+3. **The port has no dial.** It emits a boolean decision, so matching its alarm
+   rate to stage 4's 0.6838% needs a multiplier on epsilon -- **a deviation from
+   the source**, plumbed through as `Mech.eps_mult` and labelled wherever it is
+   used. It is not exercised here; the arm that uses it is pre-registered first.
