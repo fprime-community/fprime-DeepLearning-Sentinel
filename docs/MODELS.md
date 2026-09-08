@@ -7149,3 +7149,132 @@ adopting a partial fix would have cost.
 **None of them is registered here.** D51 consequence 2 stands: the forecaster
 levers stay closed until the candidate count matches, and F is what decides
 whether it does.
+
+### 27.8 OBSERVED -- G1 is refuted, the stop fires, and the gate splits exactly along the committed line
+
+**2026-09-08. One read, 165 Class B and 1 Class A**, preceded by a 2-channel
+smoke at 7 Class B and 1 Class A. Cached weights, **weight store +0** on both,
+about two minutes. Artifact
+`runs/smap-msl/_forensics/2026-09-08T182416Z-wi910-port.json`; the smoke is
+`2026-09-08T182155Z-wi910-port.json`.
+
+**Populations are exactly what 26.30.3 predicted**, which is the first thing the
+run settles: LSTM 75 channels, 98 sequences, **37** in-range contextual; GRU 77,
+100, **38**. The six LSTM stalls and four GRU stalls are the recorded ones.
+
+#### G1, cell by cell
+
+```
+   arm  exercises                            measured            recorded
+   A1   src/sentinel_models/telemanom.py     44/98,  45/59       44/98,  45/59     EXACT
+   A3   stage 4's swept arm                  0.551, 0.6820%,     0.551, 0.6820%,
+                                             47/100, 10/38       47/100, 10/38     EXACT
+   A0   the lost rung script (1a+1b)         57/98,  62/110      59/98,  65/146    REFUTED
+   A2   the lost rung script (1c-ii)         74/98, 100/237      74/98,  98/221    recall exact,
+                                                                                   ranges REFUTED
+```
+
+**G1 is REFUTED and the pre-registered stop fires. Nothing else in this run is
+reported as a result.** The ladder arms, the port and the 38 re-measurement are
+recorded in the artifact and adjudicated against nothing.
+
+#### (!) The gate splits exactly along the committed/uncommitted line
+
+This was not predicted and it is the most useful thing the run produced.
+
+- **Both gates that exercise code in this repository reproduce to the digit.**
+  A1 runs `ForecastDetector.score` through `src/sentinel_models/telemanom.py`
+  unchanged. A3 replicates `scripts/smap_stage2.py:265-289`'s sweep and hits the
+  multiplier, the alarm rate, the 100-population count **and 10/38** exactly.
+  So the bundle load, the weights, the scorable masks, the event populations,
+  the P-2 dedup, the D17 stall set and both scoring rules are all correct.
+- **Both gates that depend on the study script deleted in 26.29's window do
+  not.** A0 misses by 2 events and 36 ranges; A2 reproduces its recall exactly
+  and misses its range count by 16.
+
+**The failure is isolated to the half that has no source to be checked against,
+and that is `docs/NARRATIVE.md` 11's finding arriving as a measurement rather
+than an argument.**
+
+#### The divergence, located in code that can be read
+
+The lost script implemented 1a and 1b **on top of `channel_ratios`** and 1c-ii by
+removing its clip. This port implements them on top of telemanom's own loop.
+Reading `src/sentinel_models/telemanom.py:400-438` beside `run_ladder`, two
+differences are visible and both point the way the numbers moved:
+
+1. **Series-level singletons.** telemanom drops one-index groups **twice** --
+   per window (`errors.py:304`, `:375`) and again over the accumulated set
+   (`errors.py:159-160`) -- and this port does both. `channel_ratios` drops only
+   the first, because it writes spans into a mask and never regroups. **Fewer
+   ranges and fewer catches**, which is the direction A0 moved.
+2. **The opening suppression.** `channel_ratios:435-437` forces the first
+   `3 * smoothing_window = 315` steps below the operating point. Its comment
+   says the harness's warm-up already discards a longer prefix -- but the
+   measured `error_window` on this dataset runs from **54** to 432, so the
+   warm-up is 304 to 682 steps and on the shortest-window channels **the
+   suppression reaches past it**. That is 26.30.2's regime finding turning up
+   in a third place.
+
+**Neither difference is a defect in either implementation.** Both are faithful
+readings of "1a+1b" as the documents describe it, and they differ by 2 events
+and 36 ranges. **A prose description of a correction does not determine an
+implementation**, which is the sharper form of D53 consequence 7.
+
+#### S3 held; S1 and S2 could not be adjudicated, and that is a defect in this script
+
+**S3 holds.** Windows-per-index measured **3.0 to 7.2** on the proportional arms
+against the predicted 8 or fewer, and **31.0** on the published arms against 25
+or more. 26.30.2's arithmetic is confirmed by measurement, and the measured
+`error_window` range of **54 to 432** against an `error_buffer` of 100 and an
+EWMA span of 105 is starker than 26.30.2 stated: on the shortest channels one
+buffered exceedance is **four times** the whole error window.
+
+**S1 and S2 are unadjudicated.** They were pre-registered as per-channel
+structural stops and **this script does not compute them** -- the alarm masks are
+not retained, so they cannot be recovered from the artifact either. That is a
+defect in the instrument, recorded rather than skipped, and the next run
+instruments them before anything else.
+
+#### N1 refuted, so the 38 has no comparable figure either
+
+`FG`'s pooled nominal-step rate is **1.5639%**, above stage 4's 0.6838%. By
+27.3's own rule the count is reported **unmatched and no comparison is drawn**,
+which is the fourth time this study has withdrawn a comparison rather than
+report one at mismatched rates (V22, V23 twice, and here). **Stage 4's 10/38
+stands unreplaced.**
+
+#### The rest of the run, recorded and void
+
+Reported because measured numbers are not hidden, and adjudicated against
+nothing because G1 fired.
+
+```
+   arm  cell regime  recall          ours        telemanom      FP   nominal
+   A0   lstm prop   57/98  58.2%    62/110    57/105  54.3%     48   14.1945%
+   A1   lstm prop   44/98  44.9%    45/59     44/58   75.9%     14    0.7957%
+   A2   lstm prop   74/98  75.5%   100/237    74/211  35.1%    137   26.4551%
+   A3   gru  prop   47/100 47.0%    48/61     47/60   78.3%     13    0.6820%
+   A4   gru  prop   75/100 75.0%   103/229    75/201  37.3%    126   24.1091%
+   A5   lstm pub    45/98  45.9%    53/74     45/66   68.2%     21   16.9384%
+   L1   lstm prop   57/98  58.2%    62/110    57/105  54.3%     48   14.1945%
+   L2   lstm prop   51/98  52.0%    56/99     51/94   54.3%     43    1.7638%
+   L3   lstm prop   43/98  43.9%    46/71     43/68   63.2%     25    1.3940%
+   L4   lstm prop   44/98  44.9%    52/79     44/71   62.0%     27    1.4488%
+   L5   lstm pub    38/98  38.8%    42/47     38/43   88.4%      5    1.4198%
+   F    lstm pub    34/98  34.7%    42/46     34/38   89.5%      4    1.4424%
+   FG   gru  pub    39/100 39.0%    48/51     39/42   92.9%      3    1.5639%
+   paper                   80.0%              84/96   87.5%     12
+```
+
+**`L1` is identical to `A0` in every cell**, so the magnitude conjunct changed
+nothing at all on this data. Whether that is a property of the data or a defect
+in the transcription is **not settled here** and is the first thing the next run
+must separate -- an arm that provably cannot bind is not the same as one that
+binds and removes nothing.
+
+#### No escalation, and no figure moves
+
+`src/sentinel_models/telemanom.py` is untouched. No ESA-ADB figure moves. Stage
+4's `10/38` stands. `docs/RESULTS.md` gains nothing from this run, because a run
+whose gate refuted has no result to put in a scorecard.

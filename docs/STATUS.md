@@ -350,11 +350,27 @@ HOUSEKEEPING
       (36 to 36) and the gap is **2 against 58**. Five mechanisms in the source are not
       implemented here: a magnitude conjunct, a whole-window bail-out, the two
       `find_epsilon` guards (deviation 8), an inverse pass, and `adjust_window_size`.
-- [ ] **Work item 9.10 pre-registered, not run** (`docs/MODELS.md` 27). Twelve arms in
-      one read: four reproduction gates, a regime control, a cumulative five-rung ladder,
-      and a **complete faithful port** as the reference ceiling. Target on this
-      population **78 TP and 11 FP**, scaled from the paper's 84 and 12 before the run.
-      Stop if false positives exceed 25, with the missing mechanism named from the source.
+- [x] **Work item 9.10 - run 2026-09-08, and its gate refuted** (`docs/MODELS.md` 27.8),
+      1 Class A and 165 Class B, weight store **+0**. **G1 failed and the stop fired, and
+      the way it failed is the result.** The two gates exercising code in this repository
+      reproduce **exactly** - `telemanom.py` as-is at 44/98 and 45/59, and stage 4's swept
+      arm at multiplier 0.551, 0.6820%, 47/100 and **10/38**. The two gates depending on
+      the study script that was never committed do **not**: 1a+1b measured 57/98 and 110
+      ranges against a recorded 59/98 and 146, and 1c-ii reproduced its recall exactly and
+      missed its range count by 16. The failure is isolated to the half with no source to
+      check against. Populations confirmed at 37 of 98 (LSTM) and 38 of 100 (GRU).
+- [ ] **The divergence is located and is not a defect in either implementation**
+      (27.8). The lost script built 1a+1b on `channel_ratios`; this port builds it on
+      telemanom's own loop. They differ in series-level singleton dropping and in
+      `channel_ratios`' 315-step opening suppression, which the measured `error_window`
+      of **54 to 432** lets reach past the warm-up. Two faithful readings of the same
+      prose differ by 2 events and 36 ranges.
+- [ ] **S1 and S2 were not computed** - a defect in the run's own instrument, not in the
+      arms. The per-channel structural stops must be instrumented before the next read.
+      **S3 held**: windows-per-index 3.0-7.2 proportional against 31.0 published.
+- [ ] **N1 refuted**, so the 38 still has no replacement: the port's nominal-step rate is
+      1.5639% against stage 4's 0.6838%, and by 27.3's rule no comparison is drawn.
+      **Stage 4's 10/38 stands unreplaced.**
 - [ ] (superseded 2026-09-08) **The remaining gap is precision, not recall**: 221 candidate ranges against ~91.
       A question about how many candidates survive, which the four rungs so far have not
       addressed. Named, not run.
@@ -409,7 +425,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (584 tests, zero R2 operations).
+  (585 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -423,7 +439,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 584 tests
+.venv/bin/python -m pytest -q                                    # 585 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1
