@@ -7364,3 +7364,129 @@ rungs.
    rate to stage 4's 0.6838% needs a multiplier on epsilon -- **a deviation from
    the source**, plumbed through as `Mech.eps_mult` and labelled wherever it is
    used. It is not exercised here; the arm that uses it is pre-registered first.
+
+## 28. Pre-registration: the training reproduction (work item 9.11)
+
+**Written and committed before a single figure is computed.** D54 discharged D51
+consequence 2: the candidate count now matches -- 38 predicted units against 96,
+4 false positives against 12 -- and 89.5% precision against 87.5%. Everything
+downstream of the residual has been read from the source and implemented, and
+recall is still 45.3 points short. **What remains is the forecaster, and this
+section reads its training from the source before touching it.**
+
+### 28.1 Every training difference, read from `third_party/telemanom/`
+
+`telemanom/modeling.py` and `telemanom/channel.py` and `config.yaml`, end to end.
+**Ours** is `src/sentinel_models/lstm.py` and `windows.py`.
+
+| # | Stage | telemanom | ours | Effect |
+|---|---|---|---|---|
+| **T-a** | **prediction aggregation** | `aggregate_predictions(y_hat_batch)` -- **`method='first'` by default** (`modeling.py:113`, called with no method at `:172`), so the forecast for a timestep is the **single one-step-ahead prediction** | `windows.aggregate_predictions` averages up to ten predictions, and its docstring says *"telemanom averages them"* (`windows.py:214`) | **Ours smooths the residual with a ten-fold average.** Directly damps the sharp excursions the detector exists to find. **The largest single difference found** |
+| **T-b** | **training batch size** | `lstm_batch_size: 64` (`config.yaml`, used at `modeling.py:99`) | `batch_size: int = 70  # published` (`lstm.py:93`) | **70 is `batch_size`, the *error-window* batch, not the training one.** Two different published constants conflated |
+| **T-c** | **early stopping bar** | `min_delta: 0.0003`, absolute, no restore (`modeling.py:72-75`) | `min_improvement: 0.001`, a **fraction of the standing best**, with `restore_best=True` (`lstm.py:110-140`) | D17 replaced the absolute constant because ESA-ADB validation MSE is ~1e-4 and the bar went negative. **SMAP/MSL is pre-scaled to (-1,1)**, so the absolute constant may be correct here and D17's finding may not transfer. **Tested, not assumed** |
+| **T-d** | **validation split** | `validation_split=0.2` over windows **pre-shuffled** by `np.random.shuffle` (`channel.py:62`), so a random 20% | the **chronological tail** (`lstm.py:118-119`, HARNESS section 3) | Ours is the harder and more honest split; theirs is what the published numbers were produced on |
+| **T-e** | **epoch definition** | 35 epochs over **every** window of the channel | a per-fold **sequence budget**, one sequence per 180 usable steps (`lstm.py:123-131`) | Written for ESA-ADB's millions of steps. On a 2,690-step SMAP channel the budget is a fraction of an epoch |
+| **T-f** | **inputs** | `X` is **all columns** -- telemetry **and** the one-hot commands -- while `y` is column 0 only (`channel.py:63-67`) | telemetry only on every SMAP/MSL arm to date | **The published model is command-conditioned.** D6/D49 measured commands hurting on the GRU-quantile path; the paper's own numbers were produced with them |
+| **T-g** | **target length** | `y_test` has `len(test) - l_s - n_predictions` rows (`channel.py:55`), and the `+ l_s` shift restores original coordinates (`errors.py:165`) | the port used `e_s[l_s:]`, which is `n - l_s` | Off by `n_predictions = 10` at the tail. Small, real, and corrected in this arm |
+| **T-h** | **weight restoration** | Keras `EarlyStopping` stops and does **not** restore | `restore_best=True` (`lstm.py:139`) | Ours is the better estimator and is not what produced Table 2 |
+
+**Confirmed identical, checked rather than assumed:** `l_s = 250`,
+`layers = [80, 80]`, `dropout = 0.3` after **each** recurrent layer
+(`modeling.py:83,88`, matched by `nn.LSTM(dropout=...)` plus `self.drop`),
+`n_predictions = 10`, `epochs = 35`, `patience = 10`, loss `mse`, optimizer
+`adam` at Keras's default 1e-3, a linear output activation, and **no
+normalisation anywhere** -- the arrays ship pre-scaled and `channel.py` does not
+touch them, which is D2's identity rule by coincidence rather than by agreement.
+
+### 28.2 Arm T, and how it is built without moving an ESA-ADB figure
+
+**Arm T is the published training configuration**: T-a through T-h all set to
+telemanom's values, all 81 channels refit, scored under **Arm F's already-verified
+alarm stack** and adjudicated under telemanom's own accounting.
+
+**It changes eight things at once, and that is deliberate.** The one-lever rule
+governs improvement arms; this is a **reproduction** arm, and reproducing a
+configuration one constant at a time would take eight reads to answer a question
+one read can. **The decomposition ladder is what follows if T lands**, and 28.5
+names it.
+
+**Implementation.** The published values become **additive fields on `Hyper`**,
+defaulting to today's behaviour and **emitted into the cache key only when
+non-default** -- D14's own prescription, and the way `Hyper.cell` was added for
+the GRU without moving the twelve banked LSTM fits. `src/sentinel_models/telemanom.py`
+is untouched (D8). **A test pins the existing ESA-ADB weight digests and
+fingerprints unmoved**, as `tests/test_lstm_detector.py` already does for the
+GRU's field; if any moves, the change is reverted and reported before anything
+runs.
+
+### 28.3 PREDICTED
+
+The target is 27.4's, unchanged: **78 TP and 11 FP** on this population, scaled
+from the paper's 84 and 12 before any of this was measured. Arm F reached **34 TP
+and 4 FP**.
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **T1** | **the commissioned number.** Arm T reaches **55 to 85 TP** on 98, central 70, against Arm F's 34 | outside the band. **Below 55 is the falsification**: the training configuration would then not be the remaining gap, and **the next training difference is named from the source before anything else runs** -- the rule 1a and 1b were held to |
+| **T2** | precision under telemanom's accounting **holds at or above 70%**, from 89.5% | below 70%. Recovering recall must cost some precision; T2 says how much before the arm is a trade rather than a reproduction |
+| **T3** | **the aggregation is the mechanism.** Whatever T1 gains, **more than half of it** survives when only T-a is applied | half or less, which would put the gain in the split, the epoch definition or the commands and make T-a a passenger. Measured in the decomposition ladder, not here |
+| **T4** | **D17 does not transfer to this scale.** With the published absolute `min_delta = 0.0003` on (-1,1) data, **20 or fewer** of 81 channels keep their first epoch | more than 20, which would say the absolute constant fails here too and D17's replacement is right on both datasets. **Either outcome is a finding about dimensionless constants** |
+| **T5** | **structural, and a stop.** Every banked ESA-ADB weight digest and published fingerprint is **unmoved** by the `Hyper` additions | any moving. **A stop**, and the change is reverted before anything runs |
+
+**Deliberately not predicted.** Whether parity is reached. Whether commands help
+or hurt -- D49 answered that for `gru-quantile` under a static threshold, and this
+is a different architecture under a different decision layer, so quoting D49 here
+would be reusing an answer to a different question.
+
+### 28.4 The named risk
+
+**The risk is that a faithful retrain is a licence to change eight things and
+claim whichever number arrives.** What limits it: T1's band is stated with a
+falsification and a consequence; T3 commits in advance to which mechanism should
+carry the gain, so a right answer for the wrong reason is visible; T4 is a
+prediction **against** this project's own D17, written to be able to lose; and T5
+is a structural stop that fires before any figure exists.
+
+**The second risk is that Arm F's stack is now load-bearing.** T is scored under
+it, so a defect there would be attributed to training. F reproduced the paper's
+precision to two points, which is the evidence it is sound, and 27.9's three
+instrument facts are already recorded against it.
+
+### 28.5 Cost, the compute plan, and stop-and-report
+
+**This arm refits, and that is the first time this study has.** Reads: **165 Class
+B and 1 Class A**, one bundle load. Month stands at **187 Class A and 2,263 Class
+B** of 50,000 and would end at **188 and 2,428**.
+
+**The weight store grows, and by how much is pre-registered: +81**, one per
+channel, or fewer if D17's guard refuses some. That is expected rather than a
+trigger, and it is the first run in this study where a non-zero growth is correct.
+
+**Local compute is measured before it is committed to.** A **3-channel timing
+smoke** runs first, at about 8 Class B, and its measured per-fit wall clock is
+reported **before** the 81-channel fit starts. Command inputs widen the first
+layer from 1 to 25 (SMAP) or 55 (MSL) columns, and full-epoch training replaces
+the sequence budget, so the stage-5 figure of about 15 minutes for 81 LSTM fits
+is **not** a valid estimate and is not used as one. If the measured projection
+exceeds **one hour**, the serial/parallel-local/rented options are put with
+honest numbers and the choice is made then, not assumed now.
+
+**Stop and report** if: T5 is refuted; T1 falls below 55, in which case the next
+training difference is named from the source before anything else runs; the weight
+store grows by more than 81; or the run exceeds 200 Class B.
+
+### 28.6 What follows, named and not run
+
+**On parity** -- T within tolerance of 78 TP and 11 FP under telemanom's
+accounting -- the corrections escalate as **one D8 correctness fix**, both numbers
+kept, every ESA-ADB `lstm-telemanom` figure re-stated from new artifacts.
+
+**Then the decomposition ladder**, one lever each, against 78/11: T-a alone, then
+the split, the epoch definition, and the commands. **Then the surpass ladder**:
+the GRU against the LSTM, a seed ensemble, and an adaptive window.
+
+**Then, and only then, `FG` at a matched rate**, using `Mech.eps_mult` swept to
+stage 4's 0.6838% -- **a labelled deviation from the source**, pre-registered as
+one, to re-measure the 38 that stage 4 left at 10 and 27.9 could not replace.
+
+**None of it is registered here.**

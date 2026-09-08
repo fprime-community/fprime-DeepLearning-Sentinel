@@ -394,6 +394,21 @@ HOUSEKEEPING
       actually holds, so the two are compatible and the section says so. **Phase 3's
       physics testbed is now the only venue** for the cross-channel claim, not a
       convenience. Verified citation by citation; what could not be verified is marked.
+- [ ] **Work item 9.11 pre-registered, not run** (`docs/MODELS.md` 28): the training
+      reproduction. Eight training differences read from `third_party/telemanom/`
+      `modeling.py`, `channel.py` and `config.yaml`, and the largest is **T-a**:
+      telemanom's `aggregate_predictions` defaults to **`method='first'`** and is called
+      with no method, so its forecast is the **single one-step-ahead prediction** - where
+      ours averages ten, and `windows.py:214` says telemanom averages them. **Ours
+      smooths the residual tenfold.** Also located: `lstm_batch_size` 64 against our 70
+      (two different published constants conflated), a random rather than chronological
+      validation split, a per-fold sequence budget where the paper trains full epochs,
+      **command inputs the paper used and we never have**, an off-by-`n_predictions`
+      target length, and weight restoration the paper does not do. **T4 predicts against
+      our own D17**: on (-1,1)-scaled data the published absolute `min_delta` may be
+      correct, and 20 or fewer of 81 channels should stall. This arm **refits**, so the
+      weight store grows by a pre-registered +81 and a 3-channel timing smoke reports
+      per-fit wall clock before the full fit starts.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.
