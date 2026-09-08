@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import collections
 import csv
 import io
 import json
@@ -107,6 +108,16 @@ class Mech:
 CONJUNCT_BOUND = [0]
 CONJUNCT_TESTED = [0]
 
+#: 29.1's instrument. Reset per channel; every guard records how often it fired,
+#: recorded whatever the outcome so the diagnosis is not a second run's job.
+GUARDS = {}
+
+
+def reset_guards():
+    GUARDS.clear()
+    GUARDS.update(bailout=0, magnitude=0, seq_cap=0, coverage=0,
+                  windows=0, fallback=0)
+
 
 def _groups(idx: np.ndarray) -> list[tuple[int, int]]:
     """`mit.consecutive_groups`, then `[(g[0], g[-1]) for g in groups]`.
@@ -157,6 +168,7 @@ def find_epsilon(e_s, mean_e_s, sd_e_s, error_buffer, mech: Mech):
     """
     epsilon = mean_e_s + SD_LIM * sd_e_s          # errors.py:252-253, the fallback
     max_score = -10000000.0
+    chosen = False
     n = e_s.shape[0]
     for z in np.arange(Z_FLOOR, SD_LIM, Z_STEP):
         eps = mean_e_s + sd_e_s * z
@@ -172,10 +184,20 @@ def find_epsilon(e_s, mean_e_s, sd_e_s, error_buffer, mech: Mech):
         # errors.py:314-315. The two guards are deviation 8; L3 turns them on.
         ok = score >= max_score
         if mech.guards:
+            if score >= max_score and len(E_seq) > 5:
+                GUARDS["seq_cap"] = GUARDS.get("seq_cap", 0) + 1
+            if score >= max_score and i_anom.size >= (n * 0.5):
+                GUARDS["coverage"] = GUARDS.get("coverage", 0) + 1
             ok = ok and len(E_seq) <= 5 and i_anom.size < (n * 0.5)
         if ok:
             max_score = score
+            chosen = True
             epsilon = mean_e_s + z * sd_e_s
+    GUARDS["windows"] = GUARDS.get("windows", 0) + 1
+    if not chosen:
+        # Nothing was admissible, so epsilon stays at telemanom's sd_lim
+        # fallback (errors.py:252) -- a bar almost nothing clears.
+        GUARDS["fallback"] = GUARDS.get("fallback", 0) + 1
     return float(epsilon)
 
 
@@ -200,6 +222,7 @@ def compare_to_epsilon(e_s, e_s_fwd, epsilon, y_win, window_num, batch_size,
         big_enough = (sd_e_s > 0.05 * sd_values
                       or float(np.max(e_s_fwd)) > 0.05 * inter_range)
         if not big_enough or not float(np.max(e_s_fwd)) > 0.05:
+            GUARDS["bailout"] = GUARDS.get("bailout", 0) + 1
             return np.array([], dtype=np.int64), [], -1000000.0
 
     above = e_s >= epsilon * mech.eps_mult
@@ -207,6 +230,8 @@ def compare_to_epsilon(e_s, e_s_fwd, epsilon, y_win, window_num, batch_size,
     if mech.magnitude:                                        # errors.py:342-343
         keep = above & (e_s > 0.05 * inter_range)
         bound = int(above.sum() - keep.sum())   # how often the conjunct BINDS
+        if bound:
+            GUARDS["magnitude"] = GUARDS.get("magnitude", 0) + 1
         above = keep
     CONJUNCT_BOUND[0] += bound
     CONJUNCT_TESTED[0] += 1
@@ -281,7 +306,8 @@ def _one_window(e_s_win, y_win, window_num, batch_size, num_to_ignore,
     return np.unique(np.concatenate(found))                    # errors.py:147-148
 
 
-def run_port(e_s_full, y_full, error_buffer, p, tail=0):
+def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
+             alarm_len=None):
     """errors.py:111-168, `process_batches`, with `adjust_window_size`.
 
     Operates in telemanom's own coordinates: `y_test` is the raw series offset by
@@ -289,13 +315,21 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0):
     """
     # 28.1 T-g: `y_test` has `len - l_s - n_predictions` rows (channel.py:55),
     # so the covered raw span is [l_s, len - n_predictions). `tail` carries it.
-    stop = len(e_s_full) - tail if tail else len(e_s_full)
-    e_s = np.asarray(e_s_full[L_S:stop], dtype=np.float64)
-    y = np.asarray(y_full[L_S:stop], dtype=np.float64)
+    if presliced:
+        # 29.1: the residual rung already produced the supervised series.
+        e_s = np.asarray(e_s_full, dtype=np.float64)
+        y = np.asarray(y_full, dtype=np.float64)
+        total = int(alarm_len)
+    else:
+        stop = len(e_s_full) - tail if tail else len(e_s_full)
+        e_s = np.asarray(e_s_full[L_S:stop], dtype=np.float64)
+        y = np.asarray(y_full[L_S:stop], dtype=np.float64)
+        total = len(e_s_full)
     n = y.shape[0]
-    alarm = np.zeros(y_full.shape[0], dtype=bool)
+    alarm = np.zeros(total, dtype=bool)
+    eps_at = np.full(total, np.nan)
     if n <= BATCH_SIZE:
-        return alarm, 0, WINDOW_SIZE
+        return alarm, 0, WINDOW_SIZE, eps_at
 
     window_size = WINDOW_SIZE                                  # errors.py:84-93
     n_windows = int((n - BATCH_SIZE * window_size) / BATCH_SIZE)
@@ -303,7 +337,7 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0):
         window_size -= 1
         n_windows = int((n - BATCH_SIZE * window_size) / BATCH_SIZE)
         if window_size == 1 and n_windows < 0:
-            return alarm, 0, window_size
+            return alarm, 0, window_size, eps_at
 
     num_to_ignore = L_S * 2                                    # errors.py:262-267
     if n < 2500:
@@ -317,19 +351,24 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0):
         idx = (window_size * BATCH_SIZE) + (i * BATCH_SIZE)
         if i == n_windows:
             idx = n
-        survivors = _one_window(e_s[prior_idx:idx], y[prior_idx:idx], i,
+        full = Mech(magnitude=True, bailout=True, guards=True,
+                    inverse=True, published_window=True, clip=True)
+        win = e_s[prior_idx:idx]
+        eps = find_epsilon(win, float(np.mean(win)), float(np.std(win)),
+                           error_buffer, full)
+        judged = slice(prior_idx + (num_to_ignore if i == 0 else len(win) - BATCH_SIZE),
+                       idx)
+        eps_at[L_S + judged.start:L_S + judged.stop] = eps
+        survivors = _one_window(win, y[prior_idx:idx], i,
                                 BATCH_SIZE, num_to_ignore, accumulated,
-                                prior_idx, error_buffer, p,
-                                Mech(magnitude=True, bailout=True, guards=True,
-                                     inverse=True, published_window=True, clip=True),
-                                None)
+                                prior_idx, error_buffer, p, full, None)
         if survivors.size:
             accumulated = np.append(accumulated, survivors + prior_idx)
 
     if accumulated.size:
         for a, b in _drop_singletons(_groups(np.unique(accumulated))):
             alarm[a + L_S:b + 1 + L_S] = True                  # errors.py:159-166
-    return alarm, n_windows + 1, window_size
+    return alarm, n_windows + 1, window_size, eps_at
 
 
 def run_ladder(e_s_full, y_full, cfg, p, mech: Mech):
@@ -455,15 +494,71 @@ def _fit_published(job):
     `configure_determinism(seed + fold)`), so which process runs it cannot change
     the weights.
     """
-    cid, train, test, threads = job
+    cid, train, test, cells = job
     import sentinel_models.lstm as L
-    L.THREADS = threads
-    started = time.time()
-    try:
-        return cid, build_published(cid, train, test), None, time.time() - started
-    except Exception as exc:
-        return cid, None, f"{type(exc).__name__}: {str(exc).splitlines()[0]}", \
-            time.time() - started
+    L.THREADS = 4
+    started, out, err = time.time(), {}, {}
+    for cell in cells:
+        try:
+            out[cell] = (build_published(cid, train, test) if cell == "published"
+                         else build_rung(cid, train, test))
+        except Exception as exc:
+            err[cell] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+    return cid, out, err, time.time() - started
+
+
+def raw_errors(det, values, s_ctx):
+    """The UNSMOOTHED residual, mirroring `_smoothed_errors` without the EWMA.
+
+    Needed because 29.1's rung changes *what the EWMA runs over*, and
+    `_smoothed_errors` has already smoothed by the time it returns.
+    """
+    filled = det._filled(values)
+    steps = filled.shape[0]
+    block = det.chunks * det.chunk_steps
+    out = np.empty(steps, dtype=np.float64)
+    for lo in range(0, steps, block):
+        hi = min(lo + block, steps)
+        out[lo:hi] = np.abs(filled[lo:hi, 0] - det._forecast(filled, lo, hi)[:, 0])
+    return out
+
+
+def residual_rung(e_raw, n_test, cid, smoothing_window):
+    """errors.py:48-64. The supervised region only, then the opening flattened.
+
+    telemanom's `e` exists only where a supervised target exists -- length
+    `n - l_s - n_predictions` -- so its EWMA never sees a residual taken against
+    padded history, and its first `l_s` smoothed samples are then replaced
+    outright by the mean of the first `2*l_s` for every channel but `C-2`.
+    """
+    e = np.asarray(e_raw[L_S:n_test - N_PREDICTIONS], dtype=np.float64)
+    e_s = telemanom.ewma(e.reshape(-1, 1), smoothing_window).ravel().astype(np.float64)
+    if cid != "C-2" and e_s.size > L_S:                     # errors.py:62-64
+        e_s[:L_S] = float(np.mean(e_s[:min(2 * L_S, e_s.size)]))
+    return e_s
+
+
+def build_rung(cid, train, test):
+    """Arm R: Arm T's model and inputs, with the residual built telemanom's way."""
+    det = registry.build("lstm-telemanom")
+    det.hyper = Hyper(cell="lstm", **PUBLISHED_HYPER)
+    det.wants_commands = True
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    c_tr, c_te = train[:, 1:].astype(np.float32), test[:, 1:].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_cmd(cid, len(v_tr), c_tr))
+    s_ctx = ctx_cmd(cid, len(v_te), c_te)
+    e_raw = raw_errors(det, v_te, s_ctx)
+    e_s = residual_rung(e_raw, len(v_te), cid, det.config.smoothing_window)
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "y_sup": v_te[L_S:len(v_te) - N_PREDICTIONS, 0].astype(np.float64),
+            "n_full": len(v_te), "supervised": True,
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
 
 
 def proportional_config(n: int):
@@ -579,11 +674,10 @@ def main(argv=None) -> int:
         train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
         test = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["test"])))
         built, failed = {}, {}
-        cells = ("published",) if args.only == "T" else (
-            ("lstm", "gru", "published") if args.published else ("lstm", "gru"))
-        if "published" in cells:
-            pending.append((cid, train, test, max(1, 8 // max(1, args.workers))))
-        for cell in [c for c in cells if c != "published"]:
+        cells = {"T": ("published",), "R": ("rung",)}.get(args.only) or (
+            ("lstm", "gru", "published", "rung") if args.published
+            else ("lstm", "gru"))
+        for cell in [c for c in cells if c not in ("published", "rung")]:
             try:
                 built[cell] = build(cid, cell, train, test)
             except Exception as exc:         # D17's guard refuses a channel outright
@@ -593,7 +687,10 @@ def main(argv=None) -> int:
         if failed:
             stalls[cid] = failed
             print(f"    {cid}: STALL -- " + "; ".join(f"{k} {v}" for k, v in failed.items()))
-        if not built and "published" not in cells:
+        deferred = [c for c in cells if c in ("published", "rung")]
+        if deferred:
+            pending.append((cid, train, test, deferred))
+        if not built and not deferred:
             continue
         grew = sum(1 for p in store.iterdir() if p.suffix == ".npz")
         # Arm T is the first arm in this study that is SUPPOSED to fit, at a
@@ -629,11 +726,11 @@ def main(argv=None) -> int:
             done = [_fit_published(job) for job in pending]
         for cid, out, err, seconds in done:
             fit_seconds.append(seconds)
-            if err is not None:
-                stalls.setdefault(cid, {})["published"] = err
-                print(f"    {cid}: STALL -- published {err}")
-                continue
-            per_channel[cid]["built"]["published"] = out
+            for cell, message in (err or {}).items():
+                stalls.setdefault(cid, {})[cell] = message
+                print(f"    {cid}: STALL -- {cell} {message}")
+            for cell, built_cell in out.items():
+                per_channel[cid]["built"][cell] = built_cell
         per_channel = {c: v for c, v in per_channel.items() if v["built"]}
         print(f"  fits done in {(time.time() - started)/60:.1f} min wall clock")
 
@@ -672,13 +769,15 @@ ARM_TABLE = [
     ("FG", "gru", "port", None, "pub", "the complete port on the GRU: the 38 baseline"),
     ("T", "published", "port", None, "pub",
      "work item 9.11: the published training configuration under Arm F's stack"),
+    ("R", "rung", "port", None, "pub",
+     "work item 9.12: Arm T plus the residual rung (errors.py:48-64)"),
 ]
 
 
 def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
-    cells = tuple(c for c in ("lstm", "gru", "published")
+    cells = tuple(c for c in ("lstm", "gru", "published", "rung")
                   if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
@@ -722,7 +821,7 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
 
     # -- every arm, one pass -------------------------------------------------
     wanted = {a for a in args.only.split(",") if a} or None
-    results, per_ch_rows = {}, []
+    results, per_ch_rows, diagnostics = {}, [], {}
     for name, cell, kind, mech, regime, note in ARM_TABLE:
         if wanted is not None and name not in wanted:
             continue
@@ -735,8 +834,25 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
             if kind == "ladder":
                 mask, _ = run_ladder(b["e_s"], b["values"], b["cfg"][regime], p, mech)
             elif kind == "port":
-                mask, _, _ = run_port(b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
-                                      tail=N_PREDICTIONS if name == "T" else 0)
+                reset_guards()
+                if b.get("supervised"):
+                    mask, _, _, eps_at = run_port(
+                        b["e_s"], b["y_sup"], telemanom.ERROR_BUFFER, p,
+                        presliced=True, alarm_len=b["n_full"])
+                else:
+                    mask, _, _, eps_at = run_port(
+                        b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                        tail=N_PREDICTIONS if name == "T" else 0)
+                diagnostics[(name, cid)] = {
+                    "guards": dict(GUARDS),
+                    "max_e_s": float(np.max(b["e_s"])),
+                    "sd_e_s": float(np.std(b["e_s"])),
+                    "sd_values": float(np.std(b["values"])),
+                    "inter_range": float(np.subtract(
+                        *np.percentile(b["values"], [95, 5]))),
+                    "eps_at": eps_at, "e_s": b["e_s"],
+                    "supervised": bool(b.get("supervised")),
+                }
             else:                                  # "source" and "swept"
                 mask = b["as_source"] >= 1.0
             alarms[cid] = np.asarray(mask, dtype=bool) & scorable[cell][regime][cid]
@@ -819,6 +935,67 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
               f"telemanom {tp:3d}/{tp+fp:3d} {100*tp/max(1,tp+fp):5.1f}%   "
               f"FP {fp:4d}   nominal {rate*100:7.4f}%")
 
+    # -- 29.1's per-event forensics, MSL first --------------------------------
+    def classify(arm, cid, a, b, ev_index, caught):
+        d = diagnostics.get((arm, cid))
+        if d is None:
+            return None
+        e_s, eps_at = d["e_s"], d["eps_at"]
+        # e_s is in supervised coordinates when the rung is on; raw = j + l_s.
+        base = L_S if d["supervised"] else 0
+        lo, hi = max(0, a - base), min(len(e_s), b + 1 - base)
+        if hi <= lo:
+            return {"channel": cid, "start": a, "end": b, "class": "out-of-range",
+                    "note": "the label span lies outside the supervised region"}
+        span = e_s[lo:hi]
+        peak = float(np.max(span))
+        peak_at = int(np.argmax(span)) + lo + base
+        width = b - a + 1
+        wide_lo, wide_hi = max(0, lo - width), min(len(e_s), hi + width)
+        wide_peak_at = int(np.argmax(e_s[wide_lo:wide_hi])) + wide_lo + base
+        eps_window = eps_at[max(0, a):b + 1]
+        eps = float(np.nanmedian(eps_window)) if np.isfinite(eps_window).any() else float("nan")
+        ratio = peak / eps if eps and np.isfinite(eps) and eps > 0 else float("nan")
+        if ev_index in caught:
+            label = "caught"
+        elif not (a <= wide_peak_at <= b):
+            label = "offset"                    # the signal is beside the label
+        elif np.isfinite(ratio) and ratio >= 1.0:
+            label = "filtered"                  # it crossed and something removed it
+        elif np.isfinite(ratio) and ratio >= 0.5:
+            label = "threshold"                 # close, and under
+        else:
+            label = "no-signal"
+        return {"channel": cid, "start": a, "end": b, "class": label,
+                "peak": peak, "peak_at": peak_at, "wide_peak_at": wide_peak_at,
+                "epsilon": eps, "ratio": ratio}
+
+    forensics = {}
+    for arm in ("T", "R"):
+        if arm not in results:
+            continue
+        cell = dict((n, c) for n, c, *_ in ARM_TABLE)[arm]
+        caught = set(results[arm]["caught"])
+        rows, offset = [], 0
+        for cid in [c for c in per_channel if cell in per_channel[c]["built"]]:
+            v = per_channel[cid]
+            for k, (a, b) in enumerate(v["spans"]):
+                row = classify(arm, cid, a, b, offset + k, caught)
+                if row:
+                    row["spacecraft"] = v["spacecraft"]
+                    rows.append(row)
+            offset += len(v["spans"])
+        forensics[arm] = rows
+        for sc in ("MSL", "SMAP"):
+            tally = collections.Counter(r["class"] for r in rows
+                                        if r["spacecraft"] == sc)
+            print(f"  forensics {arm} {sc:5s}: " +
+                  "  ".join(f"{k} {v}" for k, v in sorted(tally.items())))
+    guard_rows = [{"arm": a, "channel": c,
+                   **{k: v for k, v in d.items()
+                      if k not in ("eps_at", "e_s")}}
+                  for (a, c), d in diagnostics.items()]
+
     # -- the structural checks, per channel (27.4 S1, S2) --------------------
     def _mask(rows, arm, cid, n):
         m = np.zeros(n, dtype=bool)
@@ -870,6 +1047,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "stalls": stalls, "geometry": geometry,
         "weight_store": {"before": before, "after": after},
         "structural_checks": structural,
+        "guard_diagnostics": guard_rows,
+        "forensics": forensics,
         "magnitude_conjunct": {"indices_removed": CONJUNCT_BOUND[0],
                                "window_passes": CONJUNCT_TESTED[0]},
         "arms": results, "channels": per_ch_rows,

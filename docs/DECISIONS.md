@@ -3577,3 +3577,68 @@ whenever one moves, and the two readings differing is itself the evidence.
    reach the published precision exactly, and still miss two thirds of the events --
    because faithfulness in the decision layer cannot recover what the forecaster did
    not see.
+
+---
+
+## D55. Absolute constants in data units do not transfer, and the toolkit ships dimensionless equivalents
+
+**DATE** 2026-09-08 | **STATUS** resolved as a principle, from three measured
+instances and one refuted hypothesis. It is a requirement on the toolkit, not a
+finding about telemanom
+
+**CONTEXT.** This project has now measured the same failure three times, in three
+different stages of the same published method, on two datasets whose scales differ
+by orders of magnitude.
+
+**EVIDENCE.**
+
+1. **D17, training.** telemanom's `min_delta = 0.0003` is absolute in the units of
+   the loss. ESA-ADB's validation MSE is ~1e-4, so the bar `current < best - 3e-4`
+   went negative and **no epoch could ever clear it**: every fit in the project
+   kept its first epoch, discarding weights up to 8.8x better. Replaced with a
+   fraction of the standing best.
+2. **T4, the same constant, the other way.** On SMAP/MSL, pre-scaled to (-1,1),
+   the published absolute constant is **correct**: `docs/MODELS.md` 28.7 measured
+   **0 of 81** channels keeping their first epoch, where our relative rule stalls
+   six on the LSTM and four on the GRU. **The constant is not wrong; it is
+   unportable.** That is a stronger statement than D17 could make alone, and it
+   took the second dataset to make it.
+3. **The candidate filters.** `errors.py:339` requires `max(e_s) > 0.05` and
+   `:343` requires `e_s > 0.05 * inter_range`, both absolute or semi-absolute in
+   the units of the data.
+4. **(!) And the third instance was measured and half of it refuted.**
+   `docs/MODELS.md` 28.8 predicted these floors would silence MSL, reasoning that
+   D17's fortyfold better training produces smaller residuals. **29.4 measured the
+   opposite**: `max(e_s)` on MSL is **0.7323** at the median and **0 of 27**
+   channels fall below the 0.05 floor. The hypothesis was wrong and is kept with
+   its reasoning.
+
+**ALTERNATIVES.** Treat each as a local bug. State the principle from D17 alone.
+State it from all three, including the one that refuted itself.
+
+**Against the first**: three instances in three stages of one method is a property
+of the method's transcription, not three coincidences. **Against the second**: D17
+alone cannot distinguish "the constant is wrong" from "the constant does not
+travel", and T4 is what separates them.
+
+**CONSEQUENCE.**
+
+1. **The principle, stated for the toolkit.** A constant expressed in the units of
+   the data or the loss is a property of the dataset it was fitted on. Every such
+   constant this project ships must have a **dimensionless equivalent** -- a
+   fraction, a quantile, or a multiple of the series' own dispersion -- and the
+   absolute form may be offered only as a per-mission override with its provenance
+   attached.
+2. **It binds on Objective.md 10.2's one-command training and on the pre-launch
+   sanity report.** A mission calibrating on its own telemetry must not inherit a
+   number chosen against ESA-ADB's or SMAP/MSL's scale, and `docs/PHASE2.md` 5b's
+   recalibration requirements already carry the same argument for thresholds.
+3. **It does not indict the published method.** telemanom's constants are correct
+   on telemanom's data, which T4 measured directly. What does not survive is
+   transcribing them into a different regime and calling it a reproduction.
+4. **`docs/MODELS.md` 30 tests one implementation of it** and is registered
+   against the guards rather than adopted from this entry. A principle that is
+   right does not make a particular replacement right, and G1 to G4 decide that.
+5. **The refuted half is kept.** 28.8's scale hypothesis was written down with its
+   reasoning and measured wrong within a day. That is the record working, and
+   deleting it would leave the principle looking better supported than it is.

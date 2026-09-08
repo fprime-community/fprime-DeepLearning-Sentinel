@@ -435,6 +435,30 @@ HOUSEKEEPING
       disk; the operations did not. The ledger reads 2,446 for 2026-09 and the true
       figure is **2,611**. Recorded rather than silently corrected, as August's shortfall
       was. Correcting it costs 1 Class A and has not been done.
+- [x] **Work item 9.12 (Arm R) - run 2026-09-08** (`docs/MODELS.md` 29.4), 165 Class B,
+      weight store +0. **The residual rung changes nothing**: Arm R equals Arm T in every
+      cell, so R1 is refuted and it is not the cause. **R2 refuted but the stop is
+      discharged on evidence**: the 13 `offset` events scatter from -503 to +427 with
+      **none within 250 +/- 40**, so the frames still agree and the classifier was loose.
+      **R4 refuted, and it refutes 28.8's own hypothesis**: `max(e_s)` on MSL is **0.7323**
+      at the median and **0 of 27** channels fall below the 0.05 floor. The residuals are
+      large, not small -- the forecaster is doing badly on MSL, which is a different and
+      more ordinary problem. R5 held.
+- [ ] **On MSL no named guard fires** in the published window regime - coverage 0,
+      sequence cap 0, magnitude 0 - so what silences 23 of 27 channels is downstream, in
+      **pruning at `p = 0.13`**. Named as the arm after 30's. An instrument flaw is
+      recorded with it: the fallback counter double-counts the inverse pass, so 56% is
+      nearer 12%.
+- [ ] **Work item 9.13 pre-registered, not run** (`docs/MODELS.md` 30, D55): dimensionless
+      guards. Each absolute filter replaced by `mean(e_s) + 1*sd(e_s)`, the multiplier
+      fixed in advance and not swept; the coverage and sequence caps left alone because
+      they are already scale-free. G1 MSL past 15/36, G2 MSL false positives 6 or fewer,
+      G3 SMAP not below 43/68, G4 a superset on every channel and a stop.
+- [x] **D55: absolute constants in data units do not transfer.** Three instances in three
+      stages of one method - D17's `min_delta` disabling training on ESA-ADB, T4 measuring
+      **the same constant correct** on (-1,1) data, and the candidate filters - plus one
+      hypothesis measured and refuted. **The toolkit ships dimensionless equivalents**;
+      an absolute form is a per-mission override with its provenance attached.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.

@@ -7793,3 +7793,159 @@ being closed; or above 200 Class B.
 
 **MSL is reported first in every table**, because it is the only population that
 matches the paper's exactly and it is where the whole recall gap lives.
+
+### 29.4 OBSERVED -- the residual rung changes nothing, and 28.8's scale story is wrong
+
+**2026-09-08. One read, 165 Class B and 1 Class A**, cached weights, **weight
+store +0**. Artifact `runs/smap-msl/_forensics/2026-09-08T211109Z-wi910-port.json`.
+
+```
+   arm   set     recall            precision (TP/(TP+FP))   FP    nominal
+   T     Total  46/104   44.2%     46/55    83.6%            9    2.0450%
+   R     Total  46/104   44.2%     46/55    83.6%            9    2.0450%
+   R     MSL     3/36     8.3%      3/5     60.0%            2
+   R     SMAP   43/68    63.2%     43/50    86.0%            7
+   paper MSL    25/36    69.4%     25/27    92.6%            2
+```
+
+**Arm R equals Arm T in every cell.** The residual rung -- residual over the
+supervised region only, opening flattened to the mean of the first `2*l_s` --
+moves individual events between forensic classes and moves **no verdict**.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **R1** | MSL recall past 15/36 | **3/36**, unchanged | **REFUTED.** The residual rung is not the cause |
+| **R2** | fewer than 5 of the 33 missed MSL classify as `offset` | **13** | **REFUTED** -- and see below, it does not reopen the coordinate question |
+| **R3** | the dominant class is `filtered` or `no-signal`, not `threshold` | `threshold` is **4 of 33**; `filtered` 9, `no-signal` 7 | **Held on its substance** |
+| **R4** | more than half of MSL channels have `max(e_s)` below 0.05 | **0 of 27.** Median `max(e_s)` is **0.7323** | **REFUTED, and it refutes 28.8's own hypothesis** |
+| **R5** | SMAP moves by 5 events or fewer | **0** -- 43/68 on both arms | **HELD** |
+
+#### R2's stop, discharged: the rule was loose, the frames still agree
+
+R2's refutation clause said 5 or more `offset` events would reopen the coordinate
+question. **It does not, and the measurement says why.** The signed distance from
+label start to the peak that classified them:
+
+```
+   MSL   n=13   median  +41   range -503 .. +427   within 250 +/- 40:  0 of 13
+   SMAP  n=11   median  +81   range -592 .. +479   within 250 +/- 40:  0 of 11
+```
+
+**A frame error puts every one of them at plus or minus 250.** None is there, on
+either spacecraft, and the same class fires at the same rate on SMAP where
+detection works (43 of 68 caught). **The defect is in my classifier**: `offset`
+fires whenever the peak in a `+/- width` neighbourhood falls outside the span, so
+a peak forty samples away from a narrow label trips it. 28.8's desk audit stands
+and the stop is discharged on evidence rather than waived.
+
+#### (!) R4 refutes 28.8's scale story, which was mine
+
+28.8 argued that a better forecaster produces **smaller** residuals and that the
+published absolute floors would therefore filter them out -- D18 one layer down.
+**Measured, the opposite is true.** On MSL `max(e_s)` is **0.7323** at the median
+against a `sd(values)` of 0.5721: the residuals are not small, they are **large**,
+and `errors.py:339`'s 0.05 floor is nowhere near binding on any of 27 channels.
+
+**The forecaster is doing badly on MSL**, which is a different problem from the
+one 28.8 described and a more ordinary one. Recorded in full because the wrong
+hypothesis was written down first, with its reasoning, which is the only way its
+refutation is worth anything.
+
+#### Where the guards do and do not fire
+
+Per-guard counts, arm R, summed over channels:
+
+```
+              windows   fallback   bail-out   coverage   seq_cap   magnitude
+   MSL          711       397         82          0         0          0
+   SMAP      13,284     7,510      1,754        274        12          4
+```
+
+**On MSL, in the published window regime, none of the named guards fires** --
+coverage 0, sequence cap 0, magnitude 0 -- so whatever silences 23 of 27 channels
+there is downstream of them, in pruning. **They do fire in the proportional
+regime**, which is where 28.8's ladder measured L3's collapse, and on SMAP.
+
+**And the fallback counter overstates.** It is incremented inside `find_epsilon`,
+which runs **twice** per window once the inverse pass is on, and the inverse
+series `mean + (mean - e_s)` of a non-negative error can rarely exceed
+`mean + 2.5*sd`, so the inverse pass legitimately finds nothing on most windows
+and is counted as a fallback. Halving for that puts the forward fallback nearer
+**12%** than 56%. **An instrument flaw, recorded rather than reported as a
+finding.** `max(e_s)/sd(e_s)` has a median of **6.24** on MSL against 6.22 on
+SMAP, so the lowest `z` is comfortably reachable on both and unreachability is
+not the cause either.
+
+#### What is left, named and not run
+
+Candidates exist on MSL, no named guard removes them, and 23 of 27 channels still
+emit nothing. **That leaves pruning** -- the `p = 0.13` ladder against the
+`non_anom_max` rung -- which is the one stage between candidate generation and
+emission that has never been measured on MSL separately. Section 30's arm is
+registered against the guards because that is where 28.8's ladder measured a
+collapse; **pruning on MSL is named here as the arm after it.**
+
+## 30. Pre-registration: dimensionless guards (work item 9.13)
+
+**Written and committed before a single figure is computed.** D17 established
+that an absolute constant in data units disables training on one dataset's scale;
+T4 established the same constant is correct on another's. 29.4 measured a third
+instance and **refuted half of it**: the 0.05 floor never binds on MSL. What
+survives is the coverage cap, which 28.8's ladder measured collapsing L3 in the
+proportional regime, and which fired 274 times on SMAP.
+
+**This arm replaces each absolute filter with its dimensionless equivalent, and
+the exact form is fixed here rather than tuned.**
+
+### 30.1 What changes, and the forms are fixed in advance
+
+Applied on top of **A0**, our baseline, **with the residual rung**, which 29.4
+showed is inert at the arm level and is kept so the arm differs from the source's
+intent in one dimension only.
+
+```
+  published (absolute)                    dimensionless replacement
+  --------------------------------------  -----------------------------------
+  max(e_s) > 0.05                         max(e_s) > mean(e_s) + 1*sd(e_s)
+  e_s > 0.05 * inter_range                e_s > mean(e_s) + 1*sd(e_s)
+  sd_e_s > 0.05 * sd_values               sd_e_s > 0.05 * sd_values   (already
+                                          a ratio; unchanged)
+  len(i_anom) < 0.5 * len(e_s)            len(i_anom) < 0.5 * len(e_s)   (already
+                                          dimensionless; unchanged)
+  len(E_seq) <= 5                         len(E_seq) <= 5   (a count; unchanged)
+```
+
+**One multiplier, fixed at 1.0, chosen because it is the weakest non-trivial
+statement of "above the channel's own noise" and because any other value would be
+a tuned number.** It is not swept. If the arm needs a different multiplier to
+work, that is a finding about the form and is reported as one rather than
+absorbed by a sweep.
+
+**The coverage cap and the sequence cap are already dimensionless** and are left
+exactly as published -- this arm is about the constants in data units, which is
+what D17's law is about, and changing a rule that is already scale-free would be
+a second lever.
+
+### 30.2 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **G1** | **the commissioned number.** MSL recall recovers past **15/36**, from 3/36 | 15 or below. The guards would then not be what suppresses MSL, and 29.4's remaining candidate -- pruning at `p = 0.13` -- becomes the next arm, which is already named |
+| **G2** | **false alarms stay near the paper's.** MSL false positives are **6 or fewer**, against the paper's 2 and this reproduction's current 2 | above 6. Recovering recall by relaxing a filter must cost something, and G2 says how much before the arm is a trade rather than a correction |
+| **G3** | SMAP does not regress: recall **at or above 43/68** | below 43. The absolute floors fire 1,754 times there, so relaxing them should not lose events |
+| **G4** | **structural, and a stop.** The dimensionless arm's alarm set is a **superset** of the absolute arm's on every channel -- every replacement is a relaxation | any channel where it is not, which would mean a replacement tightened rather than relaxed and the forms are wrong |
+
+**Deliberately not predicted.** Parity with Table 2. Whether the toolkit should
+ship the dimensionless forms -- D55 states the principle, and whether this
+implementation of it earns adoption is decided on G1 to G4, not before.
+
+### 30.3 Cost and stop-and-report
+
+**One read from cached weights: 165 Class B and 1 Class A. No fits**; the
+replacement lives in the detection stack, and `Config` is not in the cache key.
+**Weight store expected +0.** The ledger reads **193 Class A and 2,784 Class B**
+for 2026-09, corrected on 2026-09-08 for 28.7's lost run, so this would end at
+194 and 2,950 of 50,000.
+
+**Stop and report** if G4 is refuted; if the weight store moves; or above 200
+Class B. **MSL is reported first**, as it has been since 28.8.
