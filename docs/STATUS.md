@@ -33,6 +33,17 @@ closes as answered no (D42). **Neither result rehabilitates the contextual claim
 D39 and D40 stand and the three contextual events are caught by nothing at any
 operating point. The checkpoint snapshot to `main` is held until the new headline is
 written from 9.7's results.
+**2026-09-08: telemanom's source is vendored and read, and it corrects five of this
+project's own readings.** `third_party/telemanom/`, pinned. The published algorithm
+**clips each window to its newest batch** and is therefore causal after its opening
+window, so rungs 1c, 1c-i and 1c-ii were built to reproduce a union that does not exist
+in the source; `1a+1b` is the faithful arm and D52 is superseded at its premise. The
+published precision denominator is **matched events plus unmatched ranges**, not ranges
+over ranges, so every precision figure in the ladder is the generous statistic. And the
+target is not "~91 candidate ranges" -- inverting Table 2 gives **84 true positives and
+12 false positives**, and on MSL, where our population matches the paper's exactly at 36,
+**the paper has 2 false positives and this reproduction has 58**. Five mechanisms in the
+source are absent here. The corrections are recorded in D53 and `docs/MODELS.md` 26.29 and 26.30.
 Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
@@ -323,7 +334,21 @@ HOUSEKEEPING
       `1a+1b+1c-ii` reaches 75.5% recall against the paper's 80.0%** - within 4.5
       points - at 44.3% precision against 87.5% with **221** ranges against ~91.
       26.25.1's non-causal caveat is **withdrawn on evidence** (D52).
-- [ ] **The remaining gap is precision, not recall**: 221 candidate ranges against ~91.
+- [x] **telemanom vendored and read - done 2026-09-08**, zero operations (D53,
+      `docs/MODELS.md` 26.29, 26.30). The source is pinned at `third_party/telemanom/`
+      because five published readings cited `errors.py` line numbers with no copy kept.
+      **It clips to the newest `batch_size`** (`errors.py:355-359`), so it is causal and
+      the cross-window accumulator unions **disjoint** batches - there is no union over
+      thirty overlapping verdicts anywhere in it. **`1a+1b` is the faithful arm and
+      `1c-ii` is a departure.** Precision is `TP/(TP+FP)` with TP deduplicated per
+      matched event, so `1c-ii` is **74/197 = 37.6%**, not 98/221 = 44.3%. Both numbers
+      kept everywhere. The licence is **BSD 3-Clause**, not Apache-2.0.
+- [ ] **The target restated: 12 false positives, not ~91 ranges.** `~91` was `80.0/87.5`
+      and is derived in no document. On MSL the denominators match the paper's exactly
+      (36 to 36) and the gap is **2 against 58**. Five mechanisms in the source are not
+      implemented here: a magnitude conjunct, a whole-window bail-out, the two
+      `find_epsilon` guards (deviation 8), an inverse pass, and `adjust_window_size`.
+- [ ] (superseded 2026-09-08) **The remaining gap is precision, not recall**: 221 candidate ranges against ~91.
       A question about how many candidates survive, which the four rungs so far have not
       addressed. Named, not run.
 - [ ] (superseded) **Rungs 1c-i and 1c-ii, named and not run**: forward windows with clipped
@@ -377,7 +402,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (508 tests, zero R2 operations).
+  (584 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -391,7 +416,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 508 tests
+.venv/bin/python -m pytest -q                                    # 584 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1

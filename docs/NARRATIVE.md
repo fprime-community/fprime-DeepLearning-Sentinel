@@ -734,3 +734,73 @@ changed the question.** Every earlier one asked which detector, which
 threshold, which cell. This one asked whether a floor measured yesterday is
 still the floor today, and on one subsystem in three folds the answer was no
 twice. That is the question the flight component is built around.
+
+## 11. Phase 2, work item 9.9: four rungs against a mechanism that was not there
+
+**2026-09-08.** This section is written at a work-item boundary, which is when
+`docs/HARNESS.md` 5a says it gets written, and it records two mistakes rather
+than one result.
+
+### The study code was never committed
+
+Between 2026-09-03 and 2026-09-04 this project ran stage 5 and four rungs against
+telemanom's published Table 2, and published five results from them: D50, D51,
+D52 and `docs/MODELS.md` 26.19 to 26.28. **Nine commits landed in that window and
+not one of them touched a file under `scripts/`.** The artifacts are real and
+under `runs/smap-msl/_forensics/`; the code that produced them was written
+somewhere outside the repository and is gone.
+
+So every figure in that ladder is sourced to a named artifact, which is the rule,
+and **none of it is reproducible from the repository**, which nobody had written
+a rule about. `74/98` and `98/221` could be quoted and could not be re-derived.
+
+The rule this produces, and it is narrow enough to keep: **a run that produces a
+documented figure lands its script in the same commit as the figure.** Not the
+next commit, not a tidy-up later. The pre-registration commit may precede the
+code; the OBSERVED commit may not.
+
+### And the source was read without being kept
+
+`docs/MODELS.md` 26.21.1 quotes `errors.py:363-371`. 26.23.1 quotes
+`errors.py:365-371`. 26.25.2 quotes `process_batches`. Those readings were done
+properly -- the project's rule is that a divergence is read from the source and
+located, never guessed, and it was followed. **No copy of `errors.py` was kept**,
+so the quotations were assertions with line numbers attached, and neither the
+line numbers nor the code around them could be checked by anyone who was not
+there.
+
+On 2026-09-08 the source was vendored (`third_party/telemanom/`, D53) and read in
+full. Five recorded readings turned out to be wrong, and one of them had cost
+four pre-registered rungs:
+
+- telemanom clips each window to its newest `batch_size` (`errors.py:355-359`),
+  so it is **causal** after its opening window, and its cross-window accumulator
+  unions **disjoint** batches.
+- **There is no union over roughly thirty overlapping verdicts.** Rungs 1c, 1c-i
+  and 1c-ii were built to reproduce a mechanism the source does not contain, and
+  the "flyable reproduction" is more permissive than the published algorithm
+  rather than faithful to it. The arm that was already there, `1a+1b`, is the
+  faithful one.
+- The published precision denominator is `matched events + unmatched ranges`
+  (`detector.py:117-136`), not ranges over ranges, so every precision figure in
+  the ladder is the generous statistic.
+- `~91` was `80.0 / 87.5`, arithmetic that appears in no document. The paper's
+  own number is **twelve false positives**.
+
+**What went wrong is not "the source was not read".** It was read. What was
+missing is that the reading left nothing behind, so it could not be audited, and
+a wrong reading survived four rungs of careful, pre-registered, correctly-stopped
+work. Every stop condition in 26.21 to 26.28 fired or held exactly as designed.
+Z4 caught a two-lever arm. Q4 passed 75 of 75. X3 held on 1,721 of 1,721 calls.
+**The discipline worked perfectly on top of a premise nobody could check**, which
+is the most expensive kind of correct.
+
+### What it cost, and what it bought
+
+Five reads at 165 Class B each, four pre-registrations, and a decision entry that
+is now superseded at its premise. What it bought is a precise target: the
+reproduction is chasing **12 false positives against our 81**, on a population
+that matches the paper's exactly on MSL, and five named mechanisms in the source
+that this stack does not implement. That is a better question than the one the
+ladder started with, and it was only reachable by getting the first one wrong in
+public.

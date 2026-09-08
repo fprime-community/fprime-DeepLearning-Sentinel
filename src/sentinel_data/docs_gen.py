@@ -187,7 +187,9 @@ parquet objects we wrote.
   chosen. The prefix is reserved; nothing is built.
 - **No resampled or differenced data.** The archive is faithful to the source.
   Preprocessing belongs to the harness, not to the archive.
-- **SMAP/MSL is not here** and is not planned as a primary source. See section 1.
+- **SMAP/MSL is here as of 2026-09-03** and is a legacy-comparability source, never a
+  headline (Objective.md 9.2). See section 1. The line this replaces said it was not
+  here and not planned, which section 1 had already contradicted.
 
 ---
 

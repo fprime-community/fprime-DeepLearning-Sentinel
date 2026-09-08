@@ -6622,3 +6622,321 @@ and it is not answered here.
 **No escalation.** 26.27.3 required the causal arm to be understood first; it now is,
 and the gate remains parity within tolerance, which 44.3% against 87.5% does not meet.
 All corrections stay in the study script and every ESA-ADB figure stands.
+
+## 26.29 The source, read rather than recalled
+
+**2026-09-08. Zero R2 operations.** Sections 26.19 to 26.28 located four
+divergences by quoting `errors.py` at specific line numbers, and **no copy of
+`errors.py` was ever kept in this repository**. The quotations could not be
+checked, and 26.28's closing question -- where the excess candidates come from --
+could not be answered without the source. It is now vendored and pinned:
+`third_party/telemanom/`, commit `2e6c5b6c3558e7835601519b7bdef37c649bdbdc`,
+dated 2025-01-17, retrieved 2026-09-08, source only. `PROVENANCE.md` beside it
+records what is there, what is not, and why.
+
+**Every line number below is a line in this repository.** Nothing here is
+recalled.
+
+### 26.29.1 (!) telemanom clips each window to its newest batch. It is causal, and `1c-ii` is not a reproduction
+
+`third_party/telemanom/telemanom/errors.py:355-359`:
+
+```python
+        # if it is first window, ignore initial errors (need some history)
+        if self.window_num == 0:
+            i_anom = i_anom[i_anom >= self.num_to_ignore]
+        else:
+            i_anom = i_anom[i_anom >= len(e_s) - self.config.batch_size]
+```
+
+Window `i` spans `[i*batch_size, window_size*batch_size + i*batch_size)` (`:123-128`)
+and **judges only its last `batch_size` samples**, with the preceding
+`window_size*batch_size - batch_size` as reference. That is the geometry
+`channel_ratios` already has: a judged segment at the end of a trailing
+reference window (`src/sentinel_models/telemanom.py:385-388`).
+
+**Three things follow, and all three correct a recorded finding.**
+
+1. **26.25.1 is wrong.** It states that telemanom's window "runs **forward** from
+   its start, and every index inside it is judged using data from the whole
+   window, including samples **ahead** of that index." That is true of **window 0
+   only**, which judges `[num_to_ignore, end)` in one pass. Every subsequent
+   window judges 70 fresh samples using 2,030 samples of history that precede
+   them. **telemanom is causal except at its opening window.**
+2. **`1a+1b` is the faithful arm** -- in geometry *and* in aggregation. The clip
+   at `src/sentinel_models/telemanom.py:408` that 26.23.2 and 26.24 named as a
+   divergence **is telemanom's own clip**, differently expressed.
+3. **`1c-ii` is a departure from the published algorithm, not a reproduction of
+   it.** Because each window's `i_anom` is already restricted to its own newest
+   batch, the accumulation at `:152` --
+   `self.i_anom = np.append(self.i_anom, window.i_anom + prior_idx)` -- unions
+   **disjoint** batches. There is no "union over roughly `error_window / stride`
+   overlapping verdicts" anywhere in telemanom. 26.23.2's "a union over thirty
+   verdicts is more permissive than one verdict", 26.24's closing block and
+   26.25.2 all describe a mechanism the source does not contain, and the
+   146 -> 221 rise in candidate ranges is **this reproduction's excess, not the
+   paper's**.
+
+**D52 is affected at its premise.** "The non-causal share of telemanom's recall
+is negative" compared a trailing arm against a forward arm, and **neither is
+telemanom's geometry**. The measurement stands as a measurement; what it was
+taken to be evidence about does not. 26.30 records the consequence; the entry
+itself is superseded rather than deleted.
+
+### 26.29.2 (!) The precision denominator is a mixed unit, and ours is the generous one
+
+`third_party/telemanom/telemanom/detector.py:117-136`, in `evaluate_sequences`:
+
+```python
+            for e_seq in errors.E_seq:
+                i_anom_predicted = set(range(e_seq[0], e_seq[1]+1))
+                matched_indices = list(i_anom_predicted & true_indices_flat)
+                valid = True if len(matched_indices) > 0 else False
+                if valid:
+                    result_row['tp_sequences'].append(e_seq)
+                    true_seq_index = [...]
+                    if not true_seq_index[0] in matched_true_seqs:
+                        matched_true_seqs.append(true_seq_index[0])
+                        result_row['true_positives'] += 1
+                else:
+                    result_row['fp_sequences'].append([e_seq[0], e_seq[1]])
+                    result_row['false_positives'] += 1
+```
+
+and `:167-173`, `precision = true_positives / (true_positives + false_positives)`.
+
+**`true_positives` counts distinct matched true anomalies** -- deduplicated
+through `matched_true_seqs`, so five predicted ranges landing on one labelled
+event contribute **one**. **`false_positives` counts predicted ranges** that
+matched nothing. The denominator is therefore `events + ranges`, a mixed unit.
+
+`src/sentinel_eval/metrics/eventwise.py:96,108` computes
+`real_alarms / len(pred_ranges)` -- **ranges over ranges**. 26.19.1's claim that
+"`eventwise.score` ... is Hundman's precision rule" is right about the recall
+half and **wrong about the precision half**. (Its line citations `:98` and `:112`
+are also stale; the code is at `:96` and `:108`.)
+
+Recomputed from `runs/smap-msl/_forensics/2026-09-04T003537Z-rung1c-isolated.json`
+under telemanom's own accounting, with no new run:
+
+```
+   arm      set      recall           ours (range/range)    telemanom TP/(TP+FP)    FP
+   1a+1b    MSL     16/36  44.4%      18/55    32.7%        16/53    30.2%          37
+   1a+1b    SMAP    43/62  69.4%      47/91    51.6%        43/87    49.4%          44
+   1a+1b    Total   59/98  60.2%      65/146   44.5%        59/140   42.1%          81
+   1c-ii    MSL     23/36  63.9%      29/87    33.3%        23/81    28.4%          58
+   1c-ii    SMAP    51/62  82.3%      69/134   51.5%        51/116   44.0%          65
+   1c-ii    Total   74/98  75.5%      98/221   44.3%        74/197   37.6%         123
+```
+
+**Every precision figure in 26.19 to 26.28 is the more generous of the two
+statistics.** On the flyable arm 98 range-hits collapse onto 74 distinct events
+-- 1.32 predicted ranges per detected anomaly -- so the comparable figure is
+**37.6%, not 44.3%**, and the gap against the paper is 6.7 points wider than
+recorded. Both numbers are kept, here and everywhere they appear.
+
+### 26.29.3 (!) The paper's target is 12 false positives, not "~91 candidate ranges"
+
+`~91` first appears at 26.22 and is never derived anywhere in this repository.
+It is `80.0 / 87.5 = 91.4`, which assumes 100 anomalies and one predicted range
+per detected event. **Both assumptions are wrong**, and 26.29.2 shows why the
+second cannot hold.
+
+Inverting Table 2 against the label file's own denominators -- SMAP 69 sequences
+(including the P-2 duplicate), MSL 36, total 105 -- under the accounting of
+26.29.2 lands on **integers on every row**, which a wrong reading would not:
+
+```
+              true    TP    FP    TP+FP    recall   precision
+    SMAP        69    59    10      69      85.5%     85.5%
+    MSL         36    25     2      27      69.4%     92.6%
+    Total      105    84    12      96      80.0%     87.5%
+```
+
+**The paper raised twelve false-positive ranges across 82 channel rows.** `96` is
+`TP + FP`, not a count of predicted ranges -- the true range count is
+`len(tp_sequences) + FP` and is not recoverable from Table 2.
+
+**MSL is an exact like-for-like population.** All six channels D17's guard
+refuses are on the SMAP side, so our MSL denominator equals the paper's, 36 to
+36. On that population **the paper has 2 false positives and this reproduction
+has 58** (`1c-ii`) or **37** (`1a+1b`). That is the precision gap stated in the
+only unit both sides share, and it is roughly twenty-fold, not the 2.4x that
+"221 against ~91" implied.
+
+### 26.29.4 Five mechanisms in the source that this reproduction does not implement
+
+Each is upstream of pruning, each removes or adds candidates, and each is quoted
+rather than described.
+
+**1. A magnitude conjunct on the exceedance mask** (`errors.py:342-343`):
+
+```python
+        i_anom = np.argwhere((e_s >= epsilon) &
+                             (e_s > 0.05 * self.inter_range)).reshape(-1,)
+```
+
+where `inter_range` is the 95th minus the 5th percentile of the window's own
+telemetry values (`:258-259`). Ours is `above = e_s >= eps` and nothing else
+(`src/sentinel_models/telemanom.py:236,274`). **Removes candidates.**
+
+**2. A whole-window bail-out** (`errors.py:337-340`):
+
+```python
+        # Check: scale of errors compared to values too small?
+        if not (self.sd_e_s > (.05 * self.sd_values) or max(self.e_s)
+                > (.05 * self.inter_range)) or not max(self.e_s) > 0.05:
+            return
+```
+
+A window whose error scale is small against its value scale yields **nothing at
+all**. We have no equivalent. **Removes candidates.**
+
+**3. The two `find_epsilon` guards -- deviation 8, confirmed verbatim**
+(`errors.py:314-315`):
+
+```python
+                if score >= max_score and len(E_seq) <= 5 and \
+                        len(i_anom) < (len(e_s) * 0.5):
+```
+
+`src/sentinel_models/telemanom.py:289` is `if score >= best_score:` and nothing
+else. `docs/THRESHOLD.md:91-95` measured these inert on 5,684,580 ESA-ADB
+windows and gave the reason at `:97-100`: *"Neither guard can trip at this
+buffer-to-window ratio."* **26.30.2 shows SMAP/MSL inverts that ratio.**
+**Removes candidates.**
+
+**4. An inverse pass over the reflected error series.** `find_epsilon`,
+`compare_to_epsilon` and `prune_anoms` each run twice (`errors.py:132-136`,
+`:141-142`) over `e_s_inv = mean_e_s + (mean_e_s - e_s)` (`:249-250`), and the
+two index sets are unioned (`:147-148`). `src/sentinel_models/detectors.py:465`
+computes `np.abs(...)` once and there is no inverse anywhere in this repository.
+**Adds candidates.**
+
+**5. `adjust_window_size`** (`errors.py:84-93`): when `n_windows < 0` telemanom
+**decrements `window_size`** until the window fits the series, raising
+`ValueError` only at `window_size == 1`. D47 instead made `error_window`
+proportional at `SMOOTHING_PERC * len(series)`. Both are adaptations to short
+series; **they are different adaptations**, and the published one keeps
+`error_buffer` and the smoothing span in the ratio they were designed at.
+
+**Also read, and smaller:** `num_to_ignore` is `l_s * 2`, `l_s`, or `0` by series
+length (`errors.py:262-267`); the opening `l_s` errors are flattened to the mean
+of the first `2*l_s` for every channel except `C-2` (`:62-64`); `find_epsilon`
+buffers with `arange(1, error_buffer)` and `compare_to_epsilon` with
+`arange(1, error_buffer+1)`, an asymmetry in the source itself (`:291`, `:347`);
+final sequences are shifted by `+ l_s` into original-array coordinates
+(`:165-166`); and singletons are dropped both per window (`:304`, `:375`) and at
+the end (`:159-160`), which we also do.
+
+**Confirmed unchanged from 26.21.1 and 26.23.1:** the pruning rung's candidate
+set (`:365-371`), tie removal by `np.argwhere` (`:411-412`), the appended
+`non_anom_max` rung (`:405`), and the cross-window accumulator. Those two
+readings were right.
+
+### 26.29.5 The licence is BSD 3-Clause, not Apache-2.0
+
+`third_party/telemanom/LICENSE.txt` is a three-clause BSD notice, "Copyright (c)
+2018, California Institute of Technology (Caltech). U.S. Government sponsorship
+acknowledged." `docs/DATA.md` records the upstream as Apache-2.0, generated from
+`src/sentinel_data/docs_gen.py`, and that is wrong. Corrected at the generator.
+
+Clause 3 forbids using the name of Caltech or of the Jet Propulsion Laboratory to
+endorse or promote products derived from the software. **No document in this
+repository may present this project as endorsed by, affiliated with, or produced
+by JPL.** Naming the authors and citing the paper is description and remains
+correct. Recorded in `PROVENANCE.md` and in the housekeeping list.
+
+## 26.30 What 26.29 corrects, and what it leaves standing
+
+**Additive. Nothing in 26.19 to 26.28 is deleted or renumbered.** Every figure
+below keeps its original value beside the corrected one, per `docs/HARNESS.md`
+5a.
+
+### 26.30.1 The four corrections, and the reading each replaces
+
+| Recorded | Corrected | Where |
+|---|---|---|
+| "telemanom's window runs **forward** ... a detector that peeks at future samples" (26.25.1) | telemanom judges only its newest `batch_size`; it is causal after window 0 | 26.29.1 |
+| `1a + 1b + 1c-ii` is "the flyable reproduction" and "the faithful reproduction minus the one part this project may not fly" (26.27.2) | **`1a+1b` is the faithful arm**; `1c-ii` is a departure that is more permissive than the source | 26.29.1 |
+| "each index is judged by roughly `error_window / stride` overlapping windows ... a union over thirty verdicts" (26.23.2, 26.24, 26.25.2) | the accumulator unions **disjoint** batches; no such union exists | 26.29.1 |
+| precision "over all predicted ranges ... Hundman's precision rule" (26.19.1) | the published denominator is `matched events + unmatched ranges`; ours is the generous statistic | 26.29.2 |
+| "the paper's implied **~91**" candidate ranges (26.22 onward) | the paper's `TP + FP` is **96**, of which **12** are false positives; the range count is not recoverable from Table 2 | 26.29.3 |
+
+**D52 is superseded at its premise** and marked so in `docs/DECISIONS.md`; the
+measurement it reports is unaffected and is kept.
+
+### 26.30.2 (!) The rungs were measured in a parameter regime the sections never state
+
+`scripts/smap_stage2.py:76-78` sets `error_window = SMOOTHING_PERC * n` and
+`stride = min(70, window // 2)` (D47), and **leaves `error_buffer = 100` and the
+smoothing span 105 at the `Config` defaults**, which are sized for a
+2,100-sample window (`src/sentinel_models/telemanom.py:114-121`):
+
+```
+                     error_window  error_buffer  ewma span  stride  windows/index
+   published             2100          100         105        70        31
+   ours, ESA-ADB         2100          100         105        70        31
+   ours, SMAP/MSL      134-400         100         105      67-70       3-6
+```
+
+`channel_ratios` reads a window of `error_window + stride`
+(`src/sentinel_models/telemanom.py:385-388`), so on a 2,690-step series the
+window is **201 samples** -- while `_buffered` (`:208-224`) dilates one
+exceedance by plus or minus 99 into **199** of them. **A single crossing floods
+99% of the window.**
+
+Two consequences:
+
+1. Every statement in 26.23.2, 26.24 and 26.25 that reasons from "roughly thirty"
+   overlapping windows is off by an order of magnitude **even before** 26.29.1
+   removes the union it reasons about.
+2. `docs/THRESHOLD.md:97-100` gives the reason the two published guards were
+   measured inert on ESA-ADB -- *"Neither guard can trip at this
+   buffer-to-window ratio"*. **SMAP/MSL inverts that ratio**, so a candidate
+   covering 199 of 201 samples fails `len(i_anom) < len(e_s) * 0.5` outright.
+   The guard that could not bind on ESA-ADB should bind on almost every SMAP/MSL
+   window, and we do not implement it.
+
+The windows-per-index figure is **arithmetic from the configuration, not a
+measurement**; section 27 measures it per channel and reports it.
+
+### 26.30.3 The population is 37 on the LSTM, not 38
+
+26.27.2 and D52 both call `1a+1b+1c-ii` "the pipeline the **38** in-range
+contextual anomalies are re-measured on". D17's guard refuses **four** channels
+under the GRU (E-3, G-1, D-11, D-12) and **six** under the LSTM (those plus G-6
+and F-3), and `F-3` carries one in-range contextual sequence. So:
+
+```
+   architecture   channels   sequences   in-range contextual
+     GRU             77         100            38
+     LSTM            75          98            37
+```
+
+The LSTM's surviving channels are a strict subset of the GRU's, so the two
+populations nest and no further intersection is needed. **Stage 4's `10/38` is a
+GRU figure on 100 sequences; the ladder's `74/98` is an LSTM figure on 98.** They
+were never on the same denominator. From here every `k/n` names the architecture
+whose stall set fixed it.
+
+### 26.30.4 What stands
+
+- **1a, the pruning rung.** Confirmed verbatim at `errors.py:365-371` and
+  `:405`, `:411-412`. 1,721 of 1,721 calls, and the reading was right.
+- **1b, cross-window tracking.** Confirmed at `errors.py:365-371`. Worth one
+  range in 147, and the reading was right.
+- **The recall rule.** `eventwise.detected` is any-overlap, which is
+  `evaluate_sequences`' `len(i_anom_predicted & true_indices_flat) > 0`. 26.19.1
+  is right about recall.
+- **`p = 0.13`, `l_s = 250`, `layers [80,80]`, `batch_size 70`, `window_size 30`,
+  `smoothing_perc 0.05`, `error_buffer 100`, the z sweep `arange(2.5, 12, 0.5)`.**
+  All confirmed against `third_party/telemanom/config.yaml` and
+  `errors.py:285`.
+- **Every ESA-ADB figure.** Nothing in 26.29 or 26.30 touches
+  `src/sentinel_models/telemanom.py`, and no ESA-ADB result is recomputed.
+- **The headline's first two clauses.** "39 of 43 labelled contextual anomalies
+  stay inside their channel's historical range" and "no per-channel statistic
+  reaches a flyable alarm rate there" rest on D46 and D48 and on our own
+  artifacts, and nothing here bears on them. **The third clause, `10/38`, is what
+  section 27 re-measures.**

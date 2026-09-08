@@ -3339,6 +3339,13 @@ trade 26.22 already showed is not worth making blind.
 **DATE** 2026-09-04 | **STATUS** resolved as a finding. It removes a caveat rather than
 adding one, and it fixes the flyable reproduction's ceiling
 
+**(!) SUPERSEDED AT ITS PREMISE 2026-09-08 by D53.** telemanom judges only its
+newest `batch_size` (`errors.py:355-359`), so it is causal after its opening
+window and neither arm compared below is its geometry. The measurement stands;
+the conclusion drawn from it is withdrawn. Kept in full, per the rule that a
+decision that turned out wrong is more informative than one that was always
+right.
+
 **CONTEXT.** `docs/MODELS.md` 26.25.1 flagged, before any of it ran, that reproducing
 telemanom faithfully means reproducing a **non-causal** detector: its window runs
 forward from its start and judges every index inside it using samples ahead of that
@@ -3394,3 +3401,88 @@ finding to zero would be the same tidying this project refuses elsewhere.
    it bought 6.1 points, because a trailing window's threshold is set by data that
    precedes the excursion rather than data contaminated by it -- which is the guard-cell
    argument `docs/RESEARCH.md` records, measured for the first time in this project.
+
+---
+
+## D53. telemanom is vendored and read; it is causal, its precision denominator is a mixed unit, and its false-positive count is twelve
+
+**DATE** 2026-09-08 | **STATUS** resolved as a decision and a finding. It supersedes
+D52 at its premise, corrects five recorded readings, and it deletes nothing
+
+**CONTEXT.** `docs/MODELS.md` 26.21 to 26.28 located four divergences against
+telemanom by quoting `errors.py` at specific line numbers. **No copy of that file
+was ever kept.** The quotations could not be checked by a later reader, the line
+numbers could not be re-resolved, and 26.28's closing question -- where 221
+candidate ranges come from against the paper's implied ~91 -- could not be
+answered at all without the source. The standing rule is that a divergence from a
+published method is **read** from the source and located, never guessed; that rule
+was satisfied at the time and left no evidence behind.
+
+**EVIDENCE.** `third_party/telemanom/`, commit
+`2e6c5b6c3558e7835601519b7bdef37c649bdbdc`, source only, 84 KB. Read in full;
+every citation in `docs/MODELS.md` 26.29 resolves to a line in this repository.
+
+1. **It clips to the newest batch** (`errors.py:355-359`). Window `i` spans
+   `[i*70, 2100 + i*70)` and judges only its last 70 samples. That is a trailing
+   reference window with the judged segment at the end -- `channel_ratios`'
+   geometry. **telemanom is causal after its opening window**, and the
+   accumulator at `:152` unions **disjoint** batches.
+2. **Its precision denominator is a mixed unit** (`detector.py:117-136`,
+   `:167-173`): true positives are deduplicated **per matched true anomaly**,
+   false positives counted **per predicted range**. Ours is ranges over ranges
+   (`eventwise.py:96,108`).
+3. **Table 2 inverts to integers on every row** under that accounting, against the
+   label file's own denominators:
+
+```
+              true    TP    FP    TP+FP    recall   precision
+    SMAP        69    59    10      69      85.5%     85.5%
+    MSL         36    25     2      27      69.4%     92.6%
+    Total      105    84    12      96      80.0%     87.5%
+```
+
+4. **On MSL the populations match exactly**, 36 to 36, because all six channels
+   D17's guard refuses are SMAP's. **The paper has 2 false positives there; this
+   reproduction has 58** (`1c-ii`) or **37** (`1a+1b`).
+5. **Five mechanisms in the source are absent here** (26.29.4): a magnitude
+   conjunct on the exceedance mask, a whole-window bail-out, the two
+   `find_epsilon` guards that are deviation 8, an inverse pass, and
+   `adjust_window_size`. Four remove candidates; one adds them.
+6. **The licence is BSD 3-Clause**, Caltech/JPL 2018 -- not the Apache-2.0
+   `docs/DATA.md` records.
+
+**ALTERNATIVES.** Cite the source from memory, as before. Vendor it. Fetch it per
+question and keep nothing.
+
+**Against the first**, twice over: it produced five readings that are now known to
+be wrong, and it produced no way for anyone to find that out. **Against the
+third**: the same failure on a longer timescale. A pinned copy costs 84 KB against
+a 4 MiB budget at 2.76 MiB, and it makes every future divergence claim checkable
+by a reader who was not there.
+
+**CONSEQUENCE.**
+
+1. **`third_party/telemanom/` is evidence and never a dependency.** Nothing under
+   `src/` or `scripts/` imports it, pinned by `tests/test_layering.py`, and it is
+   never executed. `PROVENANCE.md` records the commit, the licence, what is
+   vendored, what is not, and which guards do and do not cover it.
+2. **D52 is superseded at its premise and kept.** "The non-causal share of
+   telemanom's recall is negative" compared a trailing arm against a forward arm,
+   and neither is telemanom's geometry. The measurement is unaffected; what it was
+   taken to be evidence about is withdrawn.
+3. **`1a+1b` is the faithful arm, and `1c-ii` is a departure.** The "flyable
+   reproduction" defined at 26.27.2 is more permissive than the published
+   algorithm, and its 221 ranges are this reproduction's excess.
+4. **Both precision statistics are reported from here on**, ours and telemanom's,
+   everywhere either appears. Every figure in 26.19 to 26.28 keeps its recorded
+   value with the corrected one beside it.
+5. **The target is restated.** The reproduction is chasing **12 false positives**
+   on 82 channel rows, not "~91 candidate ranges". `~91` was
+   `80.0 / 87.5` and was never derived in any document.
+6. **Clause 3 binds on publication.** No document may present this project as
+   endorsed by, affiliated with, or produced by Caltech or JPL. Description and
+   citation are unaffected.
+7. **It generalises, and the lesson is narrower than "read the source".** The
+   source *was* read; the reading was not kept. A quotation whose original is not
+   in the repository is an assertion with a line number on it, and this project
+   spent four pre-registered rungs on a mechanism the source does not contain.
