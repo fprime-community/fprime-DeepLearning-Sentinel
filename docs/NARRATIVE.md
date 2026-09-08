@@ -831,3 +831,38 @@ operation.
 an unnecessary hour of fitting and a weight store that has silently doubled; the
 second just looks like a slow script. The smoke was priced at 6 Class B in the
 pre-registration for the first of them, and it paid for itself twice.
+
+### A compute plan that was measured and still wrong
+
+Work item 9.11's fits projected to 111 minutes serial, over the hour the
+pre-registration set as the threshold for asking, so the options were put with
+numbers: one published fit was measured at **508 MB peak RSS** and four workers
+were sized at about **2.8 GB against 4.3 GB free**. The parallel path was
+validated first against three already-banked channels, and it hit the cache with
+the weight store unmoved -- proof that fanning the fits out changed neither the
+key nor the weights.
+
+**Then the operating system killed the run for low memory, after the fits and
+before the artifact.**
+
+Two costs were left out of an otherwise honest measurement. Each **spawned worker
+imports torch independently**, several hundred megabytes before it fits anything,
+which a single-process measurement cannot see. And the **parent had already grown
+past its own baseline** by the time the fits started: it was holding 81 channels'
+train and test arrays and both cells' smoothed-error caches. The per-fit figure
+was right; the total was assembled from it as though the fit were the only thing
+in memory.
+
+**What survived is the part that was expensive.** Weights are written as each fit
+completes, so 77 of 78 were on disk and the second run refitted one channel and
+read the other 77 from cache. **What did not survive is the bookkeeping**: 165
+Class B were spent and never reached the ledger, because the process died before
+`ops.commit`. That is commit `75cc846` from the other side -- it moved the
+artifact ahead of the ledger so a ledger failure could not take the result, and
+here the result and the ledger were both lost while the weights, which nobody had
+thought of as the durable thing, came through.
+
+**The transferable part is not "measure memory".** It was measured. It is that a
+per-unit measurement multiplied by a worker count is an estimate of one term in a
+sum, and the other terms -- the runtime each worker re-imports, the parent's own
+growth since the baseline -- are the ones that decide whether it fits.

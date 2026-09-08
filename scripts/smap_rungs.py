@@ -35,6 +35,8 @@ import ast
 import csv
 import io
 import json
+import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +52,7 @@ from sentinel_eval.detector import Context, reduce_scores               # noqa: 
 from sentinel_eval.metrics.counts import Count                          # noqa: E402
 from sentinel_eval.metrics.ranges import mask_to_ranges                 # noqa: E402
 from sentinel_models import detectors as D                             # noqa: E402
+from sentinel_models.lstm import Hyper                                 # noqa: E402
 from sentinel_models import registry                                   # noqa: E402
 from sentinel_models import telemanom                                  # noqa: E402
 
@@ -60,6 +63,12 @@ PRE_REGISTRATION = "docs/MODELS.md 27"
 BATCH_SIZE = 70            # config.yaml batch_size
 WINDOW_SIZE = 30           # config.yaml window_size
 L_S = 250                  # config.yaml l_s
+N_PREDICTIONS = 10         # config.yaml n_predictions
+
+#: The published training configuration, `docs/MODELS.md` 28.1 T-b to T-h.
+PUBLISHED_HYPER = dict(train_batch_size=64, min_delta_absolute=0.0003,
+                       validation_split="shuffled", full_epochs=True,
+                       restore_best=False)
 SD_LIM = 12.0              # errors.py:241
 Z_STEP = 0.5               # errors.py:285
 Z_FLOOR = 2.5              # errors.py:285
@@ -272,14 +281,17 @@ def _one_window(e_s_win, y_win, window_num, batch_size, num_to_ignore,
     return np.unique(np.concatenate(found))                    # errors.py:147-148
 
 
-def run_port(e_s_full, y_full, error_buffer, p):
+def run_port(e_s_full, y_full, error_buffer, p, tail=0):
     """errors.py:111-168, `process_batches`, with `adjust_window_size`.
 
     Operates in telemanom's own coordinates: `y_test` is the raw series offset by
     `l_s`, and the surviving indices are shifted back by `+ l_s` (errors.py:165).
     """
-    e_s = np.asarray(e_s_full[L_S:], dtype=np.float64)
-    y = np.asarray(y_full[L_S:], dtype=np.float64)
+    # 28.1 T-g: `y_test` has `len - l_s - n_predictions` rows (channel.py:55),
+    # so the covered raw span is [l_s, len - n_predictions). `tail` carries it.
+    stop = len(e_s_full) - tail if tail else len(e_s_full)
+    e_s = np.asarray(e_s_full[L_S:stop], dtype=np.float64)
+    y = np.asarray(y_full[L_S:stop], dtype=np.float64)
     n = y.shape[0]
     alarm = np.zeros(y_full.shape[0], dtype=bool)
     if n <= BATCH_SIZE:
@@ -402,6 +414,58 @@ def ctx_for(cid, n):
                    commands=None, command_ids=())
 
 
+def ctx_cmd(cid, n, commands):
+    """`ctx_for` with the command columns attached -- 28.1 T-f."""
+    return Context(mission="smap-msl", channels=(cid,), groups=(0,),
+                   period_seconds=1.0, fold=0, window=(0, n),
+                   commands=commands, command_ids=())
+
+
+def build_published(cid, train, test):
+    """Arm T: telemanom's training configuration, its inputs and its aggregation.
+
+    Eight differences at once, deliberately (27/28.2): this is a reproduction arm
+    and reproducing a configuration one constant at a time would take eight reads.
+    """
+    det = registry.build("lstm-telemanom")
+    det.hyper = Hyper(cell="lstm", **PUBLISHED_HYPER)          # T-b, T-c, T-d, T-e, T-h
+    det.wants_commands = True                                   # T-f
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")   # T-a
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    c_tr, c_te = train[:, 1:].astype(np.float32), test[:, 1:].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_cmd(cid, len(v_tr), c_tr))
+    s_ctx = ctx_cmd(cid, len(v_te), c_te)
+    e_s = np.asarray(det._smoothed_errors(v_te, s_ctx), dtype=np.float64)[:, 0]
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
+
+
+def _fit_published(job):
+    """One published fit, in its own process. Must be module-level to be picklable.
+
+    `docs/MODELS.md` 28.5: the bundle is loaded once in the parent and the fits
+    are pure compute, so fanning them out costs **zero** extra R2 operations.
+    Each worker narrows torch to `threads` so four of them do not put sixteen
+    threads on ten cores; the fit is seeded per channel (`train` calls
+    `configure_determinism(seed + fold)`), so which process runs it cannot change
+    the weights.
+    """
+    cid, train, test, threads = job
+    import sentinel_models.lstm as L
+    L.THREADS = threads
+    started = time.time()
+    try:
+        return cid, build_published(cid, train, test), None, time.time() - started
+    except Exception as exc:
+        return cid, None, f"{type(exc).__name__}: {str(exc).splitlines()[0]}", \
+            time.time() - started
+
+
 def proportional_config(n: int):
     """D47, unchanged from `scripts/smap_stage2.py:65-78`. The `prop` regime."""
     window = max(1, int(telemanom.SMOOTHING_PERC * n))
@@ -467,6 +531,14 @@ def main(argv=None) -> int:
     ap.add_argument("--stage4", required=True, help="the stage 4 artifact")
     ap.add_argument("--limit", type=int, default=0, help="smoke: first N channels")
     ap.add_argument("--acknowledge-tripwire", action="store_true")
+    ap.add_argument("--published", action="store_true",
+                    help="work item 9.11: add Arm T, the published training "
+                         "configuration. THIS REFITS -- see docs/MODELS.md 28.5")
+    ap.add_argument("--workers", type=int, default=1, metavar="N",
+                    help="parallel published fits; 28.5's measured plan is 4 at "
+                         "2 torch threads, ~32 min and ~2.8 GB")
+    ap.add_argument("--only", default="", metavar="A,B",
+                    help="score only these arms; the timing smoke uses it")
     args = ap.parse_args(argv)
 
     vis = json.loads(Path(args.visibility).read_text())
@@ -494,6 +566,8 @@ def main(argv=None) -> int:
         seqs[cid] = list(zip(ast.literal_eval(r["anomaly_sequences"]), classes))
 
     channels = man["channels"][: args.limit] if args.limit else man["channels"]
+    fit_seconds: list[float] = []
+    pending: list[tuple] = []
     store = D.WEIGHT_STORE
     before = sum(1 for p in store.iterdir() if p.suffix == ".npz")
 
@@ -505,7 +579,11 @@ def main(argv=None) -> int:
         train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
         test = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["test"])))
         built, failed = {}, {}
-        for cell in ("lstm", "gru"):
+        cells = ("published",) if args.only == "T" else (
+            ("lstm", "gru", "published") if args.published else ("lstm", "gru"))
+        if "published" in cells:
+            pending.append((cid, train, test, max(1, 8 // max(1, args.workers))))
+        for cell in [c for c in cells if c != "published"]:
             try:
                 built[cell] = build(cid, cell, train, test)
             except Exception as exc:         # D17's guard refuses a channel outright
@@ -515,15 +593,20 @@ def main(argv=None) -> int:
         if failed:
             stalls[cid] = failed
             print(f"    {cid}: STALL -- " + "; ".join(f"{k} {v}" for k, v in failed.items()))
-        if not built:
+        if not built and "published" not in cells:
             continue
         grew = sum(1 for p in store.iterdir() if p.suffix == ".npz")
-        if grew != before:
+        # Arm T is the first arm in this study that is SUPPOSED to fit, at a
+        # pre-registered +81 (28.5). Everything else must not move the store.
+        if grew != before and not args.published:
             print(f"  ABORT: weight store {before} -> {grew} at {cid}; a fit happened.")
             return 6
         per_channel[cid] = {"spacecraft": sc, "n": len(test), "built": built,
+                            "train_rows": len(train),
                             "spans": [(int(a), int(b)) for (a, b), _ in seqs.get(cid, [])],
                             "classes": [c for _, c in seqs.get(cid, [])]}
+        if not built:
+            continue
         any_cell = next(iter(built.values()))
         for regime in ("prop", "pub"):
             c = any_cell["cfg"][regime]
@@ -535,8 +618,33 @@ def main(argv=None) -> int:
         if i % 10 == 0:
             print(f"    {i}/{len(channels)}")
 
+    # -- Arm T's fits, fanned out. Zero extra operations: the bundle is loaded.
+    if pending:
+        print(f"  fitting {len(pending)} published models on {args.workers} worker(s) ...")
+        started = time.time()
+        if args.workers > 1:
+            with ProcessPoolExecutor(max_workers=args.workers) as pool:
+                done = list(pool.map(_fit_published, pending))
+        else:
+            done = [_fit_published(job) for job in pending]
+        for cid, out, err, seconds in done:
+            fit_seconds.append(seconds)
+            if err is not None:
+                stalls.setdefault(cid, {})["published"] = err
+                print(f"    {cid}: STALL -- published {err}")
+                continue
+            per_channel[cid]["built"]["published"] = out
+        per_channel = {c: v for c, v in per_channel.items() if v["built"]}
+        print(f"  fits done in {(time.time() - started)/60:.1f} min wall clock")
+
     after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
-    print(f"  weight store {before} -> {after} (+{after - before}; 27.6 expects +0)")
+    expected = "28.5 expects +78 (3 banked by the smoke)" if args.published else "27.6 expects +0"
+    print(f"  weight store {before} -> {after} (+{after - before}; {expected})")
+    if fit_seconds:
+        med = float(np.median(fit_seconds))
+        print(f"  fits: n={len(fit_seconds)} median {med:.1f}s "
+              f"min {min(fit_seconds):.1f}s max {max(fit_seconds):.1f}s "
+              f"-> 81 channels projects to {81 * med / 60:.0f} min serial")
     return report(args, per_channel, stalls, geometry, in_range, base_rate,
                   before, after, client, cfg, ledger, budget)
 
@@ -562,13 +670,16 @@ ARM_TABLE = [
           published_window=True), "pub", "+ the published window (errors.py:84-93)"),
     ("F", "lstm", "port", None, "pub", "the complete port: the reference ceiling"),
     ("FG", "gru", "port", None, "pub", "the complete port on the GRU: the 38 baseline"),
+    ("T", "published", "port", None, "pub",
+     "work item 9.11: the published training configuration under Arm F's stack"),
 ]
 
 
 def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
-    cells = ("lstm", "gru")
+    cells = tuple(c for c in ("lstm", "gru", "published")
+                  if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
     events, pops, nominal, scorable = {}, {}, {}, {}
@@ -610,8 +721,11 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
               f"{len(pops[cell]['in_range_contextual'])} in-range contextual")
 
     # -- every arm, one pass -------------------------------------------------
+    wanted = {a for a in args.only.split(",") if a} or None
     results, per_ch_rows = {}, []
     for name, cell, kind, mech, regime, note in ARM_TABLE:
+        if wanted is not None and name not in wanted:
+            continue
         chans = [c for c, v in per_channel.items() if cell in v["built"]]
         if not chans:
             continue
@@ -621,7 +735,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
             if kind == "ladder":
                 mask, _ = run_ladder(b["e_s"], b["values"], b["cfg"][regime], p, mech)
             elif kind == "port":
-                mask, _, _ = run_port(b["e_s"], b["values"], telemanom.ERROR_BUFFER, p)
+                mask, _, _ = run_port(b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                                      tail=N_PREDICTIONS if name == "T" else 0)
             else:                                  # "source" and "swept"
                 mask = b["as_source"] >= 1.0
             alarms[cid] = np.asarray(mask, dtype=bool) & scorable[cell][regime][cid]

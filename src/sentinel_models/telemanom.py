@@ -124,6 +124,15 @@ class Config:
     z_ceiling: float = Z_CEILING
     z_step: float = Z_STEP
 
+    #: How the ``n_predictions`` forecasts covering a timestep are collapsed.
+    #: ``"mean"`` is what every figure in this repository was measured under;
+    #: ``"first"`` is published telemanom, which takes the single one-step-ahead
+    #: prediction (`docs/MODELS.md` 28.1, T-a). Lives here rather than on
+    #: :class:`~sentinel_models.lstm.Hyper` because it changes the forecast a
+    #: fitted model produces and not the model itself, so the two arms share
+    #: weights -- the same reason ``error_window`` lives here (26.14).
+    aggregate: str = "mean"
+
     #: Exclude the judged segment from the window the threshold is derived from.
     #: **Default False, which is the behaviour every published number was
     #: measured under.** True is the CFAR guard-cell arrangement: the scale
@@ -144,7 +153,10 @@ class Config:
                 "error_buffer": self.error_buffer,
                 "pruning_p": self.pruning_p,
                 "z_floor": self.z_floor, "z_ceiling": self.z_ceiling,
-                "z_step": self.z_step, "guard_segment": self.guard_segment}
+                "z_step": self.z_step, "guard_segment": self.guard_segment,
+                # Emitted only when it is not the default, so every recorded
+                # config fingerprint is unmoved. D14's rule, applied here.
+                **({} if self.aggregate == "mean" else {"aggregate": self.aggregate})}
 
 
 # -- smoothing --------------------------------------------------------------

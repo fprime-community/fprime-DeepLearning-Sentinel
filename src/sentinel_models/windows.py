@@ -176,6 +176,15 @@ class SequenceSampler:
         starts = self._resolve(rng.integers(0, self.n_positions, size=n))
         return self.gather(starts)
 
+    def resolve_positions(self, picks: np.ndarray) -> np.ndarray:
+        """Public form of :meth:`_resolve`, for a caller splitting positions itself.
+
+        Added for `docs/MODELS.md` 28.1 T-d: telemanom shuffles its windows and
+        takes a random validation fraction of them, which needs a split at
+        position level rather than at run level.
+        """
+        return self._resolve(np.asarray(picks, dtype=np.int64))
+
     def sample_positions(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """A fixed set of start indices -- used to pin the validation set."""
         n = min(n, self.n_positions)
@@ -206,14 +215,23 @@ class SequenceSampler:
         return inputs, targets
 
 
-def aggregate_predictions(predictions: np.ndarray) -> np.ndarray:
+def aggregate_predictions(predictions: np.ndarray, method: str = "mean") -> np.ndarray:
     """Collapse ``(steps, n_predictions, channels)`` to one forecast per timestep.
 
     The forecast made at step ``s`` covers ``s+1 .. s+n_predictions``, so every
     timestep is forecast up to ``n_predictions`` times, from that many distances
-    away. telemanom averages them, and the averaging is doing real work: an error
-    that survives being predicted from ten different starting points is a
-    property of the data rather than of one unlucky forward pass.
+    away. Averaging them is doing real work: an error that survives being
+    predicted from ten different starting points is a property of the data rather
+    than of one unlucky forward pass.
+
+    **(!) MIS-CITATION CORRECTED 2026-09-08 (docs/MODELS.md 28.1, T-a).** This
+    docstring said *"telemanom averages them"* from work item 4 until today, and
+    the source says otherwise: `Model.aggregate_predictions` takes
+    ``method='first'`` by default (`third_party/telemanom/telemanom/modeling.py:113`)
+    and `batch_predict` calls it with no method at ``:172``. **Published telemanom
+    uses the single one-step-ahead prediction.** ``method="first"`` reproduces it;
+    ``"mean"`` remains the default because it is what every figure in this
+    repository was measured under.
 
     The first ``n_predictions`` steps have fewer contributions and are averaged
     over what exists rather than padded, because inventing a forecast is worse
@@ -221,6 +239,15 @@ def aggregate_predictions(predictions: np.ndarray) -> np.ndarray:
     inside the warm-up prefix.
     """
     steps, n_predictions, channels = predictions.shape
+    if method == "first":
+        # modeling.py:133-136 -- the diagonal's first element is the prediction
+        # for `t` made from the window ending at `t-1`, i.e. one step ahead.
+        out = np.empty((steps, channels), dtype=np.float32)
+        out[0] = predictions[0, 0]
+        out[1:] = predictions[: steps - 1, 0]
+        return out
+    if method != "mean":
+        raise ReferenceError(f"unknown aggregation {method!r}; expected 'mean' or 'first'")
     total = np.zeros((steps, channels), dtype=np.float64)
     count = np.zeros((steps, 1), dtype=np.float64)
     for j in range(n_predictions):

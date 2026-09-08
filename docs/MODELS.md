@@ -128,6 +128,29 @@ project. A list headed "kept exactly" is the last place anyone looks for a bug,
 which is most of why it survived three work items. Corrected rather than
 quietly removed, because the correction is the more useful record.
 
+**(!) And two more were on that list and should not have been -- 2026-09-08,
+`docs/MODELS.md` 28.1.** Read against the vendored source rather than against
+memory:
+
+- **`l_p = 10` predictions "aggregated by mean" is not what telemanom does.**
+  `Model.aggregate_predictions` takes `method='first'` by default
+  (`third_party/telemanom/telemanom/modeling.py:113`) and `batch_predict` calls
+  it with no method (`:172`). **The published forecast is the single one-step-
+  ahead prediction.** Ours averages up to ten, which smooths the residual
+  tenfold. `src/sentinel_models/windows.py`'s own docstring asserted *"telemanom
+  averages them"* from work item 4 until today; the mis-citation is corrected at
+  the docstring and the alternative is available as `Config(aggregate="first")`.
+- **`batch_size = 70` is the wrong one of two published constants.**
+  `config.yaml` carries `batch_size: 70`, which is the **error-window** batch,
+  and `lstm_batch_size: 64`, which is the **training** batch used at
+  `modeling.py:99`. `Hyper.batch_size` was marked "published" and is 70.
+
+**The pattern is the same one `min_delta` established**: a list headed "kept
+exactly" is where a wrong reading is safest, and both of these were transcribed
+from the paper's prose rather than from its code. Every figure in this repository
+was measured under the mean and under `batch_size = 70`; work item 9.11 measures
+what the published values do, and neither figure is withdrawn.
+
 ---
 
 ## 2. Trained in torch, scored in NumPy
@@ -7490,3 +7513,129 @@ stage 4's 0.6838% -- **a labelled deviation from the source**, pre-registered as
 one, to re-measure the 38 that stage 4 left at 10 and 27.9 could not replace.
 
 **None of it is registered here.**
+
+### 28.7 OBSERVED -- the published training recovers eight events, and nothing on MSL
+
+**2026-09-08. Two reads at 165 Class B each; the first is discarded for a defect
+of mine recorded below.** Plus a 3-channel timing smoke and a parallel-path check
+at 9 Class B each. Artifact
+`runs/smap-msl/_forensics/2026-09-08T201450Z-wi910-port.json`. Weight store
+**321 -> 399**, the pre-registered growth.
+
+#### (!) T4 held, and it changes the population
+
+**Zero of 81 channels kept their first epoch** under the published absolute
+`min_delta = 0.0003`, against a prediction of 20 or fewer. Our relative rule
+stalls **six** channels on the LSTM and four on the GRU; the published rule stalls
+**none**.
+
+```
+   configuration              channels   sequences   in-range contextual
+     ours, LSTM                  75          98             37
+     ours, GRU                   77         100             38
+     published (Arm T)           81         104             39
+```
+
+**So Arm T is the first arm in this project to score the whole population** -- 104
+sequences, the paper's 105 less the P-2 duplicate. D17's replacement was
+necessary on ESA-ADB, where validation MSE is ~1e-4 and the absolute bar went
+negative, and is **not** necessary here. That is the dimensionless-constants
+argument holding in both directions on the same code: **the absolute constant is
+wrong on one dataset's scale and right on the other's**, which is a stronger
+statement than D17 could make alone.
+
+#### The result, per dataset, MSL first
+
+```
+   arm     set      recall              precision (TP/(TP+FP))     FP
+   F       MSL      3/36     8.3%       3/4      75.0%              1
+   F       SMAP    31/62    50.0%      31/34     91.2%              3
+   F       Total   34/98    34.7%      34/38     89.5%              4
+   T       MSL      3/36     8.3%       3/5      60.0%              2
+   T       SMAP    43/68    63.2%      43/50     86.0%              7
+   T       Total   46/104   44.2%      46/55     83.6%              9
+   paper   MSL     25/36    69.4%      25/27     92.6%              2
+   paper   Total   84/105   80.0%      84/96     87.5%             12
+```
+
+**Restricted to Arm F's 75 channels, so the two share a population exactly:**
+
+```
+   F   34/98   34.7%    34/38   89.5%    FP 4
+   T   42/98   42.9%    42/50   84.0%    FP 8
+```
+
+**The published training configuration buys eight events and costs four false
+alarms.** +8.2 points of recall for -5.5 of precision.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **T4** | 20 or fewer of 81 keep their first epoch | **0** | **HELD, and it enlarges the population to 104** |
+| **T2** | precision holds at or above 70% | **83.6%** | **HELD** |
+| **T5** | no banked ESA-ADB digest or fingerprint moves | A0 to FG reproduce **to the digit**, and the pinning tests pass | **HELD** |
+| **T1** | **the commissioned number.** 55 to 85 TP, central 70 | **46 of 104**, and **42** on F's own 98 | **REFUTED** |
+| **T3** | more than half of T1's gain survives from T-a alone | -- | **not measured.** The decomposition ladder is what measures it |
+| **S1** | L1 subset of A0, L2 of L1, L3 of L2, on every channel | **75/75, 75/75, 75/75** | **HELD.** 27.8's unadjudicated stop is now adjudicated |
+| **S2** | L4 superset of L3 on every channel | **75/75** | **HELD** |
+
+#### (!) MSL did not move, and that is the finding inside the finding
+
+**Every point of the gain is SMAP's.** MSL is `3/36` before and `3/36` after. On
+the one population that matches the paper's exactly, the paper catches **25 of 36
+with 2 false alarms** and this reproduction catches **3 of 36 with 2** -- and
+eight training changes, including the ones the paper's own numbers were produced
+under, moved it by **zero events**.
+
+#### `L1` is settled, and quantified
+
+The magnitude conjunct bound on **23 indices across 83,780 window-passes** -- it
+is correctly implemented (`tests/test_smap_rungs_port.py` builds windows where it
+must fire) and it binds on this data essentially never. `L1` remains identical to
+`A0` in every cell because 23 removed indices inside buffered spans of 199 remove
+no sequence. **A property of the data, measured rather than asserted.**
+
+#### The next difference, named from the source and not run
+
+T1's refutation clause requires it before anything else runs. All eight tabled
+differences are now applied, so the remaining one is **not** among them. Read
+from `third_party/telemanom/telemanom/errors.py:48-64` against
+`src/sentinel_models/detectors.py:449-472`:
+
+```
+  telemanom   e is computed over the SUPERVISED region only -- y_hat against
+              y_test, length len(test) - l_s - n_predictions -- then smoothed,
+              then its first l_s samples are REPLACED by the mean of the first
+              2*l_s (errors.py:62-64, every channel except C-2)
+
+  ours        the residual is computed over the FULL test array, including the
+              first l_s steps where `_forecast` has no real history and pads with
+              `np.repeat(take[:1], front)`, and the EWMA runs across all of it
+```
+
+**So our `e_s` enters the scored region carrying smoothing state built from
+padded warm-up residuals, and telemanom's starts fresh.** `mean_e_s` and `sd_e_s`
+set every epsilon in every window, so a contaminated opening moves every
+threshold on the channel. The `e_s[:l_s]` flattening was listed at 28.1 as
+"also read, and smaller"; on this evidence it is not smaller, and it is the next
+lever. **Not run here.**
+
+#### The defect in this section's own run
+
+**The first full run was killed by the operating system for low memory, after the
+fits and before the artifact.** 28.5's compute plan measured one fit at 508 MB
+and sized four workers at ~2.8 GB against ~4.3 GB free. It did not count two
+things: each spawned worker imports torch independently before it fits anything,
+and the parent had already grown past its measured baseline holding 81 channels'
+arrays and both cells' error caches. **The measurement was honest and the
+arithmetic built on it was not complete.**
+
+**77 of 78 fits survived**, because weights are written as they are produced, so
+the second run refitted one channel and read the rest. **165 Class B were spent
+and are NOT recorded in the ledger**: the run died before `ops.commit`, which is
+commit `75cc846`'s scenario arriving from the other side -- that commit moved the
+artifact **before** the ledger, and here the process reached neither. The ledger
+reads 2,446 Class B for 2026-09 and the true figure is **2,611**. Recorded rather
+than silently corrected, as the August shortfall was.
+
+**The second read is my error, not a design need**, and it is recorded as such --
+the same sentence 26.18 needed for the same reason.

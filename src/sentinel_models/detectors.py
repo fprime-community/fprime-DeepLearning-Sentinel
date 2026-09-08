@@ -448,7 +448,8 @@ class ForecastDetector(Detector):
     # -- forecasting -------------------------------------------------------
     def _smoothed_errors(self, values: np.ndarray, context) -> np.ndarray:
         key = (_weights_digest(self._weights), context.window, values.shape,
-               _sample_digest(values), self.config.smoothing_window)
+               _sample_digest(values), self.config.smoothing_window,
+               self.config.aggregate)
         cached = _ERRORS.get(key)
         if cached is not None:
             return cached
@@ -477,8 +478,9 @@ class ForecastDetector(Detector):
         Every chunk is preceded by ``window`` real timesteps and starts from a
         zero state, so it sees exactly the history a telemanom window sees. The
         forecast for timestep ``t`` is built only from inputs strictly before
-        ``t`` -- :func:`~sentinel_models.windows.aggregate_predictions` averages
-        predictions made at ``t-1`` and earlier -- so nothing here can peek.
+        ``t`` -- :func:`~sentinel_models.windows.aggregate_predictions` collapses
+        predictions made at ``t-1`` and earlier -- so nothing here can peek,
+        under either aggregation.
         """
         window = self.hyper.window
         starts = list(range(lo, hi, self.chunk_steps))
@@ -509,7 +511,7 @@ class ForecastDetector(Detector):
         predictions, _ = reference.forward(self._weights, batch)
         out = np.empty((hi - lo, filled.shape[1]), dtype=np.float32)
         for i, start in enumerate(starts):
-            aggregated = aggregate_predictions(predictions[i])
+            aggregated = aggregate_predictions(predictions[i], self.config.aggregate)
             out[start - lo:start - lo + lengths[i]] = aggregated[window:window + lengths[i]]
         return out
 

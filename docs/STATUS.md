@@ -409,6 +409,32 @@ HOUSEKEEPING
       correct, and 20 or fewer of 81 channels should stall. This arm **refits**, so the
       weight store grows by a pre-registered +81 and a 3-channel timing smoke reports
       per-fit wall clock before the full fit starts.
+- [x] **Work item 9.11 - run 2026-09-08** (`docs/MODELS.md` 28.7). **T4 held with zero
+      stalls in 81 channels**: the published absolute `min_delta` causes none where our
+      relative rule stalls six, so **Arm T is the first arm to score the whole 104-sequence
+      population**. D17's replacement is necessary on ESA-ADB's ~1e-4 loss and unnecessary
+      on (-1,1)-scaled data -- the dimensionless-constants argument holding in both
+      directions on the same code. **T1 refuted**: 46/104 (44.2%) against a 55-85 band,
+      and 42/98 restricted to Arm F's own population against F's 34. **The published
+      training buys eight events and costs four false alarms**, at 83.6% precision
+      against the paper's 87.5%. T2 and T5 held; S1 and S2 now adjudicated at 75/75 on
+      every rung. The magnitude conjunct bound on **23 indices in 83,780 window-passes**,
+      settling L1 as a property of the data.
+- [ ] **(!) MSL did not move at all.** Every point of the gain is SMAP's; MSL is 3/36
+      before and after. On the one population that matches the paper's exactly the paper
+      catches **25 of 36 with 2 false alarms** and this reproduction catches **3 with 2**,
+      and eight training changes moved it by zero events.
+- [ ] **The next difference is named from the source and not run** (28.7): telemanom
+      computes its residual over the **supervised region only** and then replaces the
+      first `l_s` smoothed samples with the mean of the first `2*l_s`
+      (`errors.py:48-64`), where ours runs the EWMA across the **full** test array
+      including the padded warm-up. Our `e_s` enters the scored region carrying smoothing
+      state from padded residuals, and `mean_e_s` and `sd_e_s` set every epsilon.
+- [ ] **(!) The ledger is short by 165 Class B.** The first full run was killed by the OS
+      for low memory after the fits and before `ops.commit`. 77 of 78 fits survived on
+      disk; the operations did not. The ledger reads 2,446 for 2026-09 and the true
+      figure is **2,611**. Recorded rather than silently corrected, as August's shortfall
+      was. Correcting it costs 1 Class A and has not been done.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.
@@ -469,7 +495,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (591 tests, zero R2 operations).
+  (603 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -483,7 +509,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 591 tests
+.venv/bin/python -m pytest -q                                    # 603 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1
