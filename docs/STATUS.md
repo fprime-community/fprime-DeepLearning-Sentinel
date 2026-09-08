@@ -43,7 +43,9 @@ over ranges, so every precision figure in the ladder is the generous statistic. 
 target is not "~91 candidate ranges" -- inverting Table 2 gives **84 true positives and
 12 false positives**, and on MSL, where our population matches the paper's exactly at 36,
 **the paper has 2 false positives and this reproduction has 58**. Five mechanisms in the
-source are absent here. The corrections are recorded in D53 and `docs/MODELS.md` 26.29 and 26.30.
+source are absent here. The corrections are in D53 and `docs/MODELS.md` 26.29 and 26.30, and **work item 9.10 is
+pre-registered** (`docs/MODELS.md` 27): a complete faithful port as the reference ceiling,
+with a cumulative five-rung ladder beneath it in one load.
 Phase 1 closed 2026-08-29 (tag
 `wi7`). A ten-minute read; every number is read from a named artifact under `runs/`, or
 from a test that pins it.**
@@ -348,6 +350,11 @@ HOUSEKEEPING
       (36 to 36) and the gap is **2 against 58**. Five mechanisms in the source are not
       implemented here: a magnitude conjunct, a whole-window bail-out, the two
       `find_epsilon` guards (deviation 8), an inverse pass, and `adjust_window_size`.
+- [ ] **Work item 9.10 pre-registered, not run** (`docs/MODELS.md` 27). Twelve arms in
+      one read: four reproduction gates, a regime control, a cumulative five-rung ladder,
+      and a **complete faithful port** as the reference ceiling. Target on this
+      population **78 TP and 11 FP**, scaled from the paper's 84 and 12 before the run.
+      Stop if false positives exceed 25, with the missing mechanism named from the source.
 - [ ] (superseded 2026-09-08) **The remaining gap is precision, not recall**: 221 candidate ranges against ~91.
       A question about how many candidates survive, which the four rungs so far have not
       addressed. Named, not run.

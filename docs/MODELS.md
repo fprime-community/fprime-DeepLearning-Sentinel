@@ -6940,3 +6940,212 @@ whose stall set fixed it.
   reaches a flyable alarm rate there" rest on D46 and D48 and on our own
   artifacts, and nothing here bears on them. **The third clause, `10/38`, is what
   section 27 re-measures.**
+
+## 27. Pre-registration: the faithful port, and the ladder that closes the gap (work item 9.10)
+
+**Written and committed before a single figure is computed.** 26.29 read the
+source and found five mechanisms this reproduction does not implement, a
+precision denominator that is a mixed unit, and a target that is **12 false
+positives** rather than "~91 candidate ranges". 26.30 recorded that four rungs
+were spent on a mechanism the source does not contain.
+
+**This section stops climbing rungs at a mechanism per read.** It ports
+telemanom's detection stack completely, as a reference ceiling, and puts the
+ladder beneath it in the same load so every mechanism's contribution is still
+attributable. **One read. Twelve arms. Cached weights.**
+
+### 27.1 What is built, and what is deliberately not
+
+`scripts/smap_rungs.py`, new, committed **with** the figures it produces
+(`docs/NARRATIVE.md` 11's rule). **`src/sentinel_models/telemanom.py` is not
+touched** -- D8, and 26.21.2's reasoning is unchanged: that module is on the
+ESA-ADB path and a correctness fix escalates first with both numbers kept. Every
+arm below lives in the study script.
+
+**Arm F is a complete port of `third_party/telemanom/telemanom/errors.py`'s
+detection**, transcribed against the vendored source and cited line by line:
+
+```
+  Errors.__init__          e = |y_hat - y_test|            errors.py:48-49
+                           EWMA span 105                   errors.py:51-52  (ours already matches)
+                           e_s[:l_s] = mean(e_s[:2*l_s])   errors.py:62-64  (C-2 excepted)
+                           n_windows                       errors.py:40-42
+  adjust_window_size       shrink window_size to fit       errors.py:84-93
+  process_batches          window [i*b, w*b + i*b)         errors.py:123-130
+                           forward and inverse passes      errors.py:132-142
+                           union of the two index sets     errors.py:147-148
+                           accumulate + prior_idx          errors.py:152
+                           consecutive_groups, drop 1-pt   errors.py:157-160
+                           shift + l_s                     errors.py:165-166
+  find_epsilon             z sweep arange(2.5, 12, 0.5)    errors.py:285
+                           buffer arange(1, error_buffer)  errors.py:291
+                           score >= max AND len(E_seq)<=5
+                             AND len(i_anom)<0.5*len(e_s)  errors.py:314-315
+  compare_to_epsilon       whole-window bail-out           errors.py:337-340
+                           (e_s>=eps) & (e_s>0.05*inter)   errors.py:342-343
+                           buffer arange(1, buffer+1)      errors.py:347
+                           window_num clipping             errors.py:355-359
+                           non_anom_max candidate set      errors.py:365-371
+  prune_anoms              ladder, ties, extra rung        errors.py:403-418
+  evaluate_sequences       TP per matched event,
+                           FP per unmatched range          detector.py:117-136
+```
+
+**Two transcription facts, stated in advance because they decide whether F can
+reproduce anything.** (1) Our `e_s` comes from
+`ForecastDetector._smoothed_errors`, which already computes `|actual - forecast|`
+and smooths at span 105 -- the study script reads it directly, so no source file
+changes and no ESA-ADB figure can move. (2) telemanom indexes `y_test`, which is
+the target array offset by `l_s` from the raw series, and restores the offset with
+`+ l_s` at `:165-166`. **The port operates on `e_s[l_s:]` and adds `l_s` back**,
+so its coordinates are telemanom's and its outputs land in the label file's
+coordinates. If that mapping is wrong, F will not reproduce, and 27.4's stop is
+what catches it.
+
+### 27.2 The arms
+
+Twelve, one load, `weight store +0`. `prop` is D47's `0.05*n` window; `pub` is
+the published `window_size * batch_size` with `adjust_window_size`.
+
+```
+   id   forecaster  pipeline                         window   role
+   A0   lstm        1a+1b                             prop    gate + ladder base
+   A1   lstm        as source                         prop    gate
+   A2   lstm        1a+1b+1c-ii                       prop    gate
+   A3   gru         as source, swept                  prop    gate
+   A4   gru         1a+1b+1c-ii                       prop    the pre-registered comparison
+   A5   lstm        1a+1b+1c-ii                       pub     the regime control
+   L1   lstm        A0 + magnitude conjunct           prop    errors.py:342-343
+   L2   lstm        L1 + whole-window bail-out        prop    errors.py:337-340
+   L3   lstm        L2 + the two find_epsilon guards  prop    errors.py:314-315
+   L4   lstm        L3 + the inverse pass             prop    errors.py:132-148
+   L5   lstm        L4 + adjust_window_size           pub     errors.py:84-93
+   F    lstm        the complete port                 pub     the reference ceiling
+   FG   gru         the complete port                 pub     THE NEW 38 BASELINE
+```
+
+**A0 to A5 are reproduction gates and controls with zero new levers. L1 to L5 are
+cumulative, one mechanism each, in the order the source applies them. F is the
+ceiling. `F` minus `L5` is whatever the ladder did not name**, and 27.4 makes it
+a stop rather than a footnote.
+
+### 27.3 Definitions fixed in advance
+
+- **Both precision statistics are reported for every arm**: ours,
+  `range-hits / ranges`, and telemanom's, `TP / (TP + FP)` with TP deduplicated
+  per matched event (26.29.2). The **telemanom statistic is the one the paper is
+  compared against**; ours is kept beside it so no figure in 26.19 to 26.28 loses
+  its comparison.
+- **Populations name their architecture** (26.30.3). LSTM arms: 75 channels, 98
+  sequences, 37 in-range contextual. GRU arms: 77, 100, 38. The LSTM's channels
+  nest inside the GRU's. `pub`-window arms may lose further channels to
+  `adjust_window_size`; each reports its own population **and** the count of
+  channels that produced no window.
+- **Operating points.** A3 sweeps the multiplier to stage 4's `base_rate`, read
+  from `runs/smap-msl/_forensics/2026-09-03T212818Z-stage4-ndt.json` and never
+  transcribed. **F and FG have no dial** -- the operating point is inside the
+  algorithm -- so they are reported at their own point with the pooled
+  nominal-step rate stated. **A catch count on the 38 is compared against stage
+  4's 10/38 only if FG's nominal rate is at or below 0.6838%**; above it the
+  count is reported as unmatched and no comparison is drawn (D41, D44, and the
+  rule that already withdrew V23 three times).
+- **`p = 0.13` throughout.** It has never been swept in this project and it is not
+  swept here.
+- **Per channel the artifact records** `error_window`, `stride`, `error_buffer`,
+  `smoothing_window`, `n_windows` and windows-per-index, so 26.30.2's arithmetic
+  is adjudicated by measurement.
+
+### 27.4 PREDICTED
+
+**Scaling the paper's counts onto our populations, before any figure.** The paper
+reports 84 TP and 12 FP over 105 sequences and 82 channel rows. Ours are 98
+sequences (SMAP 62, MSL 36) and 75 channels (SMAP 48, MSL 27). At the paper's own
+per-dataset recall that is `0.855*62 + 0.694*36 = 53 + 25 = 78` TP; at its
+per-dataset false-alarm density, `(48/54)*10 + 2 = 11` FP. **So the target for F
+on this population is 78 TP and 11 FP, and `84 / 12` is the paper's figure on the
+paper's population.** Both are stated so neither is quoted for the other.
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **G1** | **the reproduction gate.** A0 returns 59/98 and 65/146; A1 returns 44/98 and 45/59; A2 returns 74/98 and 98/221; A3 returns multiplier 0.551, 0.6820%, 10/38 and 47/100 | any cell differing. **A stop, and nothing else in the run is reported** -- the rebuilt stack would not be the one the ladder was measured on |
+| **F1** | **the commissioned target.** F reaches **70 to 86 TP** on 98, central 78 | outside the band |
+| **F2** | **the number the whole section exists to produce.** F's false positives fall to **4 to 25**, central 11, from A0's 81 | outside the band. **Above 25 is a stop**: a mechanism is still missing, and it is **named from the source before anything else runs**, which is the standard 1a and 1b were held to |
+| **F3** | F's precision under telemanom's accounting is **within 12 points of 87.5%**, and its recall within 12 points of 80.0% | either axis further. Parity on both is what 26.28's escalation gate asks for |
+| **F4** | **the residual check.** `F` and `L5` differ by **5 or fewer** false positives | a larger difference, which says the ladder did not name what F contains. Not a stop, but the difference is decomposed before escalation |
+| **L1** | the magnitude conjunct is the largest single reduction: FP falls from 81 to **55 or fewer** | above 55 |
+| **L2** | the whole-window bail-out takes FP to **40 or fewer** | above 40 |
+| **L3** | the two guards take FP to **28 or fewer** -- 26.30.2 argues they bind on almost every window in this regime | above 28. 26.30.2's reading of the buffer-to-window ratio would then be wrong |
+| **L4** | the inverse pass **adds**: FP rises by **10 or fewer** and TP rises by **2 or more** | FP falling, or TP not rising, either of which would mean the pass is not doing what `:132-148` says |
+| **L5** | the published window regime takes FP to **20 or fewer** | above 20 |
+| **S1** | **structural.** L1's alarm set is a **subset** of A0's on every channel; L2's of L1's; L3's admitted candidates of L2's on every window | any channel or window where it is not. **A stop**, as X3, Y4 and Q4 were: each of those three mechanisms only removes |
+| **S2** | **structural.** L4's alarm set is a **superset** of L3's on every channel | any channel where it is not. **A stop** -- the inverse pass only adds |
+| **S3** | **the regime, measured.** Windows-per-index is **8 or fewer** on every `prop` arm and **25 or more** on every `pub` arm, against the "roughly thirty" 26.23.2 reasons from | outside either, which would make 26.30.2's arithmetic wrong |
+| **N1** | **the 38.** FG's nominal-step rate is **at or below 0.6838%**, so the comparison against stage 4's 10/38 is available | above it, in which case the count is reported unmatched and **no comparison is drawn** |
+| **N2** | conditional on N1: FG catches **11 to 24** of the 38, central 16, against stage 4's 10 | outside the band. Below 11 says the faithful stack buys nothing on the in-range class, which is a real and reportable answer |
+| **N3** | FG's catches are a **superset** of stage 4's 10 | any of the 10 lost, which would mean the gain is a threshold artifact rather than the mechanism |
+
+**Deliberately not predicted.** Whether escalation follows -- 27.6 states the gate
+and predicting a verdict on it is not this section's to make. Anything about the
+forecaster: F holds the forecaster fixed on purpose, and every surpass lever
+(27.7) stays unregistered until F lands.
+
+### 27.5 The named risk
+
+**The risk is that a complete port is unfalsifiable** -- twelve arms, and
+whichever number comes out gets a story. What limits it: **G1 is a gate checked
+first** on four independently recorded figures, so a broken rebuild produces no
+result rather than a plausible one; **F2 carries a stop at 25** rather than an
+open-ended "closer is better"; **S1 and S2 are structural checks** that fail on
+direction rather than size, which is how X3, Y4 and Z4 earned their keep; and the
+per-dataset targets are **derived in 27.4 before the run** from the paper's own
+denominators, so they cannot be rescaled afterwards to fit.
+
+**The second risk is transcription.** A complete port is more code than any
+previous rung, and a port that is subtly wrong will produce a plausible number.
+27.1's two transcription facts are stated in advance for that reason, and F4
+compares F against a ladder built independently of it.
+
+### 27.6 Cost and stop-and-report
+
+**A 2-channel smoke first, about 6 Class B and 1 Class A**, whose only purpose is
+to prove the weight-cache key still hits before the full load is paid for -- the
+D14 failure mode, where an eight-element positional key silently orphaned every
+banked fit. Then **one read: 165 Class B and 1 Class A**. Weights are cached for
+both architectures (243 -> 318 when stage 5 fitted the LSTM) and `error_window`
+lives in `Config`, not in the cache key (26.14), so **the weight store is expected
+to grow by 0** on both, and the script aborts on the **first** channel that grows
+it rather than after seventy-seven.
+
+Month stands at **185 Class A and 2,091 Class B** of 50,000 each, read from
+`runs/smap-msl/_forensics/2026-09-04T003537Z-rung1c-isolated.json` and the
+artifact-before-ledger convention. It would end at **187 and 2,262**.
+
+Compute is local and small: the rung runs scored four arms in 58 seconds. Twelve
+arms with an inverse pass is single-digit minutes and no rented GPU is warranted;
+the measured time is reported in the OBSERVED section.
+
+**Stop and report** if: G1 is refuted; S1 or S2 is refuted; F2 exceeds 25; the
+weight store moves; or the run exceeds 200 Class B.
+
+### 27.7 What happens on parity, and the surpass ladder named and not run
+
+**On parity** -- F within tolerance on both axes under telemanom's accounting --
+the corrections escalate as **one D8 correctness fix** to
+`src/sentinel_models/telemanom.py`, both numbers kept, every ESA-ADB
+`lstm-telemanom` figure re-stated from new artifacts, and the old figures quoted
+beside them. That is 26.28's gate, unchanged, and 26.22 already showed what
+adopting a partial fix would have cost.
+
+**Then, and only then**, the surpass ladder is pre-registered against `84 / 12`
+-- one lever per arm, each measured under telemanom's own accounting:
+
+```
+  the GRU against the LSTM on this data
+  D47's proportional window against adjust_window_size
+  a seed ensemble
+  per-channel calibration
+```
+
+**None of them is registered here.** D51 consequence 2 stands: the forecaster
+levers stay closed until the candidate count matches, and F is what decides
+whether it does.
