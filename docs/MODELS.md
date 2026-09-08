@@ -7639,3 +7639,157 @@ than silently corrected, as the August shortfall was.
 
 **The second read is my error, not a design need**, and it is recorded as such --
 the same sentence 26.18 needed for the same reason.
+
+### 28.8 The MSL gap, located at the desk (zero operations)
+
+**The question**: the paper catches 25 of 36 on MSL with 2 false alarms; every arm
+here catches 3 with 2, on a population that matches the paper's exactly.
+
+#### 1. The coordinate audit -- the two frames agree, so it is not an offset
+
+Traced through both implementations rather than assumed.
+
+```
+  telemanom   shape_data (channel.py:55-67): row i covers raw [i, i+l_s+n_p);
+              y_test[i][0] is raw i + l_s
+              Errors.__init__ (:48-49): e[i] = |y_hat[i] - y_test[i][0]|,
+              so e is indexed 0..N-l_s-n_p, and e[i] is RAW i + l_s
+              process_batches (:152): i_anom accumulates in e coordinates
+              (:165-166): E_seq shifted by + l_s -> RAW test-array coordinates
+              evaluate_sequences compares that against labeled_anomalies.csv,
+              which is raw. FRAMES AGREE.
+
+  ours        _smoothed_errors indexes by raw t (detectors.py:461-467), and
+              `first` aggregation sets out[t] = predictions[t-1, 0], the
+              one-step-ahead forecast FOR raw t
+              run_port slices e_s_full[l_s : n - n_p], so its local j is raw
+              j + l_s, and writes alarm[a + l_s : b + 1 + l_s]. FRAMES AGREE.
+```
+
+**Confirmed empirically from the artifact**, which retains per-channel alarm
+ranges: across 33 missed MSL anomalies there is **one** near-miss at a gap of 280
+and **no systematic offset**, because **23 of 27 MSL channels emit no alarm range
+at all**. Five ranges on the whole spacecraft. An offset bug would misplace
+alarms; this places none.
+
+#### 2. (!) The published guards are what silence MSL, and the ladder says so exactly
+
+Per-arm, MSL only, from `2026-09-08T201450Z-wi910-port.json`:
+
+```
+   arm    recall           ranges   silent channels   mechanism added
+   A0    16/36   44.4%       44         5/27          1a+1b, our baseline
+   L1    16/36   44.4%       44         5/27          + magnitude conjunct
+   L2    15/36   41.7%       43         6/27          + whole-window bail-out
+   L3     7/36   19.4%       15        19/27          + the find_epsilon guards
+   L4     7/36   19.4%       16        19/27          + the inverse pass
+   L5     5/36   13.9%        6        22/27          + the published window
+   F      3/36    8.3%        4        23/27          the complete port
+   T      3/36    8.3%        5        23/27          + published training
+   paper 25/36   69.4%       27         --            2 false positives
+```
+
+**Our own baseline is the closest arm to the paper on MSL**, at 16 of 36 against
+25. **Every faithful mechanism removes MSL detections**, and the collapse is at
+**L3**: silent channels go 6 -> 19 and recall 41.7% -> 19.4% when
+`len(E_seq) <= 5 and len(i_anom) < len(e_s) * 0.5` is switched on.
+
+#### 3. What that means, and it is D18 in a new place
+
+The guards and the bail-out are **absolute or coverage-based tests on the
+residual**: `max(e_s) > 0.05`, `e_s > 0.05 * inter_range`, and a candidate
+covering half its window. `docs/THRESHOLD.md:97-100` predicted the coverage half
+of this, and 26.30.2 said SMAP/MSL inverts the ratio it was measured inert at.
+
+**The scale half is new and it points at the forecaster.** D17 improved this
+project's training roughly fortyfold, and a better forecaster produces *smaller*
+residuals. Published telemanom's floors were chosen against the residuals its own
+training produced. **A residual small enough to be good is a residual small enough
+to be filtered out**, and on MSL that is what appears to happen.
+
+**That is D18's finding one layer down.** D18 recorded the published *threshold*
+degenerating under a good forecaster; this is the published *candidate filters*
+doing the same thing. Neither is evidence the published method is wrong -- both
+are evidence that absolute constants in data units do not transfer, which is the
+argument D17 made and T4 has now confirmed in both directions.
+
+**Named, and not yet measured**: the per-channel distribution of `max(e_s)`,
+`sd_e_s`, `sd_values` and `inter_range` against the constants that test them, and
+which guard fires on which channel. Section 29 pre-registers it.
+
+## 29. Pre-registration: the residual rung, and why MSL is silent (work item 9.12)
+
+**Written and committed before a single figure is computed.** 28.8 located the
+MSL collapse at **L3**, the published `find_epsilon` guards, and refuted the
+coordinate hypothesis at the desk: the two implementations compare in the same
+raw frame, and 23 of 27 MSL channels emit **no alarm at all**. This section
+measures why, and applies the residual rung 28.7 named.
+
+### 29.1 What runs -- one read, cached weights
+
+**Arm R = Arm T plus the residual rung**, which is the one difference 28.7 named
+from the source and did not apply:
+
+```
+  errors.py:48-49   e is computed over the SUPERVISED region only, y_hat against
+                    y_test, length len(test) - l_s - n_predictions
+  errors.py:51-59   e_s = pandas ewm(span=105).mean() over THAT series
+  errors.py:62-64   e_s[:l_s] is then REPLACED by mean(e_s[:2*l_s]) for every
+                    channel except C-2
+  errors.py:262-267 num_to_ignore is l_s*2, l_s or 0 by series length, applied
+                    to window 0 -- already implemented, restated for completeness
+```
+
+Ours smooths across the **full** test array including the first `l_s` steps,
+where `_forecast` pads history with `np.repeat(take[:1], front)`; the EWMA
+therefore enters the scored region carrying state built from residuals against
+invented history, and `mean_e_s` and `sd_e_s` set every epsilon.
+
+**And the instrument the diagnosis needs.** Per channel, recorded whatever the
+outcome: `max(e_s)`, `sd_e_s`, `sd_values`, `inter_range`, the count of windows
+in which **each** guard fired (`max(e_s) > 0.05`, `e_s > 0.05 * inter_range`,
+`len(E_seq) <= 5`, `len(i_anom) < 0.5 * len(e_s)`), and the fallback rate -- how
+often `find_epsilon` returned `mean + 12*sd` because nothing was admissible.
+
+**Per-event MSL forensics**, for each of the 33 missed MSL anomalies: the
+residual peak inside the label span, its position relative to the span, the
+epsilon of the window judging it, the peak/epsilon ratio, and a classification:
+
+```
+  offset      the peak is outside the span the label names
+  threshold   the peak is inside and below epsilon
+  filtered    a candidate existed and a named guard removed it
+  no-signal   there is no residual peak in the span to find
+```
+
+### 29.2 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **R1** | **the commissioned number.** MSL recall recovers past **15/36** under Arm R | **15 or below.** The residual rung would then not be the cause, and since 28.8 has already refuted the coordinate hypothesis, **the cause is the guard scale** and the next arm is the guards measured against our residual distribution rather than adopted |
+| **R2** | **the diagnosis.** **Fewer than 5** of the 33 missed MSL anomalies classify as `offset` | 5 or more, which would reopen the coordinate question 28.8 closed at the desk |
+| **R3** | **the mechanism.** The dominant class is `filtered` or `no-signal`, not `threshold` | `threshold` dominating, which would say epsilon is merely too high and a multiplier would fix it -- a much easier problem than the one 28.8 describes |
+| **R4** | **the scale claim, measured.** On **more than half** of MSL channels, `max(e_s)` is **below 0.05** -- so the whole-window bail-out at `errors.py:339` alone would silence them | at or below half, which would make the absolute floor a smaller part of the story than 28.8 argues |
+| **R5** | Arm R does not move SMAP by more than **5** events either way | a larger move, which would mean the residual rung is not the local correction it is described as |
+
+**Deliberately not predicted.** Whether parity is reached; whether the guards
+should be adopted, relaxed or reported as untransferable -- that is a decision to
+take after R3 and R4 say what they are doing, not before.
+
+### 29.3 Cost and stop-and-report
+
+**One read from cached weights: 165 Class B and 1 Class A. No fits** -- Arm R
+changes the residual construction, which lives downstream of the weights, and
+`Config` is not in the cache key. **Weight store expected +0**, and the script
+aborts on the first channel that grows it.
+
+The ledger reads **190 Class A and 2,446 Class B** for 2026-09 and is **short by
+165** (28.7), so the true figure is 2,611 and this read would make it 2,777 of
+50,000.
+
+**Stop and report** if the weight store moves; if R2 is refuted, because the
+coordinate question would be reopened and everything after it is built on that
+being closed; or above 200 Class B.
+
+**MSL is reported first in every table**, because it is the only population that
+matches the paper's exactly and it is where the whole recall gap lives.
