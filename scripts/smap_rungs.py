@@ -41,6 +41,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
 import sys
 
 import numpy as np
@@ -53,7 +54,9 @@ from sentinel_eval.detector import Context, reduce_scores               # noqa: 
 from sentinel_eval.metrics.counts import Count                          # noqa: E402
 from sentinel_eval.metrics.ranges import mask_to_ranges                 # noqa: E402
 from sentinel_models import detectors as D                             # noqa: E402
-from sentinel_models.lstm import Hyper                                 # noqa: E402
+from sentinel_models.lstm import Hyper, TelemanomRNN, train as fit_model  # noqa: E402
+from sentinel_models.windows import aggregate_predictions               # noqa: E402
+import torch                                                            # noqa: E402
 from sentinel_models import registry                                   # noqa: E402
 from sentinel_models import telemanom                                  # noqa: E402
 
@@ -437,6 +440,20 @@ def make_grid(top: float = 50.0) -> np.ndarray:
                                      np.geomspace(1.0, top, 60), [1.0]]))
 
 
+def free_memory_gib() -> float:
+    """Free plus inactive pages, in GiB. 31.6's gate."""
+    try:
+        out = subprocess.run(["vm_stat"], capture_output=True, text=True).stdout
+        size = int(out.split("page size of")[1].split("bytes")[0].strip())
+        pages = 0
+        for line in out.splitlines():
+            if line.startswith(("Pages free", "Pages inactive")):
+                pages += int(line.split(":")[1].strip().rstrip("."))
+        return pages * size / 1073741824
+    except Exception:
+        return float("inf")          # unknown is not a reason to refuse to run
+
+
 def fetch(client, bucket, key):
     return client.get_object(Bucket=bucket, Key=key)["Body"].read()
 
@@ -500,7 +517,8 @@ def _fit_published(job):
     started, out, err = time.time(), {}, {}
     for cell in cells:
         try:
-            out[cell] = (build_published(cid, train, test) if cell == "published"
+                out[cell] = (build_published(cid, train, test) if cell == "published"
+                         else build_zscore(cid, train, test) if cell == "zscore"
                          else build_rung(cid, train, test))
         except Exception as exc:
             err[cell] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
@@ -559,6 +577,101 @@ def build_rung(cid, train, test):
             "n_full": len(v_te), "supervised": True,
             "warm": {"prop": warm, "pub": warm},
             "cfg": {"prop": det.config, "pub": det.config}}
+
+
+#: D56 / `docs/MODELS.md` 31. The same GRU, a head that predicts its own
+#: uncertainty, and a statistic that is dimensionless by construction.
+ZSCORE_HYPER = dict(cell="gru", head="gaussian")
+
+
+def _to_torch(weights, hyper, n_channels, n_exogenous):
+    """Rebuild the torch module from the arrays `to_weights` produced.
+
+    The study script runs its own forward pass rather than going through
+    `reference.forward`, because that module is the flight blueprint and
+    `flight/` is transcribed from it. **A design that has not cleared its own
+    gate does not get to move the flight path** (D56 consequence 3); the
+    transcription is deferred until it does.
+    """
+    model = TelemanomRNN(n_channels, hyper, n_exogenous)
+    with torch.no_grad():
+        for i, layer in enumerate(weights.layers):
+            getattr(model.rnn, f"weight_ih_l{i}").copy_(torch.from_numpy(layer.w_ih))
+            getattr(model.rnn, f"weight_hh_l{i}").copy_(torch.from_numpy(layer.w_hh))
+            getattr(model.rnn, f"bias_ih_l{i}").copy_(torch.from_numpy(layer.b_ih))
+            getattr(model.rnn, f"bias_hh_l{i}").copy_(torch.from_numpy(layer.b_hh))
+        model.head.weight.copy_(torch.from_numpy(weights.head_w))
+        model.head.bias.copy_(torch.from_numpy(weights.head_b))
+    model.eval()
+    return model
+
+
+def predictive_moments(model, values, window, chunk=1000):
+    """`mu` and `sigma` per timestep, from warmed chunks started at a zero state.
+
+    The same geometry `ForecastDetector._forecast` uses -- every chunk is
+    preceded by `window` real steps -- so nothing peeks. The ten predictions
+    covering a timestep are combined by the law of total variance rather than by
+    averaging sigmas: `E[var] + E[mu^2] - (E[mu])^2`, which is the variance of the
+    mixture the ten of them form.
+    """
+    steps = values.shape[0]
+    mu_out = np.zeros(steps, dtype=np.float64)
+    var_out = np.ones(steps, dtype=np.float64)
+    for start in range(0, steps, chunk):
+        stop = min(start + chunk, steps)
+        front = max(0, window - start)
+        take = values[max(0, start - window):stop]
+        if front:
+            take = np.concatenate([np.repeat(take[:1], front, axis=0), take])
+        with torch.no_grad():
+            y = model(torch.from_numpy(take[None].astype(np.float32)),
+                      last_only=False)[0].numpy()
+        mus = y[..., 0]                                   # (T, n_pred, C)
+        var = np.exp(np.clip(y[..., 1], -10.0, 10.0))
+        m = aggregate_predictions(mus, "mean")[:, 0]
+        second = aggregate_predictions(var + mus ** 2, "mean")[:, 0]
+        take_n = stop - start
+        mu_out[start:stop] = m[window:window + take_n]
+        var_out[start:stop] = np.maximum(second - m ** 2, 1e-12)[window:window + take_n]
+    return mu_out, np.sqrt(var_out)
+
+
+def build_zscore(cid, train, test):
+    """Arm H. Fit on `train`, score `test` with z = |x - mu| / sigma.
+
+    The threshold is D25's rule unchanged -- the 99.9th percentile of the
+    smoothed statistic over the mission's own anomaly-masked fitting window,
+    which for SMAP/MSL is the whole `train` split. **The nominal rate it produces
+    is reported, never targeted** (`docs/HARNESS.md` section 1, and 31.2).
+    """
+    hyper = Hyper(**ZSCORE_HYPER)
+    v_tr = train[:, :1].astype(np.float32)
+    v_te = test[:, :1].astype(np.float32)
+    weights, report = fit_model(v_tr, np.ones(len(v_tr), dtype=bool), hyper, fold=0)
+    model = _to_torch(weights, hyper, 1, 0)
+    span = telemanom.Config().smoothing_window                      # 105, unchanged
+
+    def statistic(values):
+        mu, sigma = predictive_moments(model, values, hyper.window)
+        z = np.abs(values[:, 0].astype(np.float64) - mu) / sigma
+        return telemanom.ewma(z.reshape(-1, 1), span).ravel().astype(np.float64), sigma
+
+    s_tr, sigma_tr = statistic(v_tr)
+    s_te, sigma_te = statistic(v_te)
+    warm = hyper.window + telemanom.Config().error_window
+    finite = s_tr[np.isfinite(s_tr)][warm:]
+    threshold = float(np.quantile(finite, 0.999)) if finite.size else float("inf")
+    cv = float(np.std(sigma_te) / np.mean(sigma_te)) if np.mean(sigma_te) > 0 else 0.0
+    return {"e_s": s_te, "as_source": s_te / max(threshold, 1e-12),
+            "values": v_te[:, 0].astype(np.float64),
+            "threshold": threshold, "sigma_cv": cv,
+            "sigma_median": float(np.median(sigma_te)),
+            "nll": float(report.best_validation_mse), "objective": report.objective,
+            "epochs": int(report.epochs_run), "best_epoch": int(report.best_epoch),
+            "nll_improved": bool(report.best_epoch > 0),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
 
 
 def proportional_config(n: int):
@@ -629,6 +742,8 @@ def main(argv=None) -> int:
     ap.add_argument("--published", action="store_true",
                     help="work item 9.11: add Arm T, the published training "
                          "configuration. THIS REFITS -- see docs/MODELS.md 28.5")
+    ap.add_argument("--zscore", action="store_true",
+                    help="work item 9.14: add gru-zscore. THIS REFITS (31.6)")
     ap.add_argument("--workers", type=int, default=1, metavar="N",
                     help="parallel published fits; 28.5's measured plan is 4 at "
                          "2 torch threads, ~32 min and ~2.8 GB")
@@ -674,10 +789,15 @@ def main(argv=None) -> int:
         train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
         test = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["test"])))
         built, failed = {}, {}
-        cells = {"T": ("published",), "R": ("rung",)}.get(args.only) or (
-            ("lstm", "gru", "published", "rung") if args.published
-            else ("lstm", "gru"))
-        for cell in [c for c in cells if c not in ("published", "rung")]:
+        cells = ({"T": ("published",), "R": ("rung",),
+                  "H": ("zscore",), "HM": ("zscore",)}.get(args.only)
+                 or (("zscore",) if args.zscore and args.only == ""
+                     and not args.published else None)
+                 or (("lstm", "gru", "published", "rung") if args.published
+                     else ("lstm", "gru")))
+        if args.zscore and "zscore" not in cells:
+            cells = tuple(cells) + ("zscore",)
+        for cell in [c for c in cells if c not in ("published", "rung", "zscore")]:
             try:
                 built[cell] = build(cid, cell, train, test)
             except Exception as exc:         # D17's guard refuses a channel outright
@@ -687,7 +807,7 @@ def main(argv=None) -> int:
         if failed:
             stalls[cid] = failed
             print(f"    {cid}: STALL -- " + "; ".join(f"{k} {v}" for k, v in failed.items()))
-        deferred = [c for c in cells if c in ("published", "rung")]
+        deferred = [c for c in cells if c in ("published", "rung", "zscore")]
         if deferred:
             pending.append((cid, train, test, deferred))
         if not built and not deferred:
@@ -717,11 +837,27 @@ def main(argv=None) -> int:
 
     # -- Arm T's fits, fanned out. Zero extra operations: the bundle is loaded.
     if pending:
-        print(f"  fitting {len(pending)} published models on {args.workers} worker(s) ...")
-        started = time.time()
+        # 31.6's mitigations, carrying 28.7's OOM as a design constraint rather
+        # than as a resolution to be careful.
         if args.workers > 1:
+            free = free_memory_gib()
+            print(f"  free memory {free:.1f} GiB (gate: 4.0)")
+            if free < 4.0:
+                print("  ABORT: below the pre-registered 4 GiB gate; not starting the pool.")
+                return 7
+        print(f"  fitting {len(pending)} models on {args.workers} worker(s) ...")
+        started, done = time.time(), []
+        if args.workers > 1:
+            # The parent holds at most one batch of raw arrays at a time, which
+            # is the term 28.5's arithmetic left out.
+            batch = 4 * args.workers
             with ProcessPoolExecutor(max_workers=args.workers) as pool:
-                done = list(pool.map(_fit_published, pending))
+                for lo in range(0, len(pending), batch):
+                    slice_ = pending[lo:lo + batch]
+                    done.extend(pool.map(_fit_published, slice_))
+                    for k in range(lo, min(lo + batch, len(pending))):
+                        pending[k] = None          # release the arrays
+                    print(f"    {min(lo + batch, len(pending))}/{len(pending)} fitted")
         else:
             done = [_fit_published(job) for job in pending]
         for cid, out, err, seconds in done:
@@ -771,13 +907,17 @@ ARM_TABLE = [
      "work item 9.11: the published training configuration under Arm F's stack"),
     ("R", "rung", "port", None, "pub",
      "work item 9.12: Arm T plus the residual rung (errors.py:48-64)"),
+    ("H", "zscore", "source", None, "prop",
+     "work item 9.14: gru-zscore at D25's label-free threshold"),
+    ("HM", "zscore", "swept", None, "prop",
+     "gru-zscore swept to stage 4's rate -- a COMPARISON DEVICE, not a calibration"),
 ]
 
 
 def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
-    cells = tuple(c for c in ("lstm", "gru", "published", "rung")
+    cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore")
                   if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
@@ -1048,6 +1188,12 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "weight_store": {"before": before, "after": after},
         "structural_checks": structural,
         "guard_diagnostics": guard_rows,
+        "zscore_diagnostics": [
+            {"channel": c, "spacecraft": v["spacecraft"],
+             **{k: v["built"]["zscore"][k] for k in
+                ("threshold", "sigma_cv", "sigma_median", "nll", "objective",
+                 "epochs", "best_epoch", "nll_improved")}}
+            for c, v in per_channel.items() if "zscore" in v["built"]],
         "forensics": forensics,
         "magnitude_conjunct": {"indices_removed": CONJUNCT_BOUND[0],
                                "window_passes": CONJUNCT_TESTED[0]},

@@ -87,3 +87,29 @@ def test_first_aggregation_is_the_one_step_ahead_prediction():
 def test_an_unknown_aggregation_is_refused():
     with pytest.raises(ReferenceError, match="aggregation"):
         aggregate_predictions(np.zeros((3, 2, 1), dtype=np.float32), "median")
+
+
+def test_the_relative_improvement_rule_is_identical_for_a_non_negative_loss():
+    """`docs/MODELS.md` 31: the sign-safe form must move no MSE fit.
+
+    `best * (1 - m)` and `best - |best| * m` agree exactly whenever `best >= 0`,
+    which every validation MSE in this repository is. They differ only where the
+    loss can go negative, which is the Gaussian NLL case the form was changed for.
+    """
+    m = Hyper().min_improvement
+    for best in (1.0, 1e-4, 3.7, 0.0, 1e-9):
+        assert best * (1.0 - m) == pytest.approx(best - abs(best) * m, rel=0, abs=1e-18)
+    for best in (-1.0, -0.25):
+        assert best * (1.0 - m) > best - abs(best) * m, "the old form raises the bar"
+
+
+def test_the_gaussian_head_doubles_the_output_and_the_point_head_does_not():
+    from sentinel_models.lstm import build_model
+    point = build_model(1, Hyper(cell="gru"), 0)
+    gauss = build_model(1, Hyper(cell="gru", head="gaussian"), 0)
+    assert gauss.head.out_features == 2 * point.head.out_features
+    x = np.zeros((2, Hyper().window, 1), dtype="float32")
+    import torch
+    with torch.no_grad():
+        assert tuple(point(torch.from_numpy(x)).shape) == (2, 10, 1)
+        assert tuple(gauss(torch.from_numpy(x)).shape) == (2, 10, 1, 2)

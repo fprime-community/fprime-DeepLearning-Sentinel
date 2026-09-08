@@ -30,6 +30,7 @@ to score by accident.
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -170,6 +171,17 @@ class Hyper:
     #: once, per epoch.
     full_epochs: bool = False
 
+    #: The output head. ``"point"`` is telemanom's: `l_p * C` values, one mean
+    #: per prediction per channel, trained on MSE. ``"gaussian"`` emits
+    #: `l_p * C * 2` -- a mean AND a log-variance per channel -- trained on
+    #: Gaussian negative log-likelihood, so the detector predicts its own
+    #: uncertainty and the detection statistic `(x - mu)/sigma` is dimensionless
+    #: by construction. D56, `docs/MODELS.md` 31.
+    #:
+    #: Emitted by `as_dict` only when it is not the default, for `cell`'s reason:
+    #: the banked fits were keyed before this field existed (D14).
+    head: str = "point"
+
     #: Which recurrent cell. NOT a telemanom setting -- telemanom is an LSTM.
     #: Work item 5 adds the GRU as the second player at the architecture gate,
     #: and it must differ from the LSTM by the cell alone; so the cell is a field
@@ -194,6 +206,9 @@ class Hyper:
             raise ReferenceError(f"unknown cell {self.cell!r}; expected one of {CELLS}")
         if self.kernel < 2:
             raise ReferenceError(f"kernel must be at least 2, got {self.kernel}")
+        if self.head not in ("point", "gaussian"):
+            raise ReferenceError(
+                f"unknown head {self.head!r}; expected 'point' or 'gaussian'")
         if self.validation_split not in ("tail", "shuffled"):
             raise ReferenceError(
                 f"unknown validation_split {self.validation_split!r}; "
@@ -236,6 +251,8 @@ class Hyper:
             out["validation_split"] = self.validation_split
         if self.full_epochs:
             out["full_epochs"] = self.full_epochs
+        if self.head != "point":
+            out["head"] = self.head
         if self.cell != "lstm":
             out["cell"] = self.cell          # absent for the LSTM: D14, hash unmoved
         if self.cell == "tcn":
@@ -257,6 +274,10 @@ class TrainingReport:
     stopped_early: bool = False
     threads: int = THREADS
     n_exogenous: int = 0
+    #: What `best_validation_mse` and `validation_history` are in. `"mse"` for a
+    #: point head, `"nll"` for a Gaussian one -- the field names predate D56 and
+    #: are not renamed, so the unit is carried explicitly instead.
+    objective: str = "mse"
 
     def as_dict(self) -> dict:
         return {
@@ -269,6 +290,7 @@ class TrainingReport:
             "validation_history": [round(v, 8) for v in self.history],
             "stopped_early": self.stopped_early,
             "torch_threads": self.threads,
+            "objective": self.objective,
             "exogenous_inputs": self.n_exogenous,
         }
 
@@ -310,7 +332,12 @@ class TelemanomRNN(nn.Module):
             dropout=hyper.dropout if len(hyper.hidden) > 1 else 0.0,
         )
         self.drop = nn.Dropout(hyper.dropout)
-        self.head = nn.Linear(hyper.hidden[-1], hyper.n_predictions * n_channels)
+        #: `gaussian` doubles the width: a mean and a log-variance per channel
+        #: per prediction (D56). `point` is unchanged, so every banked fit and
+        #: every golden vector keeps its shape.
+        self.outputs = 2 if hyper.head == "gaussian" else 1
+        self.head = nn.Linear(hyper.hidden[-1],
+                              hyper.n_predictions * n_channels * self.outputs)
 
     @property
     def cell(self) -> str:
@@ -321,7 +348,8 @@ class TelemanomRNN(nn.Module):
         if last_only:
             out = out[:, -1:]
         y = self.head(self.drop(out))
-        y = y.reshape(y.shape[0], y.shape[1], self.hyper.n_predictions, self.n_channels)
+        shape = (y.shape[0], y.shape[1], self.hyper.n_predictions, self.n_channels)
+        y = y.reshape(*shape, self.outputs) if self.outputs > 1 else y.reshape(*shape)
         return y[:, 0] if last_only else y
 
 
@@ -428,6 +456,20 @@ class _TCNBlock(nn.Module):
         return torch.relu(y + (x if self.res is None else self.res(x)))
 
 
+def gaussian_nll(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Gaussian negative log-likelihood, constant dropped. D56.
+
+    `prediction[..., 0]` is the mean and `prediction[..., 1]` the log-variance.
+    The log-variance is clamped because an unbounded one lets the model drive
+    sigma to zero on an easy channel and take the loss to minus infinity, which
+    is a degenerate optimum rather than a good forecast -- the standard failure
+    of a heteroscedastic head, and the clamp is stated rather than tuned.
+    """
+    mu = prediction[..., 0]
+    log_var = prediction[..., 1].clamp(-10.0, 10.0)
+    return (0.5 * (log_var + (target - mu) ** 2 * torch.exp(-log_var))).mean()
+
+
 def build_model(n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> nn.Module:
     """The one place the architecture is chosen. Everything in `train` is shared."""
     if hyper.cell == "tcn":
@@ -492,6 +534,7 @@ def _rnn_weights(model: TelemanomRNN) -> Weights:
         window=model.hyper.window,
         n_predictions=model.hyper.n_predictions,
         n_exogenous=model.n_exogenous,
+        outputs=getattr(model, "outputs", 1),
     )
 
 
@@ -575,7 +618,8 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     model = build_model(values.shape[1], hyper, n_exogenous).to(DEVICE)
     report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
-    loss_fn = nn.MSELoss()
+    loss_fn = gaussian_nll if hyper.head == "gaussian" else nn.MSELoss()
+    report.objective = "nll" if hyper.head == "gaussian" else "mse"
 
     validation = None
     if train_positions is not None:
@@ -618,9 +662,18 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
         # standing best, because D17 measured the absolute one going negative
         # against ESA-ADB's ~1e-4 loss. Which is right is a property of the
         # data's scale, so both are available and the arm says which it used.
-        improved = (current < best_loss - hyper.min_delta_absolute
-                    if hyper.min_delta_absolute is not None
-                    else current < best_loss * (1.0 - hyper.min_improvement))
+        if not math.isfinite(best_loss):
+            improved = True                      # the first epoch always counts
+        elif hyper.min_delta_absolute is not None:
+            improved = current < best_loss - hyper.min_delta_absolute
+        else:
+            # `best * (1 - m)` and `best - |best| * m` are IDENTICAL for a
+            # non-negative loss, so every MSE fit in this repository is unmoved.
+            # They differ once the loss can be negative, which a Gaussian NLL
+            # routinely is: the multiplicative form then RAISES the bar as the
+            # loss improves and training stops almost immediately. Caught by
+            # `docs/MODELS.md` 31's two-channel smoke, before the full run.
+            improved = current < best_loss - abs(best_loss) * hyper.min_improvement
         if improved:
             best_loss, best_epoch, stale = current, epoch, 0
             if hyper.restore_best:

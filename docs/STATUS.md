@@ -480,6 +480,30 @@ HOUSEKEEPING
 - [ ] **28.7's OOM is carried into 31.6 as three pre-registered mitigations**: the parent
       releases raw arrays once a job is queued, every completed fit is checkpointed as it
       lands, and a measured free-memory gate refuses to start below 4 GB.
+- [x] **Work item 9.14 (`gru-zscore`) - run 2026-09-08, and H4's stop fired**
+      (`docs/MODELS.md` 31.8), 165 Class B. **Sigma collapsed to a per-channel constant**:
+      coefficient of variation **median 0.0504**, above 0.25 on **11 of 79** channels
+      against a prediction of more than half. In 31.5's own words, written before the run,
+      the head "learned a global scale, `z` is `|x - mu|` divided by a constant, and the
+      arm is the old detector with extra parameters." **MSL 5/36 against A0's 16/36 and
+      the paper's 25/36** (H1 refuted), with 27 false alarms against 2 (H2 refuted).
+      **H5 held on 79 of 79 channels** - the likelihood objective trained, median best
+      epoch 34 of 35, so this is not an optimisation failure. The model could have learned
+      a varying sigma and did not.
+- [ ] **D48 for the fourth arm running.** At D25's label-free threshold `gru-zscore`
+      alarms on **19.41%** of nominal time; swept it saturates at the grid maximum and is
+      still 1.18% with 0 of 39 in-range contextual. A constant divisor cannot repair a
+      distribution shift. **Stage 4's 10/38 still stands unreplaced.**
+- [ ] **(!) A defect in that arm**: the weight store grew by **0**, not the pre-registered
+      +81, because `build_zscore` fits through `lstm.train` directly and the cache lives
+      in `ForecastDetector.fit`. Arm H's weights are never persisted and it is
+      reproducible only from its seed. Two more caught by the smoke first: the relative
+      stopping rule raises the bar on a negative loss (fixed sign-safely, identical for
+      every non-negative loss, pinned by test), and `Weights` refused a doubled head --
+      **a Gaussian head is not representable in `model.bin` version 1** (D30).
+- [ ] **Named, not registered**: why sigma stayed constant. A single univariate channel
+      gives the likelihood no reason to vary it with state; the multivariate channel set,
+      a variance term the loss cannot trivially satisfy, and capacity are each one arm.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.
@@ -540,7 +564,7 @@ HOUSEKEEPING
   the Level 1 baseline and their golden vectors), `fprime/` (the F' library: the component, a
   deployment, and `settings.ini`; the framework checkout and tool venv under it are gitignored
   and rebuilt by `scripts/fprime_setup.sh` - see `docs/FPRIME.md`), `scripts/`, `tests/`
-  (603 tests, zero R2 operations).
+  (605 tests, zero R2 operations).
 - Data: R2 bucket `fprime-sentinel-data`, manifest-addressed reads only, never LIST; ceiling
   50,000 operations per class per month, tripwire 1,000, every operation in the ledger
   (`docs/DATA.md`). No data is ever committed to the repository.
@@ -554,7 +578,7 @@ HOUSEKEEPING
 ## 9. Verify in four commands
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 603 tests
+.venv/bin/python -m pytest -q                                    # 605 tests
 .venv/bin/python scripts/check_no_list.py
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
 make -C flight test                                              # the C++ core and Level 1

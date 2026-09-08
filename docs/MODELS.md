@@ -8086,3 +8086,104 @@ MSE model does not: averaging the predictive distributions rather than the point
 forecasts, and reading the disagreement between members as a second uncertainty
 term. Both are one lever each, both are registered only after H1 to H5 report,
 and neither is built here.
+
+### 31.8 OBSERVED -- sigma collapses to a per-channel constant, and H4's stop fires
+
+**2026-09-08. One read, 165 Class B and 1 Class A.** Artifact
+`runs/smap-msl/_forensics/2026-09-08T2*-wi910-port.json` (the last of that date).
+81 channels attempted, **79 fitted**, 102 sequences, **MSL 36 -- like-for-like
+with the paper**.
+
+**MSL first, telemanom's accounting:**
+
+```
+   arm    set     recall            precision (TP/(TP+FP))    FP
+   A0     MSL    16/36   44.4%      16/42    38.1%            26
+   F      MSL     3/36    8.3%       3/4     75.0%             1
+   T      MSL     3/36    8.3%       3/5     60.0%             2
+   H      MSL     5/36   13.9%       5/32    15.6%            27
+   HM     MSL     0/36    0.0%       0/0        --             0
+   paper  MSL    25/36   69.4%      25/27    92.6%             2
+
+   H      Total  47/102  46.1%      47/256   18.4%           209   nominal 19.41%
+   HM     Total   6/102   5.9%       6/6    100.0%             0   nominal  1.18%
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **H4** | sigma's coefficient of variation exceeds 0.25 on **more than half** of channels | **median 0.0504**, above 0.25 on **11 of 79** | **REFUTED. The pre-registered stop fires** |
+| **H1** | MSL recall 22/36 or better | **5/36**, below `A0`'s 16/36 | **REFUTED** |
+| **H2** | MSL false positives 2 or fewer | **27** | **REFUTED** |
+| **H5** | held-out nominal NLL improves on 70 of 81 channels | **79 of 79**, median best epoch 34 of 35 | **HELD** |
+| **H3** | the ESA regression gate | **not run**, as 31.6 pre-registered | pending, and now moot for adoption |
+
+#### What H4 means, in the words 31.5 used before the run
+
+*"Below that, the head has learned a global scale, `z` is `|x - mu|` divided by a
+constant, and the arm is the old detector with extra parameters."* **That is what
+happened.** With a median coefficient of variation of **0.05**, sigma is
+effectively one number per channel, so `z` is a **per-channel rescaling of the
+residual** -- not a per-timestep uncertainty.
+
+**And a per-channel rescaling is something this project already has and already
+refuses.** D2 fixes normalisation at identity precisely because per-channel
+rescaling erases the amplitude ratios a cross-channel detector exists to watch,
+and D25's threshold is already a per-mission calibration of the same statistic.
+The design's premise -- that the model would say *where* it forecasts badly --
+**is not what the model learned.**
+
+**H5 rules out the easy explanation.** The likelihood objective trained: NLL
+improved past the first epoch on **79 of 79** channels, with the median best
+epoch at 34 of 35. This is not an optimisation failure. The model **could** have
+learned a varying sigma and did not.
+
+#### And the operating point failed the same way D48 did
+
+At D25's label-free threshold -- the 99.9th percentile of the statistic on the
+anomaly-masked fitting window, calibration unchanged and the rate **reported, not
+targeted** as 31.2 required -- `gru-zscore` alarms on **19.41%** of nominal time.
+Swept to stage 4's 0.6838% it **saturates at the grid maximum of 50x** and is
+still at **1.18%**, with 6 of 102 events and **0 of 39** in-range contextual.
+
+**That is D48 for the fourth arm in a row**: no train-calibrated static threshold
+transfers across SMAP/MSL's regime shift. Normalising the residual by a
+per-channel sigma did not change it, which is consistent with H4 -- a constant
+divisor cannot repair a distribution shift.
+
+**So the 38 are not re-measured here either.** `HM` reaches no comparable
+operating point, and by 31.2's own rule no per-event number is reported from it.
+**Stage 4's 10/38 still stands.**
+
+#### (!) A defect in this arm's implementation
+
+**The weight store grew by 0, not the pre-registered +81.** `build_zscore` fits
+through `lstm.train` directly, and the weight cache lives in
+`ForecastDetector.fit`, which this path does not use. **Arm H's weights are never
+persisted**, so every run refits from scratch -- about six minutes for 81
+channels, which is why it went unnoticed -- and the arm is **not reproducible
+from cache**, only from its seed. The pre-registered growth figure is void.
+A defect in my implementation, not in the design, and recorded rather than
+quietly reconciled.
+
+Two smaller ones, both caught by the two-channel smoke before the full read:
+the relative early-stopping rule `best * (1 - m)` **raises** the bar on a
+negative loss, which a Gaussian NLL routinely is, so training stopped almost
+immediately -- replaced by `best - |best| * m`, which is **identical for every
+non-negative loss** and therefore moves no existing fit, pinned by test. And
+`Weights` correctly refused a doubled head, which is the flight contract doing
+its job; `outputs` is now an explicit field defaulting to 1, and
+`reference.forward` **refuses** anything else with the reason: **a Gaussian head
+is not representable in `model.bin` version 1** (D30).
+
+#### What this closes and what it opens
+
+**It does not say uncertainty modelling is the wrong idea.** It says **this**
+head, on **this** data, learned a constant. The next question is why, and it is
+named rather than guessed: a single univariate channel gives the likelihood no
+reason to vary sigma with state, and the three obvious levers -- the multivariate
+channel set, a variance term the loss cannot trivially satisfy, and capacity --
+are each one arm and none is registered here.
+
+**The pre-registered consequence stands**: H4 was written as a stop precisely so
+that a negative result would end the arm rather than be tuned around, and it is
+being honoured.
