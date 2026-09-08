@@ -385,6 +385,15 @@ HOUSEKEEPING
       windows-per-index 3.0-7.2 proportional against 31.0 published. **L1 is settled as
       a property of the data**, not a transcription defect: `tests/test_smap_rungs_port.py`
       builds windows where each mechanism must fire and shows it does.
+- [x] **The public-benchmark survey landed - `docs/RESEARCH.md` Part IV, 2026-09-08.**
+      Pinet et al. (arXiv:2606.02670, MiLeTS at KDD 2026) find that across eight public
+      benchmarks **no cross-channel rupture occurs without an accompanying univariate
+      deviation**, and that channel-dependent modelling brings no measurable gain - an
+      **independent replication of D42 and D23**, the first this project has. Their test
+      is deviation from normal history; D46's is the training min/max a limit check
+      actually holds, so the two are compatible and the section says so. **Phase 3's
+      physics testbed is now the only venue** for the cross-channel claim, not a
+      convenience. Verified citation by citation; what could not be verified is marked.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.
