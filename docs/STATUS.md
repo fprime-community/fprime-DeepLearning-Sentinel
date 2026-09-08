@@ -459,6 +459,27 @@ HOUSEKEEPING
       **the same constant correct** on (-1,1) data, and the candidate filters - plus one
       hypothesis measured and refuted. **The toolkit ships dimensionless equivalents**;
       an absolute form is a per-mission override with its provenance attached.
+- [ ] **Work item 9.14 pre-registered, not run** (`docs/MODELS.md` 31, D56):
+      **`gru-zscore`, a probabilistic forecaster.** The same GRU with a head emitting
+      `mu` and `log sigma^2` per channel, a Gaussian NLL loss on nominal data, and the
+      statistic `z = (x - mu)/sigma` under D25's unchanged label-free threshold. **`z` is
+      dimensionless by construction, so D55 is satisfied structurally** rather than by
+      choosing better constants. **This stops chasing Table 2**: the reproduction answered
+      what it was asked -- the gap is not the scoring rule, the commands, pruning's rung,
+      cross-window tracking, the aggregation, the window regime or the training
+      configuration, each measured and closed -- **it is the residual itself.**
+      H1 MSL 22/36 or better from A0's 16/36; H2 at 2 or fewer MSL false positives, the
+      paper's own; H3 the ESA regression gate at F0.5 0.804, a separate read priced after
+      H1 and H2 report; H4 the design claim, that sigma is not approximately constant;
+      H5 held-out nominal NLL improving on 70 of 81 channels.
+- [ ] **(!) The commission asked for a threshold "calibrated at a fixed nominal rate" and
+      31.2 declines it**, because `docs/HARNESS.md` section 1 struck the alarm budget:
+      the threshold is a noise floor, not a dial. Calibration is D25's label-free quantile
+      and the nominal rate is **reported, never targeted**; the matched-rate figure is a
+      comparison device (D41, D44) and is labelled as one.
+- [ ] **28.7's OOM is carried into 31.6 as three pre-registered mitigations**: the parent
+      releases raw arrays once a job is queued, every completed fit is checkpointed as it
+      lands, and a measured free-memory gate refuses to start below 4 GB.
 - [ ] **The port has no dial**, so matching its alarm rate to stage 4's 0.6838% needs a
       multiplier on epsilon - a deviation from the source, plumbed through and labelled,
       and pre-registered before it is used.

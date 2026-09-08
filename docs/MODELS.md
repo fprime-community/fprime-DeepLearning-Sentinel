@@ -7949,3 +7949,140 @@ for 2026-09, corrected on 2026-09-08 for 28.7's lost run, so this would end at
 
 **Stop and report** if G4 is refuted; if the weight store moves; or above 200
 Class B. **MSL is reported first**, as it has been since 28.8.
+
+## 31. Pre-registration: `gru-zscore`, a probabilistic forecaster (work item 9.14)
+
+**Written and committed before a single figure is computed.** This stops chasing
+Table 2. Sections 26 to 30 reproduced telemanom's decision layer mechanism by
+mechanism, reached **89.5% precision against its 87.5%**, and left recall 35
+points short with MSL at 3 of 36 where the paper has 25. D55 named why the
+transcribed constants do not travel. **This arm changes the detector instead of
+the transcription.**
+
+### 31.1 The design
+
+**The forecaster is unchanged**: the same GRU, the same lookback, the same
+lookahead, the same training data. **The head and the loss change.**
+
+```
+  today     head -> l_p * C values          the point forecast mu
+            loss -> MSE
+            statistic -> |x - mu|, EWMA(105), max over channels
+            threshold -> 99.9th percentile of that statistic on the
+                         anomaly-masked fitting window (D25)
+
+  gru-zscore
+            head -> l_p * C * 2 values      mu AND log sigma^2, per channel
+            loss -> Gaussian negative log-likelihood on nominal data
+            statistic -> z = (x - mu) / sigma, EWMA(105), max over channels
+            threshold -> the same D25 rule, applied to z
+```
+
+**Why this is the right shape for what 26 to 30 measured.** Every filter and
+floor in telemanom's stack exists to answer *is this residual big enough to mean
+something*, and each answers it with a constant chosen against one dataset's
+residual scale -- which is D55's whole content. **A model that predicts its own
+uncertainty answers that question per channel and per timestep, from the data,
+with no constant to transfer.** `z` is dimensionless by construction, so D55 is
+satisfied **structurally** rather than by choosing better constants.
+
+It also addresses 29.4's measurement directly. MSL's residuals are **large**
+(`max(e_s)` 0.7323 at the median) and the forecaster is doing badly there; an
+absolute-scale detector reads that as noise everywhere. A detector that knows
+*where* it forecasts badly can still flag where reality departs from what it
+expected **given that it forecasts badly there**.
+
+### 31.2 (!) The one place this collides with a rule of this project
+
+The commission says *"threshold calibrated label-free at a fixed nominal rate"*.
+**`docs/HARNESS.md` section 1 strikes exactly that**: *"There is no alarm budget.
+The threshold is a noise floor, not a dial"*, and `docs/RESEARCH.md` Part III
+records the alarm budget as **not taken**, because a process plant's alarm rate
+is an engineer's design variable and a spacecraft's relationship breaks are not.
+
+**So the calibration is D25's rule and nothing else**: the 99.9th percentile of
+`z` over the mission's own **anomaly-masked** fitting window -- label-free,
+already the flying rule, and a measured noise floor rather than a target. **The
+resulting nominal rate is reported, never targeted.**
+
+**A matched-rate figure is still produced**, because comparing detectors at their
+own cuts is what D41 and D44 forbid. It comes from a sweep and is labelled a
+**comparison device, not a calibration**, wherever it appears.
+
+### 31.3 What is built, and what does not move
+
+- **A new registry entry `gru-zscore`**, and a new `Hyper` field `head`
+  defaulting to `"point"`, emitted into the weight-cache key **only when it is
+  not the default** -- D14's rule, the way `cell` was added for the GRU. **No
+  existing detector, figure, artifact or cached fit changes**, and a test pins the
+  banked digests unmoved as T5 did.
+- **Training quality is reported label-free** as held-out **nominal NLL** on the
+  validation split, beside the point model's MSE. Neither is a detection metric
+  and neither is compared to one.
+- `src/sentinel_models/telemanom.py` is untouched. The ESA-ADB path is untouched.
+
+### 31.4 What runs
+
+**Refit all 81 SMAP/MSL channels** under `gru-zscore`, score under **telemanom's
+own accounting** (`TP/(TP+FP)`, TP deduplicated per event) beside `A0`, `F` and
+`T` from the same load, and report:
+
+- **MSL first**, then SMAP, then Total, with `k/n` and both precision statistics;
+- **full precision-recall curves per dataset**, swept over the threshold
+  multiplier -- a diagnostic, not a calibration;
+- **the 38 in-range contextual sequences re-measured at a rate matched to stage
+  4's 0.6838%**, which 27.9 and 28.7 could not deliver because the port has no
+  dial. `gru-zscore` has one by construction, so this is the first arm that can
+  replace stage 4's `10/38` honestly.
+
+### 31.5 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **H1** | **the commissioned number.** MSL recall reaches **22/36 or better**, from `A0`'s 16/36 -- this project's best MSL arm -- against the paper's 25/36 | below 22/36. The uncertainty head would then not be what MSL needs, and 29.4's remaining candidate, pruning at `p = 0.13`, is the next arm |
+| **H2** | **at no cost in false alarms.** MSL false positives are **2 or fewer**, the paper's own figure and the current arms' | above 2. **H1 holding with H2 refuted is a trade and is reported as one**, not as a success -- the number that matters is both together, which is what the paper achieves |
+| **H3** | **the regression gate.** On the ESA gate set `m1-g8.9.10`, `gru-zscore`'s event-wise F0.5 is **at or above `gru-quantile`'s 0.804** | below 0.804. **A stop for adoption**, not for the measurement: a detector that improves SMAP/MSL by regressing the set this project selected its architecture on is not an improvement, and D28 would have to be reopened rather than quietly bypassed |
+| **H4** | **the design claim, stated so it can fail.** The per-channel `sigma` is **not** approximately constant: its coefficient of variation across timesteps exceeds **0.25** on more than half of channels | at or below on half or more, in which case the head has learned a global scale, `z` is `|x - mu|` divided by a constant, and **the arm is the old detector with extra parameters** |
+| **H5** | training is label-free and honest: held-out nominal NLL **improves** over the epochs on at least 70 of 81 channels | fewer, which would say the likelihood objective is not training and the comparison is not about the statistic |
+
+**Deliberately not predicted.** Parity with Table 2 -- this arm stops chasing it.
+Whether `gru-zscore` should fly; that is D28's gate re-run, and H3 is its
+precondition rather than its answer.
+
+### 31.6 Cost, the compute plan, and stop-and-report
+
+**SMAP/MSL: 165 Class B and 1 Class A**, one bundle load. **This arm refits: the
+weight store grows by a pre-registered +81**, or fewer under D17's guard. Ledger
+reads **193 Class A and 2,784 Class B**; this would end at 194 and 2,950.
+
+**(!) The compute plan carries 28.7's failure explicitly.** That run was killed by
+the operating system after the fits and before the artifact, because four workers
+were sized from a per-fit measurement that omitted each worker's own torch import
+and the parent's growth. Four workers again, **with three mitigations, all of
+them pre-registered**:
+
+1. **The parent releases each channel's raw arrays once the job is queued**, so it
+   is not holding 81 channels of telemetry while the workers run.
+2. **Every completed fit is checkpointed to disk as it lands.** 28.7 lost its
+   artifact and kept its weights by luck; this makes that deliberate.
+3. **A measured free-memory gate**: the run refuses to start the pool if measured
+   free memory is below **4 GB**, and reports rather than proceeds.
+
+**The ESA regression (H3) is a separate read and does not run in this one.** It
+needs `gru-zscore` fitted on ESA-ADB's folds, which are millions of steps and were
+Phase 1's expensive fits, and **fitting them for a design that has not yet cleared
+H1 would be spending compute on a hypothesis.** It is priced and run **after** H1
+and H2 report, and adoption waits on it either way.
+
+**Stop and report** if the free-memory gate fires; if the weight store grows by
+more than 81; if H4 is refuted, because the arm would then be the old detector
+wearing a new head and the rest of the section is about something that is not
+happening; or above 200 Class B.
+
+### 31.7 The second lever, scoped and not run
+
+**A seed ensemble over `gru-zscore`.** A likelihood model gives two routes an
+MSE model does not: averaging the predictive distributions rather than the point
+forecasts, and reading the disagreement between members as a second uncertainty
+term. Both are one lever each, both are registered only after H1 to H5 report,
+and neither is built here.

@@ -3642,3 +3642,78 @@ travel", and T4 is what separates them.
 5. **The refuted half is kept.** 28.8's scale hypothesis was written down with its
    reasoning and measured wrong within a day. That is the record working, and
    deleting it would leave the principle looking better supported than it is.
+
+---
+
+## D56. The detector predicts its own uncertainty, because every constant that had to be transferred was the wrong kind of number
+
+**DATE** 2026-09-08 | **STATUS** resolved as a design decision. It opens a new
+detector and closes the reproduction as the route to better recall. Nothing
+existing changes
+
+**CONTEXT.** Work items 9.9 to 9.13 reproduced telemanom's decision layer against
+its vendored source, mechanism by mechanism, each read and not guessed. The
+reproduction reached **89.5% precision against the published 87.5%** with **4
+false positives against a scaled target of 11** -- and **34 of 98** events against
+80%, with **MSL at 3 of 36 where the paper has 25 of 36** on a population that
+matches the paper's exactly.
+
+Five mechanisms were implemented faithfully and **every one of them removed
+detections**. Our own uncorrected baseline is still the best MSL arm at 16 of 36.
+
+**EVIDENCE.**
+
+1. **D55**, from three instances: an absolute constant in data units disabled
+   training on ESA-ADB (D17), **the same constant is correct** on SMAP/MSL's
+   (-1,1) scale (T4, 0 stalls in 81 channels), and the candidate filters are the
+   same shape of number.
+2. **29.4 refuted the obvious repair.** `max(e_s)` on MSL is **0.7323** at the
+   median and **0 of 27** channels fall below the 0.05 floor, so the floors are
+   not what silences MSL. The residuals are **large**; the forecaster is simply
+   forecasting badly there.
+3. **An absolute-scale detector cannot use that information.** A point forecaster
+   emits `|x - mu|` and every downstream rule must decide *how big is big* from a
+   constant. Where the model is unreliable, that constant is wrong in one
+   direction; where it is reliable, wrong in the other.
+
+**ALTERNATIVES.** Keep tuning the transcribed constants. Sweep `p`. Change the
+forecaster's capacity. **Predict the uncertainty and divide by it.**
+
+**Against the first**, D55: a better constant is still a constant, and this
+project has now measured three of them failing to travel. **Against the second**,
+`p` has never been swept and is a real lever, but it acts on a ladder built from
+the same unnormalised residual. **Against the third**, 29.4: the failure is not
+capacity, it is that a large residual is uninformative without knowing what
+residual to expect.
+
+**CONSEQUENCE.**
+
+1. **`gru-zscore`**: the same GRU, a head emitting `mu` and `log sigma^2` per
+   channel, a Gaussian negative-log-likelihood loss on nominal data, and the
+   detection statistic `z = (x - mu) / sigma` under D25's unchanged label-free
+   threshold. **`z` is dimensionless by construction, so D55 is satisfied
+   structurally rather than by choosing better constants.**
+2. **The calibration rule does not change.** `docs/HARNESS.md` section 1's "no
+   alarm budget" stands: the threshold is the 99.9th percentile of `z` on the
+   anomaly-masked fitting window, and the nominal rate it produces is **reported,
+   never targeted**. A matched-rate figure is a comparison device (D41, D44) and
+   is labelled as one.
+3. **Nothing existing moves.** New registry name, `head` as an additive `Hyper`
+   field emitted into the cache key only when non-default (D14), banked digests
+   pinned by test. `telemanom.py`, the ESA-ADB path and every published figure
+   are untouched.
+4. **Adoption is gated on not regressing what the architecture was chosen on.**
+   `docs/MODELS.md` 31's H3 requires `gru-zscore` to match `gru-quantile`'s F0.5
+   of 0.804 on `m1-g8.9.10`. That read is priced separately and runs **after** the
+   SMAP/MSL result, because fitting ESA-ADB's folds for a design that has not
+   cleared its own gate is spending compute on a hypothesis.
+5. **The reproduction is not abandoned, it is finished.** It answered what it was
+   asked: the gap is not the scoring rule, not the commands, not pruning's rung,
+   not cross-window tracking, not the aggregation, not the window regime and not
+   the training configuration -- each measured, each closed. **It is the residual
+   itself**, and that is a design question rather than a transcription one.
+6. **It generalises past this project.** A published detector's constants encode
+   its authors' data. Reproducing them faithfully reproduces that encoding, and on
+   a different regime the faithful transcription is the *less* accurate one --
+   which this project measured five times in a row before changing the design
+   rather than the digits.
