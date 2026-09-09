@@ -3717,3 +3717,107 @@ residual to expect.
    a different regime the faithful transcription is the *less* accurate one --
    which this project measured five times in a row before changing the design
    rather than the digits.
+
+---
+
+## D57. The claim is early warning from whatever context the telemetry carries, and "cross-channel means sensor-to-sensor" is retired
+
+**DATE** 2026-09-09 | **STATUS** resolved as a re-framing of the objective, from
+evidence already on the record. It retires one thesis, keeps every measurement,
+and deletes nothing
+
+**CONTEXT.** Objective.md has said since 2026-08-24 that this project's selling
+point is detecting anomalies in the *relationships between sensors* -- one channel
+failing to follow another. Everything downstream was built to prove that: the
+identity normalisation (D2), the multivariate forecaster, the channel grouping
+(`docs/HARNESS.md` 6a), the dataset search that closed at ESA-ADB (Objective.md
+9.4). Three weeks of SMAP/MSL work have now established that **no data this
+project can reach will settle it**, and that the thing the detector actually does
+well is a different and larger claim.
+
+**EVIDENCE.**
+
+1. **The reduction is measured and it recovers nothing.** D42: L2, sum, `k = 2`
+   and `k = 3` all produce strict subsets of `max` at lower alarm rates, so the
+   channel-blind decision layer is not costing measured events on ESA-ADB. D23
+   closes as answered no.
+2. **An outside group reaches the same place on eight benchmarks.** Pinet et al.
+   (arXiv:2606.02670, MiLeTS at KDD 2026) find that "no cross-channel rupture
+   occurs without an accompanying univariate deviation across a range of
+   reasonable thresholds", and that channel-dependent modelling "brings no
+   measurable gain" (`docs/RESEARCH.md` Part IV). **The first independent
+   replication of a finding of ours**, and it is the one that removes the thesis'
+   only venue.
+3. **The datasets are what they are.** ESA-ADB's labelled faults are gross: a
+   calibrated per-channel range check ties or beats the forecaster at a matched
+   rate on both sets and never speaks second across 53 caught events (D44).
+   SMAP/MSL's 81 channels are unsynchronised univariate streams (Objective.md
+   9.2), so it cannot test relationships at all -- and it carries the contextual
+   population ESA-ADB does not, 39 of 43 strictly inside the training min/max
+   (D46).
+4. **Six model variants, one ceiling.** `A0`, `F`, `FG`, Arm T, Arm R and Arm H
+   have each been scored on SMAP/MSL and none beats stage 4's **10/38** in-range
+   contextual sequences. Four of them failed D48's way, at a nominal rate no
+   mission could fly. That is a property of the data, established by elimination
+   rather than asserted.
+5. **And the context that is present has barely been tested.** NASA's per-channel
+   arrays carry the commands on the same clock as the telemetry -- **24 one-hot
+   columns on SMAP and 54 on MSL**, column 0 being the telemetry. D49 measured
+   conditioning on them making the detector worse and **bounded itself to one
+   encoding**: one-hot indicators, per-channel univariate models, the published
+   dynamic threshold. `docs/RESEARCH.md` records that no published paper has run a
+   commands-on/commands-off ablation, and that telemanom's own model was
+   command-conditioned while every figure in this repository is
+   telemanom-minus-commands.
+
+**ALTERNATIVES.** Keep the sensor-to-sensor thesis and wait for a dataset. Drop
+the cross-channel claim entirely and become a univariate detector. Re-frame the
+claim as early warning from every available context, with sensor-to-sensor as one
+of three and the F' Ref physics testbed as its venue.
+
+**Against the first**: Objective.md 9.4 already closed the dataset search with
+evidence, and Part IV closes it again from outside. Waiting is not a plan, it is
+an absence of one. **Against the second**: it discards a capability that is built,
+verified to 1.8e-07 in C++ and flying in a deployment, on the strength of two
+benchmarks that cannot express it -- and D46's population is direct evidence that
+the in-limits class is real even where the relationship class cannot be measured.
+
+**CONSEQUENCE.**
+
+1. **The claim is early warning, and the context is whatever the telemetry
+   carries.** Sentinel warns before a limit trips using a channel's own history
+   (tested: 10/38 on SMAP/MSL), commands to telemetry (present in NASA's data,
+   barely tested, one encoding measured), and sensor to sensor (unmeasured on any
+   public data; the F' Ref physics testbed is its venue). **Single-context or
+   multi-context is not the distinction. Earlier than a limit check, with minimal
+   false alarms, is.**
+2. **The retired thesis stays in the record with its reason.** "Cross-channel
+   means sensor-to-sensor, and that is the whole selling point" is retired at
+   Objective.md 1.1, not deleted, alongside the +26-timestep lead (D21) and the
+   28-of-32 comparison (D37, D38). A reader who can see only the surviving claims
+   has to take our judgement on trust.
+3. **The retirement is stated conditionally, because the evidence is.**
+   `docs/RESEARCH.md` says *if* no public benchmark carries strictly cross-channel
+   segments, then the testbed is the only venue -- and it names SWaT, WADI and
+   SKAB as unchecked candidates and records that "absence across eight benchmarks
+   is strong evidence rather than proof". A near-binary channel also defeats a
+   z-score diagnostic, which is a live concern for SMAP/MSL specifically. **This
+   entry inherits all three qualifications and none of them may be dropped when
+   the claim is quoted.**
+4. **Phase 3 is pulled forward and becomes a measurement, not only a demo.** The
+   physics testbed in `SentinelRef` is where the sensor-to-sensor claim is earned
+   or abandoned, and it is the only venue where the break-to-limit-trip lead can
+   be computed at all -- ESA-ADB's clock is anonymised and scaled (HARNESS 4) and
+   SMAP/MSL has no dictionary limits. Objective.md 1.1's unmeasured quantity
+   becomes measurable there and nowhere else.
+5. **Nothing measured is withdrawn.** Every ESA-ADB figure, every SMAP/MSL figure,
+   D2's normalisation, the architecture gate (D28), the transfer exam (D29), the
+   flight core and the model file all stand exactly as recorded. This entry
+   changes which claim the evidence is offered for, not the evidence.
+6. **What it costs to say plainly.** Three weeks of rungs were spent on
+   single-channel data against a thesis that data cannot test, and the search that
+   would have caught it -- Objective.md 9.4's -- was run and answered correctly for
+   the question it was asked. It surveyed for a *multivariate labelled* dataset,
+   which ESA-ADB is; it did not ask whether the labelled anomalies were
+   *relational*, which is the property that mattered. **The dataset survey and the
+   anomaly-class survey are different searches**, and only the first was run.

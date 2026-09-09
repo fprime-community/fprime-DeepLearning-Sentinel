@@ -12,8 +12,10 @@ fprime-sentinel is a reusable F' flight component that lets a spacecraft analyse
 telemetry onboard. A small neural forecaster is trained on the ground from the mission's own
 pre-launch test data, exported as a plain file of numbers, and uplinked. In flight, deterministic
 C++ compares reality against the forecast every cycle. Sustained divergence - the early signature
-of a developing fault, visible long before any limit trips - is downlinked as a standard F' event
-with a named cause and a time-to-limit estimate. The detection method is JPL's published
+of a developing fault, visible before any limit trips - is downlinked as a standard F' event
+with a named cause and a time-to-limit estimate. **The forecast is conditioned on every kind of
+context the telemetry provides**: a channel's own history, the commands the spacecraft was sent,
+and the other sensors watching the same subsystem. The detection method is JPL's published
 reference approach; onboard feasibility was demonstrated in orbit by ESA. **The reusable F'
 packaging is this project's original contribution.**
 
@@ -22,7 +24,7 @@ packaging is this project's original contribution.**
 ## 1. The goal
 
 > Build a plug-in module for NASA/JPL's F' flight software that lets a spacecraft spot its own
-> problems hours before anything breaks - and make it a standard building block any mission can
+> problems before anything breaks - and make it a standard building block any mission can
 > drop in.
 
 Not a research paper. Not a mission-specific script. **A block for the box.**
@@ -30,11 +32,95 @@ Not a research paper. Not a mission-specific script. **A block for the box.**
 **Definition of done:** an F' component that a JPL flagship, a commercial smallsat, and a
 university CubeSat can each adopt without ML expertise, using telemetry they already generate.
 
+**(!) RE-FRAMED 2026-09-09 (`docs/DECISIONS.md` D57).** Sections 0 and 1 used to say
+"visible long before any limit trips" and "hours before anything breaks". The wall-clock
+words are struck here and everywhere: no such figure has been measured, and section 1.1
+has said so since 2026-08-28. What replaces them is not weaker, it is testable -
+**earlier than a limit check, with minimal false alarms** - and the lead in real time is
+Phase 3's measurement on a real clock against real dictionary limits. Section 0 also
+gains the sentence about context, which is the substance of D57: the claim is early
+warning from whatever context the telemetry carries, and the number of contexts is not
+the distinction.
+
 ---
 
 ### 1.1 (!) What is claimed, and what is retired -- 2026-08-28
 
 **Read this before any figure in this document is quoted.**
+
+**(!) RE-FRAMED 2026-09-09, and this block governs everything below it**
+(`docs/DECISIONS.md` D57). Nothing below is deleted or corrected; what changes is
+which claim the evidence is offered for.
+
+**THE CLAIM. Sentinel warns before a limit trips, using every kind of context the
+telemetry provides.** Three kinds, and the project has measured them to very
+different depths:
+
+```
+  (a) a channel's own history      TESTED.  SMAP/MSL, 10 of 38 in-range
+                                            contextual sequences at 0.68%
+                                            nominal (D46, D48, MODELS 26.18)
+  (b) commands -> telemetry        BARELY TESTED. NASA's per-channel arrays
+                                            carry the commands on the same clock:
+                                            24 one-hot columns on SMAP, 54 on
+                                            MSL, column 0 the telemetry. D49
+                                            measured ONE encoding and bounded
+                                            itself to it
+  (c) other sensors -> telemetry   UNMEASURED on any public data. ESA-ADB's
+                                            labelled faults are gross (D44); the
+                                            F' Ref physics testbed is the venue
+```
+
+**Single-context or multi-context is not the distinction. Earlier than a limit
+check, with minimal false alarms, is.** Warn-only, never commands (section 11
+rule 3). The model is frozen in flight (rule 1); the threshold is recalibrated in
+orbit without retraining (14.10); a shadow model may retrain in flight under human
+approval, which is Phase 5 and is scoped in `docs/PHASE5.md` and built by nobody
+yet.
+
+**RETIRED: "cross-channel means sensor-to-sensor, and that is the whole selling
+point."** This document said from 2026-08-24 that detecting broken relationships
+*between sensors* was the thesis, and every design choice below was made to serve
+it - the identity normalisation (D2), the multivariate forecaster, the channel
+grouping, the dataset search at 9.4. Three findings retire it as **the sole
+thesis**:
+
+- **D42.** No cross-channel reduction available to the decision layer recovers an
+  event `max` misses on ESA-ADB - L2, sum, `k = 2` and `k = 3` are all strict
+  subsets at lower alarm rates. D23 closes as answered no.
+- **D44.** On ESA-ADB's stationary folds a calibrated per-channel range check is
+  sufficient and better at a matched rate, and the forecaster never speaks first
+  across 53 caught events.
+- **`docs/RESEARCH.md` Part IV.** Pinet et al. (arXiv:2606.02670, MiLeTS at KDD
+  2026) find across eight public benchmarks that "no cross-channel rupture occurs
+  without an accompanying univariate deviation across a range of reasonable
+  thresholds", and that channel-dependent modelling brings no measurable gain.
+  **This is the first independent replication of a finding of ours** (D42, D23),
+  and it removes the thesis' only public venue.
+
+**(!) The retirement is conditional, and the conditions travel with it.**
+`docs/RESEARCH.md` states the finding as *if* no public benchmark carries strictly
+cross-channel segments; it names **SWaT, WADI and SKAB as unchecked candidates**;
+it records that **absence across eight benchmarks is strong evidence rather than
+proof**; and it notes that a near-binary channel defeats a z-score diagnostic,
+which is a live concern for SMAP/MSL specifically. Pinet test deviation from
+*normal history* while D46 tests leaving the *training min/max* a limit check
+actually holds - compatible questions, not the same one. **None of these four
+qualifications may be dropped when the retirement is quoted.**
+
+**What is NOT retired.** The capability itself. The multivariate forecaster is
+built, matches its NumPy reference at 1.8e-07 in C++ (D30) and runs in a live F'
+deployment (D32-D37); D46's in-range contextual population is real at 39 of 43;
+and nothing else in an F' deployment watches relationships between channels at
+all. **What changed is that sensor-to-sensor is one of three contexts rather than
+the whole claim, and the one venue that can test it is Phase 3's testbed.**
+
+**Also retired with it: the wall-clock framing in sections 0 and 1.** See the
+rider there.
+
+---
+
+**The 2026-08-28 and 2026-09-03 record follows, unchanged.**
 
 **RETIRED: "+26 timesteps of early warning."** Every lead-time figure this
 project published was dated from the start of an alarm range that
@@ -613,6 +699,35 @@ SMAP/MSL are technically multivariate, **the channels are not synchronised with 
 > relationships in that data to find. **We could not have proven our core claim on it** - not
 > because the method is weak, but because the data physically cannot demonstrate it.
 
+**(!) RE-READ 2026-09-09 (`docs/DECISIONS.md` D57). Both reasons stand and the
+conclusion drawn from them does not.** The blockquote above is correct about what
+SMAP/MSL cannot do and wrong about what follows from it.
+
+**What stands.** Reason 1 stands: Wu & Keogh's critique is confirmed for the point
+class - 11 of 61 point anomalies are in range against 39 of 43 contextual (D46) -
+and the P-2 duplicate found at ingest is a live instance of their mislabelled-ground-truth
+flaw. Reason 2 stands as recorded, with the caveat `docs/RESEARCH.md` already carries:
+the unsynchronised-channels claim comes from the PATH paper **second-hand and has not
+been verified against the raw arrays.**
+
+**What does not.** "We could not have proven our core claim on it" was true of the
+sensor-to-sensor claim, which D57 retires as the sole thesis. SMAP/MSL turns out to
+support two other claims this project cares about more:
+
+1. **The in-limits claim.** 39 of 43 labelled contextual sequences stay strictly inside
+   their channel's training min/max - six and a half times ESA-ADB's population and five
+   times denser (D46). It is the population ESA-ADB does not have, and it is the only
+   place the in-limits claim has been measured at all: 10 of 38 at 0.68% nominal.
+2. **The command-context claim.** Its per-channel arrays carry the commands **on the
+   same clock as the telemetry**, which no other dataset here does: 24 one-hot columns
+   on SMAP and 54 on MSL, column 0 being the telemetry. That is context (b) of 1.1, and
+   D49 measured exactly one encoding of it before bounding itself to that encoding.
+
+**So the demotion is narrowed rather than reversed.** SMAP/MSL remains legacy
+comparability for anything cross-channel, and is **primary** for the in-limits and
+command-context questions, which is what every result since 2026-09-03 has used it for.
+Its limitations are reported on every figure drawn from it.
+
 ### 9.3 The full data stack
 
 | Dataset | Role | Notes |
@@ -878,6 +993,43 @@ work** while the design is revisited. **Nothing gets coded around.**
 **Phase 3's recording is the project's single most persuasive artifact:** a spacecraft where
 every limit light stays green while Sentinel says *"this crosses its red limit in four hours."*
 
+**(!) AMENDED 2026-09-09 (`docs/DECISIONS.md` D57): Phase 3 is pulled forward, and a
+Phase 5 is added.**
+
+**Phase 3 is no longer only a demo. It is the benchmark.** `docs/RESEARCH.md` Part IV
+establishes that if no public benchmark carries strictly cross-channel segments, then the
+coupled-physics subsystem in `SentinelRef` is **the only venue** where the
+sensor-to-sensor claim can be earned or abandoned - and it is already the only venue
+where the break-to-limit-trip lead can be computed at all, because ESA-ADB's clock is
+anonymised and scaled (section 9.1) and SMAP/MSL carries no dictionary limits. So its
+gate gains a measurement beside the recording: **a model gate on seeded, reproducible,
+in-limits physics faults at a matched alarm rate, reporting in-limits catch rate,
+time-to-limit-trip and manoeuvre false alarms.** It is scheduled ahead of the remaining
+Phase 2 toolkit work rather than after it.
+
+**And the recording's own line changes.** "This crosses its red limit in four hours" is
+the shape of the demo, not a figure: the hours are whatever the testbed measures, and
+until it measures them no number goes in that sentence (section 1.1).
+
+```
+  +------------------------------------------------------------------+
+  |  PHASE 5                                            C++          |
+  |  In-flight retraining under human approval - the flying model    |
+  |  stays frozen (section 11 rule 1) and a SHADOW model retrains    |
+  |  onboard on recent healthy telemetry, in statically allocated    |
+  |  memory, with ground comparing the two and a human-approved      |
+  |  command swapping them. Previous model kept for rollback.        |
+  |  GATE: no heap allocation after init, no exceptions, and the     |
+  |        shadow measurably better on the pre-launch sanity report  |
+  |        before any swap is offered                                |
+  |  Scoped in docs/PHASE5.md. Built after the toolkit, not before.  |
+  +------------------------------------------------------------------+
+```
+
+**Phase 5 does not weaken rule 1 and is not online learning.** Nothing the shadow model
+learns can reach the detector without a human command, the frozen model keeps flying
+throughout, and the rollback path is part of the design rather than a recovery plan.
+
 ### Why no C++ yet
 
 Flight-grade C++ is slow and expensive - FPP models, static memory, no dynamic allocation, no
@@ -928,6 +1080,52 @@ LSTM vs GRU vs TCN becomes a **table of numbers, not an argument.**
          Phase 2 inherits (D29, docs/RESULTS.md 6k). PHASE 1 CLOSED
   8. --  Post-gate: injected-fault sensitivity study
 ```
+
+**(!) EXTENDED 2026-09-09 (`docs/DECISIONS.md` D57).** Items 1 to 8 are Phase 1's and
+are closed at item 7 (tag `wi7`). Phase 2's items were tracked in `docs/STATUS.md` rather
+than here, which is how this ladder went a month out of date. They are named here so the
+document a newcomer reads first is the one that lists them.
+
+```
+   9. OK  The F' component, and Level 1 safe failure   (tag wi9; D32-D37)
+  9.5 OK  The _rolling correctness fix, and it falsified a published claim (D37)
+  9.6 OK  Auditing the corrected floor                 (D38, D39, D40)
+  9.7 OK  The comparison made like for like            (D41, D42; D23 closed)
+  9.8 OK  The per-channel range check                  (D43, D44)
+  9.9 OK  SMAP/MSL, stages 1 to 5                      (D45-D50)
+ 9.10 OK  The faithful telemanom port                  (D53, D54)
+ 9.11 OK  The published training configuration, Arm T  (D55)
+ 9.12 OK  The residual rung, Arm R                     (D55)
+ 9.13 --  Dimensionless guards. PRE-REGISTERED AND NOT RUN (docs/MODELS.md 30)
+ 9.14 OK  gru-zscore, and H4's stop fired              (D56)
+
+  10.  --  WI10  In-orbit threshold recalibration: file uplink, human-approved
+                 reload, exercised end to end on the Ref. On model.bin version 1;
+                 PARAMS already carries a separate CRC and its own param_version,
+                 so no format change is needed. docs/PHASE2.md 5b states what it
+                 must survive, measured rather than assumed. A SELECTABLE
+                 dynamic-threshold mode is a SEPARATE later item and a
+                 format_version 2 decision, taken after Phase 3 shows which rule
+                 a mission needs -- not folded in here (D30, docs/MODEL_FILE.md 11)
+  11.  --  WI11  The F' Ref physics testbed: coupled current/heat/temperature/
+                 voltage, 8-12 channels, real dictionary limits, real clock,
+                 faults seeded IN THE PHYSICS and in-limits throughout for the
+                 contextual family. Ground truth by construction. Then a model
+                 gate on it at a matched rate. This is Phase 3, pulled forward
+  12.  --  WI12  The toolkit: one command, mission telemetry in, model.bin out,
+                 with the guards that exist, DIMENSIONLESS EVERYWHERE (D55), the
+                 pre-launch sanity report, the tier ladder (14.10) and a no-ML
+                 quickstart
+  13.  --  WI13  Phase 5, in-flight retraining of a shadow model under human
+                 approval. Recorded in docs/PHASE5.md; built after WI12
+```
+
+**Item 8 is still open and is now partly superseded in venue.** The injected-fault
+sensitivity study was scoped against real ESA-ADB telemetry; WI11's testbed provides
+seeded, reproducible, ground-truth-by-construction faults with a real clock, which is
+what item 8 wanted the curve for. The ESA-ADB injection remains worth doing for the
+different reason it was proposed - sensitivity on *real* telemetry - and neither replaces
+the other.
 
 **Item 8, recorded now so it is not lost.** Controlled drifts and decouplings injected into real
 ESA-ADB telemetry. **Not for headline numbers** - scoring on faults we designed only tests
@@ -1063,6 +1261,24 @@ threshold, the EWMA span, `baseline_only` and the tier -- so a recalibration in 
 overwrites a fixed-size block and never touches the 278.0 KiB of weights. Every
 requirement this section stated -- constants outside the weights, the `baseline_only`
 flag, the CRC, recalibration without retraining -- is met; only the container changed.
+
+**(!) AMENDED 2026-09-09 by D55: every constant this tier ladder ships must be
+dimensionless, or carry its provenance.** The section above argues that *thresholds* are
+fitted quantities belonging to the model and the spacecraft. D55 generalises it from three
+measured instances in three stages of one method: D17's `min_delta` disabled training
+entirely on ESA-ADB's ~1e-4 loss; **the same constant was then measured correct** on
+SMAP/MSL's (-1,1)-scaled data (`docs/MODELS.md` 28.7), which is what separates *the
+constant is wrong* from *the constant does not travel*; and telemanom's candidate filters
+at `errors.py:339` and `:343` are absolute in the units of the data. A fourth instance was
+predicted and **refuted**, and is kept with its reasoning.
+
+**So a constant expressed in the units of the data or the loss is a property of the
+dataset it was fitted on.** Level 2's pretrained model and Level 3's per-mission training
+both inherit this: every such constant ships a dimensionless equivalent - a fraction, a
+quantile, or a multiple of the series' own dispersion - and the absolute form is available
+only as a per-mission override with its provenance attached. `docs/MODELS.md` 30 tests one
+implementation of the principle and is registered against the guards rather than adopted
+from D55, because a principle being right does not make a particular replacement right.
 
 **Precedent, worth recording.** This mirrors NASA cFS, where apps ship default configuration
 tables so a mission has working behaviour on day one and overrides them later. F's own
