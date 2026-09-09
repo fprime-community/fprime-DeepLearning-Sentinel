@@ -93,6 +93,7 @@ SMAP's.
 | `R` | `T` plus the residual rung | 3/36 | 46/104 (44.2%) | 46/55 (83.6%) | 9 | `runs/smap-msl/_forensics/2026-09-08T211109Z-wi910-port.json` |
 | `H` | `gru-zscore`, the probabilistic head | 5/36 | 47/102 | 47/256 (18.4%) | 209 | `runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json` |
 | `G` | `R` with the two absolute filters made dimensionless | 3/36 | 48/104 (46.2%) | 48/70 (68.6%) | 22 | `runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json` |
+| **`C1`** | **`T` with the commands WITHHELD - the best arm here** | **4/36** | **54/104 (51.9%)** | **54/58 (93.1%)** | **4** | `runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json` |
 | **paper** | Hundman et al., Table 2 | **25/36** | 84/105 (80.0%) | 84/96 (87.5%) | **12** | - |
 
 **The headline number is stage 4's `10 of 38`**: in-range contextual sequences caught, at
@@ -102,12 +103,20 @@ available to compare against at that alarm rate - `rstd` at 5,000x its calibrate
 threshold still alarms on 15.17% of nominal steps. **Seven model variants have since been
 measured and none has replaced it.**
 
-**(!) MSL has not moved since the port was built.** `F`, `T`, `R` and `G` all catch **3 of
-36** where the paper catches 25 with 2 false alarms. Eight training changes moved it by
-zero (28.7); the residual rung moved it by zero (29.4); and relaxing the two absolute
+**(!) MSL has barely moved since the port was built.** `F`, `T`, `R` and `G` all catch
+**3 of 36** where the paper catches 25 with 2 false alarms; `C1` catches **4**, the first
+movement of any kind, and **one event is not a finding**. Eight training changes moved it
+by zero (28.7); the residual rung moved it by zero (29.4); relaxing the two absolute
 candidate filters moved it by zero (30.4). With 29.4's scale hypothesis also refuted,
-**pruning at `p = 0.13` is the last named candidate**, and it was named in advance both
-times.
+**pruning at `p = 0.13` is the last named candidate**, and it was named in advance.
+
+**(!) The command context is measured, and it is negative** (D60, `docs/MODELS.md` 32.7).
+Withholding the commands from the published training configuration **gains eight events,
+removes five false alarms and lowers the alarm rate at the same time** -- `C1` at 54/104
+and 93.1% precision against Arm `T`'s 46/104 and 83.6%. That is the second measurement in
+the same direction, on a second training configuration and a second model family, so
+**D49 did not need the bound it gave itself.** `Objective.md` 1.1's context (b) is no
+longer *barely tested*; at this encoding, on this data, it costs.
 
 **ESA-ADB, one line.** `gru-quantile` leads the gate metric on `m1-g8.9.10` at F0.5
 **0.804** against the corrected floor's 0.676, at a third of its alarm rate, and transfers
@@ -121,7 +130,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 199 Class A and 3,146 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 202 Class A and 3,329 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -172,6 +181,10 @@ last artifact and never transcribed.
   **0.0504** at the median and above 0.25 on 11 of 79 channels. **H5 held on 79 of 79**, so
   the likelihood objective trained: the model could have learned a varying sigma and did
   not. Not an optimisation failure - a finding about a single univariate channel.
+- **The context that was supposed to help was hurting (D60).** Command conditioning is
+  negative on this data under both training configurations and both model families tested.
+  It was measured once, bounded carefully, and the bound turned out not to be needed -
+  which is an argument for bounding a finding rather than against it.
 - **A dimensionless constant is not a strictly safer absolute one (D58).** It is
   channel-relative -- looser where residuals are small, **tighter where they are large** -
   so substituting one changes *which* channels a filter binds on. Caught only because G4
@@ -195,15 +208,15 @@ held. G4 refuted at 79/81 and its stop fired** - the replacement tightens on two
 so a dimensionless form is not uniformly a relaxation. Not adopted; the multiplier stays
 unswept.
 
-**B. Work item 9.15, the command-context arms - PRE-REGISTERED 2026-09-09, NOT RUN**
-(`docs/MODELS.md` 32, D59). C1 is Arm T **without** commands, the counterfactual, because
-Arm T already carries them (28.1 T-f); C2 is Arm H **with** them, testing 31.9's named
-reason for sigma's collapse. K1 to K5 are committed, **K3 is C2's stop and is adjudicated
-first**, and K5 is structural. *Done when* both are scored at their own cut and at a rate
-matched to stage 4's 0.6838%, MSL first, with the matched figure labelled a comparison
-device. **This arm refits twice, +162 to the weight store, so the compute plan is measured
-by a 3-channel timing and RSS smoke and the options put with honest numbers before the full
-fit starts** (32.5, carrying 28.7's OOM explicitly).
+**B. Work item 9.15, the command-context arms - DONE 2026-09-09** (`docs/MODELS.md` 32.7,
+D60), 165 Class B, weight store +153, 33.3 min at 4 workers. **K1 refuted**: withholding
+the commands is worth +8 events, -5 false alarms and a lower alarm rate at once, so the
+command context is negative under the published training too. **K3 refuted and its stop
+fired**: sigma's variation doubled with commands attached and stayed far below the bar, so
+C2 stopped and K4 was not adjudicated. **K5 held.** **(!) K2 has no verdict** - the
+`eps_mult` sweep 32.3 pre-registered for C1 was never implemented, so the matched-rate
+in-range contextual figure does not exist and no per-event comparison is drawn. That
+comparison is owed.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults

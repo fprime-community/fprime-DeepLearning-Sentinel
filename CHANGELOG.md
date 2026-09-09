@@ -14,6 +14,84 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.16] - 2026-09-09 - The commands were what was hurting, and K3's stop fires
+
+Work item 9.15, pre-registered the same day. One read at 165 Class B and 1 Class A, two
+3-channel smokes at 9 each, 33.3 min at 4 workers, weight store 405 -> 558.
+`docs/MODELS.md` 32.7, D60.
+
+### Measured - K3 first, as 32.4 requires
+
+```
+   arm                    channels   sigma CV median   above 0.25
+   H   (no commands)          79          0.0504         11 / 79
+   C2  (with commands)        78          0.1145         16 / 78
+   K3 needs                                              more than half
+```
+
+- **K3 REFUTED and the pre-registered stop fires.** Commands more than doubled sigma's
+  variation and did not come close to the bar. **Nothing after that line in C2 is reported
+  as a result**, so K4 is not adjudicated. The likelihood trained on **78 of 78** fitted
+  channels: the head could have learned a state-varying sigma from the commands and did not.
+- 31.9's first candidate is closed. Two remain, both named before any of this ran.
+
+### Measured - K1, refuted in the direction that matters
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   T     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   C1    Total   54/104  51.9%     54/58    93.1%             4    1.8815%
+   paper Total   84/105  80.0%     84/96    87.5%            12
+```
+
+- **K1 predicted C1 below 46/104; it is 54/104.** Withholding the commands **gains eight
+  events, removes five false alarms and lowers the alarm rate at the same time**. C1
+  dominates Arm T on every axis, so the comparison is not rate-confounded.
+- K1's own refutation clause, written before the run, said this would put D49's finding
+  **outside its own bound**. It does: commands fail to help under the published training
+  too, and **D49 did not need the qualification it gave itself** on that axis.
+- **C1 is the best arm on this population**: 93.1% precision against the paper's 87.5%, on
+  **4 false positives against a scaled target of 11**, at 51.9% recall against 80.0%.
+- **(!) MSL moves for the first time since the port was built, by one event** (3/36 to
+  4/36), with its false alarm falling 2 to 1. **One event is not a finding** and is not
+  reported as one; the pair is recorded because it moves together.
+- **K5 HELD**: C1 fitted the same 81 channels and scored the same 104 sequences as Arm T,
+  so narrowing the input did not change which channels train.
+
+### (!) K2 has no verdict, and it is a defect in the instrument
+
+32.3 pre-registered a sweep to a rate matched to stage 4's 0.6838% "for C1 through
+`Mech.eps_mult`", and **that sweep was never implemented** -- C1 was registered as a `port`
+arm, which has no dial. So the matched-rate figure K2 asks for does not exist. C1 catches
+20 of 39 in-range contextual at its own 1.8815% and Arm T catches 12 of 39 at 2.0450%;
+**both are above the ~1% ceiling 27.3 sets for quoting a per-event number**, so neither is
+compared to the other or to stage 4's 10/38. The comparison is owed and unpaid.
+
+### (!) Two instrument defects, one of which nearly cost the stop
+
+- **`zscore_diagnostics` collected only the old cell**, so C2's `sigma_cv` would never have
+  reached the artifact and **K3 would have been unadjudicable from the record** -- 27.8's
+  defect exactly. Caught by the smoke, fixed before the read, and the second smoke exists
+  to confirm it.
+- The peak-RSS meter guessed its unit from the magnitude of `ru_maxrss`, bytes on macOS and
+  kibibytes on Linux. Replaced with a platform test before it produced a number anybody read.
+
+### The compute plan, measured against itself
+
+The 3-channel smoke projected 143 min serial and 2.4 GiB at four workers; the 81-channel
+run measured **101 min serial, 2.7 GiB, and 33.3 min wall clock**. The smoke over-estimated
+time by 42% and under-estimated peak memory by 10%, **and the memory-gate arithmetic was
+right this time because the term that killed 28.7 was measured rather than omitted.**
+
+### Weight store
+
++153, not the pre-registered +162, and the difference is accounted for rather than
+excused: six fits were already banked by the smokes and **three C2 channels stalled** --
+`D-11` and `F-3` on D17's first-epoch guard, `D-12` with no complete sequence in its
+training split. 162 - 6 - 3 = 153.
+
+---
+
 ## [0.6.15] - 2026-09-09 - Dimensionless guards: MSL does not move, and G4's structural stop fires
 
 Work item 9.13, pre-registered on 2026-09-08 and run today. One read at 165 Class B and

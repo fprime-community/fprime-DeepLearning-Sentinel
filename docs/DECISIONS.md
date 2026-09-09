@@ -3966,3 +3966,81 @@ lever in `docs/MODELS.md` 32.6, conditional on this one refuting.
 5. **It does not touch `model.bin`.** Whether command inputs ship in the flight file is a
    `format_version` question (D30, `docs/MODEL_FILE.md` 11) and `n_exogenous` already
    exists in the header. That is decided after this reports.
+
+---
+
+## D60. Command conditioning is negative on this data under both training configurations, and D49 did not need its bound
+
+**DATE** 2026-09-09 | **STATUS** resolved as a finding. It answers D59's re-opening in the
+same direction D49 found, removes the bound D49 placed on itself, and closes the first of
+31.9's three candidates
+
+**CONTEXT.** D49 closed D6 by measuring command conditioning making the detector worse, and
+bounded itself to "one-hot command indicators, SMAP/MSL, per-channel univariate models, the
+published dynamic threshold". D59 re-opened the question **only** on the far side of that
+bound: the published training configuration, which is command-conditioned in the source and
+which this project reproduced on 2026-09-08, and a probabilistic head, whose failure in
+31.8 had a named cause that commands would supply. `docs/MODELS.md` 32 pre-registered K1 to
+K5 before anything ran.
+
+**EVIDENCE.** One read, 165 Class B, weight store +153, artifact
+`runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json`.
+
+1. **K1 refuted, and by an arm that dominates on every axis.** Arm T carries the commands
+   and scores 46/104 at 83.6% precision, 9 false positives, 2.0450% nominal. C1 is Arm T
+   with the commands withheld and **nothing else changed**: 54/104 at **93.1%**, **4** false
+   positives, **1.8815%** nominal. Eight events gained, five false alarms removed, and the
+   alarm rate lower at the same time. **The quieter arm is also the one that catches more,
+   so the comparison is not rate-confounded.**
+2. **K3 refuted and its stop fired.** With commands attached, `sigma`'s coefficient of
+   variation rises from 0.0504 to **0.1145** at the median and clears 0.25 on **16 of 78**
+   channels against a prediction of more than half. Directionally right, numerically
+   insufficient. The likelihood trained on **78 of 78** fitted channels, so this is not an
+   optimisation failure: the head could have learned a state-varying sigma from the
+   commands and did not.
+3. **K5 held.** C1 fitted the same 81 channels and scored the same 104 sequences as Arm T,
+   so narrowing the input did not change which channels train.
+4. **The direction is now measured twice, on two training configurations, by two different
+   model families.** D49's arms were `gru-quantile` under our configuration; C1 is an LSTM
+   under the published one. Both say the same thing.
+
+**ALTERNATIVES.** Conclude that command conditioning is wrong for this method. Conclude it
+is wrong **for this encoding on this data**, and name the encoding as the remaining
+explanation. Conclude nothing and re-run with more channels.
+
+**Against the first**: the paper's own model is command-conditioned and its numbers are the
+ones this project has failed to reach, so a general claim would be asserting that the
+authors' own inputs hurt them, which this evidence cannot support. **Against the third**:
+the population is already the whole dataset at 104 of the paper's 105 sequences; there is
+no more data to add.
+
+**CONSEQUENCE.**
+
+1. **D49's bound is discharged rather than defended.** Commands failing to help under the
+   published training too is what K1's refutation clause said this outcome would mean,
+   written before it was measured. **D49's finding stands and no longer needs the
+   qualification it gave itself** on the training-configuration axis. Its other
+   qualifications -- the encoding, and ESA-ADB, whose telecommands remain unwired -- are
+   untouched and still bind.
+2. **The encoding is the last standing explanation and is one lever.**
+   `docs/RESEARCH.md` records that telemanom encodes commands by module and by
+   sent-or-received, flags richer features as the obvious next step, and notes ESA's own
+   baselines losing precision when telecommands were added. `docs/MODELS.md` 32.6 registers
+   it as the next lever, conditional on exactly this outcome, and it is not built.
+3. **D57's context (b) is measured and the result is negative.** `Objective.md` 1.1 lists
+   commands-to-telemetry as *barely tested*; it is now tested, twice, and what it buys on
+   this data at this encoding is **less than nothing**. The claim is amended to say so
+   rather than left reading as an open opportunity.
+4. **31.9's first candidate is closed.** A single univariate channel plus commands still
+   does not give the likelihood enough reason to vary sigma. The two remaining candidates --
+   a multivariate channel set, and a variance term the loss cannot trivially satisfy -- are
+   unchanged and unregistered.
+5. **C1 is the best arm on this population and is not adopted on the strength of it.**
+   93.1% precision against the paper's 87.5% on 4 false positives against a scaled 11, at
+   51.9% recall against 80.0%. Adoption is a D28-shaped decision on the ESA gate set, and
+   nothing here licenses it.
+6. **A pre-registered comparison is owed.** K2 asked for the in-range contextual count at a
+   rate matched to stage 4's 0.6838% and **the sweep for C1 was never implemented**, so K2
+   has no verdict. The 20/39 C1 catches at its own 1.8815% is above the ceiling 27.3 sets
+   for quoting a per-event number and is **not** compared to Arm T's 12/39 or to stage 4's
+   10/38. Recorded as a defect in the instrument, not as a result.

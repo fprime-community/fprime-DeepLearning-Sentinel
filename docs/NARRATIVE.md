@@ -979,3 +979,124 @@ assumed. Six model variants have now been measured on this data and none beats
 10/38. The reproduction is closed as the route to better recall, and the
 remaining contexts -- commands, and a testbed with real coupled physics -- are
 where the question goes next.
+
+## 13. Work items 9.13 and 9.15: two stops, and the context that was costing
+
+**2026-09-09**, at the work-item boundary. Two arms ran, both had a structural
+prediction written as a stop, and **both stops fired**. Neither run was wasted,
+and the reason is the same in both cases: the stop is what made the negative
+result legible.
+
+### The guards were not what silenced MSL, and a "relaxation" was not one
+
+Work item 9.13 replaced telemanom's two candidate filters, absolute in the units
+of the data, with `mean(e_s) + 1*sd(e_s)`. D55 had established the principle and
+30.1 fixed the multiplier at 1.0 in advance, with a sentence saying that needing
+another value would be a finding about the form rather than a parameter to search.
+
+**MSL moved by zero events.** Not one, and not one false alarm either. With the
+residual rung already inert and the scale hypothesis already refuted, that closes
+the third of four candidates and leaves pruning at `p = 0.13`, which 29.4 and
+30.2 had both named in advance.
+
+**The more interesting refutation was the structural one.** G4 predicted that the
+dimensionless arm's alarm set would be a superset of the absolute arm's **on every
+channel**, because every replacement was assumed to be a relaxation. It held on 79
+of 81. On `D-2` and `G-6` the new arm **lost** alarms the old one had -- on `G-6`
+the whole-window bail-out fired twice under the absolute floor and sixty-four
+times under the dimensionless one.
+
+The mechanism is D55 turning round on itself. A noise-relative floor is not
+uniformly looser than an absolute one: it is looser where the residuals are small
+and **tighter where they are large**, and 29.4 had already measured that this data
+has both. So substituting a dimensionless constant changes **which** channels a
+filter binds on, not merely how hard.
+
+**And in aggregate the arm still looked like a clean relaxation** -- bail-outs
+1,836 to 996, alarm rate 2.05% to 3.80%. A pooled statistic would have said
+*relaxation*, and stopped there, and been wrong about two channels nobody would
+have gone looking for. G4 was written per channel because a structural claim is
+cheap to write and expensive to skip. That is now the second time (26.26 was the
+first).
+
+### Then the commands, which turned out to be the thing that was hurting
+
+Work item 9.15 was the one D57 made matter. The re-framing lists three contexts;
+commands-to-telemetry was the only one this dataset could test and it had been
+tested once, by D49, which found commands making the detector **worse** and then
+carefully bounded itself to the configuration it had measured.
+
+The two conditions outside that bound were now buildable. So D59 re-opened D6
+narrowly, on exactly those two and nothing else.
+
+**The counterfactual was the arm that did not exist.** Arm T already carries the
+commands -- telemanom's `X` is all columns, telemetry and the one-hot indicators,
+while `y` is column 0 alone -- so the work was to build the arm **without** them
+and hold all eight other published differences identical.
+
+**It gained eight events, removed five false alarms, and lowered the alarm rate at
+the same time.** 54/104 against 46/104, 93.1% precision against 83.6%, 4 false
+positives against 9, 1.8815% nominal against 2.0450%. An arm that is better on
+every axis at once is not a rate artifact; the quieter one is also the one that
+catches more.
+
+K1's refutation clause had said, before the run, what this would mean: it would
+put D49's finding **outside its own bound**. It did. D49 was right and did not
+need the caution it gave itself on that axis -- which is an argument for bounding
+a finding, not against it. The bound cost one run to discharge and would have cost
+a false general claim to skip.
+
+**The second arm stopped on its own design claim, for the second time.** C2 gave
+`gru-zscore` the commands, testing the reason 31.9 had named for sigma's collapse:
+a single univariate channel gives the likelihood no reason to vary sigma with
+state, and commands are state. Sigma's coefficient of variation **doubled**, from
+0.0504 to 0.1145 at the median, and cleared the 0.25 bar on 16 of 78 channels
+against a prediction of more than half. Directionally right, numerically
+insufficient -- the same shape as rung 1b. The likelihood trained on 78 of 78, so
+once again the head could have learned what it was asked to learn and did not.
+
+### The instrument nearly cost the stop, and a smoke caught it
+
+`zscore_diagnostics` collected only the old cell, so C2's `sigma_cv` would never
+have reached the artifact -- and K3, the stop the pre-registration adjudicates
+**first**, would have been unadjudicable from the record afterwards.
+
+That is 27.8's defect precisely: S1 and S2 could not be settled there because the
+instrument did not retain what the check needed. It was caught by running a
+three-channel smoke and reading its artifact, not by thinking carefully about the
+code, which is the same way the weight-cache defect was caught in 27.6. **The
+smoke has now paid for itself three times**, and its cost each time is nine
+operations.
+
+A second defect was mine and smaller: the peak-RSS meter guessed its unit from the
+magnitude of `ru_maxrss`, which is bytes on macOS and kibibytes on Linux. Guessing
+a unit from a magnitude is how a plausible number becomes a wrong one, and it was
+replaced before it produced a figure anybody read.
+
+### What was left undone, and named as such
+
+**K2 has no verdict.** The pre-registration said each arm would also be swept to a
+rate matched to stage 4's 0.6838%, and for C1 that sweep was never implemented --
+it was registered as a `port` arm, which has no dial. So the one figure that would
+license comparing C1's in-range contextual count against stage 4's 10/38 does not
+exist, and 20/39 sits in the artifact next to Arm T's 12/39 with both above the
+alarm rate at which this project permits a per-event number to be quoted at all.
+
+The honest thing is that the comparison is **owed**, not that it is nearly there.
+It is recorded in 32.7, in D60's consequence 6 and in the status checklist, and it
+is not folded into anything else as a consolation.
+
+### What the two together bought
+
+Four candidates for MSL's silence, three now closed. One context measured and
+found to cost rather than pay. One principle -- ship dimensionless constants --
+qualified by measurement into something more useful than it was: dimensionless is
+not automatically safer, it is differently distributed, and a mission whose
+channels differ in residual scale will see a filter move between them.
+
+And a best arm nobody was looking for. C1, which is the published reproduction
+with an input **removed**, reaches 93.1% precision against the paper's 87.5% on
+four false positives against a scaled eleven. Its recall is still 51.9% against
+80.0%, so it settles nothing about parity. It is the highest this project has
+reached on the population that matches the paper's, and it got there by taking
+something away.

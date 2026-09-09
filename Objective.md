@@ -60,19 +60,32 @@ different depths:
   (a) a channel's own history      TESTED.  SMAP/MSL, 10 of 38 in-range
                                             contextual sequences at 0.68%
                                             nominal (D46, D48, MODELS 26.18)
-  (b) commands -> telemetry        BARELY TESTED. NASA's per-channel arrays
-                                            carry the commands on the same clock:
-                                            24 one-hot columns on SMAP, 54 on
-                                            MSL, column 0 the telemetry. D49
-                                            measured ONE encoding and bounded
-                                            itself to it
+  (b) commands -> telemetry        TESTED, AND NEGATIVE. NASA's per-channel
+                                            arrays carry the commands on the same
+                                            clock: 24 one-hot columns on SMAP, 54
+                                            on MSL, column 0 the telemetry.
+                                            Conditioning on them COSTS -- twice,
+                                            on two training configurations and
+                                            two model families (D49, D60). At
+                                            this encoding, on this data, the
+                                            context is there and using it makes
+                                            the detector worse. A richer encoding
+                                            is the one lever left (MODELS 32.6)
   (c) other sensors -> telemetry   UNMEASURED on any public data. ESA-ADB's
                                             labelled faults are gross (D44); the
                                             F' Ref physics testbed is the venue
 ```
 
 **Single-context or multi-context is not the distinction. Earlier than a limit
-check, with minimal false alarms, is.** Warn-only, never commands (section 11
+check, with minimal false alarms, is.**
+
+**(!) Amended 2026-09-09 by D60.** Context (b) was listed as *barely tested* when
+this block was written on the same day. It has since been tested and the answer is
+negative: withholding the commands from the published training configuration gains
+eight events, removes five false alarms and lowers the alarm rate at once
+(`docs/MODELS.md` 32.7). **A context being present in the data is not the same as
+it being usable**, and this project now has that measured rather than assumed. It
+does not weaken the claim above -- it narrows which contexts currently pay. Warn-only, never commands (section 11
 rule 3). The model is frozen in flight (rule 1); the threshold is recalibrated in
 orbit without retraining (14.10); a shadow model may retrain in flight under human
 approval, which is Phase 5 and is scoped in `docs/PHASE5.md` and built by nobody

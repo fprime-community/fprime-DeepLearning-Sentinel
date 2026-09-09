@@ -8443,6 +8443,141 @@ above 200 Class B.
 
 ### 32.6 The second lever, scoped and not run
 
+### 32.7 OBSERVED -- the commands are what was hurting, on both training configurations
+
+**2026-09-09. One read, 165 Class B and 1 Class A**, preceded by two 3-channel smokes at 9
+Class B each -- the second because of an instrument defect recorded below. Four workers,
+**33.3 min wall clock**, weight store **405 -> 558 (+153)**. Artifact
+`runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json`.
+
+**The +153 is exactly right and is not a shortfall.** 32.5 pre-registered +162: 81 fits for
+C1 and 81 for C2. Six were already banked by the smokes and **three C2 channels stalled**
+(`D-11` and `F-3` on D17's first-epoch guard, `D-12` with no complete sequence in its
+training split), so 162 - 6 - 3 = 153.
+
+#### K3 first, as 32.4 requires. It is REFUTED and the stop fires
+
+```
+   arm                    channels   sigma CV median   above 0.25
+   H   (no commands)          79          0.0504         11 / 79
+   C2  (with commands)        78          0.1145         16 / 78
+   K3 needs                                              more than half
+```
+
+**Commands more than doubled sigma's variation and did not come close to the bar.** The
+median coefficient of variation rises from 0.0504 to **0.1145** and the channels clearing
+0.25 go from 11 to 16 of ~78. **Directionally right and numerically insufficient**, which
+is the same shape as D51's rung 1b.
+
+**Per 32.5, nothing after this line in C2 is reported as a result.** K4 is therefore **not
+adjudicated**; the figures exist in the artifact and are not read as findings. The
+H5-equivalent held on **78 of 78** -- every fitted channel improved past its first epoch --
+so this is again not an optimisation failure. **The head could have learned a
+state-varying sigma from the commands and did not.**
+
+**31.9's first candidate is now closed.** Two remain, both named there before any of this
+ran: a multivariate channel set, and a variance term the loss cannot trivially satisfy.
+
+#### K1, and it is refuted in the direction that matters
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   T     MSL      3/36    8.3%      3/5     60.0%             2
+   C1    MSL      4/36   11.1%      4/5     80.0%             1
+   T     SMAP    43/68   63.2%     43/50    86.0%             7
+   C1    SMAP    50/68   73.5%     50/53    94.3%             3
+   T     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   C1    Total   54/104  51.9%     54/58    93.1%             4    1.8815%
+   paper Total   84/105  80.0%     84/96    87.5%            12
+```
+
+**K1 predicted C1 below 46/104. It is 54/104.** Removing the commands **gains eight
+events, removes five false alarms, and lowers the alarm rate at the same time** --
+1.8815% against 2.0450%. C1 dominates Arm T on every axis simultaneously, so the
+comparison is not rate-confounded: the quieter arm is also the one that catches more.
+
+**K1's own refutation clause said what this means, before it was measured:** it "would put
+D49's finding **outside** its own bound -- commands failing to help under the published
+training too". That is what happened. D49 bounded itself to our training configuration and
+the finding did not need the bound.
+
+**And C1 is the best arm this project has produced on this population.** 93.1% precision
+against the paper's 87.5%, on **4 false positives against a scaled target of 11**, at
+51.9% recall against 80.0%. Arm F reached 89.5% on 4; C1 reaches 93.1% on 4 with twenty
+more events.
+
+**(!) MSL moves for the first time since the port was built, by one event.** 3/36 to 4/36.
+28.7, 29.4 and 30.4 each recorded MSL unmoved; this is the first arm to move it at all.
+**One event is not a finding** and is not reported as one -- the recall difference is
+within the resolution of a 36-denominator -- but the false alarm falling from 2 to 1 with
+it is recorded because the pair moves together.
+
+#### K5 held, and K2 has NO VERDICT because the instrument was not built
+
+**K5 HELD.** C1 fitted **81 channels** and scored **104 sequences**, identical to Arm T's.
+Narrowing the input did not change which channels train, so the populations in sections 28
+to 30 remain a property of the data.
+
+**K2 is not adjudicated, and that is a defect of mine.** 32.3 pre-registered that each arm
+would be swept "to a nominal rate matched to stage 4's 0.6838% -- for C1 through
+`Mech.eps_mult`", and **the sweep for C1 was never implemented**: C1 was registered as a
+`port` arm, which has no dial. So the matched-rate in-range contextual figure K2 asks for
+does not exist.
+
+**What must not be done with the numbers that do exist.** C1 catches **20 of 39** in-range
+contextual at its own cut of 1.8815% and Arm T catches 12 of 39 at 2.0450%. Both arms sit
+**above the ~1% ceiling 27.3 sets for quoting a per-event number**, and the rates are close
+but not matched. **So 20/39 is not compared to 12/39 here and neither is compared to stage
+4's 10/38.** The comparison K2 was written to license is owed and unpaid.
+
+#### (!) Two instrument defects, one of which nearly cost the stop
+
+**`zscore_diagnostics` collected only the `zscore` cell**, so C2's `sigma_cv` would never
+have reached the artifact and **K3 -- the stop that 32.4 adjudicates first -- would have
+been unadjudicable from the record.** Caught by the smoke, fixed before the read, and the
+second smoke exists to confirm it. **This is 27.8's defect exactly**, where S1 and S2 could
+not be settled because the instrument did not retain what the check needed, and it is the
+second time the same class of failure has been caught by running a smoke rather than by
+reasoning about one.
+
+**And the peak-RSS meter guessed its unit from the magnitude of `ru_maxrss`**, which is
+bytes on macOS and kibibytes on Linux. Replaced with a platform test before it produced a
+number anybody read.
+
+#### The compute plan, measured against itself
+
+```
+   predicted from the 3-channel smoke      measured over 81
+   median 105.6 s/channel, 143 min serial  median 75.2 s, 101 min serial
+   peak 625 MB/worker, 2.4 GiB at 4        peak 686 MB/worker, 2.7 GiB at 4
+                                           33.3 min wall clock at 4 workers
+```
+
+**The smoke over-estimated time by 42% and under-estimated peak memory by 10%**, and the
+memory gate held. The over-estimate is the smoke's three channels being long ones; the
+under-estimate is the term that killed 28.7, now measured rather than omitted, and small
+because it was measured. **The run finished with the artifact written before the ledger**
+(commit `75cc846`).
+
+#### What this closes and what it opens
+
+- **The command context is measured and it is negative on this data, on both training
+  configurations, at the encoding this project has.** D59 re-opened D6 narrowly; the answer
+  came back the same way twice. **D60 records it.**
+- **32.6's second lever is now the live one.** If commands fail to help even under the
+  published training, the encoding is the remaining explanation, and `docs/RESEARCH.md`
+  already flags richer command features as the obvious next step. It is one lever and it is
+  registered separately or not at all.
+- **K2 is owed.** The `eps_mult` sweep for C1 is a small change and the figure it produces
+  is the one that would let C1's in-range contextual count be compared to stage 4's 10/38.
+  Named here, not run, and not folded into anything else.
+- `src/sentinel_models/telemanom.py` is untouched. No ESA-ADB figure moves. Stage 4's
+  **10/38 still stands unreplaced.**
+
+---
+
+
+
 **A richer command encoding.** `docs/RESEARCH.md` records that telemanom's paper encodes
 commands by module and by sent-or-received, flags richer command features as the obvious
 next step, and notes that ESA's own baselines got **worse** precision when telecommands
