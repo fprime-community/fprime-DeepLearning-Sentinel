@@ -55,11 +55,14 @@ from sentinel_eval.metrics.counts import Count                          # noqa: 
 from sentinel_eval.metrics.ranges import mask_to_ranges                 # noqa: E402
 from sentinel_models import detectors as D                             # noqa: E402
 from sentinel_models.lstm import Hyper, TelemanomRNN, train as fit_model  # noqa: E402
-from sentinel_models.windows import aggregate_predictions               # noqa: E402
+from sentinel_models.windows import aggregate_predictions, decay        # noqa: E402
 import torch                                                            # noqa: E402
 from sentinel_models import registry                                   # noqa: E402
 from sentinel_models import telemanom                                  # noqa: E402
 
+#: Cells fitted in a worker rather than in the parent, because they refit or
+#: are expensive. Everything else is scored from banked weights in-process.
+DEFERRED_CELLS = ("published", "rung", "zscore", "published_nc", "zscore_cmd")
 MANIFEST_KEY = "_manifest/smap_msl.json"
 PRE_REGISTRATION = "docs/MODELS.md 27"
 
@@ -514,6 +517,19 @@ def ctx_cmd(cid, n, commands):
                    commands=commands, command_ids=())
 
 
+def _exog(commands) -> np.ndarray:
+    """`(T, 2K)` -- each command's impulse and how recently it fired.
+
+    32.1's encoding, and it is the one already in the tree: `windows.decay` is
+    the same function `command_features` calls, and computing the trace over the
+    whole series is what that function's warm-up prefix approximates. It is exact
+    here and bounded because a SMAP/MSL channel is thousands of steps, not the
+    14.7M ESA-ADB's windowing was written for (`windows.py:73-88`).
+    """
+    imp = np.ascontiguousarray(np.asarray(commands, dtype=np.float32))
+    return np.concatenate([imp, decay(imp)], axis=1)
+
+
 def build_published(cid, train, test):
     """Arm T: telemanom's training configuration, its inputs and its aggregation.
 
@@ -538,6 +554,33 @@ def build_published(cid, train, test):
             "cfg": {"prop": det.config, "pub": det.config}}
 
 
+def build_published_nocmd(cid, train, test):
+    """Arm C1: Arm T with the commands withheld, and nothing else changed.
+
+    32.1. Arm T is already the command-conditioned arm (28.1 T-f,
+    `channel.py:63-67`), so the counterfactual is this one and it is the one that
+    has to be fitted. Every other published difference -- T-a's aggregation,
+    T-b's trainer batch, T-c's absolute `min_delta`, T-d's shuffled split, T-e's
+    full epochs, T-h's non-restoration -- is held identical, so the pair differs
+    in exactly one lever.
+    """
+    det = registry.build("lstm-telemanom")
+    det.hyper = Hyper(cell="lstm", **PUBLISHED_HYPER)
+    det.wants_commands = False                                  # <- the lever
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+    s_ctx = ctx_for(cid, len(v_te))
+    e_s = np.asarray(det._smoothed_errors(v_te, s_ctx), dtype=np.float64)[:, 0]
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
+
+
 def _fit_published(job):
     """One published fit, in its own process. Must be module-level to be picklable.
 
@@ -550,16 +593,24 @@ def _fit_published(job):
     """
     cid, train, test, cells = job
     import sentinel_models.lstm as L
+    import resource
     L.THREADS = 4
     started, out, err = time.time(), {}, {}
+    builders = {"published": build_published, "zscore": build_zscore,
+                "published_nc": build_published_nocmd, "zscore_cmd": build_zscore_cmd}
     for cell in cells:
         try:
-                out[cell] = (build_published(cid, train, test) if cell == "published"
-                         else build_zscore(cid, train, test) if cell == "zscore"
-                         else build_rung(cid, train, test))
+            out[cell] = builders.get(cell, build_rung)(cid, train, test)
         except Exception as exc:
             err[cell] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
-    return cid, out, err, time.time() - started
+    # 32.5. Peak RSS of THIS process, which for a worker includes its own torch
+    # import -- the term 28.5's arithmetic left out and the reason that run died.
+    # `ru_maxrss` is bytes on macOS and kibibytes on Linux; there is no portable
+    # unit and guessing from the magnitude is how a plausible number becomes a
+    # wrong one, so the platform decides.
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return cid, out, err, time.time() - started, peak_mb
 
 
 def raw_errors(det, values, s_ctx):
@@ -643,7 +694,7 @@ def _to_torch(weights, hyper, n_channels, n_exogenous):
     return model
 
 
-def predictive_moments(model, values, window, chunk=1000):
+def predictive_moments(model, values, window, chunk=1000, exog=None):
     """`mu` and `sigma` per timestep, from warmed chunks started at a zero state.
 
     The same geometry `ForecastDetector._forecast` uses -- every chunk is
@@ -653,12 +704,17 @@ def predictive_moments(model, values, window, chunk=1000):
     mixture the ten of them form.
     """
     steps = values.shape[0]
+    # 32.1. The exogenous columns ride alongside the telemetry into the model and
+    # never into the target: `mu` and `sigma` are read from channel 0 below,
+    # which is the only channel the head predicts.
+    series = values if exog is None else np.concatenate(
+        [values, np.asarray(exog, dtype=values.dtype)], axis=1)
     mu_out = np.zeros(steps, dtype=np.float64)
     var_out = np.ones(steps, dtype=np.float64)
     for start in range(0, steps, chunk):
         stop = min(start + chunk, steps)
         front = max(0, window - start)
-        take = values[max(0, start - window):stop]
+        take = series[max(0, start - window):stop]
         if front:
             take = np.concatenate([np.repeat(take[:1], front, axis=0), take])
         with torch.no_grad():
@@ -707,6 +763,69 @@ def build_zscore(cid, train, test):
             "nll": float(report.best_validation_mse), "objective": report.objective,
             "epochs": int(report.epochs_run), "best_epoch": int(report.best_epoch),
             "nll_improved": bool(report.best_epoch > 0),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+def build_zscore_cmd(cid, train, test):
+    """Arm C2: `gru-zscore` with the command columns as exogenous inputs.
+
+    32.1 and D59. 31.8's H4 stop fired because `sigma` collapsed to a per-channel
+    constant, and 31.9 named the reason without registering it: a single
+    univariate channel gives the likelihood no reason to vary `sigma` **with
+    state**. Commands are state. Everything else is Arm H unchanged -- the same
+    GRU, the same Gaussian head, the same NLL, D25's threshold rule.
+
+    **It also repairs 31.8's recorded defect.** Arm H fitted through `lstm.train`
+    directly while the cache lives in `ForecastDetector.fit`, so its weights were
+    never persisted and the arm was reproducible only from its seed. The key
+    below is `ForecastDetector.fit`'s own construction (`detectors.py:328-331`),
+    so a re-run hits the store rather than refitting.
+    """
+    hyper = Hyper(**ZSCORE_HYPER)
+    v_tr = train[:, :1].astype(np.float32)
+    v_te = test[:, :1].astype(np.float32)
+    c_tr = np.ascontiguousarray(train[:, 1:].astype(np.float32))
+    c_te = np.ascontiguousarray(test[:, 1:].astype(np.float32))
+    usable = np.ones(len(v_tr), dtype=bool)
+
+    key = (hyper.as_dict_key(), (cid,), 0, hyper.window, v_tr.shape,
+           D._sample_digest(v_tr), D._digest(usable[::997]),
+           D._sample_digest(c_tr))
+    digest = D._digest(key)
+    cached = D._load_weights(digest)
+    if cached is None:
+        weights, rep = fit_model(v_tr, usable, hyper, fold=0, impulses=c_tr)
+        report = rep.as_dict()
+        D._save_weights(digest, weights, report)               # 31.8's defect, fixed
+    else:
+        weights, report = cached
+
+    n_exog = 2 * c_tr.shape[1]                     # impulse + decay, 48 SMAP / 108 MSL
+    model = _to_torch(weights, hyper, 1, n_exog)
+    span = telemanom.Config().smoothing_window                      # 105, unchanged
+
+    def statistic(values, commands):
+        mu, sigma = predictive_moments(model, values, hyper.window,
+                                       exog=_exog(commands))
+        z = np.abs(values[:, 0].astype(np.float64) - mu) / sigma
+        return telemanom.ewma(z.reshape(-1, 1), span).ravel().astype(np.float64), sigma
+
+    s_tr, _ = statistic(v_tr, c_tr)
+    s_te, sigma_te = statistic(v_te, c_te)
+    warm = hyper.window + telemanom.Config().error_window
+    finite = s_tr[np.isfinite(s_tr)][warm:]
+    threshold = float(np.quantile(finite, 0.999)) if finite.size else float("inf")
+    cv = float(np.std(sigma_te) / np.mean(sigma_te)) if np.mean(sigma_te) > 0 else 0.0
+    return {"e_s": s_te, "as_source": s_te / max(threshold, 1e-12),
+            "values": v_te[:, 0].astype(np.float64),
+            "threshold": threshold, "sigma_cv": cv,
+            "sigma_median": float(np.median(sigma_te)),
+            "n_exogenous": n_exog,
+            "nll": float(report.get("best_validation_mse", float("nan"))),
+            "epochs": int(report.get("epochs_run", 0)),
+            "best_epoch": int(report.get("best_epoch", 0)),
+            "nll_improved": bool(report.get("best_epoch", 0) > 0),
             "warm": {"prop": warm, "pub": warm},
             "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
 
@@ -814,6 +933,7 @@ def main(argv=None) -> int:
 
     channels = man["channels"][: args.limit] if args.limit else man["channels"]
     fit_seconds: list[float] = []
+    fit_peaks: list[float] = []
     pending: list[tuple] = []
     store = D.WEIGHT_STORE
     before = sum(1 for p in store.iterdir() if p.suffix == ".npz")
@@ -843,7 +963,7 @@ def main(argv=None) -> int:
             cells = ("lstm", "gru")
         if args.zscore and "zscore" not in cells:
             cells = tuple(cells) + ("zscore",)
-        for cell in [c for c in cells if c not in ("published", "rung", "zscore")]:
+        for cell in [c for c in cells if c not in DEFERRED_CELLS]:
             try:
                 built[cell] = build(cid, cell, train, test)
             except Exception as exc:         # D17's guard refuses a channel outright
@@ -853,7 +973,7 @@ def main(argv=None) -> int:
         if failed:
             stalls[cid] = failed
             print(f"    {cid}: STALL -- " + "; ".join(f"{k} {v}" for k, v in failed.items()))
-        deferred = [c for c in cells if c in ("published", "rung", "zscore")]
+        deferred = [c for c in cells if c in DEFERRED_CELLS]
         if deferred:
             pending.append((cid, train, test, deferred))
         if not built and not deferred:
@@ -906,8 +1026,9 @@ def main(argv=None) -> int:
                     print(f"    {min(lo + batch, len(pending))}/{len(pending)} fitted")
         else:
             done = [_fit_published(job) for job in pending]
-        for cid, out, err, seconds in done:
+        for cid, out, err, seconds, peak_mb in done:
             fit_seconds.append(seconds)
+            fit_peaks.append(peak_mb)
             for cell, message in (err or {}).items():
                 stalls.setdefault(cid, {})[cell] = message
                 print(f"    {cid}: STALL -- {cell} {message}")
@@ -917,13 +1038,26 @@ def main(argv=None) -> int:
         print(f"  fits done in {(time.time() - started)/60:.1f} min wall clock")
 
     after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
-    expected = "28.5 expects +78 (3 banked by the smoke)" if args.published else "27.6 expects +0"
+    refitting = {a for a in args.only.split(",") if a} & {"T", "C1", "C2", "C2M"}
+    if refitting:
+        expected = f"32.5 expects +81 per refitting arm ({sorted(refitting)})"
+    elif args.published:
+        expected = "28.5 expects +78 (3 banked by the smoke)"
+    else:
+        expected = "27.6 expects +0"
     print(f"  weight store {before} -> {after} (+{after - before}; {expected})")
     if fit_seconds:
         med = float(np.median(fit_seconds))
         print(f"  fits: n={len(fit_seconds)} median {med:.1f}s "
               f"min {min(fit_seconds):.1f}s max {max(fit_seconds):.1f}s "
               f"-> 81 channels projects to {81 * med / 60:.0f} min serial")
+        if fit_peaks:
+            # 32.5. Measured, per worker process, INCLUDING its torch import.
+            pk = max(fit_peaks)
+            print(f"  peak RSS per worker: max {pk:.0f} MB "
+                  f"median {float(np.median(fit_peaks)):.0f} MB "
+                  f"-> {args.workers} workers project to {args.workers * pk / 1024:.1f} GiB "
+                  f"against {free_memory_gib():.1f} GiB free now")
     return report(args, per_channel, stalls, geometry, in_range, base_rate,
                   before, after, client, cfg, ledger, budget)
 
@@ -955,6 +1089,12 @@ ARM_TABLE = [
      "work item 9.12: Arm T plus the residual rung (errors.py:48-64)"),
     ("G", "rung", "port", Mech(dimensionless=True), "pub",
      "work item 9.13: Arm R with the two absolute filters made dimensionless"),
+    ("C1", "published_nc", "port", None, "pub",
+     "work item 9.15: Arm T with the commands WITHHELD -- D49's counterfactual"),
+    ("C2", "zscore_cmd", "source", None, "prop",
+     "work item 9.15: gru-zscore WITH the command columns, at D25's threshold"),
+    ("C2M", "zscore_cmd", "swept", None, "prop",
+     "gru-zscore+cmd swept to stage 4's rate -- a COMPARISON DEVICE, not a calibration"),
     ("H", "zscore", "source", None, "prop",
      "work item 9.14: gru-zscore at D25's label-free threshold"),
     ("HM", "zscore", "swept", None, "prop",
@@ -965,7 +1105,8 @@ ARM_TABLE = [
 def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
-    cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore")
+    cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore",
+                              "published_nc", "zscore_cmd")
                   if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
@@ -1247,12 +1388,18 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "weight_store": {"before": before, "after": after},
         "structural_checks": structural,
         "guard_diagnostics": guard_rows,
+        # 32.4 K3 is C2's stop and is adjudicated FIRST, so `sigma_cv` has to
+        # reach the artifact for BOTH probabilistic cells. It collected only
+        # "zscore" until 2026-09-09, which would have left K3 unadjudicable from
+        # the artifact -- 27.8's defect exactly, where S1 and S2 could not be
+        # settled because the instrument did not retain what the check needed.
         "zscore_diagnostics": [
-            {"channel": c, "spacecraft": v["spacecraft"],
-             **{k: v["built"]["zscore"][k] for k in
-                ("threshold", "sigma_cv", "sigma_median", "nll", "objective",
-                 "epochs", "best_epoch", "nll_improved")}}
-            for c, v in per_channel.items() if "zscore" in v["built"]],
+            {"channel": c, "cell": cell, "spacecraft": v["spacecraft"],
+             **{k: v["built"][cell].get(k) for k in
+                ("threshold", "sigma_cv", "sigma_median", "n_exogenous", "nll",
+                 "objective", "epochs", "best_epoch", "nll_improved")}}
+            for c, v in per_channel.items()
+            for cell in ("zscore", "zscore_cmd") if cell in v["built"]],
         "forensics": forensics,
         "magnitude_conjunct": {"indices_removed": CONJUNCT_BOUND[0],
                                "window_passes": CONJUNCT_TESTED[0]},
