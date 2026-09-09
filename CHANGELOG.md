@@ -14,6 +14,377 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.14] - 2026-09-08 - `gru-zscore`: the head learned a constant, and its own stop fired
+
+Work item 9.13 pre-registered and not run; work item 9.14 pre-registered and run at 165
+Class B and 1 Class A. `docs/MODELS.md` 30, 31, D55, D56.
+
+### Added - D55, from three measured instances and one refuted hypothesis
+
+- **Absolute constants in data units do not transfer.** D17's `min_delta` disabling
+  training on ESA-ADB's ~1e-4 loss; T4 measuring **the same constant correct** on
+  (-1,1)-scaled SMAP/MSL; and the candidate filters at `errors.py:339` and `:343`. Plus
+  one hypothesis measured and refuted, kept with its reasoning.
+- **The toolkit ships dimensionless equivalents**; an absolute form is a per-mission
+  override with its provenance attached. A requirement on the toolkit, not a finding
+  about telemanom, whose constants are correct on telemanom's data.
+
+### Added - work item 9.13, dimensionless guards: registered, not run
+
+- `docs/MODELS.md` 30 replaces each absolute filter with `mean(e_s) + 1*sd(e_s)`, the
+  multiplier **fixed in advance and not swept**. The coverage and sequence caps are left
+  alone because they are already scale-free. G1 MSL past 15/36, G2 MSL false positives 6
+  or fewer, G3 SMAP not below 43/68, G4 a superset on every channel **and a stop**.
+- One read, 165 Class B, **no fits**. It has not run: this is the only section in
+  `docs/MODELS.md` carrying a pre-registration and no OBSERVED.
+
+### Added - work item 9.14, and it stops chasing Table 2
+
+- **`gru-zscore`**: the same GRU with a head emitting `mu` and `log sigma^2` per channel,
+  a Gaussian NLL loss on nominal data, and the statistic `z = (x - mu) / sigma` under
+  D25's unchanged label-free threshold. **`z` is dimensionless by construction, so D55 is
+  satisfied structurally** rather than by choosing better constants.
+- The reproduction answered what it was asked. The gap is **not** the scoring rule, the
+  commands, pruning's rung, cross-window tracking, the aggregation, the window regime or
+  the training configuration -- each measured and closed. **It is the residual itself.**
+
+### Measured - H4's stop fired, and the design claim is the thing that failed
+
+Artifact `runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json`. 81 channels
+attempted, **79 fitted**, 102 sequences, MSL 36 -- like-for-like with the paper.
+
+```
+   arm    set     recall            precision (TP/(TP+FP))    FP
+   A0     MSL    16/36   44.4%      16/42    38.1%            26
+   T      MSL     3/36    8.3%       3/5     60.0%             2
+   H      MSL     5/36   13.9%       5/32    15.6%            27
+   paper  MSL    25/36   69.4%      25/27    92.6%             2
+```
+
+- **H4 REFUTED and the pre-registered stop fired.** Sigma's coefficient of variation is
+  **0.0504** at the median and above 0.25 on **11 of 79** channels, against a prediction
+  of more than half. In 31.5's own words, written before the run: the head "learned a
+  global scale, `z` is `|x - mu|` divided by a constant, and the arm is the old detector
+  with extra parameters."
+- **H1 REFUTED** at 5/36 against `A0`'s 16/36. **H2 REFUTED** at 27 false alarms against
+  the paper's 2. **H3 not run**, as 31.6 pre-registered, and now moot for adoption.
+- **H5 HELD on 79 of 79 channels**, median best epoch 34 of 35. The likelihood objective
+  trained. **This is not an optimisation failure**: the model could have learned a varying
+  sigma and did not.
+- **D48 for the fourth arm running.** At D25's label-free threshold `gru-zscore` alarms on
+  **19.41%** of nominal time; swept, it saturates at the grid maximum and is still 1.18%
+  with 0 of 39 in-range contextual. **Stage 4's 10/38 stands unreplaced.**
+
+### (!) Three defects in this arm, recorded rather than tidied
+
+- **The weight store grew by 0, not the pre-registered +81.** `build_zscore` fits through
+  `lstm.train` directly and the cache lives in `ForecastDetector.fit`, so Arm H's weights
+  are never persisted and the arm is reproducible only from its seed.
+- The relative early-stopping rule raised the bar on a **negative** loss. Fixed
+  sign-safely, identical for every non-negative loss, pinned by test.
+- **A Gaussian head is not representable in `model.bin` version 1** (D30): `Weights`
+  refused a doubled head. Both were caught by the smoke before the read.
+
+### Named, not registered
+
+- Why sigma stayed constant. A single univariate channel gives the likelihood no reason to
+  vary it with state; the multivariate channel set, a variance term the loss cannot
+  trivially satisfy, and capacity are each one arm.
+
+---
+
+## [0.6.13] - 2026-09-08 - The published training buys eight events, and the residual rung buys none
+
+Work items 9.11 and 9.12. Three reads at 165 Class B (one discarded), plus smokes at 9
+Class B. `docs/MODELS.md` 28, 29, D55.
+
+### Added - work item 9.11, Arm T: the published training configuration
+
+Eight differences read line by line from `third_party/telemanom/` `modeling.py`,
+`channel.py` and `config.yaml`, applied together because reproducing a configuration one
+constant at a time would take eight reads. The largest is **T-a**: telemanom's
+`aggregate_predictions` defaults to `method='first'` (`modeling.py:113`) and is called
+with no method at `:172`, so its forecast is the **single one-step-ahead prediction** where
+ours averages ten. **Ours smooths the residual tenfold.**
+
+### Measured - T4 held with zero stalls, and it changed the population
+
+Artifact `runs/smap-msl/_forensics/2026-09-08T201450Z-wi910-port.json`. Weight store
+**321 -> 399**, the pre-registered growth.
+
+- **Zero of 81 channels kept their first epoch** under the published absolute
+  `min_delta = 0.0003`, against a prediction of 20 or fewer; our relative rule stalls six
+  on the LSTM and four on the GRU. **Arm T is the first arm to score the whole
+  104-sequence population**, the paper's 105 less the P-2 duplicate.
+- **D17's replacement is necessary on ESA-ADB and unnecessary here** -- the
+  dimensionless-constants argument holding in both directions on the same code, and a
+  stronger statement than D17 could make alone. It is instance 2 of D55.
+
+```
+   arm     set      recall              precision (TP/(TP+FP))     FP
+   F       Total   34/98    34.7%      34/38     89.5%              4
+   T       MSL      3/36     8.3%       3/5      60.0%              2
+   T       SMAP    43/68    63.2%      43/50     86.0%              7
+   T       Total   46/104   44.2%      46/55     83.6%              9
+   paper   MSL     25/36    69.4%      25/27     92.6%              2
+   paper   Total   84/105   80.0%      84/96     87.5%             12
+```
+
+- **T1 REFUTED**: 46/104 (44.2%) against a 55-85 band. Restricted to Arm F's own 75
+  channels the two share a population exactly, and **T is 42/98 against F's 34**.
+- **The published training buys eight events and costs four false alarms** -- +8.2 points
+  of recall for -5.5 of precision, at 83.6% precision against the paper's 87.5%.
+- T2 and T5 held; S1 and S2 are now adjudicated at 75/75 on every rung. The magnitude
+  conjunct bound on **23 indices in 83,780 window-passes**, settling L1 as a property of
+  the data rather than a transcription defect.
+
+### (!) MSL did not move at all
+
+Every point of the gain is SMAP's. **MSL is 3/36 before and after.** On the one population
+that matches the paper's exactly, the paper catches **25 of 36 with 2 false alarms** and
+this reproduction catches **3 with 2**, and eight training changes moved it by zero events.
+
+### Added - work item 9.12, Arm R: the residual rung
+
+Arm T plus telemanom's residual over the supervised region only, with the first `l_s`
+smoothed samples replaced by the mean of the first `2*l_s` (`errors.py:48-64`). Artifact
+`runs/smap-msl/_forensics/2026-09-08T211109Z-wi910-port.json`, 165 Class B, weight store
+**+0**.
+
+- **Arm R equals Arm T in every cell.** R1 refuted: the residual rung is not the cause.
+- **R2 refuted and its stop discharged on evidence.** The 13 `offset` events scatter from
+  -503 to +427 with **0 of 13** within 250 +/- 40, so a frame error is ruled out and the
+  classifier was loose. The same class fires at the same rate on SMAP, where detection
+  works.
+- **R4 refuted, and it refutes 28.8's own hypothesis, which was ours.** 28.8 argued a
+  better forecaster produces smaller residuals that the absolute floors then filter out.
+  Measured, the opposite: `max(e_s)` on MSL is **0.7323** at the median against a
+  `sd(values)` of 0.5721, and **0 of 27** channels fall below the 0.05 floor. **The
+  residuals are large, not small -- the forecaster is doing badly on MSL**, which is a
+  different and more ordinary problem. R5 held at 0 events moved on SMAP.
+- On MSL **no named guard fires** in the published window regime -- coverage 0, sequence
+  cap 0, magnitude 0 -- so what silences 23 of 27 channels is downstream, in pruning at
+  `p = 0.13`. An instrument flaw is recorded with it: the fallback counter double-counts
+  the inverse pass, so 56% is nearer 12%.
+
+### Process - a compute plan that was measured and still wrong
+
+One published fit was measured at **508 MB peak RSS** and four workers sized at about
+2.8 GB against 4.3 GB free. **The operating system killed the run for low memory, after
+the fits and before the artifact.** Two costs were omitted from an otherwise honest
+measurement: each spawned worker imports torch independently, and the parent had already
+grown past its own baseline holding 81 channels of arrays. 77 of 78 fits survived on disk
+because weights are written as each fit lands; **165 Class B were spent and never reached
+the ledger**, which is commit `75cc846` from the other side. Corrected on 2026-09-08.
+
+---
+
+## [0.6.12] - 2026-09-08 - The public-benchmark survey, and the first outside confirmation of a finding here
+
+Zero operations. `docs/RESEARCH.md` Part IV, verified citation by citation.
+
+### Added
+
+- **Pinet et al., arXiv:2606.02670, MiLeTS at KDD 2026**, *"Anomalies in Multivariate Time
+  Series Benchmarks Are Mostly Univariate"*. Across eight widely used public benchmarks
+  their diagnostic "shows that **no cross-channel rupture occurs without an accompanying
+  univariate deviation across a range of reasonable thresholds**", and a
+  channel-independent against channel-dependent comparison of a recent state-of-the-art
+  detector "further confirms that CD modeling brings no measurable gain".
+- **This is an independent replication of D42 and D23, the first this project has.** D42
+  measured that no cross-channel reduction recovers anything `max` misses on ESA-ADB and
+  D23 closed as answered no. Those were single-project findings on one benchmark; an
+  outside group reaches the same place on eight.
+
+### (!) What it does not say, recorded because it is the diagnostic
+
+- **It does not say what our headline says.** Pinet test deviation from **normal history**;
+  D46 tests leaving the **training min/max** a limit check actually holds. The two findings
+  are compatible and the section says so rather than borrowing their authority.
+- What could not be verified is marked as the survey's rather than quoted as the paper's:
+  the identity of the eight benchmarks, the 373 long segments, and the
+  strictly-cross-channel counts.
+- **Two caveats travel with it**: a near-binary channel defeats a z-score diagnostic, which
+  is a live concern for SMAP/MSL specifically, and absence across eight benchmarks is
+  strong evidence rather than proof. SWaT, WADI and SKAB are named as unchecked candidates.
+
+### Consequence
+
+- **Phase 3's physics testbed is the only venue for the cross-channel claim**, not a
+  convenience. If no public benchmark carries strictly cross-channel segments, the
+  cross-channel and early-warning claims cannot be earned on one.
+
+---
+
+## [0.6.11] - 2026-09-08 - The faithful port: it reproduces the paper's precision and not its recall
+
+Work item 9.10. One read at 165 Class B and 1 Class A, preceded by a 2-channel smoke at
+7 Class B and 1 Class A. Cached weights, **weight store +0** on both. `docs/MODELS.md` 27,
+D54.
+
+### Added - twelve arms, one bundle load
+
+`scripts/smap_rungs.py`, committed **with** the figures it produces (`docs/NARRATIVE.md`
+11's rule). A0 the faithful `1a+1b` base, A1 to A5 the gates, L1 to L5 the ladder adding
+one telemanom mechanism at a time with each citing the vendored source by line, F the
+complete port as the reference ceiling and FG the same on the GRU.
+`src/sentinel_models/telemanom.py` is not touched (D8).
+
+### Measured - G1 refuted, and the way it failed is the result
+
+Artifact `runs/smap-msl/_forensics/2026-09-08T182416Z-wi910-port.json`.
+
+```
+   arm  exercises                            measured            recorded
+   A1   src/sentinel_models/telemanom.py     44/98,  45/59       44/98,  45/59     EXACT
+   A3   stage 4's swept arm                  0.551, 0.6820%,     0.551, 0.6820%,
+                                             47/100, 10/38       47/100, 10/38     EXACT
+   A0   the lost rung script (1a+1b)         57/98,  62/110      59/98,  65/146    REFUTED
+   A2   the lost rung script (1c-ii)         74/98, 100/237      74/98,  98/221    recall exact,
+                                                                                   ranges REFUTED
+```
+
+- **The gate splits exactly along the committed/uncommitted line, and that was not
+  predicted.** Both gates exercising code in this repository reproduce to the digit, which
+  clears the bundle load, the weights, the scorable masks, the event populations, the P-2
+  dedup, the D17 stall set and both scoring rules. **Both gates depending on the study
+  script that was never committed do not.**
+- **`docs/NARRATIVE.md` 11's finding arriving as a measurement rather than an argument.**
+  The divergence is located and is a defect in neither implementation: the lost script
+  built `1a+1b` on `channel_ratios`, this port on telemanom's own loop, and they differ in
+  series-level singleton dropping and in `channel_ratios`' 315-step opening suppression.
+  **Two faithful readings of the same prose differ by 2 events and 36 ranges.**
+- Populations confirmed at 37 of 98 in-range contextual on the LSTM and 38 of 100 on the
+  GRU, exactly as 26.30.3 predicted.
+
+### Added - D54, the withheld arms released at zero new operations
+
+```
+   arm   set     recall            precision (TP/(TP+FP))     FP   target FP
+   F     MSL     3/36    8.3%      3/4     75.0%               1        2
+   F     SMAP   31/62   50.0%     31/34    91.2%               3        9
+   F     Total  34/98   34.7%     34/38    89.5%               4       11
+   paper MSL    25/36   69.4%     25/27    92.6%               2
+   paper Total  84/105  80.0%     84/96    87.5%              12
+```
+
+- **The faithful port reproduces the paper's precision and does not reproduce its recall**:
+  **89.5% against 87.5%**, on **4 false positives against a scaled target of 11**, at
+  **34.7% recall against 80.0%**. **That is the inverse of D50**, where precision was 11.2
+  points short and recall 35.1.
+- On MSL, the one exactly like-for-like population, **the paper catches 25 of 36 with 2
+  false alarms and this reproduction catches 3 with 1.**
+- **The committed port supersedes the lost script.** `1a+1b` is now 57/98 and 62/110
+  against the recorded 59/98 and 65/146; `1c-ii` is 74/98 and 100/237 against 74/98 and
+  98/221. Both kept everywhere. From here the port **is** `1a+1b` and `1c-ii`.
+- **D51 consequence 2 is discharged and the forecaster rungs open** -- the candidate count
+  now matches, 38 predicted units against 96 and 4 false positives against 12.
+- **N1 refuted**: FG's nominal rate is 1.5639% against stage 4's 0.6838%, so by 27.3's rule
+  no comparison is drawn and **stage 4's 10/38 stands unreplaced.** The port has no dial.
+- S3 held at 3.0-7.2 windows per index proportional against 31.0 published. **L1 is settled
+  as a property of the data**, not a transcription defect: `tests/test_smap_rungs_port.py`
+  builds windows where each mechanism must fire and shows it does.
+
+### Process - two defects the smoke caught before a single operation was spent
+
+- **The fit context was dropping the channel id.** `context.channels` is the second element
+  of the weight-cache key (`detectors.py:421-424`), so every one of the 318 banked fits
+  would have missed and the run would have silently refitted 152 models -- **D14's failure
+  exactly**. Caught by reading the new `ctx_for` against the old one rather than by running
+  anything.
+- **The buffer dilation was quadratic.** Transcribing `errors.py:291-298` literally is
+  correct and unusable; dilating the contiguous runs gives the identical set in linear
+  time. Neither defect would have announced itself.
+
+---
+
+## [0.6.10] - 2026-09-08 - telemanom is vendored and read: it is causal, and four rungs chased a mechanism that is not in it
+
+Zero operations. `docs/MODELS.md` 26.29, 26.30, D53.
+
+### Added - the source, pinned as evidence and never a dependency
+
+- **`third_party/telemanom/`** at commit `2e6c5b6c3558e7835601519b7bdef37c649bdbdc`, source
+  only, 84 KB. Sections 26.21 to 26.28 located four divergences by quoting `errors.py` at
+  specific line numbers and **no copy of that file was ever kept**, so the quotations could
+  not be checked and 26.28's closing question could not be answered at all.
+- Nothing under `src/` or `scripts/` imports it, pinned by `tests/test_layering.py`, and it
+  is never executed. `PROVENANCE.md` records the commit, the licence, what is vendored,
+  what is not, and which guards do and do not cover it.
+
+### Corrected - reading it in full corrects five recorded readings
+
+- **It clips each window to its newest `batch_size`** (`errors.py:355-359`), so **telemanom
+  is causal** after its opening window and its cross-window accumulator unions **disjoint**
+  batches. 26.25.1's "every index is judged using data ahead of it" is true of window 0
+  alone.
+- **There is no union over roughly thirty overlapping verdicts anywhere in it.** Rungs 1c,
+  1c-i and 1c-ii were built to reproduce a mechanism the source does not contain. **`1a+1b`
+  is the faithful arm and `1c-ii` is a departure** that is more permissive than the
+  published algorithm. **D52 is superseded at its premise and kept in full.**
+- **The precision denominator is a mixed unit** (`detector.py:117-136`, `:167-173`): true
+  positives deduplicated per matched event, false positives counted per predicted range.
+  So `1c-ii` is **74/197 = 37.6%**, not 98/221 = 44.3%. Both numbers kept everywhere.
+- **The target is 12 false positives, not "~91 candidate ranges".** `~91` was `80.0/87.5`,
+  arithmetic that appears in no document. On MSL the denominators match the paper's exactly
+  at 36 and the gap is **2 against 58**.
+- **The licence is BSD 3-Clause** (Caltech/JPL 2018), **not the Apache-2.0** `docs/DATA.md`
+  recorded. `scripts/ingest_smap_msl.py` is corrected so any future ingest is right; **the
+  stored manifest object `_manifest/smap_msl.json` still carries the wrong string** and is
+  left alone, because rewriting a pinned manifest costs 1 Class A and is not a change to
+  make without approval. Recorded rather than quietly fixed.
+
+### Added - five mechanisms in the source this reproduction does not implement
+
+A magnitude conjunct (`errors.py:342-343`), a whole-window bail-out (`:337-340`), the two
+`find_epsilon` guards (`:314-315`), an inverse pass (`:132-148`) and `adjust_window_size`
+(`:84-93`). Work item 9.10 is pre-registered against them.
+
+### (!) What went wrong is not that the source was not read
+
+It **was** read, and the project's rule that a divergence is located rather than guessed was
+followed. What was missing is that the reading left nothing behind, so a wrong premise
+survived four rungs of careful, pre-registered, correctly-stopped work. Every stop condition
+in 26.21 to 26.28 fired or held exactly as designed. **The discipline worked perfectly on
+top of a premise nobody could check**, which is the most expensive kind of correct.
+
+---
+
+## [0.6.9] - 2026-09-03 - Stage 5: the reproduction gap is the pruning step
+
+One read at 1 Class A and 165 Class B, plus a discarded run whose 75 fits are reused.
+
+### Corrected before running - the hypothesis was untestable
+
+- Stage 5 was commissioned to score two ways, "Hundman's overlap-after-pruning rule and
+  our event-wise rule", on the hypothesis that the gap is the scoring rule. **There is
+  only one rule.** `eventwise.detected` is "fires anywhere inside the span" -- any
+  overlap, Hundman's recall rule; precision is predicted ranges overlapping a truth
+  range over all predicted ranges, his precision rule; and `PRUNING_P = 0.13` is his
+  published value, in our detection stack. Checked in the source, before spending.
+
+### Added - D50, and the paper's Table 2 retrieved rather than recalled
+
+- **Precision reproduces within 11.2 points** (76.3% against 87.5%); **recall is 35.1
+  short** (44.9% against 80.0%), over 98 sequences.
+- **The paper's own ablation reproduces in direction on both datasets and both
+  metrics**, so our detection stack has its internal structure.
+- **And it localises the gap.** Pruning costs the paper **7.3** points of SMAP recall
+  and **0.0** on MSL; it costs this reproduction **32.3** and **22.2**. Without pruning
+  we are 11.3 points short of the paper; with it, 35.1. **Pruning triples the gap.**
+- The available excuse is ruled out rather than used: the gap is **not** the missing
+  command inputs, because D49 measured commands making the detector worse and the
+  ablation locates the difference in a stage commands do not touch.
+- **It re-reads D18.** A second published component behaves differently in our hands
+  than in the authors'. Neither is evidence the method is wrong; both are evidence that
+  a reproduction is a measurement with its own error bars, and one is now quantified.
+
+### Process
+
+- A first stage 5 run fitted 75 channels and then failed in the scoring code -- `Event`
+  takes `segments`, not `channels`, which is a derived property. The fits were cached,
+  so the corrected re-run took 57 seconds and cost one read. My error.
+
 ## [0.6.8] - 2026-09-03 - Stage 4: the dynamic threshold works, and D6 is answered
 
 Two reads at 1 Class A and 165 Class B each; the first discarded for a defect of mine.

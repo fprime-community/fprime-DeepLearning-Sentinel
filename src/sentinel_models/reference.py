@@ -141,6 +141,13 @@ class Weights:
     n_channels: int
     window: int
     n_predictions: int
+    #: Values the head emits per prediction per channel. **1 is the only value
+    #: `model.bin` version 1 can carry** (D30) and the only value
+    #: :func:`forward` accepts; 2 is D56's Gaussian head, a mean and a
+    #: log-variance, which lives in the study script's own forward pass because
+    #: a design that has not cleared its gate does not move the flight path.
+    #: Default 1, so every existing `Weights`, golden vector and file is unmoved.
+    outputs: int = 1
     #: Exogenous input columns -- telecommand features. The model reads
     #: ``n_channels + n_exogenous`` and forecasts ``n_channels``: it is told what
     #: was commanded, and asked only what the telemetry will do about it. A
@@ -163,7 +170,7 @@ class Weights:
                 f"layer 0 takes {self.layers[0].n_in} inputs but the model declares "
                 f"{self.n_channels} channels + {self.n_exogenous} exogenous"
             )
-        expected = self.n_predictions * self.n_channels
+        expected = self.n_predictions * self.n_channels * self.outputs
         if self.head_w.shape != (expected, self.layers[-1].hidden):
             raise ReferenceError(
                 f"head is {self.head_w.shape}, expected "
@@ -516,6 +523,13 @@ def forward(weights: Weights | ConvWeights, x: np.ndarray, state: list[State] | 
     Objective.md 11 rule 5, and PyTorch's eval mode does the same thing here by
     simply not being implemented.
     """
+    if getattr(weights, "outputs", 1) != 1:
+        raise ReferenceError(
+            "this reference forward emits one value per prediction; a Gaussian "
+            "head (D56) is scored by the study script's own forward pass and is "
+            "not representable in model.bin version 1 (D30)."
+        )
+
     x = np.ascontiguousarray(x, dtype=DTYPE)
     if x.ndim != 3:
         raise ReferenceError(f"input must be (batch, steps, channels), got {x.shape}")

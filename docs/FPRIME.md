@@ -36,7 +36,7 @@ deployment and their build files -- are tracked.
 
 **Why it lives inside the repository.** Everything for this project stays inside
 this directory. That collides with `tests/test_no_local_persistence.py`, which
-enforces Rule 1 by asserting the working tree stays under 4 MiB, so the two
+enforces Rule 1 by asserting the **tracked** set stays under 4 MiB, so the two
 subtrees above are exempted there with a stated reason and a second test asserts
 the exemption stays narrow. The checkout was scanned before the exemption was
 written and holds **0/0** files with a dataset or array suffix. `conftest.py`

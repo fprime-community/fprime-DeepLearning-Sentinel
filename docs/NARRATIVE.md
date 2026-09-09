@@ -734,3 +734,248 @@ changed the question.** Every earlier one asked which detector, which
 threshold, which cell. This one asked whether a floor measured yesterday is
 still the floor today, and on one subsystem in three folds the answer was no
 twice. That is the question the flight component is built around.
+
+## 11. Phase 2, work item 9.9: four rungs against a mechanism that was not there
+
+**2026-09-08.** This section is written at a work-item boundary, which is when
+`docs/HARNESS.md` 5a says it gets written, and it records two mistakes rather
+than one result.
+
+### The study code was never committed
+
+Between 2026-09-03 and 2026-09-04 this project ran stage 5 and four rungs against
+telemanom's published Table 2, and published five results from them: D50, D51,
+D52 and `docs/MODELS.md` 26.19 to 26.28. **Nine commits landed in that window and
+not one of them touched a file under `scripts/`.** The artifacts are real and
+under `runs/smap-msl/_forensics/`; the code that produced them was written
+somewhere outside the repository and is gone.
+
+So every figure in that ladder is sourced to a named artifact, which is the rule,
+and **none of it is reproducible from the repository**, which nobody had written
+a rule about. `74/98` and `98/221` could be quoted and could not be re-derived.
+
+The rule this produces, and it is narrow enough to keep: **a run that produces a
+documented figure lands its script in the same commit as the figure.** Not the
+next commit, not a tidy-up later. The pre-registration commit may precede the
+code; the OBSERVED commit may not.
+
+### And the source was read without being kept
+
+`docs/MODELS.md` 26.21.1 quotes `errors.py:363-371`. 26.23.1 quotes
+`errors.py:365-371`. 26.25.2 quotes `process_batches`. Those readings were done
+properly -- the project's rule is that a divergence is read from the source and
+located, never guessed, and it was followed. **No copy of `errors.py` was kept**,
+so the quotations were assertions with line numbers attached, and neither the
+line numbers nor the code around them could be checked by anyone who was not
+there.
+
+On 2026-09-08 the source was vendored (`third_party/telemanom/`, D53) and read in
+full. Five recorded readings turned out to be wrong, and one of them had cost
+four pre-registered rungs:
+
+- telemanom clips each window to its newest `batch_size` (`errors.py:355-359`),
+  so it is **causal** after its opening window, and its cross-window accumulator
+  unions **disjoint** batches.
+- **There is no union over roughly thirty overlapping verdicts.** Rungs 1c, 1c-i
+  and 1c-ii were built to reproduce a mechanism the source does not contain, and
+  the "flyable reproduction" is more permissive than the published algorithm
+  rather than faithful to it. The arm that was already there, `1a+1b`, is the
+  faithful one.
+- The published precision denominator is `matched events + unmatched ranges`
+  (`detector.py:117-136`), not ranges over ranges, so every precision figure in
+  the ladder is the generous statistic.
+- `~91` was `80.0 / 87.5`, arithmetic that appears in no document. The paper's
+  own number is **twelve false positives**.
+
+**What went wrong is not "the source was not read".** It was read. What was
+missing is that the reading left nothing behind, so it could not be audited, and
+a wrong reading survived four rungs of careful, pre-registered, correctly-stopped
+work. Every stop condition in 26.21 to 26.28 fired or held exactly as designed.
+Z4 caught a two-lever arm. Q4 passed 75 of 75. X3 held on 1,721 of 1,721 calls.
+**The discipline worked perfectly on top of a premise nobody could check**, which
+is the most expensive kind of correct.
+
+### What it cost, and what it bought
+
+Five reads at 165 Class B each, four pre-registrations, and a decision entry that
+is now superseded at its premise. What it bought is a precise target: the
+reproduction is chasing **12 false positives against our 81**, on a population
+that matches the paper's exactly on MSL, and five named mechanisms in the source
+that this stack does not implement. That is a better question than the one the
+ladder started with, and it was only reachable by getting the first one wrong in
+public.
+
+### The two bugs the smoke caught, and why they are worth a paragraph
+
+Work item 9.10 spent 7 Class B on a two-channel smoke before its 165-Class-B
+read, and the smoke's only stated purpose was to prove the weight-cache key still
+hit. Two defects were caught before a single operation was spent on the real run.
+
+**The fit context was dropping the channel id.** The new script built its
+`Context` with a literal placeholder where `scripts/smap_stage2.py` passes the
+channel. `context.channels` is the second element of the weight-cache key
+(`src/sentinel_models/detectors.py:421-424`), so every one of the **318 banked
+fits** would have missed, and the run would have silently refitted 152 models
+instead of reading them -- **D14's failure exactly**, which cost 45 minutes the
+first time and is still open as a decision. It was caught by reading the new
+`ctx_for` against the old one rather than by running anything.
+
+**The buffer dilation was quadratic.** Transcribing `errors.py:291-298` literally
+-- concatenate `i + arange(1, 100)` and `i - arange(1, 100)` for every exceeded
+index -- is correct and unusable: over twelve arms it is hours. Dilating the
+contiguous runs instead gives the identical set in linear time, which is the same
+argument `src/sentinel_models/telemanom.py:208-224` already makes for the same
+operation.
+
+**Neither would have announced itself.** The first produces correct numbers after
+an unnecessary hour of fitting and a weight store that has silently doubled; the
+second just looks like a slow script. The smoke was priced at 6 Class B in the
+pre-registration for the first of them, and it paid for itself twice.
+
+### A compute plan that was measured and still wrong
+
+Work item 9.11's fits projected to 111 minutes serial, over the hour the
+pre-registration set as the threshold for asking, so the options were put with
+numbers: one published fit was measured at **508 MB peak RSS** and four workers
+were sized at about **2.8 GB against 4.3 GB free**. The parallel path was
+validated first against three already-banked channels, and it hit the cache with
+the weight store unmoved -- proof that fanning the fits out changed neither the
+key nor the weights.
+
+**Then the operating system killed the run for low memory, after the fits and
+before the artifact.**
+
+Two costs were left out of an otherwise honest measurement. Each **spawned worker
+imports torch independently**, several hundred megabytes before it fits anything,
+which a single-process measurement cannot see. And the **parent had already grown
+past its own baseline** by the time the fits started: it was holding 81 channels'
+train and test arrays and both cells' smoothed-error caches. The per-fit figure
+was right; the total was assembled from it as though the fit were the only thing
+in memory.
+
+**What survived is the part that was expensive.** Weights are written as each fit
+completes, so 77 of 78 were on disk and the second run refitted one channel and
+read the other 77 from cache. **What did not survive is the bookkeeping**: 165
+Class B were spent and never reached the ledger, because the process died before
+`ops.commit`. That is commit `75cc846` from the other side -- it moved the
+artifact ahead of the ledger so a ledger failure could not take the result, and
+here the result and the ledger were both lost while the weights, which nobody had
+thought of as the durable thing, came through.
+
+**The transferable part is not "measure memory".** It was measured. It is that a
+per-unit measurement multiplied by a worker count is an estimate of one term in a
+sum, and the other terms -- the runtime each worker re-imports, the parent's own
+growth since the baseline -- are the ones that decide whether it fits.
+
+## 12. Work items 9.12 and 9.14: two hypotheses of mine, measured and refuted
+
+**2026-09-08, written at the work-item boundary** where `docs/HARNESS.md` 5a says
+it gets written. Section 11 ended with the reproduction finally reaching a
+precise target: twelve false positives, on a population that matches the paper's
+exactly on MSL. Two arms ran against it. Neither closed the gap, and both refuted
+a hypothesis this project had written down first, which is the part worth
+keeping.
+
+### The residual rung changed nothing, and its own author's story was wrong
+
+Arm R was the last transcription difference left. telemanom computes its residual
+over the supervised region only and then replaces the first `l_s` smoothed
+samples with the mean of the first `2*l_s` (`errors.py:48-64`), where ours ran
+the EWMA across the full test array including the padded warm-up. Our `e_s`
+entered the scored region carrying smoothing state from padded residuals, and
+`mean_e_s` and `sd_e_s` set every epsilon. It looked like the kind of thing that
+would matter.
+
+**It equals Arm T in every cell.** 46/104, 83.6% precision, 9 false positives,
+the same nominal rate to four decimal places. It moves individual events between
+forensic classes and moves no verdict.
+
+The interesting refutation is the other one. `docs/MODELS.md` 28.8 had argued --
+and it was mine -- that a better forecaster produces **smaller** residuals, so the
+published absolute floors would filter them out and that is what silences MSL.
+It is D18 one layer down, and it reads well.
+
+**Measured, the opposite is true.** `max(e_s)` on MSL is **0.7323** at the median
+against a `sd(values)` of 0.5721, and **0 of 27** channels fall below the 0.05
+floor. The residuals are not small. They are large, and `errors.py:339` is
+nowhere near binding on any channel.
+
+So the forecaster is simply doing badly on MSL. That is a different problem from
+the one 28.8 described and a considerably more ordinary one, and the wrong
+hypothesis is kept in full with its reasoning, because a principle that was
+arrived at by three correct guesses and one wrong one is better supported than
+one that was never tested.
+
+**R2 is worth a paragraph for the opposite reason.** Its refutation clause said
+five or more `offset` events would reopen the coordinate question, and thirteen
+fired. The stop was discharged on evidence rather than waived: a frame error puts
+every one of them at plus or minus 250, and the measured distances scatter from
+-503 to +427 with **0 of 13** in that band, on both spacecraft, with the same
+class firing at the same rate on SMAP where detection works. The defect was in my
+classifier, which trips whenever a peak forty samples from a narrow label falls
+outside the span. A stop that fires and is then discharged by measurement is the
+mechanism working, not being bypassed.
+
+### The detector that predicts its own uncertainty predicted a constant
+
+By then the reproduction had answered what it was asked. The gap is not the
+scoring rule, the commands, pruning's rung, cross-window tracking, the
+aggregation, the window regime or the training configuration -- each measured and
+closed. **It is the residual itself**, and D55 had just said why every transcribed
+constant failed to travel.
+
+`gru-zscore` was the answer to that: the same GRU with a head emitting `mu` and
+`log sigma^2`, a Gaussian likelihood on nominal data, and `z = (x - mu) / sigma`
+under D25's unchanged threshold. **`z` is dimensionless by construction**, so D55
+is satisfied structurally rather than by choosing better constants. It stops
+chasing Table 2 and changes the detector instead of the transcription.
+
+**H4 was written as a stop precisely so this could fail, and it failed.** The
+per-channel `sigma` was predicted not to be approximately constant -- coefficient
+of variation above 0.25 on more than half of channels. Measured: **0.0504 at the
+median, above 0.25 on 11 of 79.** 31.5's own sentence, written before the run,
+describes the outcome exactly: the head "learned a global scale, `z` is
+`|x - mu|` divided by a constant, and the arm is the old detector with extra
+parameters."
+
+MSL came in at 5/36 against `A0`'s 16/36 and the paper's 25/36, with 27 false
+alarms against 2. Both refuted.
+
+**And H5 is why this is a finding rather than a bug report.** Held-out nominal NLL
+improved on **79 of 79** channels, median best epoch 34 of 35. The likelihood
+objective trained. This is not an optimisation failure and it is not a plumbing
+failure: the model could have learned a varying sigma and did not. A single
+univariate channel gives the likelihood no reason to vary it with state, which is
+named as the next question and deliberately not registered as an arm yet.
+
+### Three defects, and two of them never reached a read
+
+Two were caught by the smoke. The relative early-stopping rule raised the bar on
+a **negative** loss, which is nonsense the moment an objective can go below zero
+and which no MSE arm could ever have exposed; it is fixed sign-safely, is
+identical for every non-negative loss, and is pinned by a test. And `Weights`
+refused a doubled head, which is a real finding rather than an inconvenience: **a
+Gaussian head is not representable in `model.bin` version 1** (D30), so this
+detector could not fly as it stands even if it had worked.
+
+The third survived to the artifact. **The weight store grew by 0, not the
+pre-registered +81**, because `build_zscore` fits through `lstm.train` directly
+while the cache lives in `ForecastDetector.fit`. Arm H's weights are therefore
+never persisted and the arm is reproducible only from its seed. That is the
+weaker half of `docs/NARRATIVE.md` 11's rule arriving again from a different
+direction: the script is committed and the figure is sourced, and the fits behind
+it are not on disk.
+
+### What the two arms bought
+
+Nothing on the leaderboard. Stage 4's 10/38 still stands unreplaced, and the
+fourth arm in a row failed D48's way -- `gru-zscore` alarms on 19.41% of nominal
+time at D25's threshold, and swept it saturates at the grid maximum still holding
+1.18% with 0 of 39 in-range contextual. A constant divisor cannot repair a
+distribution shift.
+
+What they bought is the end of a line of inquiry, established rather than
+assumed. Six model variants have now been measured on this data and none beats
+10/38. The reproduction is closed as the route to better recall, and the
+remaining contexts -- commands, and a testbed with real coupled physics -- are
+where the question goes next.

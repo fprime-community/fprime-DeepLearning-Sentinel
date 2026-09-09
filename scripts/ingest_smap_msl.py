@@ -54,7 +54,10 @@ DATASET = "smap-msl"
 VERSION = "v1"
 KAGGLE_REF = "patrickfleith/nasa-anomaly-detection-dataset-smap-msl"
 UPSTREAM = "https://github.com/khundman/telemanom"
-LICENSE = "Apache-2.0 (telemanom); dataset redistributed on Kaggle"
+# BSD 3-Clause, Caltech/JPL 2018 -- read from third_party/telemanom/LICENSE.txt,
+# not from the repository's GitHub metadata. Corrected 2026-09-08 (D53); the
+# manifest object uploaded 2026-09-03 still carries the old string.
+LICENSE = "BSD-3-Clause (telemanom); dataset redistributed on Kaggle"
 MANIFEST_KEY = "_manifest/smap_msl.json"
 PREFIX = f"{DATASET}/{VERSION}"
 

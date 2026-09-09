@@ -30,6 +30,7 @@ to score by accident.
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -139,6 +140,48 @@ class Hyper:
     #: estimator and is recorded rather than assumed.
     restore_best: bool = True
 
+    #: **The published training configuration, `docs/MODELS.md` 28.1.** Every
+    #: field below defaults to today's behaviour and is emitted by `as_dict` --
+    #: and therefore into the weight-cache key -- **only when it is not the
+    #: default**, which is D14's rule and the way `cell` was added for the GRU.
+    #: `tests/test_published_training.py` pins that the banked LSTM digest and
+    #: fingerprints are unmoved.
+
+    #: T-b. `config.yaml` carries TWO batch sizes: `batch_size: 70` is the
+    #: error-window batch and `lstm_batch_size: 64` is the training one
+    #: (`modeling.py:99`). `batch_size` above was marked "published" and is the
+    #: wrong one of the two. `None` keeps it; 64 is the published trainer.
+    train_batch_size: int | None = None
+
+    #: T-c. telemanom's absolute `min_delta`, applied as
+    #: `current < best - min_delta`. D17 replaced it with a fraction because
+    #: ESA-ADB validation MSE is ~1e-4 and the bar went negative; SMAP/MSL ships
+    #: pre-scaled to (-1,1), where the constant may be sound. `None` keeps the
+    #: fraction; 0.0003 is published.
+    min_delta_absolute: float | None = None
+
+    #: T-d. `"tail"` is the chronological hold-out (`docs/HARNESS.md` section 3).
+    #: `"shuffled"` is telemanom's: windows are shuffled (`channel.py:62`) and
+    #: Keras takes a fraction of them, so the split is a random subset of
+    #: positions rather than the end of the stream.
+    validation_split: str = "tail"
+
+    #: T-e. `False` is the per-fold sequence budget, written for ESA-ADB's
+    #: millions of steps. `True` is telemanom's epoch: every training window,
+    #: once, per epoch.
+    full_epochs: bool = False
+
+    #: The output head. ``"point"`` is telemanom's: `l_p * C` values, one mean
+    #: per prediction per channel, trained on MSE. ``"gaussian"`` emits
+    #: `l_p * C * 2` -- a mean AND a log-variance per channel -- trained on
+    #: Gaussian negative log-likelihood, so the detector predicts its own
+    #: uncertainty and the detection statistic `(x - mu)/sigma` is dimensionless
+    #: by construction. D56, `docs/MODELS.md` 31.
+    #:
+    #: Emitted by `as_dict` only when it is not the default, for `cell`'s reason:
+    #: the banked fits were keyed before this field existed (D14).
+    head: str = "point"
+
     #: Which recurrent cell. NOT a telemanom setting -- telemanom is an LSTM.
     #: Work item 5 adds the GRU as the second player at the architecture gate,
     #: and it must differ from the LSTM by the cell alone; so the cell is a field
@@ -163,6 +206,13 @@ class Hyper:
             raise ReferenceError(f"unknown cell {self.cell!r}; expected one of {CELLS}")
         if self.kernel < 2:
             raise ReferenceError(f"kernel must be at least 2, got {self.kernel}")
+        if self.head not in ("point", "gaussian"):
+            raise ReferenceError(
+                f"unknown head {self.head!r}; expected 'point' or 'gaussian'")
+        if self.validation_split not in ("tail", "shuffled"):
+            raise ReferenceError(
+                f"unknown validation_split {self.validation_split!r}; "
+                f"expected 'tail' or 'shuffled'")
 
     @property
     def receptive_field(self) -> int:
@@ -192,6 +242,17 @@ class Hyper:
             "max_validation_sequences": self.max_validation_sequences,
             "restore_best": self.restore_best,
         }
+        # Each absent at its default, so every banked fit keeps its key: D14.
+        if self.train_batch_size is not None:
+            out["train_batch_size"] = self.train_batch_size
+        if self.min_delta_absolute is not None:
+            out["min_delta_absolute"] = self.min_delta_absolute
+        if self.validation_split != "tail":
+            out["validation_split"] = self.validation_split
+        if self.full_epochs:
+            out["full_epochs"] = self.full_epochs
+        if self.head != "point":
+            out["head"] = self.head
         if self.cell != "lstm":
             out["cell"] = self.cell          # absent for the LSTM: D14, hash unmoved
         if self.cell == "tcn":
@@ -213,6 +274,10 @@ class TrainingReport:
     stopped_early: bool = False
     threads: int = THREADS
     n_exogenous: int = 0
+    #: What `best_validation_mse` and `validation_history` are in. `"mse"` for a
+    #: point head, `"nll"` for a Gaussian one -- the field names predate D56 and
+    #: are not renamed, so the unit is carried explicitly instead.
+    objective: str = "mse"
 
     def as_dict(self) -> dict:
         return {
@@ -225,6 +290,7 @@ class TrainingReport:
             "validation_history": [round(v, 8) for v in self.history],
             "stopped_early": self.stopped_early,
             "torch_threads": self.threads,
+            "objective": self.objective,
             "exogenous_inputs": self.n_exogenous,
         }
 
@@ -266,7 +332,12 @@ class TelemanomRNN(nn.Module):
             dropout=hyper.dropout if len(hyper.hidden) > 1 else 0.0,
         )
         self.drop = nn.Dropout(hyper.dropout)
-        self.head = nn.Linear(hyper.hidden[-1], hyper.n_predictions * n_channels)
+        #: `gaussian` doubles the width: a mean and a log-variance per channel
+        #: per prediction (D56). `point` is unchanged, so every banked fit and
+        #: every golden vector keeps its shape.
+        self.outputs = 2 if hyper.head == "gaussian" else 1
+        self.head = nn.Linear(hyper.hidden[-1],
+                              hyper.n_predictions * n_channels * self.outputs)
 
     @property
     def cell(self) -> str:
@@ -277,7 +348,8 @@ class TelemanomRNN(nn.Module):
         if last_only:
             out = out[:, -1:]
         y = self.head(self.drop(out))
-        y = y.reshape(y.shape[0], y.shape[1], self.hyper.n_predictions, self.n_channels)
+        shape = (y.shape[0], y.shape[1], self.hyper.n_predictions, self.n_channels)
+        y = y.reshape(*shape, self.outputs) if self.outputs > 1 else y.reshape(*shape)
         return y[:, 0] if last_only else y
 
 
@@ -384,6 +456,20 @@ class _TCNBlock(nn.Module):
         return torch.relu(y + (x if self.res is None else self.res(x)))
 
 
+def gaussian_nll(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Gaussian negative log-likelihood, constant dropped. D56.
+
+    `prediction[..., 0]` is the mean and `prediction[..., 1]` the log-variance.
+    The log-variance is clamped because an unbounded one lets the model drive
+    sigma to zero on an easy channel and take the loss to minus infinity, which
+    is a degenerate optimum rather than a good forecast -- the standard failure
+    of a heteroscedastic head, and the clamp is stated rather than tuned.
+    """
+    mu = prediction[..., 0]
+    log_var = prediction[..., 1].clamp(-10.0, 10.0)
+    return (0.5 * (log_var + (target - mu) ** 2 * torch.exp(-log_var))).mean()
+
+
 def build_model(n_channels: int, hyper: Hyper, n_exogenous: int = 0) -> nn.Module:
     """The one place the architecture is chosen. Everything in `train` is shared."""
     if hyper.cell == "tcn":
@@ -448,6 +534,7 @@ def _rnn_weights(model: TelemanomRNN) -> Weights:
         window=model.hyper.window,
         n_predictions=model.hyper.n_predictions,
         n_exogenous=model.n_exogenous,
+        outputs=getattr(model, "outputs", 1),
     )
 
 
@@ -479,19 +566,42 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
             f"no usable run reaches {span} steps in a window of {len(usable):,}; "
             f"there is nothing to fit on"
         )
-    train_runs, validation_runs = split_runs(runs, hyper.validation_fraction)
-
     values = np.ascontiguousarray(values, dtype=DTYPE)
     exogenous = dict(impulses=impulses, decay_steps=decay_steps)
-    trainer = SequenceSampler(values, train_runs, window=hyper.window,
-                              n_predictions=hyper.n_predictions, **exogenous)
-    validator = SequenceSampler(values, validation_runs, window=hyper.window,
-                                n_predictions=hyper.n_predictions, **exogenous)
-    if len(trainer) == 0:
-        raise ReferenceError("the training side of the split holds no complete sequence")
+    train_positions = None
+    if hyper.validation_split == "shuffled":
+        # 28.1 T-d. telemanom shuffles the windows (`channel.py:62`) and Keras
+        # takes a fraction of the shuffled array, so the hold-out is a random
+        # subset of POSITIONS. Splitting runs cannot express that, so one sampler
+        # is built over everything and the positions are partitioned.
+        trainer = validator = SequenceSampler(values, runs, window=hyper.window,
+                                              n_predictions=hyper.n_predictions,
+                                              **exogenous)
+        if len(trainer) == 0:
+            raise ReferenceError("the training side of the split holds no complete sequence")
+        order = np.random.default_rng(hyper.seed + fold).permutation(trainer.n_positions)
+        n_validation = int(round(trainer.n_positions * hyper.validation_fraction))
+        validation_positions = trainer.resolve_positions(order[:n_validation])
+        train_positions = trainer.resolve_positions(order[n_validation:])
+        if train_positions.size == 0:
+            raise ReferenceError("the training side of the split holds no complete sequence")
+    else:
+        train_runs, validation_runs = split_runs(runs, hyper.validation_fraction)
+        trainer = SequenceSampler(values, train_runs, window=hyper.window,
+                                  n_predictions=hyper.n_predictions, **exogenous)
+        validator = SequenceSampler(values, validation_runs, window=hyper.window,
+                                    n_predictions=hyper.n_predictions, **exogenous)
+        if len(trainer) == 0:
+            raise ReferenceError("the training side of the split holds no complete sequence")
 
     usable_steps = int(np.asarray(usable, dtype=bool).sum())
-    per_epoch = hyper.sequences_per_epoch(usable_steps)
+    batch_size = hyper.train_batch_size or hyper.batch_size      # 28.1 T-b
+    n_train_positions = (len(train_positions) if train_positions is not None
+                         else len(trainer))
+    # 28.1 T-e. telemanom's epoch is every training window once; ours is a budget
+    # scaled to the fold, because ESA-ADB folds hold millions of steps.
+    per_epoch = (n_train_positions if hyper.full_epochs
+                 else hyper.sequences_per_epoch(usable_steps))
     # `threads` is read here, at fit time, not at class definition: the module
     # global is rebound by scripts/fit_folds.py, and the six GRU fits of
     # 2026-08-28 recorded the default 4 while running on one thread because it
@@ -508,22 +618,34 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     model = build_model(values.shape[1], hyper, n_exogenous).to(DEVICE)
     report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
-    loss_fn = nn.MSELoss()
+    loss_fn = gaussian_nll if hyper.head == "gaussian" else nn.MSELoss()
+    report.objective = "nll" if hyper.head == "gaussian" else "mse"
 
     validation = None
-    if len(validator):
+    if train_positions is not None:
+        positions = validation_positions[:hyper.max_validation_sequences]
+        if positions.size:
+            validation = validator.gather(positions)
+            report.validation_positions = len(positions)
+    elif len(validator):
         positions = validator.sample_positions(hyper.max_validation_sequences,
                                                np.random.default_rng(hyper.seed + 9973))
         validation = validator.gather(positions)
         report.validation_positions = len(positions)
 
     best_state, best_loss, best_epoch, stale = None, float("inf"), -1, 0
-    n_batches = max(1, per_epoch // hyper.batch_size)
+    n_batches = max(1, per_epoch // batch_size)
+
+    def _draw():
+        if train_positions is None:
+            return trainer.draw(batch_size, rng)
+        picks = train_positions[rng.integers(0, train_positions.size, size=batch_size)]
+        return trainer.gather(picks)
 
     for epoch in range(hyper.max_epochs):
         model.train()
         for _ in range(n_batches):
-            inputs, targets = trainer.draw(hyper.batch_size, rng)
+            inputs, targets = _draw()
             optimiser.zero_grad(set_to_none=True)
             loss = loss_fn(model(torch.from_numpy(inputs).to(DEVICE)),
                            torch.from_numpy(targets).to(DEVICE))
@@ -536,7 +658,23 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
         if log:
             log(f"      epoch {epoch + 1:>2}/{hyper.max_epochs}  validation MSE {current:.6f}")
 
-        if current < best_loss * (1.0 - hyper.min_improvement):
+        # 28.1 T-c. The published bar is absolute; ours is a fraction of the
+        # standing best, because D17 measured the absolute one going negative
+        # against ESA-ADB's ~1e-4 loss. Which is right is a property of the
+        # data's scale, so both are available and the arm says which it used.
+        if not math.isfinite(best_loss):
+            improved = True                      # the first epoch always counts
+        elif hyper.min_delta_absolute is not None:
+            improved = current < best_loss - hyper.min_delta_absolute
+        else:
+            # `best * (1 - m)` and `best - |best| * m` are IDENTICAL for a
+            # non-negative loss, so every MSE fit in this repository is unmoved.
+            # They differ once the loss can be negative, which a Gaussian NLL
+            # routinely is: the multiplicative form then RAISES the bar as the
+            # loss improves and training stops almost immediately. Caught by
+            # `docs/MODELS.md` 31's two-channel smoke, before the full run.
+            improved = current < best_loss - abs(best_loss) * hyper.min_improvement
+        if improved:
             best_loss, best_epoch, stale = current, epoch, 0
             if hyper.restore_best:
                 best_state = copy.deepcopy(model.state_dict())

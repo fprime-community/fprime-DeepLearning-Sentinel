@@ -1,11 +1,18 @@
 # fprime-DeepLearning-Sentinel
 
-**fprime-sentinel** is a reusable F' (F Prime) flight-software component for cross-channel
-anomaly detection. A small neural forecaster, trained on a mission's own nominal telemetry,
-predicts all watched channels each cycle; sustained divergence between prediction and reality -
-the signature of a broken cross-channel relationship - is raised as a standard F' event. It
-warns; it never commands. The detection method is Hundman et al., KDD 2018 (JPL's telemanom);
-the reusable flight packaging is this project's contribution.
+**fprime-sentinel** is a reusable F' (F Prime) flight-software component that **warns before a
+limit trips**. A small neural forecaster, trained on a mission's own nominal telemetry, predicts
+the watched channels each cycle; sustained divergence between prediction and reality is raised as
+a standard F' event. The forecast is conditioned on **every kind of context the telemetry
+carries** - a channel's own history, the commands the spacecraft was sent, and the other sensors
+on the same subsystem. It warns; it never commands. The detection method is Hundman et al., KDD
+2018 (JPL's telemanom); the reusable flight packaging is this project's contribution.
+
+**(!) Re-framed 2026-09-09** (`docs/DECISIONS.md` D57). This line used to read "a reusable F'
+component for **cross-channel** anomaly detection ... the signature of a broken cross-channel
+relationship". Sensor-to-sensor is now one of three contexts rather than the whole thesis, and
+the reasons are in `Objective.md` 1.1 with the conditions they carry. **Earlier than a limit
+check, with minimal false alarms, is the claim.**
 
 ## Status
 
@@ -16,14 +23,18 @@ validated on an independent spacecraft (D29). What Phase 2 inherits is in
 **Phase 2 under way.** The `model.bin` format is frozen at version 1 (D30,
 [docs/MODEL_FILE.md](docs/MODEL_FILE.md)) and the C++ inference core in `flight/` matches the
 NumPy reference to **1.8e-07** at the flown shape, with the crossing flag exact
-(`docs/MODELS.md` 19.8). The F' component is next.
+(`docs/MODELS.md` 19.8). **The F' component is done** (tag `wi9`): `Sentinel::Monitor` builds in
+F' v4.3.0's own Ref and all **11/11** loader refusal codes degrade to the Level 1 statistical
+baseline without failing the topology (D32-D37). Work items 9.5 to 9.14 are the science that
+followed, and `docs/STATUS.md` section 7 is the ordered list of what remains.
 
 | Phase | Scope | Gate | State |
 |---|---|---|---|
 | 1 | Python - prove the mathematics | Match or beat a telemanom baseline reproduced on this harness, with a multivariate forecaster, plus evidence-based architecture selection | **CLOSED** (tag `wi7`) |
 | 2 | C++ - the flight component | Tests green, flight-rule compliance clean | next |
-| 3 | C++ - integration and demo in the F' Ref deployment | Limit alarms silent while Sentinel warns, with time-to-limit | - |
+| 3 | C++ - integration and demo in the F' Ref deployment, **pulled forward** | Limit alarms silent while Sentinel warns, with time-to-limit **measured** | next, and the only venue for the sensor-to-sensor claim |
 | 4 | C++ - hardware envelope | Comfortable margins documented | - |
+| 5 | C++ - in-flight retraining of a **shadow** model under human approval | No heap after init, no exceptions, and the shadow measurably better before any swap is offered | scoped, [docs/PHASE5.md](docs/PHASE5.md) |
 
 The ten-minute overview - goal, results, learnings, roadmap - is [docs/STATUS.md](docs/STATUS.md).
 
@@ -112,14 +123,15 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
 Reading order: this README, then [Objective.md section 1.1](Objective.md), then
 [docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
 a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
-mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (D1 to D29: why, what else was
+mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D57**: why, what else was
 considered, what settled it; superseded entries marked, never deleted).
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
   newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
   `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
-  that tag.
+  that tag. Work items 9.5 to 9.14 are untagged, and are recorded in `CHANGELOG.md` 0.6.1 to
+  0.6.14 with the artifact behind every figure.
 - **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
   complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
   Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
@@ -154,8 +166,9 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 508 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 605 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
+| `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |
 
 ## How to run

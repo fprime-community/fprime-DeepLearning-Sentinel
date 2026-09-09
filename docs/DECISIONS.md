@@ -161,7 +161,7 @@ knowing what to pretrain. Full detail in Objective.md 14.10.
 
 ## D6. Command conditioning -- telecommands become model inputs
 
-**DATE** 2026-08-26 | **STATUS** open, being implemented
+**DATE** 2026-08-26 | **STATUS** open, being implemented. **(!) CLOSED 2026-09-03 by D49**: on SMAP/MSL, the only data this project holds that carries commands, conditioning on them makes the detector **worse** at a matched alarm rate -- 6/38 against 10/38 in-range contextual, 33/100 against 47/100 overall. D49 consequence 3 bounds that to what was measured: one-hot command indicators, SMAP/MSL, per-channel univariate models, the published dynamic threshold. It says nothing about a different encoding and nothing about ESA-ADB, whose telecommands remain unwired. The status line above was left reading `open, being implemented` for six days after D49 closed it and is amended here, not rewritten
 
 **CONTEXT.** The decision grid could not fix the false-alarm rate: the best of 24
 cells still alarmed on 15 of 48 commanded manoeuvres. The cause turned out not to
@@ -1407,7 +1407,7 @@ only *no worse than the arm it is compared with*.
 
 ## D25. The decision layer is `lstm-quantile`. Supersedes D24
 
-**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate
+**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate. **(!) BOUNDED 2026-09-03 by D48**, and not withdrawn: the frozen static quantile describes a **stationary** regime, one where the fitting window's residual scale predicts the scored window's. Every ESA-ADB result below stands. On SMAP/MSL no train-calibrated threshold transfers for any arm, which replicates D29's `m1-g3` collapse on a second spacecraft dataset, so the condition this decision was always resting on is now stated rather than assumed. The forward-reference is added here because D48 carried the bound and this entry did not point at it
 
 **CONTEXT.** D24 froze `lstm-whitened` without ever comparing it against
 `lstm-quantile` on post-fix weights, because D13 had closed that branch -- on
@@ -3193,3 +3193,631 @@ V20 prediction was refuted in the same run. The finding is real and it is not ge
    different encoding, and nothing about ESA-ADB, whose telecommands remain unwired.
 4. **No detector, threshold or weight changes.** `gru-quantile` flies without commands
    and always has; this removes a reason to revisit that, rather than creating one.
+
+---
+
+## D50. The reproduction gap against telemanom is the pruning step, not the forecaster and not the scoring rule
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It names the first lever for the
+improvement ladder and it re-reads D18
+
+**CONTEXT.** This project reproduced telemanom and has reported figures against it since
+work item 4, with a documented deviation -- no command inputs (D6, since closed as D49).
+Work item 9.9 stage 5 was commissioned on the hypothesis that the gap between our
+figures and the published ones is **the scoring rule**. `docs/MODELS.md` 26.19.1 checked
+that in the source before running anything and found there is only one rule:
+`eventwise.detected` is "fires anywhere inside the span", any-overlap, which is
+Hundman's recall rule; precision is predicted ranges overlapping a truth range over all
+predicted ranges, which is his precision rule; and `PRUNING_P = 0.13` is his published
+pruning value, sitting in our detection stack. **The hypothesis was untestable, so the
+question became the size and location of the gap.**
+
+**EVIDENCE.** `lstm-telemanom` as published and without commands, per channel, on the
+paper's own split, scored over 98 sequences (6 channels refused by D17's guard), twice
+-- once at the published `p = 0.13` and once at `p = 0`, the paper's own ablation.
+
+```
+   p      set        our recall      paper      our precision     paper
+   0.13   Total    44/98   44.9%     80.0%     45/59    76.3%     87.5%
+   0.00   Total    72/98   73.5%     84.8%     92/329   28.0%     48.9%
+```
+
+**Precision reproduces within 11.2 points. Recall is 35.1 points short.** And the
+paper's own ablation says where the difference lives -- compare what pruning *costs*
+each implementation in recall:
+
+```
+    paper   SMAP    92.8% -> 85.5%     7.3 points lost
+    ours    SMAP    87.1% -> 54.8%    32.3 points lost
+    paper   MSL     69.4% -> 69.4%     0.0 points lost
+    ours    MSL     50.0% -> 27.8%    22.2 points lost
+```
+
+**Pruning costs the paper 7.3 points on SMAP and nothing on MSL; it costs this
+reproduction 32.3 and 22.2.** Without pruning we are 11.3 points short of the paper;
+with it, 35.1. **Pruning triples the gap.**
+
+The direction of the ablation reproduces on both datasets in both metrics, so the
+detection stack has the paper's internal structure -- what differs is the magnitude of
+one stage's effect.
+
+**ALTERNATIVES.** Attribute the gap to the missing commands. Attribute it to the
+forecaster. Localise it to pruning and say so.
+
+**Against the first.** It was the available excuse and the evidence is against it: D49
+measured commands making the detector **worse** on this data, and stage 5's ablation
+locates the difference in a stage commands do not touch. **Against the second.**
+Precision within 11.2 points and the ablation reproducing in direction are not the
+signature of a broken forecaster.
+
+**CONSEQUENCE.**
+
+1. **The reproduction is closer to the published method than the headline figure
+   suggests**, and the divergence is in one identified stage rather than diffuse.
+2. **Pruning is the first lever any improvement ladder should touch** -- ahead of
+   lookback, cell type, seed ensembles or epoch policy, because those are guesses and
+   this is measured.
+3. **It does not vindicate or indict the method**, and 26.19.3 forbade claiming either.
+   Every ESA-ADB figure stands; nothing here moves one.
+4. **It re-reads D18.** That entry recorded the published dynamic threshold degenerating
+   under a good forecaster on ESA-ADB. This is a second published component behaving
+   differently in our hands than in the authors'. Neither is evidence the method is
+   wrong; both are evidence that **a reproduction is a measurement with its own error
+   bars**, and one of them is now quantified.
+
+---
+
+## D51. The reproduction gap is in candidate-sequence generation, and four other causes are eliminated
+
+**DATE** 2026-09-03 | **STATUS** resolved as a finding. It closes two levers with their
+sizes measured and names the remaining one from the source
+
+**CONTEXT.** D50 measured a 35.1-point recall gap against telemanom's published Table 2
+and localised it to pruning. Work item 9.9's rungs 1a and 1b then read telemanom's
+`errors.py` beside `src/sentinel_models/telemanom.py` and corrected two divergences,
+each in the study script rather than the source (D8, and 26.21.2).
+
+**EVIDENCE.** Cached weights, 98 sequences, three reads.
+
+```
+   arm                  recall     precision    candidate ranges
+     as-is             44.9%         76.3%            59
+     + 1a rung fix     60.2%         44.2%           147
+     + 1b tracking     60.2%         44.5%           146
+     paper             80.0%         87.5%           ~91
+```
+
+**Four candidate causes are now eliminated, each by measurement rather than argument:**
+
+1. **The scoring rule.** There is only one -- `eventwise.detected` is any-overlap,
+   which is Hundman's rule, after his published pruning at `p = 0.13` (26.19.1).
+2. **The missing command inputs.** D49 measured commands making the detector *worse*
+   on this data, and the divergences found sit in a stage commands do not touch.
+3. **The pruning rung.** Real, confirmed on 1,721 of 1,721 calls, and worth **+15.3
+   points of recall** -- a large share of the gap, but it costs 32.1 points of
+   precision and leaves 19.8 points of recall outstanding.
+4. **Cross-window anomaly tracking.** Real, confirmed on 1,721 of 1,721 calls, and
+   worth **one candidate range in 147**.
+
+**What remains is upstream of all of them.** Telemanom unions each window's surviving
+anomalies across every overlapping window (`process_batches`); this reproduction clips
+each sequence to the judged segment (`channel_ratios`), so an index is judged once
+rather than about `error_window / stride` times. That changes **which indices are
+anomalous at all**, not which sequences survive pruning.
+
+**ALTERNATIVES.** Keep tuning the forecaster. Adopt the two corrections now. Name the
+remaining divergence and stop until it is read.
+
+**Against the first.** The forecaster is not the gap: precision reproduced within 11.2
+points at the outset (D50), and every divergence found since is in the detection
+stack. Lookback, cell type and seed ensembles all tune the forecaster.
+**Against the second.** The reproduction does not match Table 2, and adopting a
+correction that halves published precision to buy an incomplete recall recovery is the
+trade 26.22 already showed is not worth making blind.
+
+**CONSEQUENCE.**
+
+1. **Two levers are closed with their sizes measured**, both read from the source and
+   both right in direction on every call. That is the standard the remaining lever is
+   held to before it is run.
+2. **The forecaster rungs stay unregistered.** Lookback, LSTM-versus-GRU and seed
+   ensembles are not pre-registered until the candidate count matches the paper's --
+   146 against ~91 today -- because they aim at a stage the evidence has cleared.
+3. **No source file changes and no ESA-ADB figure moves.** Both corrections remain in
+   the study script. Escalating them to `src/sentinel_models/telemanom.py` as a D8
+   correctness fix, with both numbers kept and the ESA figures re-stated from
+   artifacts, happens only when the reproduction matches Table 2 within tolerance.
+4. **It generalises past this dataset.** A reproduction can agree with a published
+   method on architecture, hyperparameters, scoring rule and pruning constant and still
+   differ by 35 points, because the difference lives in how a stream is segmented for
+   judgement -- a detail papers rarely specify and code always does.
+
+---
+
+## D52. The non-causal share of telemanom's recall is negative: looking ahead does not help this reproduction, it costs 6.1 points
+
+**DATE** 2026-09-04 | **STATUS** resolved as a finding. It removes a caveat rather than
+adding one, and it fixes the flyable reproduction's ceiling
+
+**(!) SUPERSEDED AT ITS PREMISE 2026-09-08 by D53.** telemanom judges only its
+newest `batch_size` (`errors.py:355-359`), so it is causal after its opening
+window and neither arm compared below is its geometry. The measurement stands;
+the conclusion drawn from it is withdrawn. Kept in full, per the rule that a
+decision that turned out wrong is more informative than one that was always
+right.
+
+**CONTEXT.** `docs/MODELS.md` 26.25.1 flagged, before any of it ran, that reproducing
+telemanom faithfully means reproducing a **non-causal** detector: its window runs
+forward from its start and judges every index inside it using samples ahead of that
+index, where this project's windows trail on a stated rule -- *a detector that peeks at
+future samples is not something that can fly*. The concern was that a successful
+reproduction might owe its recall to the unshippable half, which would make the
+paper's number a benchmark artefact unavailable to any flight detector.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-04T003537Z-rung1c-isolated.json`,
+one read, cached weights, 98 sequences. Geometry and aggregation isolated:
+
+```
+  arm       recall     geometry / aggregation
+    1a+1b    60.2%     trailing / clipped
+    1c-ii    75.5%     trailing / unioned      <- causal
+    1c       69.4%     FORWARD  / unioned      <- non-causal
+```
+
+**Holding the aggregation fixed, the causal geometry reaches 75.5% and the non-causal
+reaches 69.4%.** The decomposition is clean: the aggregation is worth **+15.3** points
+and the forward geometry is worth **-6.1**.
+
+**One arm turned out not to exist.** "Forward with clipped verdicts" is the same
+computation as "forward with unioned verdicts", because a forward window's judged
+segment starts at the window start, so the clip is a no-op. The two rows agree to the
+digit. The prediction that asked to separate them (26.27's Q2) was ill-posed and is
+recorded Refuted with that reason.
+
+**ALTERNATIVES.** Record the non-causal share as unknown. Record it as zero. Record it
+as measured, including its sign.
+
+**Against the first two.** It is measured and it is negative, and rounding a negative
+finding to zero would be the same tidying this project refuses elsewhere.
+
+**CONSEQUENCE.**
+
+1. **There is no benchmark artefact to subtract.** 26.25.1's caveat is withdrawn on
+   evidence: nothing in the published recall, as reproduced here, depends on lookahead.
+   A flight detector is not handicapped against this benchmark by being causal.
+2. **The flyable reproduction is the best arm measured**, not a compromise. `1a + 1b +
+   1c-ii` reaches **75.5%** recall against the paper's 80.0% -- within **4.5 points** --
+   and it is the pipeline the 38 in-range contextual anomalies are re-measured on
+   (26.27.2, defined before these numbers existed).
+3. **The remaining gap is precision, and it is large**: 44.3% against 87.5%, with
+   **221** candidate ranges against the paper's implied ~91. That is a question about
+   how many candidates survive, not how many events are found, and the four rungs so
+   far have all been about the latter.
+4. **Still no escalation to `src/sentinel_models/telemanom.py`.** The causal arm is now
+   understood, which was 26.27.3's condition, but the gate is parity within tolerance
+   and precision does not meet it. Every correction stays in the study script and no
+   ESA-ADB figure moves.
+5. **It generalises.** A causality constraint is usually assumed to cost accuracy. Here
+   it bought 6.1 points, because a trailing window's threshold is set by data that
+   precedes the excursion rather than data contaminated by it -- which is the guard-cell
+   argument `docs/RESEARCH.md` records, measured for the first time in this project.
+
+---
+
+## D53. telemanom is vendored and read; it is causal, its precision denominator is a mixed unit, and its false-positive count is twelve
+
+**DATE** 2026-09-08 | **STATUS** resolved as a decision and a finding. It supersedes
+D52 at its premise, corrects five recorded readings, and it deletes nothing
+
+**CONTEXT.** `docs/MODELS.md` 26.21 to 26.28 located four divergences against
+telemanom by quoting `errors.py` at specific line numbers. **No copy of that file
+was ever kept.** The quotations could not be checked by a later reader, the line
+numbers could not be re-resolved, and 26.28's closing question -- where 221
+candidate ranges come from against the paper's implied ~91 -- could not be
+answered at all without the source. The standing rule is that a divergence from a
+published method is **read** from the source and located, never guessed; that rule
+was satisfied at the time and left no evidence behind.
+
+**EVIDENCE.** `third_party/telemanom/`, commit
+`2e6c5b6c3558e7835601519b7bdef37c649bdbdc`, source only, 84 KB. Read in full;
+every citation in `docs/MODELS.md` 26.29 resolves to a line in this repository.
+
+1. **It clips to the newest batch** (`errors.py:355-359`). Window `i` spans
+   `[i*70, 2100 + i*70)` and judges only its last 70 samples. That is a trailing
+   reference window with the judged segment at the end -- `channel_ratios`'
+   geometry. **telemanom is causal after its opening window**, and the
+   accumulator at `:152` unions **disjoint** batches.
+2. **Its precision denominator is a mixed unit** (`detector.py:117-136`,
+   `:167-173`): true positives are deduplicated **per matched true anomaly**,
+   false positives counted **per predicted range**. Ours is ranges over ranges
+   (`eventwise.py:96,108`).
+3. **Table 2 inverts to integers on every row** under that accounting, against the
+   label file's own denominators:
+
+```
+              true    TP    FP    TP+FP    recall   precision
+    SMAP        69    59    10      69      85.5%     85.5%
+    MSL         36    25     2      27      69.4%     92.6%
+    Total      105    84    12      96      80.0%     87.5%
+```
+
+4. **On MSL the populations match exactly**, 36 to 36, because all six channels
+   D17's guard refuses are SMAP's. **The paper has 2 false positives there; this
+   reproduction has 58** (`1c-ii`) or **37** (`1a+1b`).
+5. **Five mechanisms in the source are absent here** (26.29.4): a magnitude
+   conjunct on the exceedance mask, a whole-window bail-out, the two
+   `find_epsilon` guards that are deviation 8, an inverse pass, and
+   `adjust_window_size`. Four remove candidates; one adds them.
+6. **The licence is BSD 3-Clause**, Caltech/JPL 2018 -- not the Apache-2.0
+   `docs/DATA.md` records.
+
+**ALTERNATIVES.** Cite the source from memory, as before. Vendor it. Fetch it per
+question and keep nothing.
+
+**Against the first**, twice over: it produced five readings that are now known to
+be wrong, and it produced no way for anyone to find that out. **Against the
+third**: the same failure on a longer timescale. A pinned copy costs 84 KB against
+a 4 MiB budget at 2.76 MiB, and it makes every future divergence claim checkable
+by a reader who was not there.
+
+**CONSEQUENCE.**
+
+1. **`third_party/telemanom/` is evidence and never a dependency.** Nothing under
+   `src/` or `scripts/` imports it, pinned by `tests/test_layering.py`, and it is
+   never executed. `PROVENANCE.md` records the commit, the licence, what is
+   vendored, what is not, and which guards do and do not cover it.
+2. **D52 is superseded at its premise and kept.** "The non-causal share of
+   telemanom's recall is negative" compared a trailing arm against a forward arm,
+   and neither is telemanom's geometry. The measurement is unaffected; what it was
+   taken to be evidence about is withdrawn.
+3. **`1a+1b` is the faithful arm, and `1c-ii` is a departure.** The "flyable
+   reproduction" defined at 26.27.2 is more permissive than the published
+   algorithm, and its 221 ranges are this reproduction's excess.
+4. **Both precision statistics are reported from here on**, ours and telemanom's,
+   everywhere either appears. Every figure in 26.19 to 26.28 keeps its recorded
+   value with the corrected one beside it.
+5. **The target is restated.** The reproduction is chasing **12 false positives**
+   on 82 channel rows, not "~91 candidate ranges". `~91` was
+   `80.0 / 87.5` and was never derived in any document.
+6. **Clause 3 binds on publication.** No document may present this project as
+   endorsed by, affiliated with, or produced by Caltech or JPL. Description and
+   citation are unaffected.
+7. **It generalises, and the lesson is narrower than "read the source".** The
+   source *was* read; the reading was not kept. A quotation whose original is not
+   in the repository is an assertion with a line number on it, and this project
+   spent four pre-registered rungs on a mechanism the source does not contain.
+
+---
+
+## D54. The committed port supersedes the lost script, and the faithful mechanisms reproduce the paper's precision while collapsing its recall
+
+**DATE** 2026-09-08 | **STATUS** resolved as a decision and a finding. It moves four
+published figures, opens the forecaster rungs D51 closed, and it deletes nothing
+
+**CONTEXT.** Work item 9.10's gate G1 refuted (`docs/MODELS.md` 27.8). The two arms
+exercising code in this repository reproduced exactly -- `telemanom.py` as-is at
+44/98 and 45/59, stage 4's swept arm at multiplier 0.551, 0.6820%, 47/100 and
+**10/38**. The two arms depending on the study script that was never committed did
+not: 57/98 and 110 ranges against a recorded 59/98 and 146, and 1c-ii's recall exact
+with its range count 16 out. The divergence was located in code that can be read
+(`telemanom.py:400-438`): series-level singleton dropping, and `channel_ratios`'
+315-step opening suppression, which the measured `error_window` of 54 to 432 lets
+reach past the warm-up. **Neither is a defect in either implementation.**
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-08T182416Z-wi910-port.json`, one
+read, cached weights, weight store +0.
+
+**Decision 1: the port is the record.** There are two faithful readings of "1a+1b"
+and only one of them has a source. The recorded figures are **superseded, not
+withdrawn**:
+
+```
+                    lost script      committed port
+    1a+1b          59/98, 65/146     57/98,  62/110
+    1c-ii          74/98, 98/221     74/98, 100/237
+```
+
+Both are kept everywhere either appears. **From here `1a+1b` and `1c-ii` mean the
+port**, and every figure derived from the lost script carries its provenance.
+
+**Decision 2: the withheld arms are released.** G1's stop said nothing else in the
+run is reported. With the record resolved, the remaining arms are adjudicated
+against 27.4's scaled target -- **78 TP and 11 FP** on this population -- under
+telemanom's own `TP/(TP+FP)` accounting:
+
+```
+    arm    set      recall              precision        FP    target FP
+    F      MSL      3/36    8.3%      3/4    75.0%        1        2
+    F      SMAP    31/62   50.0%     31/34   91.2%        3        9
+    F      Total   34/98   34.7%     34/38   89.5%        4       11
+    paper  Total   84/105  80.0%     84/96   87.5%       12
+```
+
+**The finding: the faithful port reproduces the paper's precision and does not
+reproduce its recall.** F2 held at the bottom of its band -- **4 false positives
+against a target of 11** -- and F3's precision half held at **89.5% against 87.5%**,
+better than the paper. F1 refuted badly: 34 true positives against a band of 70 to
+86. **On MSL, where the population matches the paper's exactly at 36, the paper
+catches 25 with 2 false alarms and this reproduction catches 3 with 1.**
+
+**This inverts D50.** There, precision reproduced within 11.2 points and recall was
+35.1 short. Here precision is 2 points **better** than published and recall is 45.3
+short. The five mechanisms bought every point of the precision gap and cost 23.5
+points of recall on the way.
+
+**ALTERNATIVES.** Keep the lost script's figures as the record and treat the port as
+a second opinion. Adopt the port and delete the old figures. Supersede, keeping both.
+
+**Against the first**: a figure whose generating code does not exist cannot be the
+record of a project whose rule is that a number is read from an artifact **and**
+reproducible. **Against the second**: `docs/HARNESS.md` 5a requires both numbers
+whenever one moves, and the two readings differing is itself the evidence.
+
+**CONSEQUENCE.**
+
+1. **Four figures are superseded and kept.** `docs/MODELS.md` 26.22, 26.24, 26.26,
+   26.28 and D51, D52 keep their values with the port's beside them.
+2. **D51 consequence 2 is discharged, and the forecaster rungs open.** It closed
+   lookback, cell type and seed ensembles "until the candidate count matches the
+   paper's". **It now does**: 38 predicted units against the paper's 96, and 4 false
+   positives against 12. Whatever remains is upstream of the detection stack.
+3. **The remaining gap is the forecaster, by elimination rather than by guess.**
+   Same population, same pruning constant, same published mechanisms, same scoring
+   rule: 3 of 36 against 25 of 36 on MSL. Everything downstream of the residual has
+   now been read from the source and implemented.
+4. **Stage 4's 10/38 stands unreplaced.** `FG`'s nominal-step rate is 1.5639%
+   against 0.6838%, and the port has **no dial** -- it emits a boolean decision --
+   so a matched-rate comparison needs a multiplier on epsilon, which is a deviation
+   from the source and is pre-registered as one before it is used.
+5. **L1 is a property of the data, not a transcription defect.**
+   `tests/test_smap_rungs_port.py` builds windows where each mechanism must fire and
+   shows it does. The next read counts how often the conjunct binds on the real
+   stream.
+6. **It generalises.** A reproduction can be made faithful mechanism by mechanism,
+   reach the published precision exactly, and still miss two thirds of the events --
+   because faithfulness in the decision layer cannot recover what the forecaster did
+   not see.
+
+---
+
+## D55. Absolute constants in data units do not transfer, and the toolkit ships dimensionless equivalents
+
+**DATE** 2026-09-08 | **STATUS** resolved as a principle, from three measured
+instances and one refuted hypothesis. It is a requirement on the toolkit, not a
+finding about telemanom
+
+**CONTEXT.** This project has now measured the same failure three times, in three
+different stages of the same published method, on two datasets whose scales differ
+by orders of magnitude.
+
+**EVIDENCE.**
+
+1. **D17, training.** telemanom's `min_delta = 0.0003` is absolute in the units of
+   the loss. ESA-ADB's validation MSE is ~1e-4, so the bar `current < best - 3e-4`
+   went negative and **no epoch could ever clear it**: every fit in the project
+   kept its first epoch, discarding weights up to 8.8x better. Replaced with a
+   fraction of the standing best.
+2. **T4, the same constant, the other way.** On SMAP/MSL, pre-scaled to (-1,1),
+   the published absolute constant is **correct**: `docs/MODELS.md` 28.7 measured
+   **0 of 81** channels keeping their first epoch, where our relative rule stalls
+   six on the LSTM and four on the GRU. **The constant is not wrong; it is
+   unportable.** That is a stronger statement than D17 could make alone, and it
+   took the second dataset to make it.
+3. **The candidate filters.** `errors.py:339` requires `max(e_s) > 0.05` and
+   `:343` requires `e_s > 0.05 * inter_range`, both absolute or semi-absolute in
+   the units of the data.
+4. **(!) And the third instance was measured and half of it refuted.**
+   `docs/MODELS.md` 28.8 predicted these floors would silence MSL, reasoning that
+   D17's fortyfold better training produces smaller residuals. **29.4 measured the
+   opposite**: `max(e_s)` on MSL is **0.7323** at the median and **0 of 27**
+   channels fall below the 0.05 floor. The hypothesis was wrong and is kept with
+   its reasoning.
+
+**ALTERNATIVES.** Treat each as a local bug. State the principle from D17 alone.
+State it from all three, including the one that refuted itself.
+
+**Against the first**: three instances in three stages of one method is a property
+of the method's transcription, not three coincidences. **Against the second**: D17
+alone cannot distinguish "the constant is wrong" from "the constant does not
+travel", and T4 is what separates them.
+
+**CONSEQUENCE.**
+
+1. **The principle, stated for the toolkit.** A constant expressed in the units of
+   the data or the loss is a property of the dataset it was fitted on. Every such
+   constant this project ships must have a **dimensionless equivalent** -- a
+   fraction, a quantile, or a multiple of the series' own dispersion -- and the
+   absolute form may be offered only as a per-mission override with its provenance
+   attached.
+2. **It binds on Objective.md 10.2's one-command training and on the pre-launch
+   sanity report.** A mission calibrating on its own telemetry must not inherit a
+   number chosen against ESA-ADB's or SMAP/MSL's scale, and `docs/PHASE2.md` 5b's
+   recalibration requirements already carry the same argument for thresholds.
+3. **It does not indict the published method.** telemanom's constants are correct
+   on telemanom's data, which T4 measured directly. What does not survive is
+   transcribing them into a different regime and calling it a reproduction.
+4. **`docs/MODELS.md` 30 tests one implementation of it** and is registered
+   against the guards rather than adopted from this entry. A principle that is
+   right does not make a particular replacement right, and G1 to G4 decide that.
+5. **The refuted half is kept.** 28.8's scale hypothesis was written down with its
+   reasoning and measured wrong within a day. That is the record working, and
+   deleting it would leave the principle looking better supported than it is.
+
+---
+
+## D56. The detector predicts its own uncertainty, because every constant that had to be transferred was the wrong kind of number
+
+**DATE** 2026-09-08 | **STATUS** resolved as a design decision. It opens a new
+detector and closes the reproduction as the route to better recall. Nothing
+existing changes
+
+**CONTEXT.** Work items 9.9 to 9.13 reproduced telemanom's decision layer against
+its vendored source, mechanism by mechanism, each read and not guessed. The
+reproduction reached **89.5% precision against the published 87.5%** with **4
+false positives against a scaled target of 11** -- and **34 of 98** events against
+80%, with **MSL at 3 of 36 where the paper has 25 of 36** on a population that
+matches the paper's exactly.
+
+Five mechanisms were implemented faithfully and **every one of them removed
+detections**. Our own uncorrected baseline is still the best MSL arm at 16 of 36.
+
+**EVIDENCE.**
+
+1. **D55**, from three instances: an absolute constant in data units disabled
+   training on ESA-ADB (D17), **the same constant is correct** on SMAP/MSL's
+   (-1,1) scale (T4, 0 stalls in 81 channels), and the candidate filters are the
+   same shape of number.
+2. **29.4 refuted the obvious repair.** `max(e_s)` on MSL is **0.7323** at the
+   median and **0 of 27** channels fall below the 0.05 floor, so the floors are
+   not what silences MSL. The residuals are **large**; the forecaster is simply
+   forecasting badly there.
+3. **An absolute-scale detector cannot use that information.** A point forecaster
+   emits `|x - mu|` and every downstream rule must decide *how big is big* from a
+   constant. Where the model is unreliable, that constant is wrong in one
+   direction; where it is reliable, wrong in the other.
+
+**ALTERNATIVES.** Keep tuning the transcribed constants. Sweep `p`. Change the
+forecaster's capacity. **Predict the uncertainty and divide by it.**
+
+**Against the first**, D55: a better constant is still a constant, and this
+project has now measured three of them failing to travel. **Against the second**,
+`p` has never been swept and is a real lever, but it acts on a ladder built from
+the same unnormalised residual. **Against the third**, 29.4: the failure is not
+capacity, it is that a large residual is uninformative without knowing what
+residual to expect.
+
+**CONSEQUENCE.**
+
+1. **`gru-zscore`**: the same GRU, a head emitting `mu` and `log sigma^2` per
+   channel, a Gaussian negative-log-likelihood loss on nominal data, and the
+   detection statistic `z = (x - mu) / sigma` under D25's unchanged label-free
+   threshold. **`z` is dimensionless by construction, so D55 is satisfied
+   structurally rather than by choosing better constants.**
+2. **The calibration rule does not change.** `docs/HARNESS.md` section 1's "no
+   alarm budget" stands: the threshold is the 99.9th percentile of `z` on the
+   anomaly-masked fitting window, and the nominal rate it produces is **reported,
+   never targeted**. A matched-rate figure is a comparison device (D41, D44) and
+   is labelled as one.
+3. **Nothing existing moves.** New registry name, `head` as an additive `Hyper`
+   field emitted into the cache key only when non-default (D14), banked digests
+   pinned by test. `telemanom.py`, the ESA-ADB path and every published figure
+   are untouched.
+4. **Adoption is gated on not regressing what the architecture was chosen on.**
+   `docs/MODELS.md` 31's H3 requires `gru-zscore` to match `gru-quantile`'s F0.5
+   of 0.804 on `m1-g8.9.10`. That read is priced separately and runs **after** the
+   SMAP/MSL result, because fitting ESA-ADB's folds for a design that has not
+   cleared its own gate is spending compute on a hypothesis.
+5. **The reproduction is not abandoned, it is finished.** It answered what it was
+   asked: the gap is not the scoring rule, not the commands, not pruning's rung,
+   not cross-window tracking, not the aggregation, not the window regime and not
+   the training configuration -- each measured, each closed. **It is the residual
+   itself**, and that is a design question rather than a transcription one.
+6. **It generalises past this project.** A published detector's constants encode
+   its authors' data. Reproducing them faithfully reproduces that encoding, and on
+   a different regime the faithful transcription is the *less* accurate one --
+   which this project measured five times in a row before changing the design
+   rather than the digits.
+
+---
+
+## D57. The claim is early warning from whatever context the telemetry carries, and "cross-channel means sensor-to-sensor" is retired
+
+**DATE** 2026-09-09 | **STATUS** resolved as a re-framing of the objective, from
+evidence already on the record. It retires one thesis, keeps every measurement,
+and deletes nothing
+
+**CONTEXT.** Objective.md has said since 2026-08-24 that this project's selling
+point is detecting anomalies in the *relationships between sensors* -- one channel
+failing to follow another. Everything downstream was built to prove that: the
+identity normalisation (D2), the multivariate forecaster, the channel grouping
+(`docs/HARNESS.md` 6a), the dataset search that closed at ESA-ADB (Objective.md
+9.4). Three weeks of SMAP/MSL work have now established that **no data this
+project can reach will settle it**, and that the thing the detector actually does
+well is a different and larger claim.
+
+**EVIDENCE.**
+
+1. **The reduction is measured and it recovers nothing.** D42: L2, sum, `k = 2`
+   and `k = 3` all produce strict subsets of `max` at lower alarm rates, so the
+   channel-blind decision layer is not costing measured events on ESA-ADB. D23
+   closes as answered no.
+2. **An outside group reaches the same place on eight benchmarks.** Pinet et al.
+   (arXiv:2606.02670, MiLeTS at KDD 2026) find that "no cross-channel rupture
+   occurs without an accompanying univariate deviation across a range of
+   reasonable thresholds", and that channel-dependent modelling "brings no
+   measurable gain" (`docs/RESEARCH.md` Part IV). **The first independent
+   replication of a finding of ours**, and it is the one that removes the thesis'
+   only venue.
+3. **The datasets are what they are.** ESA-ADB's labelled faults are gross: a
+   calibrated per-channel range check ties or beats the forecaster at a matched
+   rate on both sets and never speaks second across 53 caught events (D44).
+   SMAP/MSL's 81 channels are unsynchronised univariate streams (Objective.md
+   9.2), so it cannot test relationships at all -- and it carries the contextual
+   population ESA-ADB does not, 39 of 43 strictly inside the training min/max
+   (D46).
+4. **Six model variants, one ceiling.** `A0`, `F`, `FG`, Arm T, Arm R and Arm H
+   have each been scored on SMAP/MSL and none beats stage 4's **10/38** in-range
+   contextual sequences. Four of them failed D48's way, at a nominal rate no
+   mission could fly. That is a property of the data, established by elimination
+   rather than asserted.
+5. **And the context that is present has barely been tested.** NASA's per-channel
+   arrays carry the commands on the same clock as the telemetry -- **24 one-hot
+   columns on SMAP and 54 on MSL**, column 0 being the telemetry. D49 measured
+   conditioning on them making the detector worse and **bounded itself to one
+   encoding**: one-hot indicators, per-channel univariate models, the published
+   dynamic threshold. `docs/RESEARCH.md` records that no published paper has run a
+   commands-on/commands-off ablation, and that telemanom's own model was
+   command-conditioned while every figure in this repository is
+   telemanom-minus-commands.
+
+**ALTERNATIVES.** Keep the sensor-to-sensor thesis and wait for a dataset. Drop
+the cross-channel claim entirely and become a univariate detector. Re-frame the
+claim as early warning from every available context, with sensor-to-sensor as one
+of three and the F' Ref physics testbed as its venue.
+
+**Against the first**: Objective.md 9.4 already closed the dataset search with
+evidence, and Part IV closes it again from outside. Waiting is not a plan, it is
+an absence of one. **Against the second**: it discards a capability that is built,
+verified to 1.8e-07 in C++ and flying in a deployment, on the strength of two
+benchmarks that cannot express it -- and D46's population is direct evidence that
+the in-limits class is real even where the relationship class cannot be measured.
+
+**CONSEQUENCE.**
+
+1. **The claim is early warning, and the context is whatever the telemetry
+   carries.** Sentinel warns before a limit trips using a channel's own history
+   (tested: 10/38 on SMAP/MSL), commands to telemetry (present in NASA's data,
+   barely tested, one encoding measured), and sensor to sensor (unmeasured on any
+   public data; the F' Ref physics testbed is its venue). **Single-context or
+   multi-context is not the distinction. Earlier than a limit check, with minimal
+   false alarms, is.**
+2. **The retired thesis stays in the record with its reason.** "Cross-channel
+   means sensor-to-sensor, and that is the whole selling point" is retired at
+   Objective.md 1.1, not deleted, alongside the +26-timestep lead (D21) and the
+   28-of-32 comparison (D37, D38). A reader who can see only the surviving claims
+   has to take our judgement on trust.
+3. **The retirement is stated conditionally, because the evidence is.**
+   `docs/RESEARCH.md` says *if* no public benchmark carries strictly cross-channel
+   segments, then the testbed is the only venue -- and it names SWaT, WADI and
+   SKAB as unchecked candidates and records that "absence across eight benchmarks
+   is strong evidence rather than proof". A near-binary channel also defeats a
+   z-score diagnostic, which is a live concern for SMAP/MSL specifically. **This
+   entry inherits all three qualifications and none of them may be dropped when
+   the claim is quoted.**
+4. **Phase 3 is pulled forward and becomes a measurement, not only a demo.** The
+   physics testbed in `SentinelRef` is where the sensor-to-sensor claim is earned
+   or abandoned, and it is the only venue where the break-to-limit-trip lead can
+   be computed at all -- ESA-ADB's clock is anonymised and scaled (HARNESS 4) and
+   SMAP/MSL has no dictionary limits. Objective.md 1.1's unmeasured quantity
+   becomes measurable there and nowhere else.
+5. **Nothing measured is withdrawn.** Every ESA-ADB figure, every SMAP/MSL figure,
+   D2's normalisation, the architecture gate (D28), the transfer exam (D29), the
+   flight core and the model file all stand exactly as recorded. This entry
+   changes which claim the evidence is offered for, not the evidence.
+6. **What it costs to say plainly.** Three weeks of rungs were spent on
+   single-channel data against a thesis that data cannot test, and the search that
+   would have caught it -- Objective.md 9.4's -- was run and answered correctly for
+   the question it was asked. It surveyed for a *multivariate labelled* dataset,
+   which ESA-ADB is; it did not ask whether the labelled anomalies were
+   *relational*, which is the property that mattered. **The dataset survey and the
+   anomaly-class survey are different searches**, and only the first was run.

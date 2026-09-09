@@ -41,6 +41,16 @@ command features as the obvious next step.
 *Source of the 41% figure* in Objective.md 2.3: contextual anomalies as a share
 of real expert-confirmed anomalies.
 
+**(!) Vendored and pinned, 2026-09-08 (D53).** The source now lives at
+`third_party/telemanom/`, commit `2e6c5b6c3558e7835601519b7bdef37c649bdbdc`,
+because five readings of it had been published from line numbers with no copy
+kept, and all five were wrong. It is evidence and never a dependency.
+**Its licence is BSD 3-Clause** (Caltech/JPL 2018), not the Apache-2.0
+`docs/DATA.md` recorded until today; clause 3 forbids using Caltech's or JPL's
+name to endorse anything derived from it, which binds on publication.
+*Primary* from here on, in the strong sense: `docs/MODELS.md` 26.29 cites files
+in this repository.
+
 ### Wu & Keogh, IEEE TKDE 2023 -- "Current time series anomaly detection benchmarks are flawed"
 
 **Secondary.** Identifies triviality, unrealistic anomaly density, mislabelled
@@ -246,3 +256,149 @@ cannot spend freely. Our own measurement bears that out: lead time fell almost
 one timestep per unit of persistence N, from +26 at N=1 to -37 at N=60, for
 almost no gain in F0.5 (`docs/DECISIONS.md` D9). The ICU result is why the trade
 was expected; our own numbers are why it was refused.
+
+---
+
+## Part IV -- the public-benchmark survey
+
+**Added 2026-09-08.** The question this project has been unable to answer from
+its own data: does a public dataset exist that can test the **cross-channel**
+claim -- every channel inside its historical envelope while the relationship
+between them is broken? Objective.md 9.2 demoted SMAP/MSL for the second half of
+that question and D46 measured the first half on it. This part records what the
+wider corpus offers.
+
+**(!) Provenance is marked harder here than anywhere else in this document**,
+because the survey is a secondary compilation and one of its sources is
+load-bearing enough to be checked line by line.
+
+### Pinet et al. 2026 -- the load-bearing source, verified
+
+**Primary for the abstract; secondary for everything else.** Fetched from
+`arxiv.org/abs/2606.02670` on 2026-09-08 and checked field by field:
+
+```
+  title      Anomalies in Multivariate Time Series Benchmarks Are Mostly Univariate
+  authors    Marc Pinet, Julien Cumin, Samuel Berlemont, Dominique Vaufreydaz
+  dates      submitted 1 Jun 2026 (v1); last revised 15 Jun 2026 (v4)
+  comments   Accepted at the 12th International Workshop on Mining and Learning
+             from Time Series (MiLeTS), co-located with KDD 2026
+```
+
+The abstract states, of **eight** widely used public benchmarks, that the
+diagnostic "shows that **no cross-channel rupture occurs without an accompanying
+univariate deviation across a range of reasonable thresholds**"; that "on six of
+the eight benchmarks, at least half of the labeled anomaly segments deviate
+univariately on 89% to 100% of their timesteps, reaching 100% on three of these
+datasets"; that a channel-independent against channel-dependent comparison of a
+recent state-of-the-art detector "further confirms that CD modeling brings no
+measurable gain"; and it concludes that "current MTSAD benchmarks are unsuitable
+for validating cross-channel modeling capabilities".
+
+**(!) What is NOT verified, and is therefore attributed to the survey rather than
+to the paper.** The abstract page does not name the eight benchmarks, does not
+give a segment count, and does not carry the per-threshold figures. The survey's
+statements -- that the eight are GECCO, MSL, SMAP, PSM, SMD, SWAN-SF, SWaT and
+WADI; that there are 373 long segments; that the strictly-cross-channel count is
+exactly zero at default thresholds and at most 34 of 373 at extreme ones -- come
+from the body, **which has not been read here**. They are recorded as the
+survey's and are not quoted as the paper's.
+
+### (!) It does not say what our headline says, and the difference is the diagnostic
+
+**Pinet's test and D46's test are different tests, and reading one for the other
+would make this section look like a refutation of our own claim.**
+
+```
+  Pinet et al.   does the channel deviate from its NORMAL HISTORY -- a
+                 distributional test, z-score and correlation based
+  D46 (ours)     does the channel leave its TRAINING MIN/MAX -- the envelope a
+                 limit check actually holds
+```
+
+A sample can sit inside the min/max envelope a limit check enforces and still be
+a large statistical deviation from history. **The two findings are compatible**:
+39 of 43 SMAP/MSL contextual sequences never leave their channel's range (D46)
+*and* the labelled anomalies of these benchmarks are accompanied by univariate
+deviation (Pinet). The first is about what a **limit check** can see; the second
+is about what a **univariate statistical detector** can see. Our own D48 measured
+the second directly and agrees with it: no per-channel statistic reaches a
+flyable alarm rate on SMAP/MSL, at any multiplier.
+
+### What it corroborates, and it is the first outside confirmation of either
+
+**"CD modeling brings no measurable gain" on real benchmarks is an independent
+replication of D42 and D23.** D42 measured that no cross-channel reduction
+recovers anything `max` misses on ESA-ADB, and D23 closed as answered no. Those
+were single-project findings on one benchmark; an outside group reaches the same
+place on eight. That is worth more than any figure in this section.
+
+### What it bounds
+
+1. **Objective.md 9.2 is strengthened rather than merely restated.** SMAP/MSL was
+   demoted on the PATH paper's claim that its channels are unsynchronised -- which
+   `docs/RESEARCH.md` Part I still flags as secondary and unverified. The
+   cross-channel case against the public corpus no longer rests on that one claim.
+2. **Phase 3's physics testbed is not a convenience; it is the only venue.** If no
+   public benchmark carries strictly cross-channel segments, the cross-channel and
+   early-warning claims cannot be earned on one, and the coupled
+   current-heat-temperature subsystem in `SentinelRef` is where they have to be
+   measured or abandoned.
+3. **It does not touch the headline's first two clauses**, which rest on our own
+   artifacts: 39 of 43 in range (D46), and `rstd` at 5,000x still alarming on
+   15.17% of nominal steps (D48).
+
+### The rest of the survey -- secondary, compiled, not independently checked
+
+**Recorded as a research direction, not as evidence.** Only the three sources
+above were fetched and checked; everything in this subsection is the survey's own
+compilation and **no figure from it may be quoted in another document until it is
+verified at its primary source.**
+
+- **ESA-ADB** -- Kotowski et al. **Verified**: `arxiv.org/abs/2406.17826`,
+  "European Space Agency Benchmark for Anomaly Detection in Satellite Telemetry",
+  twelve authors, submitted 25 Jun 2024, revised 17 Aug 2025, comments "87 pages,
+  24 figures, 19 tables". **The survey's "DMLR 2026" is not on that page and is
+  not verified.** The survey's structural point is the one that matters here and
+  it matches our own reading: the Univariate/Multivariate, Local/Global and
+  Point/Subsequence attributes are inferred from **how many channels are annotated
+  and over what span**, not from in-range status -- which is exactly why
+  `docs/HARNESS.md` section 1 records that operationalising "contextual" as
+  `Dimensionality == Multivariate` is an interpretation, and why D43 had to define
+  the class by training min/max instead.
+- **Wu and Keogh** -- **Verified**: `arxiv.org/abs/2009.13807`, "Current Time
+  Series Anomaly Detection Benchmarks are Flawed and are Creating the Illusion of
+  Progress", Renjie Wu and Eamonn J. Keogh, 29 Sep 2020, comments "Full paper
+  accepted by IEEE TKDE, extended abstract accepted by IEEE ICDE 2022". Part I's
+  entry gave TKDE 2023 without an identifier; the identifier is now on record.
+- **SWaT and WADI** (iTrust, SUTD) -- real water-treatment and distribution
+  plants, expert-designed physical attacks, a common 1 Hz clock, genuine physical
+  coupling, access by data agreement. The survey ranks these first for this
+  project's purpose and notes that Pinet classify every long segment in them as
+  **BOTH** rather than cross-channel-only, and that one SWaT segment is roughly
+  65% of anomalous time and single-feature-detectable. Counts of channels and
+  attacks disagree between secondary sources; the survey says to use iTrust's
+  primary documentation, and this document has not.
+- **SKAB** -- an open pump rig, correlated sensors on a common clock, physically
+  induced faults. Cheap corroboration, real coupling, small.
+- **Tennessee Eastman**, **CATS**, **C-MAPSS** -- simulated. CATS is already in
+  Objective.md 9.3 flagged as synthetic.
+- **OPS-SAT-AD** -- univariate per fragment by construction, so it cannot test
+  this class. Consistent with Objective.md 9.3's note.
+- **Exathlon**, **SMD**, **PSM** -- IT and server telemetry, not physical systems.
+- **Non-public routes** the survey names for real spacecraft telemetry with
+  expert cross-channel labels: ESA/ESOC ARTS through the ESA-ADB authors, JPL,
+  JAXA, CNES, DLR, and CubeSat operators including SatNOGS -- which Objective.md
+  decision 9 already carries as an open item.
+
+**The reporting standard worth adopting**, and the one concrete thing this
+section changes: Pinet's per-segment diagnostic --
+`UNIVARIATE / CROSS-CHANNEL / BOTH / UNDETECTED` -- as an **acceptance test for
+any dataset this project claims tests cross-channel modelling**. Our stage-1
+visibility diagnostic already does the min/max half per segment
+(`scripts/smap_visibility.py`); the correlation half is not built, and no dataset
+should be adopted for the cross-channel claim until it is.
+
+**Caveat carried from the survey and worth repeating**: near-binary channels
+defeat a z-score diagnostic, which is a live concern for SMAP/MSL specifically,
+and absence across eight benchmarks is strong evidence rather than proof.

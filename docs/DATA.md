@@ -33,7 +33,7 @@ population seven times larger and per-channel command inputs (D6).
   source          kaggle patrickfleith/nasa-anomaly-detection-dataset-smap-msl
                   (the dataset the telemanom README itself now names; the
                   original S3 mirror returns 403)
-  upstream        https://github.com/khundman/telemanom          Apache-2.0
+  upstream        https://github.com/khundman/telemanom          BSD-3-Clause
   ingested        2026-09-03, 164 Class A, 0 Class B
   shape           SMAP 55 channels x 25 columns, MSL 27 x 55;
                   column 0 is telemetry, the rest are one-hot commands
@@ -50,6 +50,22 @@ that module would put every published ESA-ADB result at risk for no benefit.
 the redistribution, and each channel's test-array length was checked against
 `num_values` and every anomaly span against that length. **82 of 82 rows agreed, 0
 mismatches.** A single failure would have aborted the upload.
+
+**(!) Two provenance corrections, 2026-09-08 (D53).** The upstream licence is
+**BSD 3-Clause** (Caltech/JPL 2018), not the Apache-2.0 this block recorded until
+today; the source is now pinned at `third_party/telemanom/` and
+`LICENSE.txt` is there to be read. **The manifest object already in R2 still
+carries the wrong string**: `_manifest/smap_msl.json` was uploaded on 2026-09-03
+with `license: "Apache-2.0 (telemanom); dataset redistributed on Kaggle"`.
+`scripts/ingest_smap_msl.py` is corrected so any future ingest is right; the
+stored object is left alone, because rewriting a pinned manifest costs one
+Class A and is not a change to make without approval. Recorded rather than
+quietly fixed.
+
+**(!) This file is generated and hand-edited.** Section 1's SMAP/MSL block is
+hand-added prose inside a file whose footer says not to edit it by hand.
+Regenerating `docs/DATA.md` from `src/sentinel_data/docs_gen.py` would delete
+the block. Named here so the next person to run the generator knows.
 
 **(!) One labelling defect, recorded rather than silently deduplicated.** `P-2` appears
 **twice** in `labeled_anomalies.csv`, both SMAP, with conflicting spans `[5350, 6575]`
@@ -178,7 +194,9 @@ parquet objects we wrote.
   chosen. The prefix is reserved; nothing is built.
 - **No resampled or differenced data.** The archive is faithful to the source.
   Preprocessing belongs to the harness, not to the archive.
-- **SMAP/MSL is not here** and is not planned as a primary source. See section 1.
+- **SMAP/MSL is here as of 2026-09-03** and is a legacy-comparability source, never a
+  headline (Objective.md 9.2). See section 1. The line this replaces said it was not
+  here and not planned, which section 1 had already contradicted.
 
 ---
 

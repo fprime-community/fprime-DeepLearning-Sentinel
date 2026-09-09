@@ -50,3 +50,32 @@ def test_models_depend_on_the_published_contract_only():
         for name in _imports(path):
             if name.startswith("sentinel_eval"):
                 assert name in ("sentinel_eval.detector",), f"{path.name} imports {name}"
+
+
+VENDORED = ROOT / "third_party"
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted(list((ROOT / "src").rglob("*.py")) + list((ROOT / "scripts").rglob("*.py"))),
+    ids=lambda p: p.name,
+)
+def test_nothing_imports_the_vendored_source(path):
+    """`third_party/telemanom` is evidence, not a dependency.
+
+    It is committed so that every divergence this project claims against the
+    published method cites a file a reader can open, rather than a line number
+    someone remembers (D53). Importing it would make it a dependency, put an
+    unmaintained package on the flight-adjacent path, and -- worse -- let a
+    reproduction quietly become a re-export.
+    """
+    offenders = {n for n in _imports(path) if n.split(".")[0] == "third_party"}
+    assert not offenders, f"{path.name} imports {offenders}; it is evidence, never a dependency"
+
+
+def test_the_vendored_source_is_present_and_pinned():
+    """A citation whose original is missing is an assertion with a line number."""
+    assert (VENDORED / "telemanom" / "telemanom" / "errors.py").is_file()
+    provenance = (VENDORED / "telemanom" / "PROVENANCE.md").read_text()
+    assert "2e6c5b6c3558e7835601519b7bdef37c649bdbdc" in provenance
+    assert "BSD 3-Clause" in provenance

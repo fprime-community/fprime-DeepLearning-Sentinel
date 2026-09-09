@@ -132,6 +132,23 @@ each returned a number. The component should refuse -- `Objective.md` 10.2's
 data-sufficiency grading is the place for it -- rather than uplink a threshold derived
 from a window too short to support it.
 
+**(!) Where work item 10 stands, 2026-09-09** (`docs/DECISIONS.md` D57, `docs/STATUS.md`
+section 7 item D). The three requirements above are unchanged and are requirements rather
+than preferences. Two things are now settled about **how** they are delivered:
+
+1. **The threshold reload needs no format change.** `model.bin`'s PARAMS block is
+   separately CRC'd and carries its own `param_version`, independent of `format_version`,
+   and `param_bytes` is fixed for a given model -- so a recalibration overwrites a
+   fixed-size block and never touches the 278.0 KiB of weights (`docs/MODEL_FILE.md` 6.1).
+   Work item 10 is built on **version 1** and D30's freeze stands.
+2. **A selectable dynamic-threshold mode is a separate, later work item.** It is a new
+   field, and `docs/MODEL_FILE.md` 11 is explicit that "adding a field is a
+   `format_version` bump" and that "reserved fields are not a growth mechanism -- a
+   version-1 reader refuses a non-zero reserved field". So it is a version-2 decision with
+   its own pre-registration and its own D-entry, taken **after** Phase 3's testbed shows
+   which rule a mission actually needs -- because D48 and D49 make that a property of the
+   telemetry regime rather than of the method.
+
 ## 6. Decisions carried open into Phase 2
 
 - **D14** -- the weight-cache key is positional; fields for the GRU and TCN
