@@ -9389,3 +9389,136 @@ not exist**, and it cost a fourth read to learn it again.
   8/38 where stage 4 scores 10. The S-family varied the decision layer four ways and none
   reaches a flyable rate at all.
 - **The pipeline freezes here**, on stage 4's configuration, and D62 records it.
+
+---
+
+## 36. Diagnosis: why the frozen arm misses 28 of the 38 (work item 9.19)
+
+**This is diagnosis, not a pre-registration.** Nothing here proposes an improvement and no
+decision is recorded from it; D62's freeze stands until something is registered against it.
+The question nine arms skipped is the prior one: **for each of the 38, what actually went
+wrong?**
+
+**2026-09-09. One read, 55 Class B and 1 Class A**, cached weights, **weight store
+unmoved** -- the script asserts it rather than reporting it. Artifact
+`runs/smap-msl/_forensics/2026-09-09T230300Z-forensics38.json`; producer
+`scripts/smap_forensics_38.py`, landed in the same commit. Only the 26 channels carrying
+one of the 38 are loaded, which is why the read is a third of a study's.
+
+### 36.1 The classification, and its rule was fixed before any event was read
+
+```
+   caught                    the frozen arm caught it
+   lost in the decision      an ORACLE per-channel threshold, set at the frozen arm's
+     layer                   OWN pooled quiet rate (0.6820%), would have caught it
+   invisible in the          the oracle would not have caught it either
+     residual
+```
+
+**The oracle is the fair test**: it is per channel, so it costs the pooled alarm budget
+nothing extra, and it is set at the frozen arm's own rate rather than a looser one. It is
+label-free in construction but **not implementable** -- it is a ceiling, not a proposal.
+
+```
+   caught                    10 / 38
+   lost in the decision      18 / 38     <-- recoverable by a better alarm rule
+     layer
+   invisible in the          10 / 38
+     residual
+```
+
+**Eighteen of the twenty-eight misses are the alarm rule's fault, not the forecaster's.**
+If the decision layer were perfect at the same quiet rate, this arm would reach **28 of
+38** instead of 10.
+
+### 36.2 Which stage kills them
+
+```
+                              below-threshold   pruning
+   lost in the decision layer        5            13
+   invisible in the residual         8             2
+   ------------------------------------------------
+   all 28 misses                    13            15
+```
+
+**Pruning is the single largest killer** -- 13 of the 18 recoverable events are candidates
+that cleared their own dynamic threshold and were then discarded by `prune` at
+`p = 0.13`. D50 named pruning as the first lever on 2026-09-03 and 29.4 named it again as
+the last standing candidate for MSL; **this is the first per-event evidence for it**, and
+it says pruning is costing more than the threshold is.
+
+**Four stages could not have killed anything here and are reported as absent rather than
+omitted**: the magnitude conjunct, the whole-window bail-out, the coverage cap and the
+sequence cap exist in the vendored `errors.py` and therefore in the port -- **not in
+`src/sentinel_models/telemanom.py`, which is the frozen path**. 29.4 had already measured
+them not firing on MSL.
+
+**Warm-up killed nothing.** No event of the 38 begins inside its channel's warm-up.
+
+### 36.3 The separation, and it is graded rather than binary
+
+```
+   class                       n   residual z (median)   percentile (median)
+   caught                     10          7.06                 100.00%
+   lost in the decision layer 18          3.76                 100.00%
+   invisible in the residual  10          1.76                  94.15%
+```
+
+**The three classes are ordered exactly as the classification implies** and the middle
+group is not marginal: a median residual peak **3.76 standard deviations** above its
+channel's own nominal mean, at the 100th percentile of nominal residuals, discarded anyway.
+
+### 36.4 (!) The ten "invisible" events are not invisible in the data
+
+The name is accurate about the smoothed residual and misleading about everything else.
+**All ten show `z > 3` in the first derivative of the raw value, in the disagreement across
+the ten predicted horizons, or both:**
+
+```
+   event          residual z   derivative z   horizon disagreement z
+   P-1[2149]           1.72          6.06              1.90
+   P-1[4536]           2.37          5.88              4.25
+   E-12[5610]          1.87          5.89              2.66
+   E-13[5309]          1.79          6.91              3.34
+   E-13[5600]         -0.89          4.17              0.25
+   F-3[5600]           1.56       1891.71              0.59
+   M-4[1250]           2.92          5.79              5.05
+   C-1[2100]           0.20         10.19              2.54
+   T-13[690]           0.95         23.03              0.65
+   T-8[1330]           2.42          7.05              5.34
+```
+
+**Ten of ten.** `E-13[5600]` has a residual peak *below* its channel's nominal mean --
+`z = -0.89`, the forecaster predicts it better than it predicts normal data -- and its
+derivative is still 4.17 sigma out. `F-3[5600]`'s derivative is three orders of magnitude
+out.
+
+**So the residual, as constructed, is discarding signal that is present in the input.**
+That is a statement about what the decision layer is fed, not about the network's capacity,
+and it is a different finding from the one 36.1 leads with.
+
+### 36.5 Step-likeness does not separate the classes
+
+```
+   caught                     step-like  7/10
+   lost in the decision layer step-like  9/18
+   invisible in the residual  step-like  6/10
+```
+
+Cut at the median across the 26 channels measured here (**0.1847**). **No signal** -- which
+is consistent with 35.7, where trees lost both halves of this same split, and closes
+step-likeness as an explanatory variable rather than leaving it open.
+
+### 36.6 What this decides, and what it does not
+
+- **The next work is the alarm rule, not the network.** 18 of 28 misses carry a residual
+  peak that a per-channel threshold at the same quiet rate would clear, and **13 of those
+  18 die specifically in pruning.**
+- **A second and separate line is the residual's construction**, not the forecaster's
+  capacity: all ten otherwise-invisible events are visible in the derivative or in horizon
+  disagreement, neither of which reaches the decision layer today.
+- **28 of 38 is the ceiling this diagnosis exposes**, and it is an oracle ceiling: it is
+  what a perfect per-channel decision layer would reach on residuals that already exist.
+  **It is not a claim that any implementable rule reaches it.**
+- **Nothing is registered.** D62's freeze stands. `docs/MODELS.md` has no arm against this
+  diagnosis and will not until one is pre-registered.

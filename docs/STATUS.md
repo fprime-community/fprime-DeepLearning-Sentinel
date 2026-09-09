@@ -139,7 +139,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 212 Class A and 4,360 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 214 Class A and 4,415 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -259,6 +259,15 @@ P5 refuted**: more training makes held-out error consistently worse, because the
 per-channel calibration, both, a 3-seed ensemble, gradient-boosted trees and an
 isolation-forest control. **None beats stage 4. Four cannot reach its alarm rate at all.**
 
+**B4. Per-event forensics on all 38 - DONE 2026-09-09** (`docs/MODELS.md` 36), 55 Class B,
+weight store unmoved. **10 caught, 18 lost in the decision layer, 10 invisible in the
+residual.** Of the 28 misses, **15 die in pruning and 13 below threshold**; within the 18
+recoverable, **13 die in pruning**. An oracle per-channel threshold at the frozen arm's own
+quiet rate would reach **28 of 38**. And **all ten "invisible" events show z > 3 in the
+first derivative or in the disagreement across the ten predicted horizons**, neither of
+which reaches the decision layer today. **The next work is the alarm rule, not the
+network.** Nothing is registered against this yet.
+
 **THE PIPELINE IS FROZEN (D62)** on stage 4's configuration: `gru-telemanom`, per channel,
 univariate, no commands, published dynamic threshold swept to 0.6838%, **10 of 38**. **The
 C++ port must carry the dynamic threshold**, which `flight/` does not yet have - it
@@ -326,7 +335,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 605 tests
+.venv/bin/python -m pytest -q                                    # 606 tests
 .venv/bin/python scripts/check_no_list.py                        # 75 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1

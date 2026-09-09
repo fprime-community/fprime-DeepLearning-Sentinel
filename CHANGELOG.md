@@ -14,6 +14,62 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.19] - 2026-09-09 - Per-event forensics: 18 of 28 misses are the alarm rule's fault
+
+Work item 9.19, diagnosis only. One read at 55 Class B and 1 Class A, cached weights,
+weight store unmoved. `docs/MODELS.md` 36, `scripts/smap_forensics_38.py`.
+
+### The classification, rule fixed before any event was read
+
+```
+   caught                    10 / 38
+   lost in the decision      18 / 38     an ORACLE per-channel threshold at the frozen
+     layer                              arm's OWN quiet rate would catch these
+   invisible in the          10 / 38
+     residual
+```
+
+**An oracle decision layer would reach 28 of 38 on residuals that already exist**, against
+the frozen arm's 10. That is a ceiling, not a proposal: the oracle is per channel and
+label-free in construction but not implementable.
+
+### Which stage kills them
+
+```
+                              below-threshold   pruning
+   lost in the decision layer        5            13
+   invisible in the residual         8             2
+```
+
+**Pruning is the single largest killer** -- 13 of the 18 recoverable events clear their own
+dynamic threshold and are then discarded by `prune` at `p = 0.13`. D50 named pruning as the
+first lever six days ago and 29.4 named it again as the last standing candidate; this is the
+first per-event evidence for it. **Warm-up killed nothing.** The magnitude conjunct,
+whole-window bail-out, coverage cap and sequence cap are mechanisms of the port and **not of
+the frozen path**, so they could not have killed anything here -- reported as absent rather
+than omitted.
+
+### (!) The ten "invisible" events are not invisible in the data
+
+**All ten show z > 3 in the first derivative of the raw value, in the disagreement across
+the ten predicted horizons, or both.** `E-13[5600]` has a residual peak *below* its
+channel's nominal mean -- the forecaster predicts it better than it predicts normal data --
+and its derivative is 4.17 sigma out; `F-3[5600]`'s derivative is three orders of magnitude
+out. **The residual as constructed discards signal that is present in the input**, which is a
+statement about what the decision layer is fed rather than about the network's capacity.
+
+### Step-likeness is closed as an explanatory variable
+
+7/10 caught, 9/18 decision-layer, 6/10 invisible, cut at the median across the 26 channels.
+No signal -- consistent with 35.7, where trees lost both halves of the same split.
+
+### Nothing registered
+
+D62's freeze stands. This is diagnosis; no arm exists against it and none will until one is
+pre-registered.
+
+---
+
 ## [0.6.18] - 2026-09-09 - The ladder closes: nine arms, none beats stage 4, and the pipeline freezes
 
 Work items 9.17 and 9.18. Four reads at 165 Class B and 1 Class A each plus two smokes;
