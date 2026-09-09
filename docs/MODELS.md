@@ -8308,3 +8308,145 @@ are each one arm and none is registered here.
 **The pre-registered consequence stands**: H4 was written as a stop precisely so
 that a negative result would end the arm rather than be tuned around, and it is
 being honoured.
+
+---
+
+## 32. Pre-registration: the command context, tested on both sides of D49's bound (work item 9.15)
+
+**Written and committed before a single figure is computed.** D57 re-framed the claim to
+early warning from **every** context the telemetry carries and named three. Context (a), a
+channel's own history, is tested at 10/38. Context (c), sensor to sensor, has no public
+data and waits for the Ref testbed. **Context (b) -- commands to telemetry -- is the one
+this dataset can test and has barely been tested**, and this section is that test.
+
+**This is not a re-run of D49.** D49 closed D6 by measuring `gru-quantile + cmd` against
+`gru-quantile` and finding commands **worse** at a matched rate -- 6/38 against 10/38
+in-range contextual, 33/100 against 47/100 overall. Its consequence 3 bounded that
+finding, in its own words, to "one-hot command indicators, SMAP/MSL, per-channel
+univariate models, the published dynamic threshold". **Two things sit outside that bound
+and both are now available.** The published *training* configuration, which is
+command-conditioned in the source and which this project only reproduced on 2026-09-08.
+And a *probabilistic* head, whose entire failure mode in 31.8 was that a single univariate
+channel gave the likelihood no reason to vary `sigma` with state.
+
+### 32.1 The design
+
+**Two arms, and the first is a subtraction rather than an addition.**
+
+```
+  C1   Arm T MINUS the commands
+       Arm T is ALREADY the command-conditioned arm -- 28.1 T-f, `channel.py:63-67`:
+       telemanom's X is all columns, telemetry AND the one-hot commands, while y is
+       column 0 alone. `build_published` sets `det.wants_commands = True`. So the
+       counterfactual is the arm that does not exist yet, and Arm T's 81 fits are
+       already banked. The comparison is T against C1, not C1 against T.
+
+  C2   Arm H PLUS the commands
+       31.8's H4 stop fired because sigma collapsed to a per-channel constant --
+       coefficient of variation 0.0504 at the median, above 0.25 on 11 of 79
+       channels. 31.9 named the reason and did not register it: a single univariate
+       channel gives the likelihood no reason to vary sigma WITH STATE. Commands are
+       state. This is the cheapest of the three arms that hypothesis admits.
+```
+
+**The encoding is the one already in the tree and is not a new lever.** Each command column
+becomes two input features, an impulse and an exponential decay
+(`src/sentinel_models/windows.py:73-88`, `lstm.py:614`), so `n_exogenous` is **48 on SMAP**
+(24 one-hot columns) and **108 on MSL** (54). Column 0 is the telemetry and is never an
+input to its own forecast target.
+
+**(!) The command counts are 24 and 54, not 25 and 55.** `docs/DATA.md:38-39` records the
+array shapes as SMAP `55 channels x 25 columns` and MSL `27 x 55`, of which **column 0 is
+telemetry**. The two 55s are a channel count and a column count and they are not the same
+quantity.
+
+### 32.2 What is built, and what does not move
+
+- **`scripts/smap_rungs.py` only.** Two new arms in `ARM_TABLE`, a `wants_commands=False`
+  variant of `build_published`, and the exogenous path threaded into `build_zscore`
+  (`lstm.train` already takes `impulses`; `_to_torch` already takes `n_exogenous`).
+- **`src/sentinel_models/telemanom.py` is untouched** (D8), the ESA-ADB path is untouched,
+  and no existing detector, figure, artifact or cached fit changes. Arm T is re-scored in
+  the same load as its own control, and reproducing its recorded cells is this run's
+  internal gate, as Arm R's was in 30.4.
+- **One defect is fixed rather than carried.** 31.8 recorded that Arm H's weight store grew
+  by **0** instead of the pre-registered +81, because `build_zscore` fits through
+  `lstm.train` directly while the cache lives in `ForecastDetector.fit`, so Arm H is
+  reproducible only from its seed. C2 persists its weights. **That makes this run's
+  pre-registered growth +162** and not +81, and a smaller number is a defect rather than a
+  saving.
+
+### 32.3 What runs
+
+**Refit all 81 channels twice** -- once for C1, once for C2 -- score under telemanom's own
+accounting (`TP/(TP+FP)`, TP deduplicated per matched event) beside `A0`, `F`, `T` and `R`
+from the same load, and report **MSL first**, then SMAP, then Total.
+
+**Two operating points per arm, and the second is labelled.** Each arm at its own cut, and
+each swept to a nominal rate matched to **stage 4's 0.6838%** -- for C1 through
+`Mech.eps_mult`, which 28.6 already pre-registered as **a labelled deviation from the
+source** because the port has no dial, and for C2 through the threshold multiplier it has
+by construction. **The matched-rate figure is a comparison device (D41, D44) and is
+labelled as one wherever it appears.** No per-event number is quoted from an arm above ~1%
+nominal alarms, which is why Arm T's own-cut 12/39 is **not** comparable to stage 4's 10/38
+and is not compared to it here.
+
+### 32.4 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **K1** | **the commissioned number.** Removing the commands costs Arm T events: C1's total recall is **below 46/104**, and by 4 or more | C1 at or above 46/104, which would put D49's finding **outside** its own bound -- commands failing to help under the published training too -- and would say the context is not there to be used on this data at all |
+| **K2** | **and it costs them where the claim lives.** C1's in-range contextual count is **below Arm T's 12/39** at a rate matched to 0.6838% | at or above. K1 holding with K2 refuted means the commands buy ordinary events and not the in-limits class, and is reported as that rather than as a success |
+| **K3** | **C2's stop, and it is adjudicated FIRST.** With the commands attached, `sigma`'s coefficient of variation exceeds **0.25 on more than half** of fitted channels, against 31.8's 11 of 79 | at or below on half or more. **The pre-registered stop fires**: the head has again learned a global scale, `z` is `\|x - mu\|` over a constant, and nothing after this line in C2 is reported as a result. 31.9's remaining two candidates -- a multivariate channel set, and a variance term the loss cannot trivially satisfy -- become the next arms |
+| **K4** | C2's MSL false positives are **2 or fewer** at a matched rate, the paper's own figure and `F`, `T`, `R` and `G`'s | above 2 |
+| **K5** | **structural, and a stop.** C1 and Arm T fit the **same 81 channels** and score the **same 104 sequences**: narrowing the input cannot change which channels train | any difference. It would mean D17's stopping rule is sensitive to the input width, which would make every population in sections 28 to 30 a function of the arm rather than of the data, and that is a bigger finding than this arm's |
+
+**Deliberately not predicted.** Parity with Table 2 -- D56 stopped chasing it and this
+section does not resume. Whether commands should ship in `model.bin` -- that is a
+`format_version` question (D30, `docs/MODEL_FILE.md` 11) and it is decided after this
+reports, not before. And the direction of C2's recall: 31.8's arm was refuted at its
+design claim, so a prediction about its recall would be a prediction about a mechanism
+that has not yet been shown to exist.
+
+### 32.5 Cost, the compute plan, and stop-and-report
+
+**Reads: 165 Class B and 1 Class A**, one bundle load, both arms sharing it. The ledger
+reads **199 Class A and 3,146 Class B** for 2026-09, from
+`runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json`; this would end at 200 and
+3,311 of 50,000 each.
+
+**This arm refits twice and the weight store grows by a pre-registered +162** -- 81 for C1,
+81 for C2 -- or fewer under D17's guard, which stalled six LSTM channels on our relative
+rule and none under the published absolute one (T4).
+
+**(!) The compute plan is measured before it is committed to, and 28.7's failure is
+carried explicitly.** That run was killed by the operating system after the fits and before
+the artifact, because four workers were sized from a per-fit measurement of **508 MB** that
+omitted each worker's own torch import and the parent's growth since its baseline. **The
+per-unit figure was right and the sum was not.**
+
+1. **A 3-channel timing and RSS smoke runs first**, at about 9 Class B, and reports
+   measured per-fit wall clock **and measured peak RSS** for both arms before the
+   81-channel fit starts. C1 is *narrower* than Arm T at the input layer and C2 is *wider*
+   than Arm H, so neither of their measured times is a valid estimate for the other and
+   neither is used as one.
+2. **31.6's three mitigations are carried**: the parent releases each channel's raw arrays
+   once its job is queued; every completed fit is checkpointed as it lands; and a measured
+   free-memory gate refuses to start the pool below 4 GB and reports rather than proceeds.
+3. **If the measured projection exceeds one hour, the serial, parallel-local and rented
+   options are put with honest numbers and the choice is made then**, not assumed now.
+
+**Stop and report** if K3 is refuted, because C2 would then be the old detector wearing a
+new head and the rest of that arm is about something that is not happening; if K5 is
+refuted; if the free-memory gate fires; if the weight store grows by more than 162; or
+above 200 Class B.
+
+### 32.6 The second lever, scoped and not run
+
+**A richer command encoding.** `docs/RESEARCH.md` records that telemanom's paper encodes
+commands by module and by sent-or-received, flags richer command features as the obvious
+next step, and notes that ESA's own baselines got **worse** precision when telecommands
+were added. If K1 refutes -- commands failing to help even under the published training --
+then the encoding is the remaining explanation and it is one lever, registered separately.
+**It is not built here**, because changing the arm and the encoding together is the
+two-lever arm rung 1c's stop fired for (26.26).

@@ -3894,3 +3894,75 @@ second**: it is a second lever, and it would answer a question nobody registered
    terms and the table named two; the middle one, `max(e_s) > 0.05 * inter_range`, is not
    listed and was **left as published** on the literal reading. `docs/MODELS.md` 30.4 states
    which test was run, because G4's adjudication depends on it.
+
+---
+
+## D59. D6 is re-opened on the far side of D49's own bound, and only there
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision to measure, recorded before the
+measurement. It re-opens a closed question without withdrawing the finding that closed it
+
+**CONTEXT.** D49 closed D6 on 2026-09-03: on the only data this project holds that carries
+commands, conditioning on them made the detector **worse** at a matched alarm rate -- 6/38
+against 10/38 in-range contextual, 33/100 against 47/100 overall. That finding is not
+withdrawn and nothing here contradicts it. **What has changed is that two things outside
+its own stated bound are now buildable, and D57 made the command context one of the three
+claims the project stands on.**
+
+D49 consequence 3, verbatim: *"Bounded to what was measured. One-hot command indicators,
+SMAP/MSL, per-channel univariate models, the published dynamic threshold. It says nothing
+about a different encoding, and nothing about ESA-ADB, whose telecommands remain
+unwired."*
+
+**EVIDENCE that the bound is doing real work rather than being an escape hatch.**
+
+1. **The published model is command-conditioned and this project only reproduced its
+   training on 2026-09-08.** `channel.py:63-67`: telemanom's `X` is all columns, telemetry
+   **and** the one-hot commands, while `y` is column 0 alone. D49's arms were built on
+   *our* training configuration, which differs from the published one in eight named ways
+   (`docs/MODELS.md` 28.1) -- including a per-fold sequence budget where the paper trains
+   full epochs, and a stopping rule that stalls six channels where the published one stalls
+   none. **Arm T is the first arm in this project to carry the published configuration, and
+   it carries the commands with it.** Whether the commands help is therefore untested under
+   the only configuration the paper's own numbers were produced with.
+2. **31.8's failure names a mechanism commands would supply.** `gru-zscore`'s `sigma`
+   collapsed to a per-channel constant, coefficient of variation 0.0504 at the median. 31.9
+   named why and deliberately did not register it: **a single univariate channel gives the
+   likelihood no reason to vary sigma with state.** Commands are state, and they are the
+   cheapest of the three candidates that hypothesis admits.
+3. **No published work settles it either.** `docs/RESEARCH.md` records that ESA's own
+   baselines got *worse* precision when telecommands were added, and that **no paper has
+   published a commands-on / commands-off ablation.** D49 was the first; this is the
+   second, on the other side of its bound.
+
+**ALTERNATIVES.** Treat D49 as settling command conditioning and move to the physics
+testbed. Re-test with a **richer encoding**, which is the explanation `docs/RESEARCH.md`
+flags. Re-test the **same encoding** under the two conditions D49 explicitly excluded.
+
+**Against the first**: D57 lists the command context as one of three claims and marks it
+*barely tested*; retiring it on a finding that bounded itself to one configuration would be
+asserting more than the evidence carries, which is the error D57 exists to correct.
+**Against the second**: it changes the arm and the encoding together, which is the
+two-lever arm rung 1c's stop fired for (26.26). The encoding is registered as the **next**
+lever in `docs/MODELS.md` 32.6, conditional on this one refuting.
+
+**CONSEQUENCE.**
+
+1. **D6 is re-opened narrowly and D49 stands.** `docs/MODELS.md` 32 tests exactly the two
+   conditions D49 named as outside its scope: the published training configuration (C1,
+   Arm T **minus** its commands, since Arm T already has them) and a probabilistic head
+   (C2, Arm H **plus** them). The encoding is unchanged, deliberately, so the arm has one
+   lever.
+2. **Whatever it measures, D49's numbers are not restated.** If commands help here, D49 was
+   correct within its bound and the bound was load-bearing -- which is an argument for
+   bounding findings, not against D49. If they do not, D49 generalises past its own
+   caution and the encoding becomes the last explanation standing.
+3. **C2's stop is adjudicated first.** K3 asks whether `sigma` varies at all with commands
+   attached before any recall number from that arm is read, because 31.8 established that a
+   collapsed sigma makes the arm the old detector with extra parameters.
+4. **A recorded defect is repaired rather than carried.** Arm H's weights were never
+   persisted (31.8), so that arm is reproducible only from its seed. C2 persists them, and
+   the pre-registered weight-store growth is **+162** rather than +81 for that reason.
+5. **It does not touch `model.bin`.** Whether command inputs ship in the flight file is a
+   `format_version` question (D30, `docs/MODEL_FILE.md` 11) and `n_exogenous` already
+   exists in the header. That is decided after this reports.

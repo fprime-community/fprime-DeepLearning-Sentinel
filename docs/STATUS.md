@@ -195,11 +195,15 @@ held. G4 refuted at 79/81 and its stop fired** - the replacement tightens on two
 so a dimensionless form is not uniformly a relaxation. Not adopted; the multiplier stays
 unswept.
 
-**B. Work item 9.15, the command-context arms** (`docs/MODELS.md` 32, to be written). Arm T
-**without** commands as the counterfactual - Arm T already carries them - and Arm H **with**
-them. *Done when* both are scored at a matched nominal rate against `A0`, `F`, `T` and stage
-4's 0.6838%, on the 39 in-range contextual and on all 102, with the falsifications stated in
-advance. The compute plan is presented and chosen before anything runs.
+**B. Work item 9.15, the command-context arms - PRE-REGISTERED 2026-09-09, NOT RUN**
+(`docs/MODELS.md` 32, D59). C1 is Arm T **without** commands, the counterfactual, because
+Arm T already carries them (28.1 T-f); C2 is Arm H **with** them, testing 31.9's named
+reason for sigma's collapse. K1 to K5 are committed, **K3 is C2's stop and is adjudicated
+first**, and K5 is structural. *Done when* both are scored at their own cut and at a rate
+matched to stage 4's 0.6838%, MSL first, with the matched figure labelled a comparison
+device. **This arm refits twice, +162 to the weight store, so the compute plan is measured
+by a 3-channel timing and RSS smoke and the options put with honest numbers before the full
+fit starts** (32.5, carrying 28.7's OOM explicitly).
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
