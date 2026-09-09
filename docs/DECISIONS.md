@@ -3821,3 +3821,76 @@ the in-limits class is real even where the relationship class cannot be measured
    which ESA-ADB is; it did not ask whether the labelled anomalies were
    *relational*, which is the property that mattered. **The dataset survey and the
    anomaly-class survey are different searches**, and only the first was run.
+
+---
+
+## D58. A dimensionless filter is not uniformly looser than an absolute one; it changes which channels it binds on
+
+**DATE** 2026-09-09 | **STATUS** resolved as a finding, and as a qualification on D55's
+consequence 1 rather than on D55 itself. It closes one candidate for MSL's silence and
+names the last one
+
+**CONTEXT.** D55 established that absolute constants in data units do not transfer and
+that the toolkit must ship dimensionless equivalents. `docs/MODELS.md` 30 registered one
+implementation of that principle -- telemanom's two candidate filters, `max(e_s) > 0.05`
+and `e_s > 0.05 * inter_range`, replaced by `mean(e_s) + 1*sd(e_s)` with the multiplier
+fixed in advance and not swept -- and predicted, structurally and as a stop, that **every
+replacement is a relaxation**, so the new arm's alarm set would be a superset of the old
+one's on every channel.
+
+**EVIDENCE.** One read, 165 Class B, weight store +0, artifact
+`runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json`. Arm R was re-scored in the
+same load as its own control and reproduced 29.4 in every cell.
+
+1. **G4 refuted at 79 of 81 channels.** On `D-2` and `G-6` the dimensionless arm alarms on
+   steps the absolute arm did not, **and loses 140 and 350 steps the absolute arm had.**
+   On `G-6` the whole-window bail-out fires **2** times under the absolute floor and **64**
+   under the dimensionless one.
+2. **In aggregate it is nevertheless a relaxation**: bail-outs fall from 1,836 to 996 of
+   13,995 windows, the magnitude conjunct binds 4 times and then 0, and the nominal alarm
+   rate rises from 2.0450% to 3.7958%. **A pooled statistic would have reported a
+   relaxation and concealed the two channels.**
+3. **G1 refuted, and it is the more useful half.** MSL recall is **3/36 before and after**,
+   with 2 false positives before and after. Not one event moves. G2 held at 2 and G3 held
+   at 45/68, so the arm works; what it does is not what MSL needed.
+
+**ALTERNATIVES.** Sweep the multiplier until the arm is a relaxation everywhere. Replace
+only the filter that is fully absolute and leave the semi-absolute one. Take G4's
+refutation as a finding about the **form** and stop, which is what 30.1 said in advance
+would happen.
+
+**Against the first**: 30.1 fixed `DIM_K = 1.0` and stated that needing another value is a
+finding about the form rather than a parameter to search -- and a swept multiplier is the
+alarm-budget failure (`docs/HARNESS.md` section 1) arriving in a new costume. **Against the
+second**: it is a second lever, and it would answer a question nobody registered.
+
+**CONSEQUENCE.**
+
+1. **The finding, stated for the toolkit.** A constant expressed relative to a series' own
+   dispersion is **not** a strictly weaker version of an absolute one. It is *channel-relative*:
+   looser where the residuals are small, **tighter where they are large**. Replacing an
+   absolute constant therefore changes **which** channels a filter binds on, not only how
+   hard it binds, and a mission whose channels differ in residual scale will see the filter
+   move between them.
+2. **It qualifies D55 consequence 1 and does not withdraw it.** The principle -- that a
+   constant in the units of the data belongs to the dataset it was fitted on -- is
+   untouched, and this is direct evidence for it, since the two forms disagree per channel
+   exactly because the scale varies per channel. What is qualified is the assumption that
+   the dimensionless form is the safe default. **`Objective.md` 10.2's one-command training
+   must report, per channel, where a dimensionless guard binds and an absolute one would
+   not, rather than presenting the substitution as free.**
+3. **A pooled check would not have caught it.** G4 was written per channel and as a stop,
+   before any number existed, and it is the only reason the two channels are on the record.
+   That is the argument for structural predictions rather than metric ones, and it is the
+   second time one has paid (26.26 was the first).
+4. **The guards are eliminated as the cause of MSL's silence.** With 29.4's residual rung
+   inert and its scale hypothesis refuted, and now the guards moving nothing, **pruning at
+   `p = 0.13` is the last named candidate.** It was named in 29.4 and again in 30.2's
+   refutation clause, both before this ran.
+5. **This implementation is not adopted**, and 30.2 pre-registered that adoption was
+   decided on G1 to G4 rather than inherited from D55. No source file changes, no ESA-ADB
+   figure moves, `src/sentinel_models/telemanom.py` is untouched.
+6. **An ambiguity in 30.1 is recorded rather than absorbed.** `errors.py:337-339` has three
+   terms and the table named two; the middle one, `max(e_s) > 0.05 * inter_range`, is not
+   listed and was **left as published** on the literal reading. `docs/MODELS.md` 30.4 states
+   which test was run, because G4's adjudication depends on it.

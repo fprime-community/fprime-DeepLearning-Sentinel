@@ -73,6 +73,11 @@ N_PREDICTIONS = 10         # config.yaml n_predictions
 PUBLISHED_HYPER = dict(train_batch_size=64, min_delta_absolute=0.0003,
                        validation_split="shuffled", full_epochs=True,
                        restore_best=False)
+#: 30.1. One multiplier, **fixed at 1.0 and not swept**, chosen because it is
+#: the weakest non-trivial statement of "above the channel's own noise". If the
+#: arm needs a different value to work, that is a finding about the form and is
+#: reported as one rather than absorbed by a sweep.
+DIM_K = 1.0
 SD_LIM = 12.0              # errors.py:241
 Z_STEP = 0.5               # errors.py:285
 Z_FLOOR = 2.5              # errors.py:285
@@ -97,6 +102,14 @@ class Mech:
     inverse: bool = False       # errors.py:132-148  the reflected pass
     published_window: bool = False   # errors.py:84-93  adjust_window_size
     clip: bool = True           # errors.py:355-359. False = 1c-ii's unclipped union
+    #: 30.1, work item 9.13. Replaces the two candidate filters that are
+    #: absolute in the units of the data with `mean(e_s) + DIM_K*sd(e_s)`.
+    #: The two that are already scale-free -- `sd_e_s > 0.05*sd_values`, the
+    #: coverage cap and the sequence cap -- are left exactly as published,
+    #: because changing a rule that is already dimensionless would be a second
+    #: lever. D55 is the principle; this is one implementation of it, and 30.2
+    #: decides whether it earns adoption.
+    dimensionless: bool = False
     #: A multiplier on epsilon. **A deviation from the source**, and the only
     #: one here: the port emits a boolean decision with no dial, so matching it
     #: to another arm's alarm rate (D41, D44) needs one introduced. 1.0 is the
@@ -216,22 +229,45 @@ def compare_to_epsilon(e_s, e_s_fwd, epsilon, y_win, window_num, batch_size,
     """
     n = e_s.shape[0]
     sd_e_s = float(np.std(e_s_fwd))
+    mean_e_s = float(np.mean(e_s_fwd))
     sd_values = float(np.std(y_win))
     perc_high, perc_low = np.percentile(y_win, [95, 5])
     inter_range = float(perc_high - perc_low)
 
+    # 30.1. The channel's own noise level, in the channel's own units. Computed
+    # from the FORWARD window like every other statistic these guards use, so
+    # the arm differs from the source in the CONSTANT and in nothing else.
+    dim_cut = mean_e_s + DIM_K * sd_e_s
+
     # errors.py:337-340. Note the source tests the FORWARD e_s on both passes.
     if mech.bailout:
+        # errors.py:337-339 is a THREE-term test and 30.1's table names two of
+        # them. Replaced: `max(e_s) > 0.05`, its first row. Left as published:
+        # `sd_e_s > 0.05 * sd_values`, its third row, because that is already a
+        # ratio -- and ALSO `max(e_s) > 0.05 * inter_range`, the middle term of
+        # `big_enough`, which 30.1's table does not list at all.
+        #
+        # **That omission is the pre-registration's and is not resolved here.**
+        # Its second row is `e_s > 0.05 * inter_range`, the conjunct at :343,
+        # and the same FORM appears at :338 applied to `max(e_s)`. Reading the
+        # table literally leaves :338 alone; reading it as a form-substitution
+        # would change it too. The literal reading is taken, because a
+        # pre-registration is a literal instrument and moving an unlisted lever
+        # is the thing rung 1c's stop fired for (26.26). Recorded in 30.4.
+        floor = dim_cut if mech.dimensionless else 0.05
         big_enough = (sd_e_s > 0.05 * sd_values
                       or float(np.max(e_s_fwd)) > 0.05 * inter_range)
-        if not big_enough or not float(np.max(e_s_fwd)) > 0.05:
+        if not big_enough or not float(np.max(e_s_fwd)) > floor:
             GUARDS["bailout"] = GUARDS.get("bailout", 0) + 1
             return np.array([], dtype=np.int64), [], -1000000.0
 
     above = e_s >= epsilon * mech.eps_mult
     bound = 0
     if mech.magnitude:                                        # errors.py:342-343
-        keep = above & (e_s > 0.05 * inter_range)
+        # 30.1 replaces `e_s > 0.05 * inter_range`, which is semi-absolute --
+        # a fraction of the VALUES' spread applied to the ERRORS' scale.
+        cut = dim_cut if mech.dimensionless else 0.05 * inter_range
+        keep = above & (e_s > cut)
         bound = int(above.sum() - keep.sum())   # how often the conjunct BINDS
         if bound:
             GUARDS["magnitude"] = GUARDS.get("magnitude", 0) + 1
@@ -310,7 +346,7 @@ def _one_window(e_s_win, y_win, window_num, batch_size, num_to_ignore,
 
 
 def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
-             alarm_len=None):
+             alarm_len=None, dimensionless=False):
     """errors.py:111-168, `process_batches`, with `adjust_window_size`.
 
     Operates in telemanom's own coordinates: `y_test` is the raw series offset by
@@ -355,7 +391,8 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
         if i == n_windows:
             idx = n
         full = Mech(magnitude=True, bailout=True, guards=True,
-                    inverse=True, published_window=True, clip=True)
+                    inverse=True, published_window=True, clip=True,
+                    dimensionless=dimensionless)
         win = e_s[prior_idx:idx]
         eps = find_epsilon(win, float(np.mean(win)), float(np.std(win)),
                            error_buffer, full)
@@ -789,12 +826,21 @@ def main(argv=None) -> int:
         train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
         test = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["test"])))
         built, failed = {}, {}
-        cells = ({"T": ("published",), "R": ("rung",),
-                  "H": ("zscore",), "HM": ("zscore",)}.get(args.only)
-                 or (("zscore",) if args.zscore and args.only == ""
-                     and not args.published else None)
-                 or (("lstm", "gru", "published", "rung") if args.published
-                     else ("lstm", "gru")))
+        # Which cells this run has to build, derived from the arms it will
+        # score. This was a hard-coded map of four arm names; arm G needed a
+        # fifth and a map that has to be edited alongside `ARM_TABLE` is a map
+        # that goes stale, which is D14's shape of failure. `--only ""` and the
+        # four names it already knew resolve identically, so no prior run's
+        # cells change.
+        asked = {a for a in args.only.split(",") if a}
+        if asked:
+            cells = tuple(dict.fromkeys(c for n, c, *_ in ARM_TABLE if n in asked))
+        elif args.published:
+            cells = ("lstm", "gru", "published", "rung")
+        elif args.zscore:
+            cells = ("zscore",)
+        else:
+            cells = ("lstm", "gru")
         if args.zscore and "zscore" not in cells:
             cells = tuple(cells) + ("zscore",)
         for cell in [c for c in cells if c not in ("published", "rung", "zscore")]:
@@ -907,6 +953,8 @@ ARM_TABLE = [
      "work item 9.11: the published training configuration under Arm F's stack"),
     ("R", "rung", "port", None, "pub",
      "work item 9.12: Arm T plus the residual rung (errors.py:48-64)"),
+    ("G", "rung", "port", Mech(dimensionless=True), "pub",
+     "work item 9.13: Arm R with the two absolute filters made dimensionless"),
     ("H", "zscore", "source", None, "prop",
      "work item 9.14: gru-zscore at D25's label-free threshold"),
     ("HM", "zscore", "swept", None, "prop",
@@ -975,18 +1023,22 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                 mask, _ = run_ladder(b["e_s"], b["values"], b["cfg"][regime], p, mech)
             elif kind == "port":
                 reset_guards()
+                dim = bool(mech is not None and mech.dimensionless)
                 if b.get("supervised"):
                     mask, _, _, eps_at = run_port(
                         b["e_s"], b["y_sup"], telemanom.ERROR_BUFFER, p,
-                        presliced=True, alarm_len=b["n_full"])
+                        presliced=True, alarm_len=b["n_full"], dimensionless=dim)
                 else:
                     mask, _, _, eps_at = run_port(
                         b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
-                        tail=N_PREDICTIONS if name == "T" else 0)
+                        tail=N_PREDICTIONS if name == "T" else 0,
+                        dimensionless=dim)
                 diagnostics[(name, cid)] = {
                     "guards": dict(GUARDS),
                     "max_e_s": float(np.max(b["e_s"])),
+                    "mean_e_s": float(np.mean(b["e_s"])),
                     "sd_e_s": float(np.std(b["e_s"])),
+                    "dim_k": DIM_K,
                     "sd_values": float(np.std(b["values"])),
                     "inter_range": float(np.subtract(
                         *np.percentile(b["values"], [95, 5]))),
@@ -1148,7 +1200,14 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
     structural = {}
     for lower, upper, kind in (("A0", "L1", "subset"), ("L1", "L2", "subset"),
                                ("L2", "L3", "subset"), ("L3", "L4", "superset"),
-                               ("A0", "A2", "subset")):
+                               ("A0", "A2", "subset"),
+                               # 30.2 G4, structural and a stop: every
+                               # replacement is a relaxation, so the
+                               # dimensionless arm's alarm set must be a
+                               # superset of the absolute arm's on EVERY
+                               # channel. A channel where it is not means a
+                               # replacement tightened and the forms are wrong.
+                               ("R", "G", "superset")):
         if lower not in results or upper not in results:
             continue
         held, total = 0, 0

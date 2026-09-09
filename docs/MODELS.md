@@ -7959,6 +7959,114 @@ for 2026-09, corrected on 2026-09-08 for 28.7's lost run, so this would end at
 **Stop and report** if G4 is refuted; if the weight store moves; or above 200
 Class B. **MSL is reported first**, as it has been since 28.8.
 
+### 30.4 OBSERVED -- the guards are not what silences MSL, and G4's stop fires
+
+**2026-09-09. One read, 165 Class B and 1 Class A**, preceded by a 2-channel smoke at
+7 Class B and 1 Class A. Cached weights, **weight store 399 -> 399, +0** on both, as
+30.3 pre-registered. Artifact
+`runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json`; the smoke is
+`2026-09-09T042918Z-wi910-port.json`. Arm **G** is Arm R with the two filters 30.1 names
+replaced; Arm R is re-scored in the same load as its own control.
+
+**MSL first.**
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   R     MSL      3/36    8.3%      3/5     60.0%             2
+   G     MSL      3/36    8.3%      3/5     60.0%             2
+   R     SMAP    43/68   63.2%     43/50    86.0%             7
+   G     SMAP    45/68   66.2%     45/65    69.2%            20
+   R     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   G     Total   48/104  46.2%     48/70    68.6%            22    3.7958%
+   paper MSL     25/36   69.4%     25/27    92.6%             2
+```
+
+**Arm R reproduces 29.4 in every cell** -- 46/104, 83.6%, 9 false positives, 2.0450%
+nominal, MSL 3/36 with 2 -- which is this run's internal gate and it passes.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **G1** | **the commissioned number.** MSL recall recovers past 15/36, from 3/36 | **3/36, unchanged. Not one event.** | **REFUTED** |
+| **G2** | MSL false positives 6 or fewer | **2**, the paper's own figure and unchanged from R | **HELD** |
+| **G3** | SMAP does not regress below 43/68 | **45/68** | **HELD**, and it gained two |
+| **G4** | **structural, and a stop.** G's alarm set is a superset of R's on **every** channel | **79 of 81** | **REFUTED. The pre-registered stop fires** |
+
+#### G1 is the result, and it confirms what 29.4 named
+
+29.4 measured that on MSL **no named guard fires** in the published window regime --
+coverage 0, sequence cap 0, magnitude 0 -- and concluded that whatever silences 23 of 27
+MSL channels is **downstream, in pruning at `p = 0.13`**. This arm is the direct test of
+the other possibility, and it closes it: relaxing the two absolute filters moves MSL by
+**exactly zero events and zero false alarms**. Every point of movement is SMAP's, which
+is the third time in a row that sentence has been written (28.7, 29.4, and here).
+
+**So pruning is the next arm, and it is now the only named candidate left.** It was named
+in 29.4 before this ran and in 30.2's own refutation clause, so it is not a
+post-hoc rescue.
+
+#### G4's refutation, and the mechanism is D55 turning round
+
+The premise G4 encoded was that **every replacement is a relaxation**: `mean(e_s) + sd(e_s)`
+was assumed to sit below the absolute `0.05`, so nothing the absolute arm caught could be
+lost. **On two SMAP channels it does not.**
+
+```
+   channel   R alarms    G alarms    steps R had and G lost
+   D-2         490         910                140
+   G-6         700         350                350
+```
+
+**A noise-relative floor is not uniformly looser than an absolute one. It is looser where
+the residuals are small and tighter where they are large**, and 29.4 already measured that
+this data has both: `max(e_s)` on MSL is 0.7323 at the median, an order of magnitude above
+the 0.05 floor. `G-6` is the clearest case -- the whole-window bail-out fires **2** times
+under R and **64** times under G, so the dimensionless floor silences 62 windows the
+absolute floor admitted.
+
+**In aggregate the arm is still a relaxation and that is what makes G4 the useful check.**
+Bail-outs fall from **1,836 to 996** of 13,995 windows, the magnitude conjunct binds 4
+times under R and **0** under G, and the alarm rate rises from 2.0450% to 3.7958%. A
+summary statistic would have said *relaxation* and stopped there. G4 was written per
+channel, and per channel it is false.
+
+#### (!) An ambiguity in 30.1 that this arm had to resolve, recorded rather than absorbed
+
+`errors.py:337-339` is a **three**-term test and 30.1's table names two of them:
+
+```
+   term                              30.1's table            this arm
+   sd_e_s > 0.05 * sd_values         row 3, unchanged        unchanged
+   max(e_s) > 0.05 * inter_range     NOT LISTED              unchanged
+   max(e_s) > 0.05                   row 1, replaced         replaced
+```
+
+Row 2 of the table is `e_s > 0.05 * inter_range`, which is the magnitude conjunct at
+`:343`; the **same form** appears at `:338` applied to `max(e_s)` and the table does not
+list it. Read literally, `:338` is left alone; read as a form-substitution, it changes too.
+**The literal reading was taken**, because a pre-registration is a literal instrument and
+moving an unlisted lever is what rung 1c's stop fired for (26.26). It is recorded here
+rather than in a code comment alone, because the arm's result depends on it and a reader
+adjudicating G4 needs to know which test was run.
+
+#### What this closes, and what it opens
+
+- **The guards are eliminated as the cause of MSL's silence.** Three of 29.4's four
+  candidates are now measured: the residual rung is inert, the scale story is refuted, and
+  the guards move nothing. **Pruning at `p = 0.13` is what is left.**
+- **D55's principle survives and this implementation of it does not generalise.** 30.2 said
+  in advance that "a principle that is right does not make a particular replacement right",
+  and G1 to G4 were what decided it. They decided against.
+- **The multiplier stays unswept.** 30.1 fixed `DIM_K = 1.0` in advance and said that if
+  the arm needed a different value that is a finding about the form. It is reported as one:
+  **no sweep was run and none will be** on this form.
+- **The toolkit consequence is sharper than "ship dimensionless forms".** A dimensionless
+  replacement changes *which* channels a filter binds on, not merely how hard, and it can
+  tighten. D58 records what that means for `Objective.md` 10.2.
+- G2 and G3 held, so the arm is not a failure of implementation. It does what it was
+  designed to do, and what it does is not useful here.
+
+---
+
 ## 31. Pre-registration: `gru-zscore`, a probabilistic forecaster (work item 9.14)
 
 **Written and committed before a single figure is computed.** This stops chasing

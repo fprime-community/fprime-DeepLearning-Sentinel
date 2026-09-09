@@ -92,14 +92,22 @@ SMAP's.
 | `T` | `F` plus the published training configuration | 3/36 | 46/104 (44.2%) | 46/55 (83.6%) | 9 | `runs/smap-msl/_forensics/2026-09-08T201450Z-wi910-port.json` |
 | `R` | `T` plus the residual rung | 3/36 | 46/104 (44.2%) | 46/55 (83.6%) | 9 | `runs/smap-msl/_forensics/2026-09-08T211109Z-wi910-port.json` |
 | `H` | `gru-zscore`, the probabilistic head | 5/36 | 47/102 | 47/256 (18.4%) | 209 | `runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json` |
+| `G` | `R` with the two absolute filters made dimensionless | 3/36 | 48/104 (46.2%) | 48/70 (68.6%) | 22 | `runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json` |
 | **paper** | Hundman et al., Table 2 | **25/36** | 84/105 (80.0%) | 84/96 (87.5%) | **12** | - |
 
 **The headline number is stage 4's `10 of 38`**: in-range contextual sequences caught, at
 0.6838% of nominal steps, by `gru-telemanom` scored per channel, univariate, without
 commands (D46, D48, `docs/MODELS.md` 26.18). **It is 26%**, on one dataset, with no floor
 available to compare against at that alarm rate - `rstd` at 5,000x its calibrated
-threshold still alarms on 15.17% of nominal steps. **Six model variants have since been
+threshold still alarms on 15.17% of nominal steps. **Seven model variants have since been
 measured and none has replaced it.**
+
+**(!) MSL has not moved since the port was built.** `F`, `T`, `R` and `G` all catch **3 of
+36** where the paper catches 25 with 2 false alarms. Eight training changes moved it by
+zero (28.7); the residual rung moved it by zero (29.4); and relaxing the two absolute
+candidate filters moved it by zero (30.4). With 29.4's scale hypothesis also refuted,
+**pruning at `p = 0.13` is the last named candidate**, and it was named in advance both
+times.
 
 **ESA-ADB, one line.** `gru-quantile` leads the gate metric on `m1-g8.9.10` at F0.5
 **0.804** against the corrected floor's 0.676, at a third of its alarm rate, and transfers
@@ -113,7 +121,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 196 Class A and 2,974 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 199 Class A and 3,146 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -164,6 +172,11 @@ last artifact and never transcribed.
   **0.0504** at the median and above 0.25 on 11 of 79 channels. **H5 held on 79 of 79**, so
   the likelihood objective trained: the model could have learned a varying sigma and did
   not. Not an optimisation failure - a finding about a single univariate channel.
+- **A dimensionless constant is not a strictly safer absolute one (D58).** It is
+  channel-relative -- looser where residuals are small, **tighter where they are large** -
+  so substituting one changes *which* channels a filter binds on. Caught only because G4
+  was written **per channel** and as a stop: pooled, the same arm reads as a clean
+  relaxation.
 - **A run that produces a documented figure lands its script in the same commit as the
   figure** (`docs/NARRATIVE.md` 11). Learned by losing a study script and watching two
   gates become unreproducible.
@@ -176,9 +189,11 @@ last artifact and never transcribed.
 `README.md` and `docs/INDEX.md` carry the re-framed claim, D57 is recorded, `CHANGELOG.md`
 and `docs/NARRATIVE.md` are current, and every script that produced a live figure is cited.
 
-**B0. Work item 9.13, dimensionless guards** (`docs/MODELS.md` 30). Pre-registered with
-G1-G4 and never run; one read, 165 Class B, **no fits**. *Done when* `30.4 OBSERVED` records
-G1-G4 against measurement, MSL first. **G4 is a structural stop.**
+**B0. Work item 9.13, dimensionless guards - DONE 2026-09-09** (`docs/MODELS.md` 30.4,
+D58), 165 Class B, weight store +0. **G1 refuted**: MSL moves by zero events. **G2 and G3
+held. G4 refuted at 79/81 and its stop fired** - the replacement tightens on two channels,
+so a dimensionless form is not uniformly a relaxation. Not adopted; the multiplier stays
+unswept.
 
 **B. Work item 9.15, the command-context arms** (`docs/MODELS.md` 32, to be written). Arm T
 **without** commands as the counterfactual - Arm T already carries them - and Arm H **with**

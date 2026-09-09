@@ -14,6 +14,76 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.15] - 2026-09-09 - Dimensionless guards: MSL does not move, and G4's structural stop fires
+
+Work item 9.13, pre-registered on 2026-09-08 and run today. One read at 165 Class B and
+1 Class A, preceded by a 2-channel smoke at 7 Class B and 1 Class A. Cached weights,
+weight store **399 -> 399**. `docs/MODELS.md` 30.4, D58.
+
+### Added - Arm G, in the study script only
+
+- Telemanom's two candidate filters replaced by `mean(e_s) + 1*sd(e_s)`, **the multiplier
+  fixed in advance at 1.0 and not swept**. The coverage cap, the sequence cap and
+  `sd_e_s > 0.05 * sd_values` are left exactly as published, because they are already
+  scale-free and changing one would be a second lever.
+- `src/sentinel_models/telemanom.py` is untouched (D8); Arm R is re-scored in the same
+  load as its own control and **reproduces 29.4 in every cell**, which is the run's
+  internal gate.
+
+### Measured
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   R     MSL      3/36    8.3%      3/5     60.0%             2
+   G     MSL      3/36    8.3%      3/5     60.0%             2
+   R     SMAP    43/68   63.2%     43/50    86.0%             7
+   G     SMAP    45/68   66.2%     45/65    69.2%            20
+   R     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   G     Total   48/104  46.2%     48/70    68.6%            22    3.7958%
+```
+
+- **G1 REFUTED. MSL moves by exactly zero events and zero false alarms**, against a
+  prediction of recall past 15/36. Every point of movement is SMAP's -- the third
+  consecutive arm of which that is true.
+- **G2 HELD** at 2 MSL false positives, the paper's own figure. **G3 HELD** at 45/68 SMAP,
+  above the 43/68 floor. So the arm works; what it does is not what MSL needed.
+- **G4 REFUTED at 79 of 81 channels, and the pre-registered stop fires.** On `D-2` and
+  `G-6` the dimensionless arm **loses** 140 and 350 steps the absolute arm had. On `G-6`
+  the whole-window bail-out fires 2 times under the absolute floor and **64** under the
+  dimensionless one.
+
+### Added - D58, and it qualifies D55 rather than withdrawing it
+
+- **A dimensionless filter is not uniformly looser than an absolute one.** It is
+  channel-relative: looser where residuals are small, **tighter where they are large** --
+  and 29.4 already measured that this data has both, `max(e_s)` on MSL being 0.7323 at the
+  median. Replacing an absolute constant changes **which** channels a filter binds on.
+- **In aggregate the arm is still a relaxation**: bail-outs 1,836 -> 996 of 13,995 windows,
+  the magnitude conjunct 4 -> 0, the alarm rate 2.0450% -> 3.7958%. **A pooled statistic
+  would have reported a relaxation and concealed the two channels.** G4 was written per
+  channel, as a stop, before any number existed, and it is the only reason they are on the
+  record.
+- The implementation is **not adopted**. 30.2 pre-registered that adoption was decided on
+  G1-G4 rather than inherited from D55, and it decided against. The multiplier stays
+  unswept: needing another value is a finding about the form, and a swept multiplier is the
+  alarm budget arriving in a new costume.
+
+### Consequence - the last named candidate
+
+With the residual rung inert (29.4), the scale hypothesis refuted (R4) and now the guards
+moving nothing, **pruning at `p = 0.13` is what is left** for MSL's silence. It was named
+in 29.4 and again in 30.2's own refutation clause, both before this ran.
+
+### (!) An ambiguity in the pre-registration, recorded rather than absorbed
+
+`errors.py:337-339` is a three-term test and 30.1's table named two of them. The middle
+term, `max(e_s) > 0.05 * inter_range`, is not listed; it was **left as published** on the
+literal reading, because a pre-registration is a literal instrument and moving an unlisted
+lever is what rung 1c's stop fired for. 30.4 states which test was run, since G4's
+adjudication depends on it.
+
+---
+
 ## [0.6.14] - 2026-09-08 - `gru-zscore`: the head learned a constant, and its own stop fired
 
 Work item 9.13 pre-registered and not run; work item 9.14 pre-registered and run at 165
