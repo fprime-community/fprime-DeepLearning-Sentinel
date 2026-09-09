@@ -485,10 +485,16 @@ def make_grid(top: float = 50.0) -> np.ndarray:
 
 
 #: 33.3's grid for the port dial. Bounded at [1, 6] because the multiplier
-#: RAISES epsilon and C1 has to come DOWN from 1.88% to 0.68%; 24 points because
-#: each one re-runs `run_port` over every channel, where `make_grid`'s 119 would
-#: be forty minutes of arithmetic to resolve a curve this shape does not need.
-PORT_GRID = np.geomspace(1.0, 6.0, 24)
+#: RAISES epsilon and C1 has to come DOWN from 1.88% to 0.68%.
+#:
+#: **Two-stage since 2026-09-09 (33.8).** The 24-point geometric grid resolved the
+#: curve's shape and NOT its crossing: its neighbours landed at 0.7578% and
+#: 0.4465% with the 0.6838% target between them, so the arm was compared 35%
+#: quieter than the one it was measured against and M1 could not be adjudicated.
+#: The coarse points are kept unchanged so the two curves are comparable, and
+#: [1.80, 2.10] is resolved at 0.01 where the crossing actually is.
+PORT_GRID = np.unique(np.concatenate([np.geomspace(1.0, 6.0, 24),
+                                      np.arange(1.80, 2.101, 0.01)]))
 
 
 def free_memory_gib() -> float:
@@ -1239,10 +1245,20 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                             ct.add(base + k)
                     base += len(v["spans"])
                 rate = fl / max(1, nominal[cell][regime])
+                # 33.8. The CAUGHT SET, not a count of it. A summary retained
+                # at lower resolution than the question needs is what left M1
+                # unadjudicable and S1/S2 unadjudicable before it (27.8); with
+                # the ids kept, any population restriction is computable from
+                # the artifact forever without spending another read.
                 curve.append({"multiplier": float(m), "nominal_rate": rate,
-                              "caught": len(ct)})
-                print(f"    {name} mult {m:5.2f}  nominal {100*rate:7.4f}%  "
-                      f"caught {len(ct):3d}")
+                              "caught": len(ct),
+                              "in_range_contextual": len(
+                                  set(ct) & set(pops[cell]["in_range_contextual"])),
+                              "caught_ids": sorted(ct)})
+                irc = len(set(ct) & set(pops[cell]["in_range_contextual"]))
+                flag = "" if rate > base_rate else "  <= target"
+                print(f"    {name} mult {m:5.3f}  nominal {100*rate:7.4f}%  "
+                      f"caught {len(ct):3d}  in-range contextual {irc:3d}{flag}")
                 if rate <= base_rate and (best is None or len(ct) > best[2]):
                     best = (float(m), rate, len(ct), masks)
             sweeps[name] = curve

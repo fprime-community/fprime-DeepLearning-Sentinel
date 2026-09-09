@@ -8780,6 +8780,66 @@ population that responds to an operating point would look like, and it is consis
   fits. It is not folded into arm 2.
 - `src/sentinel_models/telemanom.py` untouched. No ESA-ADB figure moves.
 
+### 33.8 OBSERVED -- the crossing resolved, and M1 refuted robustly
+
+**2026-09-09. One read, 165 Class B and 1 Class A**, no fits, **weight store 558 -> 558**.
+Artifact `runs/smap-msl/_forensics/2026-09-09T184916Z-wi910-port.json`. **Same arm, same
+predictions, better instrument** -- M1 and M2 are re-adjudicated on the grid 33.7 said was
+too coarse to settle them, and neither is re-worded.
+
+**The grid is two-stage now**: the original 24 geometric points are kept unchanged so the
+two curves are comparable, and **[1.80, 2.10] is resolved at 0.01**, 55 points in all. And
+the curve retains the **caught set** at every point rather than a count of it, so any
+population restriction is computable from the artifact without another read -- the durable
+form of the fix, and the same lesson 27.8 taught about alarm ranges.
+
+#### The crossing
+
+```
+   multiplier   nominal%   caught   in-range contextual
+      1.850      0.7810      34            8
+      1.865      0.7578      34            8       <- 33.7's last point above target
+      1.870      0.7556      34            8
+      1.880      0.6021      31            6       <- best at or under 0.6838%
+      1.890      0.5734      30            6
+      2.016      0.4465      28            6       <- 33.7's selected point
+```
+
+**The step 33.7 could not see is real and it is worth two events**, not six: the six extra
+*total* catches in the gap contain **two** in-range contextual ones. And the arm is now
+compared at **0.6021% against stage 4's 0.6838%** -- 12% quieter rather than 35%.
+
+#### M1 and M2, adjudicated
+
+**Across all 38 grid points at or under the target, the best in-range contextual count is
+6.** Restricted to stage 4's own 38 sequences it is also **6, against stage 4's 10**.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **M1** | more than 10 of stage 4's 38 | **6** | **REFUTED** |
+| **M2** | 14 or more | 6 | **REFUTED** |
+
+**And the refutation survives being generous.** Given a rate **louder** than stage 4's --
+0.7556%, 10% above the target -- C1 still reaches only **8**. To reach 16 it needs
+**1.2360%**, nearly twice stage 4's alarm rate. **There is no operating point at or near
+0.6838% where C1 competes with stage 4's 10/38**, and 33.7's caveat is discharged rather
+than left standing.
+
+#### What this settles
+
+- **Stage 4's `10/38` stands unreplaced**, now on evidence that resolves the crossing
+  instead of straddling it.
+- **C1's advantage is a precision result, not an early-warning one.** 54/104 at 93.1% is
+  real and it lives at 1.88% nominal; brought to a flyable rate the arm is behind the one
+  it was meant to beat. That is the useful thing arm 1 establishes, and it is what arm 2
+  has to move.
+- **The instrument defect is closed at its root**, not patched: retaining a summary rather
+  than the set is what made 33.7 unadjudicable, and the set is retained now.
+- K2 is unaffected -- it held at 6 against Arm T's 12/39 on the coarse grid and holds at 6
+  here.
+
+---
+
 ### 33.6 What follows, named and not registered
 
 The ladder's other two arms, in the order they will be taken: **label-free forecaster

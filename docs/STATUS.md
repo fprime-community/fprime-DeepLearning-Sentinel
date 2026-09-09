@@ -223,10 +223,11 @@ comparison is owed.
 the measured point - swept to 0.4465%, C1 catches **6 of stage 4's own 38** against stage
 4's **10/38**, so **stage 4's 10/38 stands unreplaced and the front page does not change**.
 **K2 is discharged and HELD.** C1's large advantage over Arm T lives at 1.88% nominal and
-does not survive being brought near a flyable rate. **(!) A grid refinement is owed**: the
-24-point grid straddles the target at 0.7578% and 0.4465% with nothing between, so C1 is
-compared 35% quieter than stage 4, and the curve did not retain the contextual breakdown
-per multiplier. Whether C1 is behind at exactly 0.6838% is **unresolved**. Also corrected
+does not survive being brought near a flyable rate. **The grid refinement ran the same
+day** (33.8): resolved at 0.01 across the crossing, 55 points, with the caught set retained
+at every one. **M1 and M2 are refuted robustly** - the best count at or under the target is
+**6 against stage 4's 10**, and even given a rate 10% **louder** than stage 4's, C1 reaches
+only 8. There is no operating point near 0.6838% where C1 competes. Also corrected
 here: C1 carried a second unintended lever (T-g, the published target length), **worth zero
 events** - both numbers kept.
 

@@ -16,8 +16,9 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 
 ## [0.6.17] - 2026-09-09 - The dial: C1's advantage does not survive a flyable alarm rate
 
-Work item 9.16, pre-registered the same day. One read at 165 Class B and 1 Class A, no
-fits, weight store 558 -> 558. `docs/MODELS.md` 33.7, D61.
+Work item 9.16, pre-registered the same day. **Two** reads at 165 Class B and 1 Class A
+each, no fits, weight store 558 -> 558 on both -- the second to resolve a crossing the
+first grid could not see. `docs/MODELS.md` 33.7 and 33.8, D61.
 
 ### Added - D61, C1 as the ladder's base
 
@@ -42,7 +43,17 @@ fits 104 labelled sequences. A base is not an endorsement; C1 flies nowhere.
   ratio is the interesting part: SMAP halves as the rate falls fourfold, 50/68 to 25/68,
   while MSL moves 4 to 3.
 
-### (!) The grid cannot see the crossing, and the arm is not adjudicated on it
+### The crossing, resolved the same day (33.8)
+
+A second read at 165 Class B, no fits, re-adjudicated M1 and M2 on a two-stage grid -- the
+24 coarse points kept so the curves compare, **[1.80, 2.10] resolved at 0.01**, and the
+**caught set retained at every point** rather than a count of it, so any population
+restriction is computable from the artifact forever. **M1 and M2 refuted robustly**: the
+best in-range contextual count at or under the target is **6 against stage 4's 10**, and
+even at a rate 10% **louder** than stage 4's, C1 reaches only 8. To reach 16 it needs twice
+stage 4's alarm rate. **C1's advantage is a precision result and not an early-warning one.**
+
+### (!) Why a second read was needed -- the grid could not see the crossing
 
 The selection rule takes the best point at or below the target, and this grid's neighbours
 straddle it -- **0.7578% and 0.4465% with nothing between** -- so C1 is compared **35%
