@@ -9023,6 +9023,94 @@ fourfold) and by cell (the GRU is about 0.6 of the LSTM); `hidden` barely regist
 the weight store grows past 593; if any recall figure for a grid configuration exists before
 the winner is fixed (34.1); or above 200 Class B in either read.
 
+### 34.8 OBSERVED -- stage A: the winner is the published configuration with the cell swapped
+
+**2026-09-09. One read, 19 Class B and 1 Class A**, 512 fits, four workers, **108.1 min
+wall clock**, weight store **566 -> 1070 (+504)**. Artifact
+`runs/smap-msl/_forensics/2026-09-09T205949Z-wi917-grid-a.json`.
+
+**This section is committed before stage B runs.** 34.1 requires that the winner be fixed
+without any recall number existing, and the commit that carries this text carries no
+scored figure for any configuration. **P1 and P2 are not adjudicated here and cannot be.**
+
+#### The winner, under 34.4's rule and no other
+
+```
+   WINNER   cell=gru  window=250  hidden=(80,80)  epochs=35   59,610 parameters
+            primary 9.974227e-02      tied within 1%: itself alone
+```
+
+**No tie-break was needed**: one configuration sits inside the 1% band, so the ranking
+decided it and the flight-property clauses never fired.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **P3** | the published configuration does not win | winner is **`gru`**, not `lstm`; the published `lstm, 250, (80,80), 35` ranks **7th of 32** | **HELD** |
+| **P4** | the winner's lookback is 150 or less | **250** | **REFUTED** |
+| **P5** | the epochs axis is inert to within 1% | **15 of 16 pairs differ by more than 1%**, up to 20.3% | **REFUTED** |
+
+#### (!) P3 held on one axis and the honest reading is narrower than the verdict
+
+**The winner is the published configuration with the cell swapped and nothing else.**
+Lookback 250, width 80, epochs 35 -- three of four axes landed exactly on telemanom's
+published values, and the grid searched four alternatives for the lookback and two for each
+of the others. **P3's verdict is HELD and its substance is that the published configuration
+is very nearly right on its own data**, which is closer to P3's refutation clause than to
+its prediction. Reported as such rather than banked as a win.
+
+#### (!) P5 refuted, and it refutes a prediction taken from my own measurement
+
+P5 was registered from the cost surface: 35 and 70 epochs cost identical wall clock at every
+synthetic corner, and equal cost means equal epochs run, which means equal weights. **On
+real telemetry that is false**, and the direction is the finding:
+
+```
+   gru 150 (80,80)     35: 1.0487e-01     70: 1.2613e-01     20.3% WORSE
+   gru 100 (80,80)     35: 1.0512e-01     70: 1.2126e-01     15.4% WORSE
+   gru  50 (40,40)     35: 1.0298e-01     70: 1.1448e-01     11.2% WORSE
+```
+
+**More training makes held-out forecast error worse, consistently.** The mechanism is in
+the published configuration itself: `restore_best = False` (T-h), so a run that trains
+longer keeps *the last* weights rather than the best ones, and 70 epochs simply travels
+further past the minimum. **The published 35 is doing real work**, and it is a budget rather
+than a formality.
+
+**The synthetic measurement was wrong and keeping the axis is what caught it.** 34.5 said
+dropping half a registered grid on a timing measurement was the edit this discipline exists
+to prevent; the axis was kept, cost about an hour, and returned a finding that the shortcut
+would have destroyed.
+
+#### The spread, which is the number that matters for the ladder
+
+**Best to worst across all 32 configurations is 9.974e-02 to 1.261e-01 -- a factor of
+1.265, or 26.5%.** The top ten sit inside 5% of each other. **Varying the forecaster over a
+32-point grid moves held-out forecast error by about a quarter**, and whether a quarter of
+the forecast error is worth anything at the operating point is exactly what stage B
+measures and what P1 was written to decide.
+
+#### One channel contributed nothing, and it is the one telemanom special-cases
+
+**`C-2` stalled on all 32 configurations**: `held-out window too short: [861, 754)`. Its
+training split is short enough that the last 20%, minus the 250-step position pin, is empty.
+One of 16 is far under 34.3's disqualification line of more than 8, so no configuration was
+disqualified and **the primary metric is a mean over 15 channels rather than 16** -- stated
+because the denominator is not what 34.3 implies.
+
+**`C-2` is also the channel telemanom's own source special-cases** (`errors.py:62`:
+`if not channel.id == 'C-2'`, commented *anomaly occurs early in window*). Two
+implementations independently finding the same channel awkward, for related reasons about
+where its usable data sits, is worth recording even though nothing here depends on it.
+
+#### An instrument nit, recorded
+
+The run reports a fit-time **spread of 42,945x**, which is meaningless: the eight fits the
+smoke had already banked returned from cache at 0.0s and entered the statistic. The mean
+(43.3s) and median (31.4s) are over a mixture of 504 real fits and 8 cache hits and are
+therefore very slightly optimistic. It does not affect any projection that mattered -- the
+run finished at 108.1 min against a 1.5-to-2.6 hour estimate -- and the counter should
+exclude cache hits.
+
 ### 34.7 What follows, named and not registered
 
 **Arm 3: a 3-seed ensemble over Stage B's winner**, mean prediction, scored the same way,
