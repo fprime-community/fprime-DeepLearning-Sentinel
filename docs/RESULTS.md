@@ -757,7 +757,17 @@ already on record: group 8 renders these events as sub-grid-cell spikes
 travel with the number.
 
 **Four hypotheses for the losses, measured and refuted, 2026-08-28.**
-Artifacts `runs/m1-g8.9.10/_forensics/2026-08-28T03*-{pruning,discriminator}.json`.
+Artifacts `runs/m1-g8.9.10/_forensics/2026-08-28T031024Z-pruning.json` and
+`runs/m1-g8.9.10/_forensics/2026-08-28T034312Z-discriminator.json`, produced by
+`scripts/whitened_pruning.py` and `scripts/whitened_discriminator.py`.
+
+**(!) Both citations added 2026-09-09.** The paths were written as the brace glob
+`2026-08-28T03*-{pruning,discriminator}.json` and the two scripts were named
+nowhere in any document, so these figures had an artifact and no traceable
+generator. `docs/NARRATIVE.md` 11 states the rule -- a run that produces a
+documented figure lands its script in the same commit as the figure -- and it was
+written after these two, so they predate it rather than break it. Recorded rather
+than quietly fixed.
 
 | Hypothesis | Verdict |
 |---|---|

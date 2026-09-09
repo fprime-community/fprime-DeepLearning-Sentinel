@@ -27,8 +27,16 @@ re-derive them. `docs/NARRATIVE.md` records what that cost.
 three-clause BSD notice, "Copyright (c) 2018, California Institute of Technology
 (Caltech). U.S. Government sponsorship acknowledged." `docs/DATA.md` records the
 upstream as Apache-2.0 and that is wrong; the correction is carried in
-`docs/DECISIONS.md` and `src/sentinel_data/docs_gen.py`, which generates that
-line.
+`docs/DECISIONS.md` D53 and in `docs/DATA.md`'s SMAP/MSL block, which is
+hand-written prose, and in `scripts/ingest_smap_msl.py:57` so any future ingest
+is right.
+
+**(!) Corrected here 2026-09-09.** This paragraph used to say the correction was
+carried in `src/sentinel_data/docs_gen.py`, "which generates that line". It does
+not: the generator has no telemanom licence line at all, and its only licence
+interpolation is ESA-ADB's at `docs_gen.py:175`. The stored R2 manifest object
+`_manifest/smap_msl.json` also still carries the Apache-2.0 string, as
+`docs/DATA.md` records; rewriting it costs one Class A and has not been done.
 
 **Two obligations follow, and both bind on public release.** The copyright notice
 and the disclaimer are retained here verbatim, which satisfies clause 1. Clause 3

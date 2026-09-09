@@ -866,3 +866,116 @@ thought of as the durable thing, came through.
 per-unit measurement multiplied by a worker count is an estimate of one term in a
 sum, and the other terms -- the runtime each worker re-imports, the parent's own
 growth since the baseline -- are the ones that decide whether it fits.
+
+## 12. Work items 9.12 and 9.14: two hypotheses of mine, measured and refuted
+
+**2026-09-08, written at the work-item boundary** where `docs/HARNESS.md` 5a says
+it gets written. Section 11 ended with the reproduction finally reaching a
+precise target: twelve false positives, on a population that matches the paper's
+exactly on MSL. Two arms ran against it. Neither closed the gap, and both refuted
+a hypothesis this project had written down first, which is the part worth
+keeping.
+
+### The residual rung changed nothing, and its own author's story was wrong
+
+Arm R was the last transcription difference left. telemanom computes its residual
+over the supervised region only and then replaces the first `l_s` smoothed
+samples with the mean of the first `2*l_s` (`errors.py:48-64`), where ours ran
+the EWMA across the full test array including the padded warm-up. Our `e_s`
+entered the scored region carrying smoothing state from padded residuals, and
+`mean_e_s` and `sd_e_s` set every epsilon. It looked like the kind of thing that
+would matter.
+
+**It equals Arm T in every cell.** 46/104, 83.6% precision, 9 false positives,
+the same nominal rate to four decimal places. It moves individual events between
+forensic classes and moves no verdict.
+
+The interesting refutation is the other one. `docs/MODELS.md` 28.8 had argued --
+and it was mine -- that a better forecaster produces **smaller** residuals, so the
+published absolute floors would filter them out and that is what silences MSL.
+It is D18 one layer down, and it reads well.
+
+**Measured, the opposite is true.** `max(e_s)` on MSL is **0.7323** at the median
+against a `sd(values)` of 0.5721, and **0 of 27** channels fall below the 0.05
+floor. The residuals are not small. They are large, and `errors.py:339` is
+nowhere near binding on any channel.
+
+So the forecaster is simply doing badly on MSL. That is a different problem from
+the one 28.8 described and a considerably more ordinary one, and the wrong
+hypothesis is kept in full with its reasoning, because a principle that was
+arrived at by three correct guesses and one wrong one is better supported than
+one that was never tested.
+
+**R2 is worth a paragraph for the opposite reason.** Its refutation clause said
+five or more `offset` events would reopen the coordinate question, and thirteen
+fired. The stop was discharged on evidence rather than waived: a frame error puts
+every one of them at plus or minus 250, and the measured distances scatter from
+-503 to +427 with **0 of 13** in that band, on both spacecraft, with the same
+class firing at the same rate on SMAP where detection works. The defect was in my
+classifier, which trips whenever a peak forty samples from a narrow label falls
+outside the span. A stop that fires and is then discharged by measurement is the
+mechanism working, not being bypassed.
+
+### The detector that predicts its own uncertainty predicted a constant
+
+By then the reproduction had answered what it was asked. The gap is not the
+scoring rule, the commands, pruning's rung, cross-window tracking, the
+aggregation, the window regime or the training configuration -- each measured and
+closed. **It is the residual itself**, and D55 had just said why every transcribed
+constant failed to travel.
+
+`gru-zscore` was the answer to that: the same GRU with a head emitting `mu` and
+`log sigma^2`, a Gaussian likelihood on nominal data, and `z = (x - mu) / sigma`
+under D25's unchanged threshold. **`z` is dimensionless by construction**, so D55
+is satisfied structurally rather than by choosing better constants. It stops
+chasing Table 2 and changes the detector instead of the transcription.
+
+**H4 was written as a stop precisely so this could fail, and it failed.** The
+per-channel `sigma` was predicted not to be approximately constant -- coefficient
+of variation above 0.25 on more than half of channels. Measured: **0.0504 at the
+median, above 0.25 on 11 of 79.** 31.5's own sentence, written before the run,
+describes the outcome exactly: the head "learned a global scale, `z` is
+`|x - mu|` divided by a constant, and the arm is the old detector with extra
+parameters."
+
+MSL came in at 5/36 against `A0`'s 16/36 and the paper's 25/36, with 27 false
+alarms against 2. Both refuted.
+
+**And H5 is why this is a finding rather than a bug report.** Held-out nominal NLL
+improved on **79 of 79** channels, median best epoch 34 of 35. The likelihood
+objective trained. This is not an optimisation failure and it is not a plumbing
+failure: the model could have learned a varying sigma and did not. A single
+univariate channel gives the likelihood no reason to vary it with state, which is
+named as the next question and deliberately not registered as an arm yet.
+
+### Three defects, and two of them never reached a read
+
+Two were caught by the smoke. The relative early-stopping rule raised the bar on
+a **negative** loss, which is nonsense the moment an objective can go below zero
+and which no MSE arm could ever have exposed; it is fixed sign-safely, is
+identical for every non-negative loss, and is pinned by a test. And `Weights`
+refused a doubled head, which is a real finding rather than an inconvenience: **a
+Gaussian head is not representable in `model.bin` version 1** (D30), so this
+detector could not fly as it stands even if it had worked.
+
+The third survived to the artifact. **The weight store grew by 0, not the
+pre-registered +81**, because `build_zscore` fits through `lstm.train` directly
+while the cache lives in `ForecastDetector.fit`. Arm H's weights are therefore
+never persisted and the arm is reproducible only from its seed. That is the
+weaker half of `docs/NARRATIVE.md` 11's rule arriving again from a different
+direction: the script is committed and the figure is sourced, and the fits behind
+it are not on disk.
+
+### What the two arms bought
+
+Nothing on the leaderboard. Stage 4's 10/38 still stands unreplaced, and the
+fourth arm in a row failed D48's way -- `gru-zscore` alarms on 19.41% of nominal
+time at D25's threshold, and swept it saturates at the grid maximum still holding
+1.18% with 0 of 39 in-range contextual. A constant divisor cannot repair a
+distribution shift.
+
+What they bought is the end of a line of inquiry, established rather than
+assumed. Six model variants have now been measured on this data and none beats
+10/38. The reproduction is closed as the route to better recall, and the
+remaining contexts -- commands, and a testbed with real coupled physics -- are
+where the question goes next.

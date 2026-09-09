@@ -430,11 +430,18 @@ HOUSEKEEPING
       (`errors.py:48-64`), where ours runs the EWMA across the **full** test array
       including the padded warm-up. Our `e_s` enters the scored region carrying smoothing
       state from padded residuals, and `mean_e_s` and `sd_e_s` set every epsilon.
-- [ ] **(!) The ledger is short by 165 Class B.** The first full run was killed by the OS
-      for low memory after the fits and before `ops.commit`. 77 of 78 fits survived on
-      disk; the operations did not. The ledger reads 2,446 for 2026-09 and the true
-      figure is **2,611**. Recorded rather than silently corrected, as August's shortfall
-      was. Correcting it costs 1 Class A and has not been done.
+- [x] **The ledger was short by 165 Class B, and it was corrected 2026-09-08.** The first
+      full run was killed by the OS for low memory after the fits and before `ops.commit`.
+      77 of 78 fits survived on disk; the operations did not. The ledger read 2,446 for
+      2026-09 against a true figure of **2,611**. **(!) This line read "Correcting it costs
+      1 Class A and has not been done" until 2026-09-09, and it was stale**: the correction
+      was made on 2026-09-08 at 1 Class A and 1 Class B, and `docs/MODELS.md` 30.3 and 31.6
+      both record the corrected ledger. It is visible in the artifacts as a +1 Class A and
+      +166 Class B step between `2026-09-08T201450Z-wi910-port.json` (189 / 2,446) and
+      `2026-09-08T210915Z-wi910-port.json` (191 / 2,619) across an intervening run that
+      spent 7 Class B. **The month now stands at 196 Class A and 2,974 Class B of 50,000
+      each**, read from `runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json` and
+      not transcribed. Recorded rather than silently amended, as August's shortfall was.
 - [x] **Work item 9.12 (Arm R) - run 2026-09-08** (`docs/MODELS.md` 29.4), 165 Class B,
       weight store +0. **The residual rung changes nothing**: Arm R equals Arm T in every
       cell, so R1 is refuted and it is not the cause. **R2 refuted but the stop is

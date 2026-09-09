@@ -161,7 +161,7 @@ knowing what to pretrain. Full detail in Objective.md 14.10.
 
 ## D6. Command conditioning -- telecommands become model inputs
 
-**DATE** 2026-08-26 | **STATUS** open, being implemented
+**DATE** 2026-08-26 | **STATUS** open, being implemented. **(!) CLOSED 2026-09-03 by D49**: on SMAP/MSL, the only data this project holds that carries commands, conditioning on them makes the detector **worse** at a matched alarm rate -- 6/38 against 10/38 in-range contextual, 33/100 against 47/100 overall. D49 consequence 3 bounds that to what was measured: one-hot command indicators, SMAP/MSL, per-channel univariate models, the published dynamic threshold. It says nothing about a different encoding and nothing about ESA-ADB, whose telecommands remain unwired. The status line above was left reading `open, being implemented` for six days after D49 closed it and is amended here, not rewritten
 
 **CONTEXT.** The decision grid could not fix the false-alarm rate: the best of 24
 cells still alarmed on 15 of 48 commanded manoeuvres. The cause turned out not to
@@ -1407,7 +1407,7 @@ only *no worse than the arm it is compared with*.
 
 ## D25. The decision layer is `lstm-quantile`. Supersedes D24
 
-**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate
+**DATE** 2026-08-28 | **STATUS** resolved -- frozen for the architecture gate. **(!) BOUNDED 2026-09-03 by D48**, and not withdrawn: the frozen static quantile describes a **stationary** regime, one where the fitting window's residual scale predicts the scored window's. Every ESA-ADB result below stands. On SMAP/MSL no train-calibrated threshold transfers for any arm, which replicates D29's `m1-g3` collapse on a second spacecraft dataset, so the condition this decision was always resting on is now stated rather than assumed. The forward-reference is added here because D48 carried the bound and this entry did not point at it
 
 **CONTEXT.** D24 froze `lstm-whitened` without ever comparing it against
 `lstm-quantile` on post-fix weights, because D13 had closed that branch -- on

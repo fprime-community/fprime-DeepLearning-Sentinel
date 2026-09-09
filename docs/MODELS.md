@@ -5203,7 +5203,10 @@ Or write the headline, which is held at `docs/STATUS.md` section 7.
 
 **2026-09-03. One bundle load, 1 Class A and 15 Class B**, both channel sets, all
 folds, cached weights, nothing refitted during the run. Artifact
-`runs/m1-g8.9.10/_forensics/2026-09-03T185207Z-precursor.json`.
+`runs/m1-g8.9.10/_forensics/2026-09-03T185207Z-precursor.json`, produced by
+`scripts/precursor_test.py`. **(!) The script citation was added 2026-09-09**: the
+file was committed and this section never named it, so the figure was traceable
+only by reading the script's own docstring back the other way.
 
 **Stop-and-report trigger 2 fired: S2 is refuted on both sets, and the reason is
 the finding.** There is no precursor population to test, because the forecaster
@@ -5360,9 +5363,15 @@ here and does not run without approval.
 3. Any ESA-ADB figure, task, weight or manifest moves. Nothing here touches them.
 4. More than 200 Class B in the run, or the per-run tripwire at 1,000.
 
-### 26.6 OBSERVED
+### 26.6 OBSERVED -- reserved, before the run
 
 Reserved. Nothing has run.
+
+**(!) Distinguished 2026-09-09.** This placeholder and the entry below both read
+`### 26.6 OBSERVED`, so the section had two identically-named headings and an
+anchor that resolved to the wrong one. The placeholder is kept rather than
+deleted -- it is the record of the pre-registration's shape before anything ran --
+and only its heading is qualified.
 
 ### 26.6 OBSERVED
 
@@ -7404,7 +7413,7 @@ section reads its training from the source before touching it.**
 
 | # | Stage | telemanom | ours | Effect |
 |---|---|---|---|---|
-| **T-a** | **prediction aggregation** | `aggregate_predictions(y_hat_batch)` -- **`method='first'` by default** (`modeling.py:113`, called with no method at `:172`), so the forecast for a timestep is the **single one-step-ahead prediction** | `windows.aggregate_predictions` averages up to ten predictions, and its docstring says *"telemanom averages them"* (`windows.py:214`) | **Ours smooths the residual with a ten-fold average.** Directly damps the sharp excursions the detector exists to find. **The largest single difference found** |
+| **T-a** | **prediction aggregation** | `aggregate_predictions(y_hat_batch)` -- **`method='first'` by default** (`modeling.py:113`, called with no method at `:172`), so the forecast for a timestep is the **single one-step-ahead prediction** | `windows.aggregate_predictions` averages up to ten predictions. Its docstring said *"telemanom averages them"* from work item 4 until 2026-09-08. **(!) Corrected 2026-09-09:** that sentence is no longer live -- the docstring now carries a `MIS-CITATION CORRECTED` rider quoting it only to withdraw it, and `method="first"` is implemented beside `"mean"` (`src/sentinel_models/windows.py:218-241`). The old reference `windows.py:214` is also stale: line 214 is now a closing paren, the function begins at `:218` and the quoted text sits at `:228` | **Ours smooths the residual with a ten-fold average.** Directly damps the sharp excursions the detector exists to find. **The largest single difference found** |
 | **T-b** | **training batch size** | `lstm_batch_size: 64` (`config.yaml`, used at `modeling.py:99`) | `batch_size: int = 70  # published` (`lstm.py:93`) | **70 is `batch_size`, the *error-window* batch, not the training one.** Two different published constants conflated |
 | **T-c** | **early stopping bar** | `min_delta: 0.0003`, absolute, no restore (`modeling.py:72-75`) | `min_improvement: 0.001`, a **fraction of the standing best**, with `restore_best=True` (`lstm.py:110-140`) | D17 replaced the absolute constant because ESA-ADB validation MSE is ~1e-4 and the bar went negative. **SMAP/MSL is pre-scaled to (-1,1)**, so the absolute constant may be correct here and D17's finding may not transfer. **Tested, not assumed** |
 | **T-d** | **validation split** | `validation_split=0.2` over windows **pre-shuffled** by `np.random.shuffle` (`channel.py:62`), so a random 20% | the **chronological tail** (`lstm.py:118-119`, HARNESS section 3) | Ours is the harder and more honest split; theirs is what the published numbers were produced on |
@@ -8090,7 +8099,11 @@ and neither is built here.
 ### 31.8 OBSERVED -- sigma collapses to a per-channel constant, and H4's stop fires
 
 **2026-09-08. One read, 165 Class B and 1 Class A.** Artifact
-`runs/smap-msl/_forensics/2026-09-08T2*-wi910-port.json` (the last of that date).
+`runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json`. **(!) This citation
+was written as the glob `2026-09-08T2*-wi910-port.json` ("the last of that date")
+and is pinned here 2026-09-09.** Every other OBSERVED in this document cites an
+exact path, and a glob is not a citation: it resolves against a gitignored
+directory whose contents change. The path above is what it resolved to.
 81 channels attempted, **79 fitted**, 102 sequences, **MSL 36 -- like-for-like
 with the paper**.
 

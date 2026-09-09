@@ -35,7 +35,6 @@ venv/
 
 # Ingest working area -- nothing here is ever committed
 scratch/
-.env
 *.zip
 *.pkl
 

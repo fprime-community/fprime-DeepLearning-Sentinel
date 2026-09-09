@@ -74,7 +74,8 @@ restatement.
 | CATS | Synthetic stress test | Full root-cause metadata. Always mark as synthetic |
 | SMAP/MSL | Legacy comparability only | Discredited (Wu & Keogh, TKDE 2023) and its channels are not synchronised with each other, so our core claim could not be demonstrated on it. See `Objective.md` section 9.2 |
 
-Only ESA-ADB is ingested so far. `opssat-ad/v1/` and `cats/v1/` are later tasks.
+Only ESA-ADB and SMAP/MSL are ingested so far. `opssat-ad/v1/` and `cats/v1/` are
+later tasks.
 
 ## 2. Where it lives
 
