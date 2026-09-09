@@ -8847,3 +8847,185 @@ selection** over a fixed grid, decided **only** on held-out nominal validation e
 scored once; then a **seed ensemble** over the winner. Each is one lever, each is
 pre-registered separately with its own compute plan and smoke, and **neither is built
 here.** The flight component carries one model whatever the ensemble measures.
+
+---
+
+## 34. Pre-registration: label-free forecaster selection (work item 9.17, arm 2)
+
+**Written and committed before a single fit runs.** 33.8 established what this arm has to
+move: C1's 54/104 at 93.1% precision is a **precision** result living at 1.88% nominal, and
+brought to a flyable rate it reaches 6 of stage 4's 38 against stage 4's 10. Every
+mechanism in the detection stack has now been measured and closed. **What has never been
+varied is the forecaster itself.**
+
+### 34.1 The one rule this arm exists to obey
+
+**The winner is chosen only on held-out nominal validation error. No label, no recall, no
+alarm rate, and no artifact from any scored arm enters the selection.** D61 consequence 2:
+selecting on recall would be choosing the model that best fits 104 labelled sequences,
+which is exactly what a 104-sequence dataset cannot support, and it is the test-set search
+this project has spent five work items avoiding.
+
+**Stage A produces a ranking and nothing else. Stage B scores the winner once.** If Stage
+A's artifact is written and a recall number for any grid configuration exists anywhere
+before the winner is fixed, **the arm is void and is re-run from nothing.**
+
+### 34.2 The grid: 32 configurations
+
+```
+   cell        lstm, gru                      2
+   window      50, 100, 150, 250 (l_s)        4
+   hidden      (40,40), (80,80)               2
+   max_epochs  35, 70                         2
+                                          -----
+                                             32
+```
+
+Everything else is **C1's configuration held fixed**: the published training block
+(`train_batch_size=64`, `min_delta_absolute=0.0003`, shuffled split, full epochs, no weight
+restoration), `n_predictions = 10`, dropout 0.3, `seed = 0`, and **the commands withheld**,
+which D60 measured strictly better on every axis. So the grid varies the forecaster and
+nothing else.
+
+**`n_predictions` is fixed at 10 on purpose**: it is what makes validation error comparable
+across configurations at all, because every model predicts the same ten-step-ahead target.
+
+### 34.3 The subsample, and the rule is written here
+
+**16 channels, 8 SMAP and 8 MSL**, drawn as follows and not otherwise:
+
+```
+   for each spacecraft, in the manifest's own channel order:
+       rng = numpy.random.default_rng(0)
+       take rng.choice(channels, size=8, replace=False)
+```
+
+Fixed seed, fixed order, no reference to any result. **It is stated here so that a
+subsample that produces an inconvenient winner cannot be redrawn.**
+
+**Why a subsample is defensible for this and only this.** The selection metric is
+label-free forecast error on nominal telemetry, so the subsample needs to be representative
+of the *telemetry*, not of the *anomalies* -- and no label is consulted, so no leak is
+possible through the draw. The alternative is 2,592 fits, and 34.6 prices it.
+
+**A configuration that stalls more than 8 of its 16 channels is disqualified** rather than
+scored on the remainder, and the stall count is reported per configuration whatever the
+outcome.
+
+### 34.4 The metric and the tie-break, both fixed before anything runs
+
+**The held-out window is the last 20% of each channel's training split**, chronologically.
+Each configuration is fitted on the **first 80% only**, so the window it is scored on is
+data it has not been trained on.
+
+**The metric is the ten-step-ahead squared error over that window, at positions valid
+under the longest lookback in the grid.** Every configuration is evaluated at the same
+timestamps `t` in `[0.8n + 250, n - 10]`, predicting `t+1 .. t+10`, each using its own
+lookback for history. **The targets are therefore identical across all 32 configurations**,
+which is the whole reason for pinning the position set to `l_s = 250` rather than letting
+each configuration choose its own.
+
+```
+   primary     mean over channels of each channel's mean squared error
+   secondary   the pooled MSE over all channels and positions, reported beside it
+```
+
+**Primary is the mean of per-channel means** so that one noisy channel cannot decide the
+grid. Both are reported; the primary selects.
+
+**The tie-break, in order, and every clause is a flight property rather than a result
+property:**
+
+```
+   1. within 1% RELATIVE of the best primary metric counts as a tie
+   2. fewer parameters wins
+   3. shorter lookback wins
+   4. gru wins
+```
+
+The 1% band exists because selecting on the fourth decimal of a validation MSE is
+selecting on noise, and because a smaller model that ties is the better thing to fly.
+
+### 34.5 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **P1** | **the commissioned number.** At a nominal rate at or below stage 4's **0.6838%**, the winner catches **more than 10** of stage 4's own 38 in-range contextual sequences | **10 or fewer.** Stage 4's `10/38` then stands after the forecaster itself has been varied, and the conclusion is that **this dataset's ceiling is not the forecaster** -- which closes the improvement ladder's premise and sends everything to Phase 3's testbed |
+| **P2** | and the winner's **total** recall at that rate exceeds C1's **31/104** | at or below 31/104 |
+| **P3** | **the published configuration does not win.** The winner is not `lstm, l_s=250, hidden=(80,80), epochs=35` | it wins, which would say the forecaster was never the problem and that eight work items of transcription were chasing the right target after all. **Informative either way and reported as a finding, not as a disappointment** |
+| **P4** | **a shorter lookback wins**: the winner's `window` is **150 or less**. SMAP/MSL test series run to a few thousand steps and `l_s = 250` consumes a tenth of one before it forecasts anything | 250, which would say the published lookback is right on its own data and that D47's proportional-window argument does not reach the forecaster |
+
+| **P5** | **the `max_epochs` axis is inert.** For every `(cell, window, hidden)`, the 35-epoch and 70-epoch configurations agree on the primary metric to within **1% relative** -- because `patience = 10` stops training long before 35 epochs and the extra budget is never spent | any pair differing by more than 1%, which would mean the published 35 is a binding budget on this data and that early stopping is not what ends training |
+
+**P5 is registered from a compute measurement and before any grid result exists.** 34.6's
+cost surface, taken on synthetic arrays at zero operations, found the 35- and 70-epoch
+configurations costing **identical** wall clock to a tenth of a second at every corner --
+8.2s against 7.9s, 32.4s against 32.4s, 5.2s against 5.2s, 18.0s against 18.0s. Equal cost
+means equal epochs run, which means equal weights. **The axis is kept in the grid and run
+anyway**: dropping half a registered grid because a timing measurement suggested an axis
+was dead is exactly the edit this project's discipline exists to prevent, the synthetic
+series may be easier to fit than real telemetry, and the cost of honouring it is about an
+hour. If P5 holds, the finding belongs to the toolkit -- an epoch budget above the
+stopping rule buys nothing and should not be shipped as a knob.
+
+**Deliberately not predicted.** Which cell wins -- D28 settled GRU against LSTM on ESA-ADB
+and this is a different dataset, so a prediction would be an extrapolation. Whether the
+winner should fly; that is D28's gate re-run and it is not this arm's question. And
+anything about arm 3.
+
+### 34.6 Cost, the compute plan, and stop-and-report
+
+```
+   Stage A   32 configurations x 16 channels        512 fits    ~35 Class B, 1 Class A
+   Stage B   the winner x 81 channels                81 fits    165 Class B, 1 Class A
+   exhaustive alternative, NOT taken                2,592 fits
+```
+
+**Reads are small because Stage A loads 16 channels, not 81.** Ledger reads **204 Class A
+and 3,659 Class B**; both stages together would end near **206 and 3,859** of 50,000.
+
+**Weight store: a pre-registered +593** (512 + 81), or fewer under D17's guard. That is by
+far the largest growth this project has authorised and it is the reason a subsample is used
+at all.
+
+**(!) Compute is measured before it is committed, for the third time, and 28.7 is still the
+reason.** A smoke runs first: **4 configurations x 2 channels = 8 fits**, and the four are
+chosen to span the grid's corners -- `(lstm, 50, 40, 35)`, `(lstm, 250, 80, 70)`,
+`(gru, 50, 40, 35)`, `(gru, 250, 80, 70)` -- so the projection is anchored on the cheapest
+and the dearest rather than on one arbitrary point. It reports measured wall clock and
+measured peak RSS per configuration class.
+
+**If Stage A projects over three hours locally, the options are put with honest numbers and
+a pod is provisioned.** 31.6's three mitigations are carried unchanged.
+
+**(!) The measured cost, and why it is reported as a range.** Two measurements, and they
+disagree by a factor that matters:
+
+```
+   synthetic, 2,690 steps, zero operations      corner mean 16.7s  -> 0.6 h at 4 workers
+   the real 8-fit smoke, real channels          wall 2.4 min for 8 -> 2.6 h at 4 workers
+```
+
+**The synthetic surface understates the dear corner fourfold** -- 37.0s against the real
+143.1s -- because the real channels are longer than 2,690 steps, so it is used for the
+*shape* of the cost and not for its size. **The smoke's 8 fits over-represent expensive
+configurations**: two of its four corners have `window = 250` where only 8 of the grid's 32
+do, so scaling its wall clock straight to 512 overstates by roughly half. Correcting for
+that mix puts Stage A at **1.5 to 2.6 hours at four workers**, under the three-hour line,
+and it is run locally on that basis rather than on a point estimate nobody could defend.
+
+**What the cost surface says about the grid, recorded because it is a finding about the
+method and not only about the machine**: cost is dominated by `window` (50 to 250 is about
+fourfold) and by cell (the GRU is about 0.6 of the LSTM); `hidden` barely registers; and
+`max_epochs` does not register at all, which is P5.
+
+**Stop and report** if more than 8 of the 32 configurations are disqualified on stalls; if
+the weight store grows past 593; if any recall figure for a grid configuration exists before
+the winner is fixed (34.1); or above 200 Class B in either read.
+
+### 34.7 What follows, named and not registered
+
+**Arm 3: a 3-seed ensemble over Stage B's winner**, mean prediction, scored the same way,
+reporting the noise-floor reduction and the recall at matched rate. **The flight component
+carries one model** (D30), so it measures a ceiling rather than a candidate. **Then the
+pipeline freezes**, whatever the curve says, and Objective.md 13's work item 12 begins.

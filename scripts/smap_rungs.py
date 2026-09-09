@@ -784,6 +784,146 @@ def build_zscore(cid, train, test):
             "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
 
 
+# ===========================================================================
+#  Work item 9.17 stage A: label-free forecaster selection (docs/MODELS.md 34)
+# ===========================================================================
+
+#: 34.2. Thirty-two configurations, varying the forecaster and nothing else.
+GRID_CELLS = ("lstm", "gru")
+GRID_WINDOWS = (50, 100, 150, 250)
+GRID_HIDDEN = ((40, 40), (80, 80))
+GRID_EPOCHS = (35, 70)
+
+#: 34.4. Positions are pinned to the LONGEST lookback in the grid so every
+#: configuration is scored on identical targets. This is the whole reason the
+#: comparison is meaningful; without it each model would choose its own
+#: validation set and the MSEs would not be commensurable.
+GRID_PIN = max(GRID_WINDOWS)
+GRID_HOLDOUT = 0.20                      # 34.4, the chronological tail
+
+
+def grid_configs():
+    """The 32, in a fixed order so the artifact's rows are stable."""
+    out = []
+    for cell in GRID_CELLS:
+        for window in GRID_WINDOWS:
+            for hidden in GRID_HIDDEN:
+                for epochs in GRID_EPOCHS:
+                    out.append(dict(cell=cell, window=window, hidden=hidden,
+                                    max_epochs=epochs))
+    return out
+
+
+def grid_subsample(channels, per_craft=8, seed=0):
+    """34.3, written before it was run and reproduced from the seed alone.
+
+    No label and no result is consulted: the metric this feeds is label-free
+    forecast error, so the draw cannot leak anything a scored arm would.
+    """
+    chosen = []
+    for craft in ("SMAP", "MSL"):
+        pool = [c for c in channels if c["spacecraft"] == craft]
+        rng = np.random.default_rng(seed)
+        take = rng.choice(len(pool), size=min(per_craft, len(pool)), replace=False)
+        chosen.extend(pool[int(i)] for i in sorted(take))
+    return chosen
+
+
+def grid_validation_mse(cid, train, cfg):
+    """One configuration on one channel: held-out ten-step-ahead squared error.
+
+    34.4. Fitted on the first 80% of the training split and scored on the last
+    20%, at positions valid under `GRID_PIN` so every configuration in the grid
+    predicts the SAME targets from the same timestamps. Returns the channel's
+    mean squared error and the count of positions behind it.
+
+    **No label is read and no anomaly span is consulted.** This is the only
+    number 34.1 permits to decide the winner.
+    """
+    hyper = Hyper(cell=cfg["cell"], window=cfg["window"], hidden=cfg["hidden"],
+                  max_epochs=cfg["max_epochs"], **PUBLISHED_HYPER)
+    v = train[:, :1].astype(np.float32)               # commands withheld (D60)
+    n = len(v)
+    cut = int(n * (1.0 - GRID_HOLDOUT))
+    fit_on = v[:cut]
+    usable = np.ones(len(fit_on), dtype=bool)
+
+    # 34.6's +593 is only meaningful if the fits are BANKED. `fit_model` is
+    # `lstm.train`, which does not persist -- the cache lives in
+    # `ForecastDetector.fit` -- and that is 31.8's defect, which cost Arm H its
+    # reproducibility. Its own namespace, so a grid fit can never be served to a
+    # detector or vice versa.
+    key = ("wi917-grid-a", hyper.as_dict_key(), cid, GRID_HOLDOUT,
+           fit_on.shape, D._sample_digest(fit_on))
+    digest = D._digest(key)
+    cached = D._load_weights(digest)
+    if cached is None:
+        weights, rep = fit_model(fit_on, usable, hyper, fold=0)
+        report = rep.as_dict()
+        D._save_weights(digest, weights, report)
+    else:
+        weights, report = cached
+    model = _to_torch(weights, hyper, 1, 0)
+
+    lo, hi = cut + GRID_PIN, n - N_PREDICTIONS
+    if hi <= lo:
+        raise ReferenceError(f"held-out window too short: [{lo}, {hi})")
+    starts = np.arange(lo, hi)
+    # Targets: the next ten steps after each t. Identical for every config.
+    targets = np.stack([v[t + 1:t + 1 + N_PREDICTIONS, 0] for t in starts])
+    win = cfg["window"]
+    hist = np.stack([v[t + 1 - win:t + 1, 0] for t in starts])[:, :, None]
+    with torch.no_grad():
+        # `last_only=True` already drops the sequence axis, so the output is
+        # (batch, n_predictions, n_channels). Indexing [:, -1] here took the
+        # LAST PREDICTION instead of the last timestep and collapsed ten
+        # horizons into one; the smoke caught it before any grid ran.
+        out = model(torch.from_numpy(hist.astype(np.float32)))
+    pred = np.asarray(out)[:, :, 0]
+    mse = float(np.mean((pred - targets) ** 2))
+    n_par = int(sum(a.size for _, a in weights.arrays()))
+    D.clear_caches()
+    return {"mse": mse, "positions": int(len(starts)), "parameters": n_par,
+            "epochs_run": int(report.get("epochs_run", 0)),
+            "best_epoch": int(report.get("best_epoch", 0)),
+            "stalled": bool(report.get("best_epoch", 0) == 0
+                            and report.get("epochs_run", 0) > 1)}
+
+
+def grid_select(rows):
+    """34.4's tie-break, implemented exactly as written and in that order.
+
+    Every clause is a FLIGHT property -- size, then lookback, then cell -- so a
+    tie is broken by what is cheaper to fly and never by what scores better on
+    anything downstream. The 1% band exists because choosing on the fourth
+    decimal of a validation MSE is choosing on noise.
+    """
+    live = [r for r in rows if not r["disqualified"] and r["primary"] is not None]
+    if not live:
+        return None, []
+    best = min(r["primary"] for r in live)
+    tied = [r for r in live if r["primary"] <= best * 1.01]
+    order = sorted(tied, key=lambda r: (r["parameters"], r["window"],
+                                        0 if r["cell"] == "gru" else 1))
+    return order[0], tied
+
+
+def _fit_grid(job):
+    """One (channel, configuration) pair, in its own process."""
+    cid, train, cfg, tag = job
+    import sentinel_models.lstm as L
+    import resource
+    L.THREADS = 4
+    started = time.time()
+    try:
+        out, err = grid_validation_mse(cid, train, cfg), None
+    except Exception as exc:
+        out, err = None, f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return cid, tag, out, err, time.time() - started, peak_mb
+
+
 def build_zscore_cmd(cid, train, test):
     """Arm C2: `gru-zscore` with the command columns as exogenous inputs.
 
@@ -906,6 +1046,161 @@ def score_arm(alarm, scorable, spans):
             "tp": len(caught), "fp": len(ranges) - hits, "fired": fired}
 
 
+def grid_stage_a(args, client, cfg, ledger, budget, man) -> int:
+    """Work item 9.17 stage A. Produces a RANKING and nothing else (34.1).
+
+    No label is read, no anomaly span is loaded, and no scored arm is touched.
+    If this function ever computes a recall figure, 34.1 voids the arm.
+    """
+    chosen = grid_subsample(man["channels"])
+    configs = grid_configs()
+    if args.grid_smoke:
+        # 34.6's corners: the cheapest and the dearest of each cell, so the
+        # projection is not anchored on one arbitrary point in the middle.
+        configs = [dict(cell=c, window=w, hidden=h, max_epochs=e)
+                   for c, w, h, e in (("lstm", 50, (40, 40), 35),
+                                      ("lstm", 250, (80, 80), 70),
+                                      ("gru", 50, (40, 40), 35),
+                                      ("gru", 250, (80, 80), 70))]
+        chosen = chosen[:1] + chosen[-1:]                   # one SMAP, one MSL
+    print(f"  stage A: {len(configs)} configurations x {len(chosen)} channels "
+          f"= {len(configs) * len(chosen)} fits")
+    print(f"  subsample (seeded rule, 34.3): "
+          f"{', '.join(c['channel_id'] for c in chosen)}")
+
+    store = D.WEIGHT_STORE
+    before = sum(1 for p in store.iterdir() if p.suffix == ".npz")
+    jobs = []
+    for ch in chosen:
+        keys = {o["split"]: o["key"] for o in ch["objects"]}
+        train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
+        for i, conf in enumerate(configs):
+            jobs.append((ch["channel_id"], train, conf, i))
+
+    if args.workers > 1:
+        free = free_memory_gib()
+        print(f"  free memory {free:.1f} GiB (gate: 4.0)")
+        if free < 4.0:
+            print("  ABORT: below the pre-registered 4 GiB gate; not starting the pool.")
+            return 7
+    started, done = time.time(), []
+    if args.workers > 1:
+        batch = 4 * args.workers
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            for lo in range(0, len(jobs), batch):
+                done.extend(pool.map(_fit_grid, jobs[lo:lo + batch]))
+                for k in range(lo, min(lo + batch, len(jobs))):
+                    jobs[k] = None                      # release the arrays
+                print(f"    {min(lo + batch, len(jobs))}/{len(jobs)} fits")
+    else:
+        done = [_fit_grid(j) for j in jobs]
+    elapsed = time.time() - started
+
+    per_conf = collections.defaultdict(list)
+    stalls, secs, peaks = collections.defaultdict(list), [], []
+    for cid, tag, out, err, sec, peak in done:
+        secs.append(sec); peaks.append(peak)
+        if err is not None:
+            stalls[tag].append({"channel": cid, "error": err})
+        else:
+            per_conf[tag].append({"channel": cid, **out})
+
+    rows = []
+    for i, conf in enumerate(configs):
+        got = per_conf.get(i, [])
+        n_stall = len(stalls.get(i, []))
+        # 34.3: more than half the subsample stalled disqualifies the row.
+        dq = n_stall > len(chosen) // 2
+        rows.append({
+            "index": i, **{k: (list(v) if isinstance(v, tuple) else v)
+                           for k, v in conf.items()},
+            "channels_fitted": len(got), "stalls": n_stall, "disqualified": dq,
+            "parameters": got[0]["parameters"] if got else None,
+            # 34.4: primary is the MEAN OF PER-CHANNEL MEANS; pooled is beside it.
+            "primary": (float(np.mean([g["mse"] for g in got])) if got and not dq
+                        else None),
+            "pooled": (float(np.average([g["mse"] for g in got],
+                                        weights=[g["positions"] for g in got]))
+                       if got and not dq else None),
+            "per_channel": got,
+        })
+    winner, tied = grid_select(rows)
+
+    print()
+    print("  rank  cell  l_s  hidden  epochs  params   primary MSE   stalls")
+    for r in sorted([r for r in rows if r["primary"] is not None],
+                    key=lambda r: r["primary"])[:10]:
+        print(f"        {r['cell']:4s} {r['window']:4d}  {r['hidden'][0]:3d}   "
+              f"{r['max_epochs']:4d}  {r['parameters']:7d}  {r['primary']:.6e}  "
+              f"{r['stalls']:3d}")
+    if winner:
+        print()
+        print(f"  WINNER (34.4): cell={winner['cell']} window={winner['window']} "
+              f"hidden={winner['hidden']} epochs={winner['max_epochs']} "
+              f"params={winner['parameters']}  primary={winner['primary']:.6e}")
+        print(f"  tied within 1%: {len(tied)} configuration(s)")
+
+    after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
+    print(f"  weight store {before} -> {after} (+{after - before})")
+    if secs:
+        med, mean = float(np.median(secs)), float(np.mean(secs))
+        full = len(grid_configs()) * len(grid_subsample(man["channels"]))
+        print(f"  fits: n={len(secs)} mean {mean:.1f}s median {med:.1f}s "
+              f"min {min(secs):.1f}s max {max(secs):.1f}s  spread "
+              f"{max(secs)/max(1e-9, min(secs)):.0f}x  |  wall clock {elapsed/60:.1f} min")
+        # A TOTAL is n * MEAN, never n * median. On this grid the corners span
+        # 40x, so the median is a statistic about a typical fit and says nothing
+        # about the sum -- which is 28.5's error in a different costume, where a
+        # per-unit figure was multiplied by a count and the total was wrong.
+        print(f"  -> the full {full} fits project to {full*mean/3600:.1f} h serial "
+              f"from the MEAN, {full*mean/3600/max(1,args.workers):.1f} h at "
+              f"{args.workers} workers")
+        print(f"     (the median would have said {full*med/3600:.1f} h serial, and a "
+              f"total is not n x median)")
+        print(f"  peak RSS per worker: max {max(peaks):.0f} MB median "
+              f"{float(np.median(peaks)):.0f} MB")
+
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+    path = Path("runs/smap-msl/_forensics") / f"{stamp}-wi917-grid-a.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    out = {
+        "generated_utc": stamp, "pre_registration": "docs/MODELS.md 34",
+        "smoke": bool(args.grid_smoke),
+        "label_free": ("34.1: the winner is chosen ONLY on held-out nominal "
+                       "validation error. No label, recall or alarm rate enters."),
+        "subsample": [c["channel_id"] for c in chosen],
+        "subsample_rule": "34.3: default_rng(0).choice, 8 per spacecraft, manifest order",
+        "holdout_fraction": GRID_HOLDOUT, "position_pin": GRID_PIN,
+        "n_predictions": N_PREDICTIONS,
+        "tie_break": "34.4: within 1% relative, then fewer parameters, then shorter "
+                     "lookback, then gru",
+        "configurations": rows,
+        "winner": (None if winner is None else
+                   {k: winner[k] for k in ("cell", "window", "hidden", "max_epochs",
+                                           "parameters", "primary", "pooled")}),
+        "tied_within_1pc": len(tied),
+        "stalls": {str(k): v for k, v in stalls.items()},
+        "timing": {"wall_clock_min": elapsed / 60.0, "workers": args.workers,
+                   "median_fit_s": float(np.median(secs)) if secs else None,
+                   "mean_fit_s": float(np.mean(secs)) if secs else None,
+                   "fit_seconds": [round(x, 2) for x in secs],
+                   "peak_rss_mb": [round(x, 1) for x in peaks],
+                   "peak_rss_mb_max": max(peaks) if peaks else None},
+        "weight_store": {"before": before, "after": after},
+    }
+    out["operations"] = budget.as_dict()
+    path.write_text(json.dumps(out, indent=1))          # ARTIFACT BEFORE LEDGER
+    print(f"\n  artifact {path}")
+    try:
+        ops.commit(client, cfg.bucket, ledger, budget)
+    except Exception as exc:
+        print(f"  (!) LEDGER COMMIT FAILED: {exc}")
+        print(f"      {budget.class_a} Class A and {budget.class_b} Class B WERE "
+              f"spent and are NOT recorded.")
+    print(budget.report())
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--visibility", required=True, help="the stage 1 artifact")
@@ -922,6 +1217,11 @@ def main(argv=None) -> int:
                          "2 torch threads, ~32 min and ~2.8 GB")
     ap.add_argument("--only", default="", metavar="A,B",
                     help="score only these arms; the timing smoke uses it")
+    ap.add_argument("--grid-a", action="store_true",
+                    help="work item 9.17 stage A: the 32-configuration grid on the "
+                         "16-channel subsample. THIS REFITS -- see docs/MODELS.md 34.6")
+    ap.add_argument("--grid-smoke", action="store_true",
+                    help="34.6's smoke: 4 corner configurations x 2 channels")
     args = ap.parse_args(argv)
 
     vis = json.loads(Path(args.visibility).read_text())
@@ -947,6 +1247,9 @@ def main(argv=None) -> int:
         seen.add(cid)
         classes = [x.strip() for x in r["class"].strip("[]").split(",") if x.strip()]
         seqs[cid] = list(zip(ast.literal_eval(r["anomaly_sequences"]), classes))
+
+    if args.grid_a or args.grid_smoke:
+        return grid_stage_a(args, client, cfg, ledger, budget, man)
 
     channels = man["channels"][: args.limit] if args.limit else man["channels"]
     fit_seconds: list[float] = []
