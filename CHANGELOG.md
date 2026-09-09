@@ -14,6 +14,61 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.17] - 2026-09-09 - The dial: C1's advantage does not survive a flyable alarm rate
+
+Work item 9.16, pre-registered the same day. One read at 165 Class B and 1 Class A, no
+fits, weight store 558 -> 558. `docs/MODELS.md` 33.7, D61.
+
+### Added - D61, C1 as the ladder's base
+
+C1 is the base every improvement arm reports against, and the ladder is bounded at three
+arms in advance so that one more idea is a new pre-registration rather than a continuation.
+**The ladder is label-free where it selects**: arm 2 chooses a forecaster only on held-out
+nominal validation error, because selecting on recall would be choosing the model that best
+fits 104 labelled sequences. A base is not an endorsement; C1 flies nowhere.
+
+### Measured
+
+- **M3 HELD**, zero inversions across 24 grid points, so "matched rate" is well defined for
+  this arm -- which is what M3 existed to establish before any comparison was drawn.
+- **M1 and M2 REFUTED at the measured point.** Swept to 0.4465%, C1 catches **6 of stage
+  4's own 38** in-range contextual sequences against stage 4's **10/38**. **Stage 4's 10/38
+  stands unreplaced and the front page does not change.**
+- **K2, owed since 32.7, is discharged and HELD.** It predicted C1's in-range contextual
+  count below Arm T's 12/39 at a matched rate; it is 6. It held for a reason 32.4 did not
+  anticipate: not because the commands were load-bearing, but because **C1's whole advantage
+  lives at an alarm rate no mission would fly.**
+- **M4 refuted at three.** MSL contributes 3 catches against a predicted 2 or fewer. The
+  ratio is the interesting part: SMAP halves as the rate falls fourfold, 50/68 to 25/68,
+  while MSL moves 4 to 3.
+
+### (!) The grid cannot see the crossing, and the arm is not adjudicated on it
+
+The selection rule takes the best point at or below the target, and this grid's neighbours
+straddle it -- **0.7578% and 0.4465% with nothing between** -- so C1 is compared **35%
+quieter** than the arm it is measured against. At 1.865 it catches 34 total events against
+28, so six sit in the gap, and the curve **did not retain the contextual breakdown per
+multiplier**, so whether enough of them are contextual to flip the verdict cannot be
+settled from the artifact. Whether C1 is behind at exactly 0.6838% is **unresolved**. A
+refinement is owed and named, not run, and not folded into arm 2. Second time in two work
+items that a curve was kept at lower resolution than the question needed.
+
+### (!) A second lever in C1, found while building the dial, and worth nothing
+
+C1 was built to differ from Arm T in exactly one lever and differed in two: the commands,
+which was the point, and `tail`, which carries T-g's published target length. The dispatch
+selected it **by arm name**, so Arm T carried it and C1 did not, and 32.2's own enumeration
+of held-identical differences omits T-g while the sentence "nothing else changed" carried
+it implicitly.
+
+Corrected in the same run at no extra cost, and **worth exactly zero**: 54/104, 93.1%
+precision and 4 false positives are identical, and only the nominal rate moves, 1.8815% to
+1.8777%. 33.2.1 predicted "probably nothing" before measuring and said that was a
+prediction rather than a reason to skip it. Both numbers kept; the condition is now keyed
+by cell so a new published arm cannot be forgotten the way C1 was.
+
+---
+
 ## [0.6.16] - 2026-09-09 - The commands were what was hurting, and K3's stop fires
 
 Work item 9.15, pre-registered the same day. One read at 165 Class B and 1 Class A, two

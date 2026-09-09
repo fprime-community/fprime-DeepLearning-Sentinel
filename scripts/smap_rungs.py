@@ -349,7 +349,7 @@ def _one_window(e_s_win, y_win, window_num, batch_size, num_to_ignore,
 
 
 def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
-             alarm_len=None, dimensionless=False):
+             alarm_len=None, dimensionless=False, eps_mult=1.0):
     """errors.py:111-168, `process_batches`, with `adjust_window_size`.
 
     Operates in telemanom's own coordinates: `y_test` is the raw series offset by
@@ -393,9 +393,13 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
         idx = (window_size * BATCH_SIZE) + (i * BATCH_SIZE)
         if i == n_windows:
             idx = n
+        # 33.3. `eps_mult` is a LABELLED DEVIATION from the source (28.6): the
+        # published algorithm emits a boolean and has no multiplier, and this
+        # arm needs one to be brought to another arm's alarm rate at all.
+        # 1.0 is the published algorithm exactly.
         full = Mech(magnitude=True, bailout=True, guards=True,
                     inverse=True, published_window=True, clip=True,
-                    dimensionless=dimensionless)
+                    dimensionless=dimensionless, eps_mult=eps_mult)
         win = e_s[prior_idx:idx]
         eps = find_epsilon(win, float(np.mean(win)), float(np.std(win)),
                            error_buffer, full)
@@ -478,6 +482,13 @@ GATES = {"A0": "lstm", "A1": "lstm", "A2": "lstm", "A3": "gru"}
 def make_grid(top: float = 50.0) -> np.ndarray:
     return np.unique(np.concatenate([np.geomspace(0.02, 1.0, 60),
                                      np.geomspace(1.0, top, 60), [1.0]]))
+
+
+#: 33.3's grid for the port dial. Bounded at [1, 6] because the multiplier
+#: RAISES epsilon and C1 has to come DOWN from 1.88% to 0.68%; 24 points because
+#: each one re-runs `run_port` over every channel, where `make_grid`'s 119 would
+#: be forty minutes of arithmetic to resolve a curve this shape does not need.
+PORT_GRID = np.geomspace(1.0, 6.0, 24)
 
 
 def free_memory_gib() -> float:
@@ -1095,6 +1106,9 @@ ARM_TABLE = [
      "work item 9.15: gru-zscore WITH the command columns, at D25's threshold"),
     ("C2M", "zscore_cmd", "swept", None, "prop",
      "gru-zscore+cmd swept to stage 4's rate -- a COMPARISON DEVICE, not a calibration"),
+    ("C1S", "published_nc", "port-swept", None, "pub",
+     "work item 9.16: C1 swept to stage 4's rate -- a LABELLED DEVIATION (28.6), "
+     "and the comparison K2 was left owed"),
     ("H", "zscore", "source", None, "prop",
      "work item 9.14: gru-zscore at D25's label-free threshold"),
     ("HM", "zscore", "swept", None, "prop",
@@ -1150,7 +1164,7 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
 
     # -- every arm, one pass -------------------------------------------------
     wanted = {a for a in args.only.split(",") if a} or None
-    results, per_ch_rows, diagnostics = {}, [], {}
+    results, per_ch_rows, diagnostics, sweeps = {}, [], {}, {}
     for name, cell, kind, mech, regime, note in ARM_TABLE:
         if wanted is not None and name not in wanted:
             continue
@@ -1162,7 +1176,7 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
             v, b = per_channel[cid], per_channel[cid]["built"][cell]
             if kind == "ladder":
                 mask, _ = run_ladder(b["e_s"], b["values"], b["cfg"][regime], p, mech)
-            elif kind == "port":
+            elif kind in ("port", "port-swept"):
                 reset_guards()
                 dim = bool(mech is not None and mech.dimensionless)
                 if b.get("supervised"):
@@ -1172,7 +1186,15 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                 else:
                     mask, _, _, eps_at = run_port(
                         b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
-                        tail=N_PREDICTIONS if name == "T" else 0,
+                        # 28.1 T-g. Every arm built on the PUBLISHED training
+                        # configuration carries the published target length.
+                        # C1 was omitted here until 2026-09-09 and therefore
+                        # differed from Arm T in two levers rather than one --
+                        # the commands, which was the point, and the tail, which
+                        # was not. Named by cell, so a new published arm cannot
+                        # be forgotten the way C1 was.
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc") else 0),
                         dimensionless=dim)
                 diagnostics[(name, cid)] = {
                     "guards": dict(GUARDS),
@@ -1190,7 +1212,56 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                 mask = b["as_source"] >= 1.0
             alarms[cid] = np.asarray(mask, dtype=bool) & scorable[cell][regime][cid]
 
-        if kind == "swept":
+        if kind == "port-swept":
+            # 33.3. The port has no dial, so one is threaded through and
+            # LABELLED as a deviation from the source (28.6). Same selection
+            # rule as the as_source sweep below, so the two are comparable:
+            # among multipliers at or under the target rate, the one catching
+            # most events wins.
+            curve, best = [], None
+            for m in PORT_GRID:
+                masks, fl, ct, base = {}, 0, set(), 0
+                for cid in chans:
+                    v, b = per_channel[cid], per_channel[cid]["built"][cell]
+                    mk, _, _, _ = run_port(
+                        b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc") else 0),
+                        eps_mult=float(m))
+                    f = np.asarray(mk, dtype=bool) & scorable[cell][regime][cid]
+                    masks[cid] = f
+                    anom = np.zeros(v["n"], dtype=bool)
+                    for a, bb in v["spans"]:
+                        anom[a:bb + 1] = True
+                    fl += int((f & ~anom).sum())
+                    for k, (a, bb) in enumerate(v["spans"]):
+                        if f[a:bb + 1].any():
+                            ct.add(base + k)
+                    base += len(v["spans"])
+                rate = fl / max(1, nominal[cell][regime])
+                curve.append({"multiplier": float(m), "nominal_rate": rate,
+                              "caught": len(ct)})
+                print(f"    {name} mult {m:5.2f}  nominal {100*rate:7.4f}%  "
+                      f"caught {len(ct):3d}")
+                if rate <= base_rate and (best is None or len(ct) > best[2]):
+                    best = (float(m), rate, len(ct), masks)
+            sweeps[name] = curve
+            if best is None:
+                print(f"    {name}: NO multiplier reaches {100*base_rate:.4f}%; "
+                      f"the arm has no matched point and none is invented.")
+                mult = float(PORT_GRID[-1])
+                for cid in chans:
+                    b = per_channel[cid]["built"][cell]
+                    mk, _, _, _ = run_port(
+                        b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc") else 0),
+                        eps_mult=mult)
+                    alarms[cid] = (np.asarray(mk, dtype=bool)
+                                   & scorable[cell][regime][cid])
+            else:
+                mult, alarms = best[0], best[3]
+        elif kind == "swept":
             # `scripts/smap_stage2.py:265-289`, replicated literally: the arm is
             # matched on pooled nominal-step rate, and among multipliers at or
             # under the target the one catching most events wins. Any change to
@@ -1387,6 +1458,9 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "stalls": stalls, "geometry": geometry,
         "weight_store": {"before": before, "after": after},
         "structural_checks": structural,
+        # 33.3: the whole curve, not only the matched point, so the
+        # operating point is visible rather than asserted.
+        "port_sweeps": sweeps,
         "guard_diagnostics": guard_rows,
         # 32.4 K3 is C2's stop and is adjudicated FIRST, so `sigma_cv` has to
         # reach the artifact for BOTH probabilistic cells. It collected only

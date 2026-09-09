@@ -8491,6 +8491,13 @@ ran: a multivariate channel set, and a variance term the loss cannot trivially s
    paper Total   84/105  80.0%     84/96    87.5%            12
 ```
 
+**(!) EVERY C1 FIGURE IN THIS SECTION IS SUPERSEDED BY 33.7, 2026-09-09.** C1 was built
+to differ from Arm T in exactly one lever and **differed in two**: the commands, which was
+the point, and `tail`, which was not. `tail=N_PREDICTIONS` implements T-g, the published
+target length (`channel.py:55`), and the dispatch applied it by arm **name** rather than by
+cell, so Arm T carried it and C1 did not. The numbers below are kept in full and are not
+edited; the corrected ones are in 33.7 beside them. The defect is 33.2.1's subject.
+
 **K1 predicted C1 below 46/104. It is 54/104.** Removing the commands **gains eight
 events, removes five false alarms, and lowers the alarm rate at the same time** --
 1.8815% against 2.0450%. C1 dominates Arm T on every axis simultaneously, so the
@@ -8585,3 +8592,198 @@ were added. If K1 refutes -- commands failing to help even under the published t
 then the encoding is the remaining explanation and it is one lever, registered separately.
 **It is not built here**, because changing the arm and the encoding together is the
 two-lever arm rung 1c's stop fired for (26.26).
+
+---
+
+## 33. Pre-registration: C1 on a dial, and the comparison 32 left owed (work item 9.16)
+
+**Written and committed before a single figure is computed.** 32.7 left K2 without a
+verdict because the `eps_mult` sweep 32.3 pre-registered for C1 was never implemented. This
+section builds the instrument and discharges it, and it is the first arm of an improvement
+ladder whose base is **C1: 54/104, 93.1% precision, 4 false positives, 1.8815% nominal**.
+
+### 33.1 (!) K2 is discharged as written, and is NOT re-predicted here
+
+**K2's prediction is already committed at 32.4 and is carried forward verbatim:**
+
+> **K2** -- *and it costs them where the claim lives.* C1's in-range contextual count is
+> **below Arm T's 12/39** at a rate matched to 0.6838%.
+
+**It is not rewritten, re-banded or re-argued.** 32.7's own words are that the comparison
+is "owed and unpaid", and a pre-registration edited after its outcome is not a
+pre-registration (`tests/test_documents_are_current.py`'s premise, and 19.5's rule). What
+follows adds predictions for claims K2 does not make; K2 itself is adjudicated on the
+sentence above.
+
+### 33.2 The comparison, specified before it is computed
+
+**The populations are not the same and the intersection is exact.** Stage 4's arm is the
+GRU on 77 channels and 100 sequences with **38** in-range contextual; C1 is the LSTM under
+the published training on 81 channels and 104 sequences with **39**. Measured on the
+artifacts, keyed on `(channel, start, end)`:
+
+```
+   stage 4 in-range contextual        38
+   C1      in-range contextual        39
+   intersection                       38      <- stage 4's set is a STRICT SUBSET
+   only in C1                          1      G-1 [4770, 4890]
+   only in stage 4                     0
+```
+
+**So the like-for-like comparison is C1 restricted to stage 4's own 38**, and it is
+reported that way with the full 39 beside it. The one extra sequence exists because C1
+fitted four channels the GRU arm stalled on, and it is named rather than absorbed.
+
+### 33.2.1 (!) A defect in C1, found while building the dial, and corrected in the same run
+
+**C1 differed from Arm T in two levers, not one.** 32.2 said the pair "differs in exactly
+one lever" and 32.7 reported it that way. Building 33's sweep required reading the
+dispatch, and the dispatch selects the published target length **by arm name**:
+
+```
+   before   tail = N_PREDICTIONS if name == "T" else 0
+   after    tail = N_PREDICTIONS if cell in ("published", "published_nc") else 0
+```
+
+`tail` carries T-g -- `y_test` has `len - l_s - n_predictions` rows (`channel.py:55`) -- so
+**Arm T scored the published span and C1 scored ten steps more of each channel.** C1 is the
+published training configuration and must carry every published difference except the one
+it is testing.
+
+**How it got in.** 32.2's own enumeration lists T-a, T-b, T-c, T-d, T-e and T-h as held
+identical. **T-g is not in that list**, and the sentence "and nothing else changed" was
+carrying it implicitly. A name-keyed condition then made the omission invisible, because
+adding an arm to a cell does not add it to a list of names.
+
+**What it is expected to be worth, stated before it is measured**: ten timesteps at the end
+of each of 81 channels, against series of thousands. **Probably nothing.** That is a
+prediction, not a reason to skip the measurement, and 26.24 is the precedent -- a divergence
+that was real on every call and worth one range in 147 is still a divergence, and the way
+to know which kind it is is to measure it.
+
+**It is corrected in this run at no extra cost**, because the fix is in the detection stack
+and the weights are banked: the same bundle load serves the corrected C1 and the sweep.
+**Both numbers are kept everywhere**, per `docs/HARNESS.md` 5a.
+
+### 33.3 What is built
+
+- **`Mech.eps_mult` threaded through `run_port`**, which currently hardcodes its `Mech` and
+  therefore has no dial. That is the whole of 32.7's defect. **It is a labelled deviation
+  from the source** -- 28.6 pre-registered it as one, the port emits a boolean and the
+  published algorithm has no multiplier -- and it is labelled wherever the arm appears.
+- **The full curve**, not only the matched point: pooled nominal rate and catches at every
+  multiplier on the grid, per spacecraft, retained in the artifact so the operating point
+  is visible rather than asserted.
+- Nothing else. `src/sentinel_models/telemanom.py` untouched, no refits, and C1's banked
+  weights are read rather than reproduced.
+
+### 33.4 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **M1** | **the commissioned number, and the one that decides the front page.** Swept to a pooled nominal rate at or below stage 4's **0.6838%**, C1 catches **more than 10** of stage 4's own 38 in-range contextual sequences | **10 or fewer.** Stage 4's `10/38` then stays on the front page unreplaced, and C1's advantage is confined to the alarm rates it was measured at -- which would make it a precision result and not an early-warning one |
+| **M2** | **and by a margin, not a nose.** That count is **14 or more** | below 14. M1 holding with M2 refuted is a real but marginal improvement and is reported as marginal, with the margin stated against a denominator of 38 where one event is 2.6 points |
+| **M3** | **structural, and a stop.** The pooled nominal rate is **monotone non-decreasing** as the multiplier falls across the whole grid | any inversion. "Matched rate" would then not be well defined for this arm -- two multipliers could both sit at 0.6838% with different alarm sets -- and **the comparison device is unusable until that is understood.** Report and stop; do not pick whichever inversion looks better |
+| **M4** | MSL contributes **2 or fewer** of the catches at the matched point, so the improvement is again SMAP's | 3 or more, which would be the first evidence in this project that MSL responds to an operating point rather than to a mechanism |
+
+**Deliberately not predicted.** Whether the catch set is monotone as well as the rate --
+pruning can reorder candidates and it is reported as a diagnostic rather than predicted.
+Parity with Table 2. And anything about arms 2 and 3 of this ladder, which are not
+registered here.
+
+### 33.5 Cost and stop-and-report
+
+**165 Class B and 1 Class A**, one bundle load. **No fits: weight store +0**, because the
+multiplier lives in the detection stack and is not in the cache key -- the same argument
+30.3 made and 30.4 confirmed. The sweep re-runs `run_port` once per multiplier over 81
+channels, which is compute and not operations. Ledger reads **202 Class A and 3,329 Class
+B**; this would end at 203 and 3,494 of 50,000.
+
+**Stop and report** if M3 is refuted; if the weight store moves at all; or above 200 Class
+B. **MSL is reported first**, as it has been since 28.8.
+
+### 33.7 OBSERVED -- the advantage does not survive the dial, and the grid cannot see the crossing
+
+**2026-09-09. One read, 165 Class B and 1 Class A**, one worker, no fits, **weight store
+558 -> 558 (+0)** as 33.5 pre-registered. Artifact
+`runs/smap-msl/_forensics/2026-09-09T180112Z-wi910-port.json`.
+
+#### The T-g defect was real and worth exactly nothing
+
+```
+   C1                 recall     precision      FP    nominal
+   as 32.7 published  54/104     54/58 93.1%     4    1.8815%
+   corrected (T-g)    54/104     54/58 93.1%     4    1.8777%
+```
+
+**Not one event, not one false alarm, not one range.** Only the nominal rate moves, by
+0.0038 of a percentage point. 33.2.1 predicted "probably nothing" before measuring and said
+that was a prediction rather than a reason to skip it. **Both numbers are kept**, and every
+C1 figure elsewhere stands unchanged except the alarm rate, which is restated here.
+
+#### M3 held, so the dial is usable
+
+**Zero inversions across 24 grid points**: the pooled nominal rate falls monotonically from
+1.8777% at multiplier 1.0 to 0.0000% at 6.0. "Matched rate" is therefore well defined for
+this arm, which is what M3 existed to establish before any comparison was drawn from it.
+
+#### M1 and M2 refuted at the measured point -- and the grid cannot resolve the crossing
+
+```
+   multiplier   nominal%   caught      target 0.6838%
+      1.000      1.8777       54       over
+      1.865      0.7578       34       over        <- last point above target
+      2.016      0.4465       28       SELECTED    <- first point at or below
+```
+
+At the selected point C1 catches **6 of stage 4's own 38** in-range contextual sequences
+against stage 4's **10 of 38**. On its own 39 it is also 6. **M1 refuted; M2 refuted with
+it.**
+
+**(!) But the comparison is conservative against C1 and the arm cannot be adjudicated on
+it.** The selection rule takes the best point *at or below* the target, and this grid's
+neighbouring points straddle it: 0.7578% and 0.4465%, with nothing between. **C1 is
+therefore being run 35% quieter than the arm it is compared to.** At 1.865 it catches 34
+total events against 28, so **six more events sit in the gap**, and if enough of them were
+in-range contextual the verdict would flip -- 12 of 38 would beat stage 4's 10.
+
+**The curve does not record the contextual breakdown per multiplier**, only the total, so
+this cannot be settled from the artifact. **That is a defect in the instrument, not a
+property of the arm**, and it is the second time in two work items that a curve was
+retained at lower resolution than the question needed (32.7's K2 was the first).
+
+**So what is established is narrower than M1 asked**: C1's large advantage over Arm T at
+1.88% does **not** survive being brought anywhere near a flyable alarm rate, and at
+0.4465% it is clearly behind stage 4. Whether it is behind at exactly 0.6838% is
+**unresolved**, and no number here should be quoted as settling it. **Stage 4's `10/38`
+stands unreplaced.**
+
+#### M4 refuted, at three
+
+MSL contributes **3** catches at the matched point against a prediction of 2 or fewer, with
+1 false alarm; SMAP contributes 25 of 68 with 0. The interesting part is the ratio rather
+than the verdict: **SMAP halves as the rate falls fourfold (50/68 to 25/68) while MSL moves
+4 to 3.** MSL is the *less* rate-sensitive of the two, which is the opposite of what a
+population that responds to an operating point would look like, and it is consistent with
+28.7, 29.4 and 30.4's finding that MSL does not respond to mechanisms either.
+
+#### What this closes and what it opens
+
+- **K2 is discharged.** 32.4's committed sentence predicted C1's in-range contextual count
+  would be **below Arm T's 12/39** at a matched rate. It is **6**. **K2 HELD**, and it held
+  for a reason 32.4 did not anticipate: not because commands were load-bearing, but because
+  C1's whole advantage lives at an alarm rate no mission would fly.
+- **The front page does not change.** Stage 4's 10/38 at 0.6838% remains the measured
+  in-limits figure.
+- **A grid refinement is owed and is named rather than run**: multipliers between 1.865 and
+  2.016, and the contextual breakdown retained at every point. It is one bundle load and no
+  fits. It is not folded into arm 2.
+- `src/sentinel_models/telemanom.py` untouched. No ESA-ADB figure moves.
+
+### 33.6 What follows, named and not registered
+
+The ladder's other two arms, in the order they will be taken: **label-free forecaster
+selection** over a fixed grid, decided **only** on held-out nominal validation error and
+scored once; then a **seed ensemble** over the winner. Each is one lever, each is
+pre-registered separately with its own compute plan and smoke, and **neither is built
+here.** The flight component carries one model whatever the ensemble measures.

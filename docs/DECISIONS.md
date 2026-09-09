@@ -4044,3 +4044,64 @@ no more data to add.
    has no verdict. The 20/39 C1 catches at its own 1.8815% is above the ceiling 27.3 sets
    for quoting a per-event number and is **not** compared to Arm T's 12/39 or to stage 4's
    10/38. Recorded as a defect in the instrument, not as a result.
+
+---
+
+## D61. C1 is the base for the improvement ladder, and the ladder is label-free by construction
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision about what future arms are measured
+against. It adopts no detector for flight and changes no published figure
+
+**CONTEXT.** 32.7 measured C1 -- the published training configuration with the command
+inputs withheld -- at **54/104, 93.1% precision, 4 false positives, 1.8815% nominal**. It
+is the highest recall and the highest precision this project has reached on the population
+that matches the paper's, and it beats the paper's own precision of 87.5% on a third of its
+false positives. Every arm from here needs something to be measured against, and choosing
+it after the fact for each arm is how a ladder becomes a search.
+
+**EVIDENCE.** From `runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json`:
+
+```
+   arm     recall            precision (TP/(TP+FP))    FP    nominal
+   A0      57/98             62/110  (ours)             -    prop regime
+   F       34/98    34.7%    34/38    89.5%              4    1.4424%
+   T       46/104   44.2%    46/55    83.6%              9    2.0450%
+   R       46/104   44.2%    46/55    83.6%              9    2.0450%
+   G       48/104   46.2%    48/70    68.6%             22    3.7958%
+   C1      54/104   51.9%    54/58    93.1%              4    1.8815%
+   paper   84/105   80.0%    84/96    87.5%             12
+```
+
+**ALTERNATIVES.** Keep Arm F, the faithful port, as the base because it is the arm with no
+deviations. Keep Arm T, because C1 differs from it by a deliberate departure from the
+published inputs. Take C1.
+
+**Against the first**: F is 20 events behind C1 at lower precision, so measuring
+improvements against it would flatter every arm that follows. **Against the second**:
+withholding the commands is a departure from the published configuration and it is recorded
+as one -- but D60 measured it strictly better on every axis, and a base chosen for fidelity
+rather than for quality makes the ladder's numbers harder to read, not more honest. The
+departure travels with the name wherever C1 appears.
+
+**CONSEQUENCE.**
+
+1. **C1 is the base**, and every arm of the improvement ladder reports against **54/104, 4
+   false positives, and the 39 in-range contextual at a rate matched to stage 4's 0.6838%**
+   once `docs/MODELS.md` 33 supplies that last figure. A base is not an endorsement: C1
+   flies nowhere and nothing in this entry reopens D28.
+2. **The ladder is label-free where it selects.** Arm 2 chooses a forecaster from a fixed
+   grid **only** on held-out nominal validation error and scores the winner once. That is
+   Objective.md 6.1's constraint -- a spacecraft has no failure examples -- applied to model
+   selection rather than only to training, and it is what keeps the grid from becoming a
+   test-set search. **Selecting on recall would be choosing the model that best fits 104
+   labelled sequences, which is exactly what this dataset cannot support.**
+3. **One lever per arm, and each pre-registered separately** with its own compute plan and
+   its own smoke: the dial (33), then forecaster selection, then a seed ensemble. Bundling
+   them would make an improvement unattributable, which is what rung 1c's stop fired for.
+4. **The ensemble does not change what flies.** `model.bin` version 1 carries one model
+   (D30, `docs/MODEL_FILE.md`), so an ensemble measured to help is a finding about the
+   ceiling and a question for the format, not a configuration this component can ship
+   today. It is measured for what it says about the residual, not as a candidate.
+5. **Then the pipeline freezes and the toolkit begins.** The ladder is bounded at three
+   arms in advance so that "one more idea" is a new pre-registration rather than a
+   continuation, and Objective.md 13's work item 12 does not wait on an open-ended search.

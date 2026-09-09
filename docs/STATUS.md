@@ -130,7 +130,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 202 Class A and 3,329 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 203 Class A and 3,494 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -217,6 +217,30 @@ C2 stopped and K4 was not adjudicated. **K5 held.** **(!) K2 has no verdict** - 
 `eps_mult` sweep 32.3 pre-registered for C1 was never implemented, so the matched-rate
 in-range contextual figure does not exist and no per-event comparison is drawn. That
 comparison is owed.
+
+**B1. Work item 9.16, the dial and the owed comparison - DONE 2026-09-09**
+(`docs/MODELS.md` 33.7, D61). **M3 held** so the dial is usable; **M1 and M2 refuted** at
+the measured point - swept to 0.4465%, C1 catches **6 of stage 4's own 38** against stage
+4's **10/38**, so **stage 4's 10/38 stands unreplaced and the front page does not change**.
+**K2 is discharged and HELD.** C1's large advantage over Arm T lives at 1.88% nominal and
+does not survive being brought near a flyable rate. **(!) A grid refinement is owed**: the
+24-point grid straddles the target at 0.7578% and 0.4465% with nothing between, so C1 is
+compared 35% quieter than stage 4, and the curve did not retain the contextual breakdown
+per multiplier. Whether C1 is behind at exactly 0.6838% is **unresolved**. Also corrected
+here: C1 carried a second unintended lever (T-g, the published target length), **worth zero
+events** - both numbers kept.
+
+**B2. Arm 2 of the ladder, label-free forecaster selection** (`docs/MODELS.md` 34, to be
+written). A fixed grid over lookback, width, epochs and cell, **the winner chosen only on
+held-out nominal validation error** (D61 consequence 2), then scored once. *Done when* the
+selection rule is committed before the grid runs and the winner is scored a single time.
+Compute plan and smoke first; this refits.
+
+**B3. Arm 3, a seed ensemble** over B2's winner, 3 seeds, mean prediction. *Done when* the
+noise-floor reduction and the recall at matched rate are reported. **The flight component
+carries one model** (D30), so this measures a ceiling rather than a candidate.
+
+**Then the pipeline freezes and the toolkit begins** (F below).
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
