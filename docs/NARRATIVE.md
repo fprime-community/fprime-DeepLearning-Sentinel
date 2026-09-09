@@ -1100,3 +1100,127 @@ four false positives against a scaled eleven. Its recall is still 51.9% against
 80.0%, so it settles nothing about parity. It is the highest this project has
 reached on the population that matches the paper's, and it got there by taking
 something away.
+
+## 14. Work items 9.16 to 9.18: nine arms, a ceiling, and a pre-registration that ignored its own record
+
+**2026-09-09**, at the boundary where the improvement ladder ends. The question was whether
+anything could beat stage 4's 10 of 38 at a flyable alarm rate. Nine arms answered no, and
+the way they failed is more useful than the answer.
+
+### The dial, and an advantage that lived at the wrong alarm rate
+
+C1 -- the published reproduction with the command inputs removed -- was the best arm this
+project had produced: 54 of 104 at 93.1% precision, beating the paper's own precision on a
+third of its false positives. Arm 1 gave the port a dial and swept it down to stage 4's
+rate.
+
+**It collapsed.** Six of stage 4's 38 against stage 4's 10. The first grid was too coarse to
+see the crossing and the refinement made the answer worse rather than better: even given a
+rate **louder** than stage 4's, C1 reaches only 8. **C1's advantage was a precision result
+all along, and precision at 1.88% nominal is not a product.**
+
+### Choosing a forecaster without looking at a label
+
+Arm 2 was the one worth doing properly. Thirty-two configurations over cell, lookback,
+width and epochs, chosen on **held-out nominal forecast error alone** -- no label, no
+recall, no alarm rate. The rule mattered more than the result: with 104 labelled sequences,
+selecting on recall is selecting the model that best fits the labels, and this project has
+spent five work items avoiding exactly that.
+
+The winner is **the published configuration with the cell swapped**. Lookback 250, width 80,
+epochs 35 -- three of four axes landed on telemanom's own values, out of a grid that offered
+alternatives for every one. Six days of transcription had been chasing a configuration that
+was very nearly right.
+
+**And a prediction I took from my own measurement was wrong.** The cost surface, run on
+synthetic arrays, showed 35 and 70 epochs costing identical wall clock at every corner. Equal
+cost means equal epochs run, which means equal weights -- so I registered P5, that the epochs
+axis was inert, and kept the axis in the grid anyway on the argument that dropping half a
+registered grid on a timing measurement is the edit this discipline exists to prevent.
+
+On real telemetry 15 of 16 pairs differ, by up to 20%, and **more training is consistently
+worse**. The mechanism is in the published configuration itself: `restore_best=False` keeps
+the last weights rather than the best, so a longer run simply travels further past the
+minimum. The published 35 is a budget doing real work. **Keeping the axis cost an hour and
+bought a finding the shortcut would have destroyed.**
+
+### The arm where the pre-registration was the defect
+
+Then four decision-layer variants: a transition-aware floor, per-channel calibration, both
+together, and a tree forecaster.
+
+**None of them can reach a flyable alarm rate at all.** Not at a coarse grid, and not with
+the dial extended to `1e-8` -- below one over the length of every training split, which
+saturates the threshold at the training maximum. The quietest points are 2.01%, 13.55%,
+21.49% and 5.17%, against a target of 0.68%.
+
+The reason has been on the record since 2026-09-03. **D48: on SMAP/MSL no train-calibrated
+threshold transfers, for any arm.** The S-family is a static train-calibrated quantile --
+D25's recipe, split by regime or by channel -- and D48 exists precisely to bound D25 to
+stationary regimes on this dataset.
+
+**The pre-registration cites D25 and never mentions D48.** That is not a coding error caught
+by a smoke; it is an arm designed against a route already measured not to work, by someone
+who had written the measurement up six days earlier. The arms ran, cost two reads, and
+returned a result that was already in the file.
+
+The transferable part is narrow and unflattering: **a pre-registration is not only a
+statement of what will be measured, it is a claim that the thing is measurable**, and
+checking that claim means reading the entries that bound the ones being cited.
+
+### The ensemble that improved the forecast and silenced the detector
+
+The sharpest negative came from the most conventional idea. Three seeds, forecasts averaged
+before the residual -- the standard way to buy a better forecast.
+
+It worked. The residual came out smooth enough that a train-calibrated quantile **finally
+transfers**, where nothing else in the S-family could reach the target at all. And the
+detector caught **2 events in 104**, at zero false alarms and 100% precision.
+
+**A better forecaster and a silent detector.** That is D18 again, from the other end: a
+threshold rule fitted to one residual scale degrades when the residual gets better, and this
+time the improvement was ours rather than the published method's.
+
+### Trees, which lost both halves of their own split
+
+The last arm changed model class entirely: histogram-binned gradient-boosted trees on
+label-free lag features, with an isolation forest as a control, judged by a step-likeness
+score fixed in advance and cut at its median so no threshold could be searched.
+
+Trees lose the steppy half 7 to 27 and the smooth half 10 to 29, **while running more than
+twice as loud**. No hybrid is worth building, and the fixed cut is what makes that
+conclusion cheap rather than arguable. The isolation forest reached 1 of 104, which at least
+confirms the premise the whole project rests on: this data's anomalies are not detectable
+without forecasting.
+
+**One number from the losing arm is worth keeping.** Trees fit in 2.23 seconds per channel
+against the GRU's 43.3 -- about twenty times cheaper, at less memory. For a mission that has
+to train on the ground with no ML staff, that ratio is a real argument, and it belongs to the
+toolkit even though the arm lost.
+
+### The same instrument defect, for the fourth time
+
+27.8 could not adjudicate S1 and S2 because alarm sets were not retained. 32.7 nearly lost
+K3 because `sigma_cv` never reached the artifact. 33.7 could not settle M1 because the sweep
+kept a count instead of a caught set. And this work item printed `nominal 0.0000% caught 0`
+for every arm that found no qualifying operating point -- **a placeholder rendered as a
+measurement**, sitting beside arm rows showing 2% to 21% -- and retained neither the
+per-channel fit cost nor the step-likeness score its own pre-registration required.
+
+Four times, the same shape: **a value computed and not retained is a value that does not
+exist.** Each time it cost a read to learn again.
+
+### What the ladder bought
+
+Not a better number. Nine arms across the forecaster, the decision layer, the model class
+and the inputs, and the best of them reaches 8 of 38 where stage 4 reaches 10.
+
+What it bought is that **10 of 38 is now a ceiling rather than a starting point**. It was
+measured by elimination, against arms chosen in advance and adjudicated whether they held or
+not, and every negative is on the record with the reasoning that produced it. The pipeline
+freezes there.
+
+And it settles where the remaining question lives. Every arm here varied a model or a rule on
+81 unsynchronised univariate streams. The claim D57 re-framed has one context left
+unmeasured, no public dataset can measure it, and the F' Ref physics testbed is the only
+venue that can.

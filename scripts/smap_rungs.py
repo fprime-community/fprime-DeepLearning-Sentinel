@@ -62,7 +62,8 @@ from sentinel_models import telemanom                                  # noqa: E
 
 #: Cells fitted in a worker rather than in the parent, because they refit or
 #: are expensive. Everything else is scored from banked weights in-process.
-DEFERRED_CELLS = ("published", "rung", "zscore", "published_nc", "zscore_cmd")
+DEFERRED_CELLS = ("published", "rung", "zscore", "published_nc", "zscore_cmd",
+                  "winner", "trees", "iforest", "ensemble")
 MANIFEST_KEY = "_manifest/smap_msl.json"
 PRE_REGISTRATION = "docs/MODELS.md 27"
 
@@ -614,7 +615,9 @@ def _fit_published(job):
     L.THREADS = 4
     started, out, err = time.time(), {}, {}
     builders = {"published": build_published, "zscore": build_zscore,
-                "published_nc": build_published_nocmd, "zscore_cmd": build_zscore_cmd}
+                "published_nc": build_published_nocmd, "zscore_cmd": build_zscore_cmd,
+                "winner": build_winner, "trees": build_trees,
+                "iforest": build_iforest, "ensemble": build_ensemble}
     for cell in cells:
         try:
             out[cell] = builders.get(cell, build_rung)(cid, train, test)
@@ -922,6 +925,232 @@ def _fit_grid(job):
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
     return cid, tag, out, err, time.time() - started, peak_mb
+
+
+#: 34.8's winner, read from the stage A artifact and pinned here in the same
+#: commit as the figure it produces. Stage B fits ALL 81 channels with it and
+#: scores once; the selection that chose it saw no label (34.1).
+WINNER_HYPER = dict(cell="gru", window=250, hidden=(80, 80), max_epochs=35)
+WINNER_ARTIFACT = "runs/smap-msl/_forensics/2026-09-09T205949Z-wi917-grid-a.json"
+
+
+def build_winner(cid, train, test):
+    """Arm W: stage A's winner, on the full population, scored like C1.
+
+    Identical to `build_published_nocmd` -- the published training block, the
+    commands withheld (D60), telemanom's own aggregation -- with the four
+    forecaster axes replaced by the ones 34.8 selected. So W differs from C1 in
+    the forecaster and in nothing else, which is what makes the pair readable.
+    """
+    det = registry.build("gru-telemanom")
+    det.hyper = Hyper(**WINNER_HYPER, **PUBLISHED_HYPER)
+    det.wants_commands = False
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+    s_ctx = ctx_for(cid, len(v_te))
+    e_s = np.asarray(det._smoothed_errors(v_te, s_ctx), dtype=np.float64)[:, 0]
+    # 35.1/35.2 calibrate on the TRAINING residual, which is label-free by
+    # construction here: the paper's train split is the nominal one.
+    e_tr = np.asarray(det._smoothed_errors(
+        v_tr, ctx_for(cid, len(v_tr))), dtype=np.float64)[:, 0]
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "e_s_train": e_tr, "values_train": v_tr[:, 0].astype(np.float64),
+            "step_likeness": step_likeness(v_tr[:, 0]),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
+
+
+#: 35.1, fixed in advance and never swept: the quantile of |dx| that calls a
+#: sample a level change, and the span over which a step keeps influencing a
+#: residual smoothed at EWMA(105). SPAN is the smoothing window already in the
+#: stack, not a new constant.
+STEP_Q = 0.99
+STEP_SPAN = 105
+
+
+def transition_mask(values_train, values_series):
+    """35.1's rule, on the RAW input. Returns a boolean mask over the series.
+
+    Label-free and dimensionless: the cut is a quantile of the channel's own
+    training first differences, so it carries no unit and no threshold chosen
+    against a result.
+    """
+    vt = np.asarray(values_train, dtype=np.float64)
+    d_tr = np.abs(np.diff(vt, prepend=vt[0]))
+    cut = float(np.quantile(d_tr, STEP_Q)) if d_tr.size else np.inf
+    v = np.asarray(values_series, dtype=np.float64)
+    d = np.abs(np.diff(v, prepend=v[0]))
+    mask = np.zeros(len(v), dtype=bool)
+    for i in np.flatnonzero(d > cut):
+        mask[max(0, i - STEP_SPAN):min(len(mask), i + STEP_SPAN + 1)] = True
+    return mask
+
+
+def step_likeness(values_train):
+    """35.4's score: the share of total variation carried by the largest 1% of
+    |dx| on the TRAINING split. Dimensionless, label-free, fixed in advance."""
+    d = np.abs(np.diff(np.asarray(values_train, dtype=np.float64)))
+    if d.size == 0 or d.sum() == 0:
+        return 0.0
+    k = max(1, int(round(0.01 * d.size)))
+    return float(np.sort(d)[-k:].sum() / d.sum())
+
+
+def _ensemble_series(dets, values, cid):
+    """Mean FORECAST across seeds, then one residual. 35.3.
+
+    Averaging the forecasts before the residual is what the goal specifies and is
+    not the same as averaging three residuals: `|x - mean(f)|` is not
+    `mean(|x - f|)`, and only the first is an ensemble forecast. It mirrors
+    `ForecastDetector._smoothed_errors` (`detectors.py:456-471`) with the mean
+    taken inside the loop.
+    """
+    span = telemanom.Config().smoothing_window
+    filled = dets[0]._filled(values)
+    steps = filled.shape[0]
+    smoothed = np.empty((steps, filled.shape[1]), dtype=np.float32)
+    state = telemanom.EwmaState()
+    block = dets[0].chunks * dets[0].chunk_steps
+    for lo in range(0, steps, block):
+        hi = min(lo + block, steps)
+        fc = np.mean([d._forecast(filled, lo, hi) for d in dets], axis=0)
+        smoothed[lo:hi] = telemanom.ewma(np.abs(filled[lo:hi] - fc), span, state)
+    return np.asarray(smoothed, dtype=np.float64)[:, 0]
+
+
+def build_ensemble(cid, train, test):
+    """Arm S3: three seeds of 34.8's winner, forecasts averaged before residual."""
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    dets = []
+    for seed in (0, 1, 2):
+        det = registry.build("gru-telemanom")
+        det.hyper = Hyper(**WINNER_HYPER, seed=seed, **PUBLISHED_HYPER)
+        det.wants_commands = False
+        det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                      stride=BATCH_SIZE, aggregate="first")
+        det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+        dets.append(det)
+    e_te = _ensemble_series(dets, v_te, cid)
+    e_tr = _ensemble_series(dets, v_tr, cid)
+    warm = int(dets[0].warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_te, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "e_s_train": e_tr, "values_train": v_tr[:, 0].astype(np.float64),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": dets[0].config, "pub": dets[0].config}}
+
+
+#: 35.4's features, fixed in advance: the last ten values, their ten first
+#: differences, and the age of the current level. All label-free.
+TREE_LAGS = 10
+
+
+def tree_features(values, trans):
+    """`(T, 21)`: x[t-9..t], dx[t-9..t], and steps since the last level change.
+
+    Row `t` uses only information available at `t`, so nothing peeks. The first
+    `TREE_LAGS` rows are padded by edge repetition and are inside the warm-up the
+    detection stack discards anyway.
+    """
+    v = np.asarray(values, dtype=np.float32)
+    n = len(v)
+    idx = np.clip(np.arange(n)[:, None] - np.arange(TREE_LAGS)[None, ::-1], 0, n - 1)
+    lags = v[idx]                                            # (T, 10)
+    dv = np.diff(v, prepend=v[0]).astype(np.float32)
+    dlags = dv[idx]                                          # (T, 10)
+    # age: steps since the last transition sample, which is S1's own rule
+    age = np.zeros(n, dtype=np.float32)
+    last = -1
+    for i in range(n):
+        if trans[i]:
+            last = i
+        age[i] = (i - last) if last >= 0 else i
+    return np.concatenate([lags, dlags, age[:, None]], axis=1)
+
+
+def build_trees(cid, train, test):
+    """Arm S4: histogram-binned gradient-boosted trees, one model per channel.
+
+    35.4. The target is the NEXT value, which is what telemanom's
+    `method='first'` aggregation uses, and the residual goes into the identical
+    decision stack -- so the arm varies the model class and nothing downstream.
+    """
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    import resource
+    v_tr = train[:, 0].astype(np.float64)
+    v_te = test[:, 0].astype(np.float64)
+    tr_tr = transition_mask(v_tr, v_tr)
+    tr_te = transition_mask(v_tr, v_te)
+    X_tr, X_te = tree_features(v_tr, tr_tr), tree_features(v_te, tr_te)
+    started = time.time()
+    m = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.1,
+                                      early_stopping=True, random_state=0)
+    m.fit(X_tr[:-1], v_tr[1:])
+    fit_s = time.time() - started
+    span = telemanom.Config().smoothing_window
+
+    def resid(X, v):
+        pred = np.empty(len(v), dtype=np.float64)
+        pred[:-1] = m.predict(X[:-1])
+        pred[-1] = pred[-2] if len(v) > 1 else v[-1]
+        e = np.abs(np.roll(v, -1) - pred)
+        e[-1] = e[-2] if len(e) > 1 else 0.0
+        return telemanom.ewma(e.reshape(-1, 1), span).ravel().astype(np.float64)
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return {"e_s": resid(X_te, v_te), "as_source": np.zeros(len(v_te)),
+            "values": v_te, "e_s_train": resid(X_tr, v_tr), "values_train": v_tr,
+            "fit_seconds": fit_s, "peak_rss_mb": peak_mb,
+            "step_likeness": step_likeness(v_tr),
+            "warm": {"prop": 0, "pub": 0},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+def build_iforest(cid, train, test):
+    """Arm S4's CONTROL: an isolation forest on the identical features.
+
+    Not a forecaster. Its score replaces `e_s` in the same stack, which is
+    defensible because the stack thresholds a scalar series -- and if a
+    non-forecaster matches a forecaster here, 35.5's S4c says that is the
+    finding and is reported prominently.
+    """
+    from sklearn.ensemble import IsolationForest
+    import resource
+    v_tr = train[:, 0].astype(np.float64)
+    v_te = test[:, 0].astype(np.float64)
+    X_tr = tree_features(v_tr, transition_mask(v_tr, v_tr))
+    X_te = tree_features(v_te, transition_mask(v_tr, v_te))
+    started = time.time()
+    f = IsolationForest(n_estimators=200, random_state=0).fit(X_tr)
+    fit_s = time.time() - started
+    span = telemanom.Config().smoothing_window
+    to_e = lambda X: telemanom.ewma(
+        (-f.score_samples(X)).reshape(-1, 1), span).ravel().astype(np.float64)
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return {"e_s": to_e(X_te), "as_source": np.zeros(len(v_te)),
+            "values": v_te, "e_s_train": to_e(X_tr), "values_train": v_tr,
+            "fit_seconds": fit_s, "peak_rss_mb": peak_mb,
+            "step_likeness": step_likeness(v_tr),
+            "warm": {"prop": 0, "pub": 0},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+#: 35.6's dial for the floor family. `r` is the tail fraction of the TRAINING
+#: residual, so a SMALLER `r` is a HIGHER threshold. The grid ran from 1e-4 and
+#: not one arm reached 0.6838% of nominal test steps -- the 99.99th percentile of
+#: training was still exceeded 2.2% to 21% of the time on test. It is extended to
+#: 1e-8, which is below `1/len(train)` on every channel and therefore saturates at
+#: the training maximum: if the family cannot reach the target THERE, no `r` can,
+#: and the reason is D48 rather than a coarse grid.
+FLOOR_GRID = np.geomspace(1e-8, 5e-2, 72)
 
 
 def build_zscore_cmd(cid, train, test):
@@ -1358,7 +1587,8 @@ def main(argv=None) -> int:
         print(f"  fits done in {(time.time() - started)/60:.1f} min wall clock")
 
     after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
-    refitting = {a for a in args.only.split(",") if a} & {"T", "C1", "C2", "C2M"}
+    refitting = {a for a in args.only.split(",") if a} & {"T", "C1", "C2", "C2M",
+                                                         "W", "WS", "S3"}
     if refitting:
         expected = f"32.5 expects +81 per refitting arm ({sorted(refitting)})"
     elif args.published:
@@ -1415,6 +1645,22 @@ ARM_TABLE = [
      "work item 9.15: gru-zscore WITH the command columns, at D25's threshold"),
     ("C2M", "zscore_cmd", "swept", None, "prop",
      "gru-zscore+cmd swept to stage 4's rate -- a COMPARISON DEVICE, not a calibration"),
+    ("W", "winner", "port", None, "pub",
+     "work item 9.17 stage B: 34.8's winner on all 81, at its own cut"),
+    ("WS", "winner", "port-swept", None, "pub",
+     "work item 9.17 stage B: the winner swept to stage 4's rate -- a LABELLED DEVIATION"),
+    ("S3", "ensemble", "floor", None, "pub",
+     "work item 9.18: a 3-seed ensemble over 34.8's winner, means before residual (35.3)"),
+    ("S4", "trees", "floor", None, "pub",
+     "work item 9.18: gradient-boosted trees on label-free lag features (35.4)"),
+    ("S4C", "iforest", "floor", None, "pub",
+     "work item 9.18: the isolation-forest CONTROL on the same features (35.4)"),
+    ("S1", "winner", "floor", None, "pub",
+     "work item 9.18: a transition-aware floor on the winner's residual (35.1)"),
+    ("S2", "winner", "floor", None, "pub",
+     "work item 9.18: per-channel calibration, D25's recipe per channel (35.2)"),
+    ("S12", "winner", "floor", None, "pub",
+     "work item 9.18: S1 and S2 together -- different stages, so a cell (35.3)"),
     ("C1S", "published_nc", "port-swept", None, "pub",
      "work item 9.16: C1 swept to stage 4's rate -- a LABELLED DEVIATION (28.6), "
      "and the comparison K2 was left owed"),
@@ -1429,7 +1675,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
     cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore",
-                              "published_nc", "zscore_cmd")
+                              "published_nc", "zscore_cmd", "winner",
+                              "trees", "iforest", "ensemble")
                   if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
@@ -1474,6 +1721,7 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
     # -- every arm, one pass -------------------------------------------------
     wanted = {a for a in args.only.split(",") if a} or None
     results, per_ch_rows, diagnostics, sweeps = {}, [], {}, {}
+    structural_stops = {}
     for name, cell, kind, mech, regime, note in ARM_TABLE:
         if wanted is not None and name not in wanted:
             continue
@@ -1503,7 +1751,9 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                         # was not. Named by cell, so a new published arm cannot
                         # be forgotten the way C1 was.
                         tail=(N_PREDICTIONS
-                              if cell in ("published", "published_nc") else 0),
+                              if cell in ("published", "published_nc", "winner",
+                                          "ensemble")
+                              else 0),
                         dimensionless=dim)
                 diagnostics[(name, cid)] = {
                     "guards": dict(GUARDS),
@@ -1521,7 +1771,93 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                 mask = b["as_source"] >= 1.0
             alarms[cid] = np.asarray(mask, dtype=bool) & scorable[cell][regime][cid]
 
-        if kind == "port-swept":
+        if kind == "floor":
+            # 35.1-35.3. A static-quantile decision layer, swept on `r`. Four
+            # variants over two independent switches: per-channel calibration,
+            # and a transition-aware floor. Both are label-free -- every cut is
+            # a quantile of the channel's own TRAINING residual.
+            per_ch = name in ("S2", "S12")
+            trans = name in ("S1", "S12")
+            cal, masks_te, masks_tr = {}, {}, {}
+            for cid in chans:
+                b = per_channel[cid]["built"][cell]
+                cal[cid] = (np.asarray(b["e_s_train"], dtype=np.float64),
+                            np.asarray(b["e_s"], dtype=np.float64))
+                if trans:
+                    masks_tr[cid] = transition_mask(b["values_train"], b["values_train"])
+                    masks_te[cid] = transition_mask(b["values_train"], b["values"])
+                else:
+                    masks_tr[cid] = np.zeros(len(b["e_s_train"]), dtype=bool)
+                    masks_te[cid] = np.zeros(len(b["e_s"]), dtype=bool)
+            empty = sum(1 for c in chans if not masks_te[c].any())
+            if trans and empty > len(chans) // 2:
+                print(f"    {name}: STRUCTURAL STOP -- transition mask empty on "
+                      f"{empty}/{len(chans)} channels; the arm is inert by "
+                      f"construction and no recall number is reported.")
+                structural_stops[name] = {"empty_masks": empty, "channels": len(chans)}
+                continue
+
+            def _q(sample, r):
+                f = sample[np.isfinite(sample)]
+                return float(np.quantile(f, 1.0 - r)) if f.size else np.inf
+
+            def at(r):
+                out = {}
+                if not per_ch:                      # pooled, D25's own recipe
+                    pool_s = np.concatenate([cal[c][0][~masks_tr[c]] for c in chans])
+                    pool_t = (np.concatenate([cal[c][0][masks_tr[c]] for c in chans])
+                              if trans else np.array([]))
+                    thr_s, thr_t = _q(pool_s, r), (_q(pool_t, r) if pool_t.size else np.inf)
+                for cid in chans:
+                    tr, te = cal[cid]
+                    if per_ch:
+                        thr_s = _q(tr[~masks_tr[cid]], r)
+                        thr_t = (_q(tr[masks_tr[cid]], r)
+                                 if trans and masks_tr[cid].any() else np.inf)
+                    m = masks_te[cid]
+                    out[cid] = ((~m & (te > thr_s)) | (m & (te > thr_t))) \
+                        & scorable[cell][regime][cid]
+                return out
+
+            curve, best = [], None
+            for r in FLOOR_GRID:
+                a = at(float(r))
+                fl, ct, base = 0, set(), 0
+                for cid in chans:
+                    v = per_channel[cid]
+                    anom = np.zeros(v["n"], dtype=bool)
+                    for lo, hi in v["spans"]:
+                        anom[lo:hi + 1] = True
+                    fl += int((a[cid] & ~anom).sum())
+                    for k, (lo, hi) in enumerate(v["spans"]):
+                        if a[cid][lo:hi + 1].any():
+                            ct.add(base + k)
+                    base += len(v["spans"])
+                rate = fl / max(1, nominal[cell][regime])
+                irc = len(set(ct) & set(pops[cell]["in_range_contextual"]))
+                curve.append({"r": float(r), "nominal_rate": rate, "caught": len(ct),
+                              "in_range_contextual": irc, "caught_ids": sorted(ct)})
+                if rate <= base_rate and (best is None or len(ct) > best[2]):
+                    best = (float(r), rate, len(ct), a)
+            sweeps[name] = curve
+            if best is None:
+                print(f"    {name}: no r reaches {100*base_rate:.4f}%; none invented.")
+                mult, alarms = float(FLOOR_GRID[0]), at(float(FLOOR_GRID[0]))
+            else:
+                mult, alarms = best[0], best[3]
+            if best is None:
+                # Report what the FALLBACK actually produced, not zeros. The
+                # previous form printed `best[1] if best else 0`, which printed
+                # 0.0000% and 0 caught whenever no point qualified -- a placeholder
+                # rendered as a measurement, beside an arm row showing 2% to 21%.
+                lo = min(curve, key=lambda c: c["nominal_rate"])
+                print(f"    {name}: FALLBACK r={mult:.2e}; the quietest point on the "
+                      f"grid is {100*lo['nominal_rate']:.4f}% (caught {lo['caught']}), "
+                      f"still above the {100*base_rate:.4f}% target")
+            else:
+                print(f"    {name}: r={mult:.2e} nominal {100*best[1]:.4f}% "
+                      f"caught {best[2]}")
+        elif kind == "port-swept":
             # 33.3. The port has no dial, so one is threaded through and
             # LABELLED as a deviation from the source (28.6). Same selection
             # rule as the as_source sweep below, so the two are comparable:
@@ -1535,7 +1871,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                     mk, _, _, _ = run_port(
                         b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
                         tail=(N_PREDICTIONS
-                              if cell in ("published", "published_nc") else 0),
+                              if cell in ("published", "published_nc", "winner")
+                              else 0),
                         eps_mult=float(m))
                     f = np.asarray(mk, dtype=bool) & scorable[cell][regime][cid]
                     masks[cid] = f
@@ -1574,7 +1911,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                     mk, _, _, _ = run_port(
                         b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
                         tail=(N_PREDICTIONS
-                              if cell in ("published", "published_nc") else 0),
+                              if cell in ("published", "published_nc", "winner")
+                              else 0),
                         eps_mult=mult)
                     alarms[cid] = (np.asarray(mk, dtype=bool)
                                    & scorable[cell][regime][cid])
@@ -1780,12 +2118,24 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         # 33.3: the whole curve, not only the matched point, so the
         # operating point is visible rather than asserted.
         "port_sweeps": sweeps,
+        "structural_stops": structural_stops,
         "guard_diagnostics": guard_rows,
         # 32.4 K3 is C2's stop and is adjudicated FIRST, so `sigma_cv` has to
         # reach the artifact for BOTH probabilistic cells. It collected only
         # "zscore" until 2026-09-09, which would have left K3 unadjudicable from
         # the artifact -- 27.8's defect exactly, where S1 and S2 could not be
         # settled because the instrument did not retain what the check needed.
+        # 35.4 requires per-channel fit time, peak memory and the step-likeness
+        # score to reach the record; the builders returned all three and nothing
+        # collected them. Third time this class of gap has been caught (27.8's
+        # alarm ranges, 32.7's sigma_cv, 33.7's caught sets) -- a value computed
+        # and not retained is a value that does not exist.
+        "tree_diagnostics": [
+            {"channel": c, "cell": cell, "spacecraft": v["spacecraft"],
+             **{k: v["built"][cell].get(k) for k in
+                ("fit_seconds", "peak_rss_mb", "step_likeness")}}
+            for c, v in per_channel.items()
+            for cell in ("trees", "iforest", "winner") if cell in v["built"]],
         "zscore_diagnostics": [
             {"channel": c, "cell": cell, "spacecraft": v["spacecraft"],
              **{k: v["built"][cell].get(k) for k in

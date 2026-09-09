@@ -79,6 +79,16 @@ different depths:
 **Single-context or multi-context is not the distinction. Earlier than a limit
 check, with minimal false alarms, is.**
 
+**(!) Amended 2026-09-09 by D62: the improvement ladder is closed and the claim is
+unchanged.** Nine arms -- command conditioning, dimensionless guards, a probabilistic head,
+a 32-configuration label-free forecaster grid, a transition-aware floor, per-channel
+calibration, both together, a 3-seed ensemble and gradient-boosted trees -- have now been
+measured against stage 4's **10 of 38 at 0.6838%**, and **none beats it**. The best reaches
+8/38 and four cannot reach that alarm rate at all. **The 10 of 38 above is therefore not a
+provisional figure awaiting improvement; it is a measured ceiling on this dataset**, and
+the pipeline is frozen on the configuration that produced it. What remains unmeasured is
+context (c), and no public dataset can measure it.
+
 **(!) Amended 2026-09-09 by D60.** Context (b) was listed as *barely tested* when
 this block was written on the same day. It has since been tested and the answer is
 negative: withholding the commands from the published training configuration gains

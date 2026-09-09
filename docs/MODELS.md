@@ -9117,3 +9117,275 @@ exclude cache hits.
 reporting the noise-floor reduction and the recall at matched rate. **The flight component
 carries one model** (D30), so it measures a ceiling rather than a candidate. **Then the
 pipeline freezes**, whatever the curve says, and Objective.md 13's work item 12 begins.
+
+---
+
+## 35. Pre-registration: the decision-layer ladder and a tree forecaster (work item 9.18, arms S1-S4)
+
+**Written and committed before a single figure is computed.** 34.8 selected a forecaster
+label-free and stage B scores it. This section registers everything that follows in one
+place, because the four arms act on **different stages** and running them under one
+pre-registration is what keeps their attribution separate rather than blurring it.
+
+```
+   S1   the DECISION layer   a transition-aware noise floor
+   S2   the CALIBRATION      per-channel rather than pooled
+   S12  both                 they act on different stages, so the pair is a cell
+   S3   the FORECASTER       a 3-seed ensemble over 34.8's winner
+   S4   the MODEL CLASS      gradient-boosted trees, and an isolation-forest control
+```
+
+**Every arm is scored at a nominal rate matched to stage 4's 0.6838%**, with the
+matched-rate figure labelled a comparison device (D41, D44) and the **caught set retained**
+at every operating point, which is the fix 33.8 made permanent.
+
+**Stops are structural only.** A refuted prediction is reported and the ladder continues;
+this section stops only if an arm is measuring something other than what it claims -- the
+conditions are named per arm below.
+
+### 35.1 S1: a transition-aware floor, and the rule is fixed here
+
+**The observation this tests.** D25's threshold is one quantile of one residual
+distribution, and a channel that steps between levels has two regimes in that
+distribution: quiet steady state, and a transition whose forecast error is large and
+**normal**. One floor over both is set by the transitions and is deaf during the quiet.
+
+**The rule, fixed in advance and label-free:**
+
+```
+   d[t]        = |x[t] - x[t-1]|                     on the RAW input
+   cut         = quantile(d_train, 0.99)             per channel, training window only
+   transition  = any t within +/- SPAN of a step where d[t] > cut,  SPAN = 105
+   floor_A     = quantile(e_s_train[steady],     1 - r)
+   floor_B     = quantile(e_s_train[transition], 1 - r)
+   alarm       = (steady & e_s > floor_A) | (transition & e_s > floor_B)
+```
+
+`SPAN = 105` is the EWMA span already in the stack, not a new constant: a step's influence
+on a smoothed residual lasts about one smoothing window, so that is how long the transition
+regime lasts. `0.99` is fixed and **not swept**; `r` is the dial that matches the rate.
+
+**Dimensionless and label-free**: both cuts are quantiles of the channel's own training
+data, which is D55's requirement, and no label is read.
+
+**Structural stop.** If the transition mask is empty on more than half the channels, S1 is
+inert by construction and the arm reports that rather than a recall number.
+
+### 35.2 S2: per-channel calibration
+
+**D25's recipe, applied per channel instead of pooled.** Each channel's threshold is the
+quantile of **its own** training residuals at the target rate `r`; the **pooled** rate that
+results is reported, and `r` is swept until the pooled rate matches 0.6838%.
+
+**The argument against it is recorded here, before the result.** A pooled floor lets a
+well-forecast channel stay silent and spends the alarm budget where the model is weak;
+per-channel calibration forces every channel to alarm equally often, including channels
+where nothing is wrong. **Whether that trade pays is what the arm measures**, and D41 and
+D44 are the precedent for expecting a matched-rate comparison to reverse an intuition.
+
+### 35.3 S12, S3
+
+**S12** is S1 and S2 together, registered as a cell because they act on different stages
+and the pair is not implied by either alone.
+
+**S3** is a **3-seed ensemble** over 34.8's winner: seeds 0, 1, 2, forecasts averaged
+before the residual is taken, then the identical decision stack. It is scored under
+**whichever of stage B, S1, S2 and S12 scores best**, so the ensemble is measured against
+the ladder's best decision layer rather than against a stale one. **The flight component
+carries one model** (D30), so this measures a ceiling and is not a candidate.
+
+### 35.4 S4: a different model class, and a control
+
+**Gradient-boosted trees, per channel, on label-free lag features:**
+
+```
+   features at t   x[t-9..t]                    the last ten values
+                   dx[t-9..t]                   their first differences
+                   age[t]                       steps since the last level change,
+                                                using S1's own transition rule
+   target          x[t+1]                       one step ahead, which is what
+                                                telemanom's method='first' uses
+   residual        |x[t+1] - pred|  ->  EWMA(105)  ->  the identical port
+```
+
+**Nothing downstream changes.** The residual enters the same detection stack the GRU's
+does, so the arm varies the model class and nothing else.
+
+**The control** is an **isolation forest on the identical features**, scored the same way.
+It is a baseline rather than a candidate: an isolation forest is not a forecaster, and if
+it matches a forecaster on this data that is a statement about the data.
+
+**The step-likeness score, fixed here and not tuned:**
+
+```
+   step_likeness = the share of total variation sum|dx| contributed by the
+                   largest 1% of |dx| samples, on the TRAINING split
+```
+
+Dimensionless, label-free, in `[0.01, 1]`. **The hybrid is judged at the median across
+channels and at no other cut**: trees on the steppy half, GRU on the smooth half, with the
+median computed from the training data alone. **No threshold is searched.**
+
+**(!) A dependency change, recorded rather than slipped in -- and the library is not the
+one this section first named.** `lightgbm` was installed and **removed again**: its wheel
+needs `libomp.dylib`, which is not on this machine, and supplying it means
+`brew install libomp` -- a system-level install outside the project directory, for a
+ground-side study. **`scikit-learn`'s `HistGradientBoostingRegressor` is used instead**: it
+is the same algorithm class -- histogram-binned gradient-boosted trees, the design LightGBM
+introduced -- with no native dependency, and `IsolationForest` for the control comes from
+the same package. `scikit-learn==1.9.0` is added to `requirements.txt`. D16's
+concern is a second copy of a pin drifting from the first; these are pinned in
+`requirements.txt` like everything else, and **nothing under `flight/` or `fprime/` gains
+a dependency** -- the trees are a ground-side study, and a tree model is not representable
+in `model.bin` version 1 (D30) any more than a Gaussian head was.
+
+### 35.5 PREDICTED
+
+| # | Prediction | Refuted by |
+|---|---|---|
+| **S1a** | **the commissioned number.** At 0.6838%, S1 catches **more** in-range contextual sequences of the 39 than stage B | at or below stage B's count |
+| **S1b** | and its total recall at that rate exceeds stage B's | at or below |
+| **S2a** | At 0.6838%, S2 catches **more** of the 39 than stage B | at or below |
+| **S12a** | S12 beats **both** S1 and S2 individually on the 39 | at or below either |
+| **S3a** | the 3-seed ensemble beats the best single-seed cell on the 39 | at or below it |
+| **S4a** | trees beat the GRU on the **steppy half** of channels, by the median step-likeness cut | at or below |
+| **S4b** | **and lose on the smooth half**, which is what would make a hybrid worth having rather than a uniform replacement | trees winning on both halves, which would say the GRU is simply the wrong model class here -- a larger finding, reported as one |
+| **S4c** | the isolation-forest control is **worse than both** forecasters on the 39 | it matches or beats either, which would say this data's anomalies are detectable without forecasting at all and would undercut the project's premise. **Reported prominently if it happens** |
+
+**Deliberately not predicted.** Which of S1, S2, S12 wins. Whether any of them reaches
+stage 4's 10/38 -- 33.8 established the base is well behind it and these are decision-layer
+changes, not a new signal. Parity with Table 2.
+
+### 35.6 Cost and stop-and-report
+
+**S1, S2, S12 run from cached weights: weight store +0.** S3 refits **+162** (two further
+seeds x 81).
+
+**(!) S4's weight-store delta is +0 and that is correct, not a defect.** A
+`HistGradientBoostingRegressor` and an `IsolationForest` are not `Weights` and do not pass
+through `detectors._save_weights`, so they bank nothing and are **refitted on every run**
+-- reproducible from `random_state=0` and the data, which is the same footing 31.8 left Arm
+H on and is acceptable here only because a tree fit is cheap. It is stated so that 35.6's
+"a weight-store delta other than the pre-registered one" cannot fire on S4 spuriously.
+
+Ledger reads **208 Class A and 3,693 Class B**.
+
+**S4's fit time and peak memory are reported per channel**, as the goal requires, and a
+tree fit is expected to be far cheaper than a GRU fit -- which is itself a result for a
+mission that has to train on the ground.
+
+**Stop and report** only for: S1's transition mask empty on more than half the channels;
+an arm's caught set not being retained; a weight-store delta other than the pre-registered
+one; or above 200 Class B in any read. **A refuted prediction is not a stop.**
+
+---
+
+## 35.7 OBSERVED -- the whole ladder, and none of it reaches a flyable rate
+
+**2026-09-09. Four reads at 165 Class B and 1 Class A each** (one for stage B's arms, one
+for the S-family, one after extending the dial, one after adding the diagnostics the first
+run failed to retain), plus a 7 Class B smoke. Artifacts
+`runs/smap-msl/_forensics/2026-09-09T2138*`, `2240*`, `2245*`. Weight store
+**1155 -> 1313 (+158)**, S3's two extra seeds on 79 of 81 channels.
+
+### The ladder, at each arm's own operating point
+
+```
+   arm    what                                nominal%   recall     precision      FP   irc/39
+   stage4 gru-telemanom, swept   (the target)  0.6820    47/100        --          --   10/38
+   C1S    C1 swept (33.8)                      0.6021    31/104        --          --    6/38
+   WS     34.8's winner, swept                 0.6828    30/104    30/31  96.8%     1    8/38
+   W      34.8's winner, own cut               2.2159    56/104    56/61  91.8%     5   20/39
+   S1     transition-aware floor  (quietest)   2.0065     7/104     7/9   77.8%     2    1/39
+   S2     per-channel floor       (quietest)  13.5539    54/104    54/95  56.8%    41   17/39
+   S12    S1 + S2                 (quietest)  21.4881    48/104    48/450 10.7%   402   18/39
+   S3     3-seed ensemble                      0.0000     2/104     2/2  100.0%     0    0/39
+   S4     gradient-boosted trees  (quietest)   5.1706    17/104    17/21  81.0%     4    2/39
+   S4C    isolation forest, control            0.1195     1/104     1/12   8.3%    11    0/39
+```
+
+### (!) The structural finding: four arms cannot reach a flyable rate at all
+
+**S1, S2, S12 and S4 have no operating point at or below 0.6838%.** The dial `r` is the
+tail fraction of the **training** residual, so the smallest `r` gives the highest possible
+threshold; the grid was extended to `1e-8`, below `1/len(train)` on every channel, which
+**saturates at the training maximum**. Even there:
+
+```
+   S1   quietest 2.0065%      S2  quietest 13.5539%
+   S4   quietest 5.1706%      S12 quietest 21.4881%
+```
+
+**This is D48, arriving for the fifth through eighth arms.** *"On SMAP/MSL no
+train-calibrated threshold transfers, for any arm."* The S-family is a **static
+train-calibrated quantile** -- D25's recipe, per channel or per regime -- and D48 bounded
+D25 to stationary regimes on exactly this dataset. **35.1 and 35.2 cite D25 and never
+reckon with D48, and that is a defect in the pre-registration rather than in the code.**
+The arms were built to test decision-layer refinements on a route already measured not to
+transfer here.
+
+**Recorded rather than reframed.** The measurement is real and the design was mine.
+
+### Predictions adjudicated
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **P1** | stage B's winner catches more than 10 of stage 4's 38 at or below 0.6838% | **8** at 0.6828% | **REFUTED** |
+| **P2** | and its total recall exceeds C1S's 31/104 | **30/104** | **REFUTED**, by one event |
+| **S1a/S1b** | S1 beats stage B on the 39 and on total recall at 0.6838% | **no operating point exists** | **NO VERDICT** |
+| **S2a** | S2 beats stage B on the 39 at 0.6838% | no operating point exists | **NO VERDICT** |
+| **S12a** | S12 beats both S1 and S2 | no operating point exists | **NO VERDICT** |
+| **S3a** | the 3-seed ensemble beats the best single-seed cell on the 39 | **0/39** against WS's 8/39 | **REFUTED** |
+| **S4a** | trees beat the GRU on the steppy half | **7/54 against 27/54** | **REFUTED** |
+| **S4b** | and lose on the smooth half | **10/50 against 29/50** | held, but see below |
+| **S4c** | the isolation-forest control is worse than both forecasters | **1/104** against trees 17/104 and W 56/104 | **HELD** |
+
+**S4a and S4b together kill the hybrid.** The pair was written so that trees winning the
+steppy half and losing the smooth one would justify a hybrid; **trees lose both halves**,
+and they lose them while running **louder** -- 5.17% nominal against W's 2.22% -- so the
+comparison is unfair in the trees' favour and they still lose. **No hybrid is built and no
+cut is searched for**, which is what 35.4's "at the median and at no other cut" was for.
+
+**S3 is the sharpest negative.** A 3-seed ensemble is the standard way to buy a better
+forecast, and averaging three seeds' predictions produced a residual so much smoother that
+the train-calibrated quantile **finally transfers** -- 0.0000% nominal, 2 events, 100%
+precision, zero false alarms. **It is a better forecaster and a silent detector.** That is
+D18's shape one more time: improving the forecast degrades a threshold rule fitted to the
+old residual scale.
+
+### 35.4's cost, which is a result for the toolkit
+
+```
+   trees   fit  median 2.23 s   mean 2.19 s   max 11.76 s   peak RSS median 432 MB
+   GRU     fit  mean 43.3 s                                 peak RSS max    642 MB
+```
+
+**Trees are about 20x cheaper per channel** and reach 17/104 against the GRU's 56/104 at a
+looser rate. For a mission that must train on the ground with no ML staff that ratio
+matters, and it is recorded for Objective.md 13's work item 12 even though the arm loses.
+
+**Step-likeness** ran 0.0000 to 1.0000 with a median of **0.0913**; the cut was taken at
+that median and nowhere else.
+
+### (!) Two instrument defects in this work item, both mine
+
+**The first run printed `nominal 0.0000% caught 0` for every arm that found no qualifying
+operating point**, because the print read `best[1] if best else 0` -- **a placeholder
+rendered as a measurement**, sitting directly beside an arm row showing 2% to 21%. It is
+now reported as an explicit FALLBACK line naming the quietest point the grid reached.
+
+**And the first run retained neither the per-channel fit cost nor the step-likeness score**,
+though the builders computed both -- so 35.4's own reporting requirement could not be met
+from the artifact. **This is the fourth time**: 27.8's alarm ranges, 32.7's `sigma_cv`,
+33.7's caught sets, and now these. **A value computed and not retained is a value that does
+not exist**, and it cost a fourth read to learn it again.
+
+### What this closes
+
+- **Nothing in the improvement ladder beats stage 4's `10/38`.** Arms 1, 2, 3, S1, S2, S12,
+  S3, S4 and S4C have now been measured against it and the best of them reaches 8/38.
+- **The forecaster is not the ceiling and neither is the decision layer.** 34.8 varied the
+  forecaster over 32 configurations and moved held-out error by 26.5%; the winner scores
+  8/38 where stage 4 scores 10. The S-family varied the decision layer four ways and none
+  reaches a flyable rate at all.
+- **The pipeline freezes here**, on stage 4's configuration, and D62 records it.

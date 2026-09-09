@@ -4105,3 +4105,81 @@ departure travels with the name wherever C1 appears.
 5. **Then the pipeline freezes and the toolkit begins.** The ladder is bounded at three
    arms in advance so that "one more idea" is a new pre-registration rather than a
    continuation, and Objective.md 13's work item 12 does not wait on an open-ended search.
+
+---
+
+## D62. The pipeline freezes on stage 4's configuration, because nine arms failed to beat it
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision to stop searching, from a measured
+ceiling rather than from exhaustion. It adopts a configuration for the toolkit and the C++
+port, and it closes the improvement ladder
+
+**CONTEXT.** Stage 4 measured **10 of 38** in-range contextual sequences at **0.6838%** of
+nominal steps on 2026-09-03, and every arm since has been an attempt to beat it. D61 bounded
+the ladder at three arms in advance; it ran to nine.
+
+**EVIDENCE.** Every figure at or below stage 4's alarm rate, from
+`runs/smap-msl/_forensics/2026-09-09T2245*-wi910-port.json` and its two predecessors.
+
+```
+   arm                                      nominal%   in-range contextual, on stage 4's 38
+   stage 4  gru-telemanom, swept             0.6820                10/38
+   WS       34.8's label-free winner         0.6828                 8/38
+   C1S      C1, the command-free port        0.6021                 6/38
+   S3       3-seed ensemble                  0.0000                 0/39
+   S4C      isolation forest                 0.1195                 0/39
+   S1, S2, S12, S4                             --      NO operating point at or below target
+```
+
+1. **The forecaster is not the ceiling.** 34.8 selected a forecaster label-free from 32
+   configurations, moving held-out forecast error by 26.5% best to worst. Its winner scores
+   **8/38** where stage 4 scores 10.
+2. **The decision layer is not the ceiling either.** A transition-aware floor, per-channel
+   calibration, both together, and a tree forecaster **cannot be brought to 0.6838% at all**,
+   even with the threshold at the training maximum -- which is D48 arriving for the fifth
+   through eighth arms.
+3. **A better forecast made the detector worse.** The 3-seed ensemble's residual is smooth
+   enough that a train-calibrated quantile finally transfers, and the result is 2 events at
+   zero false alarms: **a better forecaster and a silent detector**, which is D18's shape
+   again.
+4. **A different model class loses on both halves of its own split.** Trees lose the steppy
+   half 7/54 to 27/54 and the smooth half 10/50 to 29/50, while running louder. No hybrid
+   is built.
+
+**ALTERNATIVES.** Keep going -- lookback ensembles, a learned threshold, more seeds. Freeze
+on the best arm measured, which is stage 4's. Abandon SMAP/MSL and go to the testbed with
+nothing frozen.
+
+**Against the first**: nine arms across three stages of the method have now been measured and
+the best of them is 20% *below* the arm from six days ago. Continuing would be searching, and
+the difference between a ladder and a search is that a ladder was bounded in advance -- D61
+bounded this one at three. **Against the third**: a frozen configuration is what the toolkit
+and the C++ port are written against, and Objective.md 13's work items 11 and 12 cannot start
+without one.
+
+**CONSEQUENCE.**
+
+1. **The frozen pipeline is stage 4's configuration**: `gru-telemanom` -- the GRU forecaster
+   under this project's own training rules, scored **per channel, univariate, without command
+   inputs**, with **telemanom's published nonparametric dynamic threshold**, swept to a
+   nominal rate of **0.6838%**. It catches **10 of 38** in-range contextual sequences. That is
+   **26%**, on one dataset, with no floor available to compare against at that rate.
+2. **What the C++ port must carry**, and this is the operative half of the decision. The
+   **nonparametric dynamic threshold** is mandatory: it is the only rule measured to reach a
+   flyable alarm rate on a non-stationary regime (D48), and `flight/` currently transcribes
+   D25's static quantile alone. **S1 and S2 are NOT adopted** and add nothing to the port. The
+   multiplier that matches an alarm rate is a **labelled deviation** from the published
+   algorithm (28.6) and travels with its label. A selectable mode is a `format_version` 2
+   decision (D30) and is work item 10's second half, taken after the testbed.
+3. **The ladder is closed and its negative results are the record.** Commands hurt (D60);
+   dimensionless guards move MSL by zero (D58); the forecaster grid moves 26.5% of forecast
+   error and loses 2 events; the ensemble silences the detector; trees lose both halves. **A
+   ceiling established by elimination is worth more than one asserted**, and this one cost
+   nine arms.
+4. **The premise that survives is the one Phase 3 tests.** Every arm here varied the model or
+   the rule on a dataset of 81 unsynchronised univariate streams. **The claim D57 re-framed --
+   early warning from whatever context the telemetry carries -- has one context left
+   unmeasured, and no public data can measure it.** The F' Ref physics testbed is next.
+5. **Nothing here reopens D28.** `gru-quantile` still flies on ESA-ADB; the component ships
+   both rules and a mission selects one, because which rule is needed is a property of the
+   telemetry regime and not of the method.

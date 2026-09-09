@@ -14,6 +14,75 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.18] - 2026-09-09 - The ladder closes: nine arms, none beats stage 4, and the pipeline freezes
+
+Work items 9.17 and 9.18. Four reads at 165 Class B and 1 Class A each plus two smokes;
+weight store 1070 -> 1313. `docs/MODELS.md` 34.8, 35.7, D61, D62.
+
+### The ladder, at each arm's own operating point
+
+```
+   arm    what                                nominal%   recall     irc on stage 4's 38
+   stage4 gru-telemanom, swept   (the target)  0.6820    47/100           10/38
+   WS     34.8's label-free winner, swept      0.6828    30/104            8/38
+   C1S    C1, the command-free port            0.6021    31/104            6/38
+   S3     3-seed ensemble                      0.0000     2/104            0/39
+   S4C    isolation forest, the control        0.1195     1/104            0/39
+   S1 transition floor / S2 per-channel / S12 / S4 trees -- NO operating point at target
+```
+
+### Measured
+
+- **P1 and P2 refuted.** The label-free forecaster winner reaches **8/38**, below stage 4's
+  10, and 30/104 against C1S's 31.
+- **S1a, S1b, S2a, S12a have NO VERDICT**, and that is the structural finding: four arms have
+  **no operating point at or below 0.6838% at all**. The dial was extended to `1e-8`, which
+  saturates at the training maximum, and the quietest points are 2.01%, 13.55%, 21.49% and
+  5.17%. **This is D48 arriving for the fifth through eighth arms**, and 35.1/35.2 cite D25
+  without reckoning with the entry that bounds it -- a defect in the pre-registration, not the
+  code, and recorded as mine.
+- **S3a refuted, and it is the sharpest negative.** Averaging three seeds' predictions
+  smooths the residual enough that a train-calibrated quantile **finally transfers** -- and
+  the result is 2 events at zero false alarms. **A better forecaster and a silent detector**,
+  which is D18's shape again.
+- **S4a refuted, S4b held, and together they kill the hybrid.** Trees lose the steppy half
+  7/54 to 27/54 **and** the smooth half 10/50 to 29/50, while running louder at 5.17% against
+  2.22%. No hybrid is built and no cut is searched for.
+- **S4c held.** The isolation-forest control reaches 1/104 against trees' 17 and the GRU's 56.
+
+### Added - a result for the toolkit even though the arm loses
+
+Trees fit in **2.23 s median per channel against the GRU's 43.3 s mean** -- about 20x
+cheaper, at 432 MB against 642 MB peak. For a mission training on the ground without ML
+staff that ratio matters and is recorded for work item 12.
+
+### Added - D62, the freeze
+
+**The pipeline freezes on stage 4's configuration**: `gru-telemanom`, per channel,
+univariate, no commands, under telemanom's published nonparametric dynamic threshold swept to
+0.6838%, catching **10 of 38**. **The C++ port must carry the dynamic threshold** -- it is the
+only rule measured to reach a flyable rate under regime shift, and `flight/` transcribes
+D25's static quantile alone. **S1 and S2 are not adopted.**
+
+### (!) Two instrument defects, both mine, and the fourth of a kind
+
+The first S-run printed `nominal 0.0000% caught 0` for every arm that found no qualifying
+operating point, because the print read `best[1] if best else 0` -- **a placeholder rendered
+as a measurement**, beside arm rows showing 2% to 21%. And it retained neither per-channel fit
+cost nor step-likeness though the builders computed both, so 35.4's own reporting requirement
+could not be met from the artifact. **Fourth time**: 27.8's alarm ranges, 32.7's `sigma_cv`,
+33.7's caught sets, now these. A value computed and not retained is a value that does not
+exist, and it cost an extra read to learn again.
+
+### Dependency
+
+`scikit-learn==1.9.0` pinned. `lightgbm` was installed and removed: its wheel needs
+`libomp.dylib`, absent here, and supplying it means a Homebrew system install outside the
+project for a ground-side study. `HistGradientBoostingRegressor` is the same algorithm class
+with no native dependency.
+
+---
+
 ## [0.6.17] - 2026-09-09 - The dial: C1's advantage does not survive a flyable alarm rate
 
 Work item 9.16, pre-registered the same day. **Two** reads at 165 Class B and 1 Class A
