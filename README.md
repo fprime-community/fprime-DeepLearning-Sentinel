@@ -92,6 +92,12 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
   rate there** (a rolling standard deviation at 5,000x its threshold still alarms on 15.17% of
   nominal steps); and the forecaster **under a dynamic threshold** operates at **0.68%** and
   catches **10 of 38** -- the baseline now being improved (D46, D48, `docs/MODELS.md` 26.18).
+- **(!) The figure is a measured ceiling, not a work in progress (D62, 2026-09-09).** Nine
+  improvement arms have been measured against that 10 of 38 -- commands, dimensionless
+  guards, a probabilistic head, a 32-configuration label-free forecaster grid, a
+  transition-aware floor, per-channel calibration, a 3-seed ensemble and gradient-boosted
+  trees -- and **none beats it**; the best reaches 8/38 and four cannot reach its alarm rate
+  at all. The pipeline is frozen on the configuration that produced it.
 - **(!) Read the configuration with it.** That result is `gru-telemanom`, the published
   **dynamic** threshold, scored **per channel, univariate, without commands** -- **not** the
   `gru-quantile` configuration that flies today. The component ships both rules and a mission

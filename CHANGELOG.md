@@ -14,6 +14,289 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.18] - 2026-09-09 - The ladder closes: nine arms, none beats stage 4, and the pipeline freezes
+
+Work items 9.17 and 9.18. Four reads at 165 Class B and 1 Class A each plus two smokes;
+weight store 1070 -> 1313. `docs/MODELS.md` 34.8, 35.7, D61, D62.
+
+### The ladder, at each arm's own operating point
+
+```
+   arm    what                                nominal%   recall     irc on stage 4's 38
+   stage4 gru-telemanom, swept   (the target)  0.6820    47/100           10/38
+   WS     34.8's label-free winner, swept      0.6828    30/104            8/38
+   C1S    C1, the command-free port            0.6021    31/104            6/38
+   S3     3-seed ensemble                      0.0000     2/104            0/39
+   S4C    isolation forest, the control        0.1195     1/104            0/39
+   S1 transition floor / S2 per-channel / S12 / S4 trees -- NO operating point at target
+```
+
+### Measured
+
+- **P1 and P2 refuted.** The label-free forecaster winner reaches **8/38**, below stage 4's
+  10, and 30/104 against C1S's 31.
+- **S1a, S1b, S2a, S12a have NO VERDICT**, and that is the structural finding: four arms have
+  **no operating point at or below 0.6838% at all**. The dial was extended to `1e-8`, which
+  saturates at the training maximum, and the quietest points are 2.01%, 13.55%, 21.49% and
+  5.17%. **This is D48 arriving for the fifth through eighth arms**, and 35.1/35.2 cite D25
+  without reckoning with the entry that bounds it -- a defect in the pre-registration, not the
+  code, and recorded as mine.
+- **S3a refuted, and it is the sharpest negative.** Averaging three seeds' predictions
+  smooths the residual enough that a train-calibrated quantile **finally transfers** -- and
+  the result is 2 events at zero false alarms. **A better forecaster and a silent detector**,
+  which is D18's shape again.
+- **S4a refuted, S4b held, and together they kill the hybrid.** Trees lose the steppy half
+  7/54 to 27/54 **and** the smooth half 10/50 to 29/50, while running louder at 5.17% against
+  2.22%. No hybrid is built and no cut is searched for.
+- **S4c held.** The isolation-forest control reaches 1/104 against trees' 17 and the GRU's 56.
+
+### Added - a result for the toolkit even though the arm loses
+
+Trees fit in **2.23 s median per channel against the GRU's 43.3 s mean** -- about 20x
+cheaper, at 432 MB against 642 MB peak. For a mission training on the ground without ML
+staff that ratio matters and is recorded for work item 12.
+
+### Added - D62, the freeze
+
+**The pipeline freezes on stage 4's configuration**: `gru-telemanom`, per channel,
+univariate, no commands, under telemanom's published nonparametric dynamic threshold swept to
+0.6838%, catching **10 of 38**. **The C++ port must carry the dynamic threshold** -- it is the
+only rule measured to reach a flyable rate under regime shift, and `flight/` transcribes
+D25's static quantile alone. **S1 and S2 are not adopted.**
+
+### (!) Two instrument defects, both mine, and the fourth of a kind
+
+The first S-run printed `nominal 0.0000% caught 0` for every arm that found no qualifying
+operating point, because the print read `best[1] if best else 0` -- **a placeholder rendered
+as a measurement**, beside arm rows showing 2% to 21%. And it retained neither per-channel fit
+cost nor step-likeness though the builders computed both, so 35.4's own reporting requirement
+could not be met from the artifact. **Fourth time**: 27.8's alarm ranges, 32.7's `sigma_cv`,
+33.7's caught sets, now these. A value computed and not retained is a value that does not
+exist, and it cost an extra read to learn again.
+
+### Dependency
+
+`scikit-learn==1.9.0` pinned. `lightgbm` was installed and removed: its wheel needs
+`libomp.dylib`, absent here, and supplying it means a Homebrew system install outside the
+project for a ground-side study. `HistGradientBoostingRegressor` is the same algorithm class
+with no native dependency.
+
+---
+
+## [0.6.17] - 2026-09-09 - The dial: C1's advantage does not survive a flyable alarm rate
+
+Work item 9.16, pre-registered the same day. **Two** reads at 165 Class B and 1 Class A
+each, no fits, weight store 558 -> 558 on both -- the second to resolve a crossing the
+first grid could not see. `docs/MODELS.md` 33.7 and 33.8, D61.
+
+### Added - D61, C1 as the ladder's base
+
+C1 is the base every improvement arm reports against, and the ladder is bounded at three
+arms in advance so that one more idea is a new pre-registration rather than a continuation.
+**The ladder is label-free where it selects**: arm 2 chooses a forecaster only on held-out
+nominal validation error, because selecting on recall would be choosing the model that best
+fits 104 labelled sequences. A base is not an endorsement; C1 flies nowhere.
+
+### Measured
+
+- **M3 HELD**, zero inversions across 24 grid points, so "matched rate" is well defined for
+  this arm -- which is what M3 existed to establish before any comparison was drawn.
+- **M1 and M2 REFUTED at the measured point.** Swept to 0.4465%, C1 catches **6 of stage
+  4's own 38** in-range contextual sequences against stage 4's **10/38**. **Stage 4's 10/38
+  stands unreplaced and the front page does not change.**
+- **K2, owed since 32.7, is discharged and HELD.** It predicted C1's in-range contextual
+  count below Arm T's 12/39 at a matched rate; it is 6. It held for a reason 32.4 did not
+  anticipate: not because the commands were load-bearing, but because **C1's whole advantage
+  lives at an alarm rate no mission would fly.**
+- **M4 refuted at three.** MSL contributes 3 catches against a predicted 2 or fewer. The
+  ratio is the interesting part: SMAP halves as the rate falls fourfold, 50/68 to 25/68,
+  while MSL moves 4 to 3.
+
+### The crossing, resolved the same day (33.8)
+
+A second read at 165 Class B, no fits, re-adjudicated M1 and M2 on a two-stage grid -- the
+24 coarse points kept so the curves compare, **[1.80, 2.10] resolved at 0.01**, and the
+**caught set retained at every point** rather than a count of it, so any population
+restriction is computable from the artifact forever. **M1 and M2 refuted robustly**: the
+best in-range contextual count at or under the target is **6 against stage 4's 10**, and
+even at a rate 10% **louder** than stage 4's, C1 reaches only 8. To reach 16 it needs twice
+stage 4's alarm rate. **C1's advantage is a precision result and not an early-warning one.**
+
+### (!) Why a second read was needed -- the grid could not see the crossing
+
+The selection rule takes the best point at or below the target, and this grid's neighbours
+straddle it -- **0.7578% and 0.4465% with nothing between** -- so C1 is compared **35%
+quieter** than the arm it is measured against. At 1.865 it catches 34 total events against
+28, so six sit in the gap, and the curve **did not retain the contextual breakdown per
+multiplier**, so whether enough of them are contextual to flip the verdict cannot be
+settled from the artifact. Whether C1 is behind at exactly 0.6838% is **unresolved**. A
+refinement is owed and named, not run, and not folded into arm 2. Second time in two work
+items that a curve was kept at lower resolution than the question needed.
+
+### (!) A second lever in C1, found while building the dial, and worth nothing
+
+C1 was built to differ from Arm T in exactly one lever and differed in two: the commands,
+which was the point, and `tail`, which carries T-g's published target length. The dispatch
+selected it **by arm name**, so Arm T carried it and C1 did not, and 32.2's own enumeration
+of held-identical differences omits T-g while the sentence "nothing else changed" carried
+it implicitly.
+
+Corrected in the same run at no extra cost, and **worth exactly zero**: 54/104, 93.1%
+precision and 4 false positives are identical, and only the nominal rate moves, 1.8815% to
+1.8777%. 33.2.1 predicted "probably nothing" before measuring and said that was a
+prediction rather than a reason to skip it. Both numbers kept; the condition is now keyed
+by cell so a new published arm cannot be forgotten the way C1 was.
+
+---
+
+## [0.6.16] - 2026-09-09 - The commands were what was hurting, and K3's stop fires
+
+Work item 9.15, pre-registered the same day. One read at 165 Class B and 1 Class A, two
+3-channel smokes at 9 each, 33.3 min at 4 workers, weight store 405 -> 558.
+`docs/MODELS.md` 32.7, D60.
+
+### Measured - K3 first, as 32.4 requires
+
+```
+   arm                    channels   sigma CV median   above 0.25
+   H   (no commands)          79          0.0504         11 / 79
+   C2  (with commands)        78          0.1145         16 / 78
+   K3 needs                                              more than half
+```
+
+- **K3 REFUTED and the pre-registered stop fires.** Commands more than doubled sigma's
+  variation and did not come close to the bar. **Nothing after that line in C2 is reported
+  as a result**, so K4 is not adjudicated. The likelihood trained on **78 of 78** fitted
+  channels: the head could have learned a state-varying sigma from the commands and did not.
+- 31.9's first candidate is closed. Two remain, both named before any of this ran.
+
+### Measured - K1, refuted in the direction that matters
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   T     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   C1    Total   54/104  51.9%     54/58    93.1%             4    1.8815%
+   paper Total   84/105  80.0%     84/96    87.5%            12
+```
+
+- **K1 predicted C1 below 46/104; it is 54/104.** Withholding the commands **gains eight
+  events, removes five false alarms and lowers the alarm rate at the same time**. C1
+  dominates Arm T on every axis, so the comparison is not rate-confounded.
+- K1's own refutation clause, written before the run, said this would put D49's finding
+  **outside its own bound**. It does: commands fail to help under the published training
+  too, and **D49 did not need the qualification it gave itself** on that axis.
+- **C1 is the best arm on this population**: 93.1% precision against the paper's 87.5%, on
+  **4 false positives against a scaled target of 11**, at 51.9% recall against 80.0%.
+- **(!) MSL moves for the first time since the port was built, by one event** (3/36 to
+  4/36), with its false alarm falling 2 to 1. **One event is not a finding** and is not
+  reported as one; the pair is recorded because it moves together.
+- **K5 HELD**: C1 fitted the same 81 channels and scored the same 104 sequences as Arm T,
+  so narrowing the input did not change which channels train.
+
+### (!) K2 has no verdict, and it is a defect in the instrument
+
+32.3 pre-registered a sweep to a rate matched to stage 4's 0.6838% "for C1 through
+`Mech.eps_mult`", and **that sweep was never implemented** -- C1 was registered as a `port`
+arm, which has no dial. So the matched-rate figure K2 asks for does not exist. C1 catches
+20 of 39 in-range contextual at its own 1.8815% and Arm T catches 12 of 39 at 2.0450%;
+**both are above the ~1% ceiling 27.3 sets for quoting a per-event number**, so neither is
+compared to the other or to stage 4's 10/38. The comparison is owed and unpaid.
+
+### (!) Two instrument defects, one of which nearly cost the stop
+
+- **`zscore_diagnostics` collected only the old cell**, so C2's `sigma_cv` would never have
+  reached the artifact and **K3 would have been unadjudicable from the record** -- 27.8's
+  defect exactly. Caught by the smoke, fixed before the read, and the second smoke exists
+  to confirm it.
+- The peak-RSS meter guessed its unit from the magnitude of `ru_maxrss`, bytes on macOS and
+  kibibytes on Linux. Replaced with a platform test before it produced a number anybody read.
+
+### The compute plan, measured against itself
+
+The 3-channel smoke projected 143 min serial and 2.4 GiB at four workers; the 81-channel
+run measured **101 min serial, 2.7 GiB, and 33.3 min wall clock**. The smoke over-estimated
+time by 42% and under-estimated peak memory by 10%, **and the memory-gate arithmetic was
+right this time because the term that killed 28.7 was measured rather than omitted.**
+
+### Weight store
+
++153, not the pre-registered +162, and the difference is accounted for rather than
+excused: six fits were already banked by the smokes and **three C2 channels stalled** --
+`D-11` and `F-3` on D17's first-epoch guard, `D-12` with no complete sequence in its
+training split. 162 - 6 - 3 = 153.
+
+---
+
+## [0.6.15] - 2026-09-09 - Dimensionless guards: MSL does not move, and G4's structural stop fires
+
+Work item 9.13, pre-registered on 2026-09-08 and run today. One read at 165 Class B and
+1 Class A, preceded by a 2-channel smoke at 7 Class B and 1 Class A. Cached weights,
+weight store **399 -> 399**. `docs/MODELS.md` 30.4, D58.
+
+### Added - Arm G, in the study script only
+
+- Telemanom's two candidate filters replaced by `mean(e_s) + 1*sd(e_s)`, **the multiplier
+  fixed in advance at 1.0 and not swept**. The coverage cap, the sequence cap and
+  `sd_e_s > 0.05 * sd_values` are left exactly as published, because they are already
+  scale-free and changing one would be a second lever.
+- `src/sentinel_models/telemanom.py` is untouched (D8); Arm R is re-scored in the same
+  load as its own control and **reproduces 29.4 in every cell**, which is the run's
+  internal gate.
+
+### Measured
+
+```
+   arm   set     recall            precision (TP/(TP+FP))    FP    nominal
+   R     MSL      3/36    8.3%      3/5     60.0%             2
+   G     MSL      3/36    8.3%      3/5     60.0%             2
+   R     SMAP    43/68   63.2%     43/50    86.0%             7
+   G     SMAP    45/68   66.2%     45/65    69.2%            20
+   R     Total   46/104  44.2%     46/55    83.6%             9    2.0450%
+   G     Total   48/104  46.2%     48/70    68.6%            22    3.7958%
+```
+
+- **G1 REFUTED. MSL moves by exactly zero events and zero false alarms**, against a
+  prediction of recall past 15/36. Every point of movement is SMAP's -- the third
+  consecutive arm of which that is true.
+- **G2 HELD** at 2 MSL false positives, the paper's own figure. **G3 HELD** at 45/68 SMAP,
+  above the 43/68 floor. So the arm works; what it does is not what MSL needed.
+- **G4 REFUTED at 79 of 81 channels, and the pre-registered stop fires.** On `D-2` and
+  `G-6` the dimensionless arm **loses** 140 and 350 steps the absolute arm had. On `G-6`
+  the whole-window bail-out fires 2 times under the absolute floor and **64** under the
+  dimensionless one.
+
+### Added - D58, and it qualifies D55 rather than withdrawing it
+
+- **A dimensionless filter is not uniformly looser than an absolute one.** It is
+  channel-relative: looser where residuals are small, **tighter where they are large** --
+  and 29.4 already measured that this data has both, `max(e_s)` on MSL being 0.7323 at the
+  median. Replacing an absolute constant changes **which** channels a filter binds on.
+- **In aggregate the arm is still a relaxation**: bail-outs 1,836 -> 996 of 13,995 windows,
+  the magnitude conjunct 4 -> 0, the alarm rate 2.0450% -> 3.7958%. **A pooled statistic
+  would have reported a relaxation and concealed the two channels.** G4 was written per
+  channel, as a stop, before any number existed, and it is the only reason they are on the
+  record.
+- The implementation is **not adopted**. 30.2 pre-registered that adoption was decided on
+  G1-G4 rather than inherited from D55, and it decided against. The multiplier stays
+  unswept: needing another value is a finding about the form, and a swept multiplier is the
+  alarm budget arriving in a new costume.
+
+### Consequence - the last named candidate
+
+With the residual rung inert (29.4), the scale hypothesis refuted (R4) and now the guards
+moving nothing, **pruning at `p = 0.13` is what is left** for MSL's silence. It was named
+in 29.4 and again in 30.2's own refutation clause, both before this ran.
+
+### (!) An ambiguity in the pre-registration, recorded rather than absorbed
+
+`errors.py:337-339` is a three-term test and 30.1's table named two of them. The middle
+term, `max(e_s) > 0.05 * inter_range`, is not listed; it was **left as published** on the
+literal reading, because a pre-registration is a literal instrument and moving an unlisted
+lever is what rung 1c's stop fired for. 30.4 states which test was run, since G4's
+adjudication depends on it.
+
+---
+
 ## [0.6.14] - 2026-09-08 - `gru-zscore`: the head learned a constant, and its own stop fired
 
 Work item 9.13 pre-registered and not run; work item 9.14 pre-registered and run at 165

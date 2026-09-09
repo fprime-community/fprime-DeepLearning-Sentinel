@@ -92,14 +92,40 @@ SMAP's.
 | `T` | `F` plus the published training configuration | 3/36 | 46/104 (44.2%) | 46/55 (83.6%) | 9 | `runs/smap-msl/_forensics/2026-09-08T201450Z-wi910-port.json` |
 | `R` | `T` plus the residual rung | 3/36 | 46/104 (44.2%) | 46/55 (83.6%) | 9 | `runs/smap-msl/_forensics/2026-09-08T211109Z-wi910-port.json` |
 | `H` | `gru-zscore`, the probabilistic head | 5/36 | 47/102 | 47/256 (18.4%) | 209 | `runs/smap-msl/_forensics/2026-09-08T220104Z-wi910-port.json` |
+| `G` | `R` with the two absolute filters made dimensionless | 3/36 | 48/104 (46.2%) | 48/70 (68.6%) | 22 | `runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json` |
+| `C1` | `T` with the commands WITHHELD (D60) | 4/36 | 54/104 (51.9%) | 54/58 (93.1%) | 4 | `runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json` |
+| `W` | 34.8's label-free forecaster winner, own cut | 3/36 | 56/104 (53.8%) | 56/61 (91.8%) | 5 | `runs/smap-msl/_forensics/2026-09-09T224554Z-wi910-port.json` |
+
+**(!) FROZEN 2026-09-09 (D62): the pipeline is stage 4's configuration.** Nine arms have now
+been measured against stage 4's **10/38 at 0.6838%** and none beats it. At or below that
+rate: `WS`, the label-free forecaster winner, reaches **8/38**; `C1S` reaches 6/38; the
+3-seed ensemble and the isolation forest reach 0; and **four arms - a transition-aware
+floor, per-channel calibration, both together, and gradient-boosted trees - have no
+operating point at or below 0.6838% at all**, which is D48 arriving for the fifth through
+eighth arms. The full ladder is `docs/MODELS.md` 35.7.
 | **paper** | Hundman et al., Table 2 | **25/36** | 84/105 (80.0%) | 84/96 (87.5%) | **12** | - |
 
 **The headline number is stage 4's `10 of 38`**: in-range contextual sequences caught, at
 0.6838% of nominal steps, by `gru-telemanom` scored per channel, univariate, without
 commands (D46, D48, `docs/MODELS.md` 26.18). **It is 26%**, on one dataset, with no floor
 available to compare against at that alarm rate - `rstd` at 5,000x its calibrated
-threshold still alarms on 15.17% of nominal steps. **Six model variants have since been
+threshold still alarms on 15.17% of nominal steps. **Seven model variants have since been
 measured and none has replaced it.**
+
+**(!) MSL has barely moved since the port was built.** `F`, `T`, `R` and `G` all catch
+**3 of 36** where the paper catches 25 with 2 false alarms; `C1` catches **4**, the first
+movement of any kind, and **one event is not a finding**. Eight training changes moved it
+by zero (28.7); the residual rung moved it by zero (29.4); relaxing the two absolute
+candidate filters moved it by zero (30.4). With 29.4's scale hypothesis also refuted,
+**pruning at `p = 0.13` is the last named candidate**, and it was named in advance.
+
+**(!) The command context is measured, and it is negative** (D60, `docs/MODELS.md` 32.7).
+Withholding the commands from the published training configuration **gains eight events,
+removes five false alarms and lowers the alarm rate at the same time** -- `C1` at 54/104
+and 93.1% precision against Arm `T`'s 46/104 and 83.6%. That is the second measurement in
+the same direction, on a second training configuration and a second model family, so
+**D49 did not need the bound it gave itself.** `Objective.md` 1.1's context (b) is no
+longer *barely tested*; at this encoding, on this data, it costs.
 
 **ESA-ADB, one line.** `gru-quantile` leads the gate metric on `m1-g8.9.10` at F0.5
 **0.804** against the corrected floor's 0.676, at a third of its alarm rate, and transfers
@@ -113,7 +139,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 196 Class A and 2,974 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 212 Class A and 4,360 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -164,6 +190,23 @@ last artifact and never transcribed.
   **0.0504** at the median and above 0.25 on 11 of 79 channels. **H5 held on 79 of 79**, so
   the likelihood objective trained: the model could have learned a varying sigma and did
   not. Not an optimisation failure - a finding about a single univariate channel.
+- **The ceiling is neither the forecaster nor the decision layer (D62).** A 32-configuration
+  label-free grid moved held-out forecast error by 26.5% and its winner scores 8/38 where
+  stage 4 scores 10. Four decision-layer variants cannot reach a flyable alarm rate at all.
+  **A ceiling established by elimination is worth more than one asserted**, and this one cost
+  nine arms.
+- **A better forecaster can be a worse detector.** The 3-seed ensemble's residual is smooth
+  enough that a train-calibrated quantile finally transfers - and it catches 2 events at zero
+  false alarms. D18's shape, one more time.
+- **The context that was supposed to help was hurting (D60).** Command conditioning is
+  negative on this data under both training configurations and both model families tested.
+  It was measured once, bounded carefully, and the bound turned out not to be needed -
+  which is an argument for bounding a finding rather than against it.
+- **A dimensionless constant is not a strictly safer absolute one (D58).** It is
+  channel-relative -- looser where residuals are small, **tighter where they are large** -
+  so substituting one changes *which* channels a filter binds on. Caught only because G4
+  was written **per channel** and as a stop: pooled, the same arm reads as a clean
+  relaxation.
 - **A run that produces a documented figure lands its script in the same commit as the
   figure** (`docs/NARRATIVE.md` 11). Learned by losing a study script and watching two
   gates become unreproducible.
@@ -176,15 +219,50 @@ last artifact and never transcribed.
 `README.md` and `docs/INDEX.md` carry the re-framed claim, D57 is recorded, `CHANGELOG.md`
 and `docs/NARRATIVE.md` are current, and every script that produced a live figure is cited.
 
-**B0. Work item 9.13, dimensionless guards** (`docs/MODELS.md` 30). Pre-registered with
-G1-G4 and never run; one read, 165 Class B, **no fits**. *Done when* `30.4 OBSERVED` records
-G1-G4 against measurement, MSL first. **G4 is a structural stop.**
+**B0. Work item 9.13, dimensionless guards - DONE 2026-09-09** (`docs/MODELS.md` 30.4,
+D58), 165 Class B, weight store +0. **G1 refuted**: MSL moves by zero events. **G2 and G3
+held. G4 refuted at 79/81 and its stop fired** - the replacement tightens on two channels,
+so a dimensionless form is not uniformly a relaxation. Not adopted; the multiplier stays
+unswept.
 
-**B. Work item 9.15, the command-context arms** (`docs/MODELS.md` 32, to be written). Arm T
-**without** commands as the counterfactual - Arm T already carries them - and Arm H **with**
-them. *Done when* both are scored at a matched nominal rate against `A0`, `F`, `T` and stage
-4's 0.6838%, on the 39 in-range contextual and on all 102, with the falsifications stated in
-advance. The compute plan is presented and chosen before anything runs.
+**B. Work item 9.15, the command-context arms - DONE 2026-09-09** (`docs/MODELS.md` 32.7,
+D60), 165 Class B, weight store +153, 33.3 min at 4 workers. **K1 refuted**: withholding
+the commands is worth +8 events, -5 false alarms and a lower alarm rate at once, so the
+command context is negative under the published training too. **K3 refuted and its stop
+fired**: sigma's variation doubled with commands attached and stayed far below the bar, so
+C2 stopped and K4 was not adjudicated. **K5 held.** **(!) K2 has no verdict** - the
+`eps_mult` sweep 32.3 pre-registered for C1 was never implemented, so the matched-rate
+in-range contextual figure does not exist and no per-event comparison is drawn. That
+comparison is owed.
+
+**B1. Work item 9.16, the dial and the owed comparison - DONE 2026-09-09**
+(`docs/MODELS.md` 33.7, D61). **M3 held** so the dial is usable; **M1 and M2 refuted** at
+the measured point - swept to 0.4465%, C1 catches **6 of stage 4's own 38** against stage
+4's **10/38**, so **stage 4's 10/38 stands unreplaced and the front page does not change**.
+**K2 is discharged and HELD.** C1's large advantage over Arm T lives at 1.88% nominal and
+does not survive being brought near a flyable rate. **The grid refinement ran the same
+day** (33.8): resolved at 0.01 across the crossing, 55 points, with the caught set retained
+at every one. **M1 and M2 are refuted robustly** - the best count at or under the target is
+**6 against stage 4's 10**, and even given a rate 10% **louder** than stage 4's, C1 reaches
+only 8. There is no operating point near 0.6838% where C1 competes. Also corrected
+here: C1 carried a second unintended lever (T-g, the published target length), **worth zero
+events** - both numbers kept.
+
+**B2. Arm 2, label-free forecaster selection - DONE 2026-09-09** (`docs/MODELS.md` 34.8,
+D61). 512 fits over 32 configurations on a seeded 16-channel subsample, winner chosen only
+on held-out nominal validation error. **The winner is the published configuration with the
+cell swapped** - `gru`, l_s 250, hidden 80, epochs 35. **P3 held on one axis, P4 refuted,
+P5 refuted**: more training makes held-out error consistently worse, because the published
+`restore_best=False` keeps the last weights rather than the best.
+
+**B3. Arms S1-S4 - DONE 2026-09-09** (`docs/MODELS.md` 35.7, D62). A transition-aware floor,
+per-channel calibration, both, a 3-seed ensemble, gradient-boosted trees and an
+isolation-forest control. **None beats stage 4. Four cannot reach its alarm rate at all.**
+
+**THE PIPELINE IS FROZEN (D62)** on stage 4's configuration: `gru-telemanom`, per channel,
+univariate, no commands, published dynamic threshold swept to 0.6838%, **10 of 38**. **The
+C++ port must carry the dynamic threshold**, which `flight/` does not yet have - it
+transcribes D25's static quantile alone. S1 and S2 are not adopted.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults

@@ -3821,3 +3821,365 @@ the in-limits class is real even where the relationship class cannot be measured
    which ESA-ADB is; it did not ask whether the labelled anomalies were
    *relational*, which is the property that mattered. **The dataset survey and the
    anomaly-class survey are different searches**, and only the first was run.
+
+---
+
+## D58. A dimensionless filter is not uniformly looser than an absolute one; it changes which channels it binds on
+
+**DATE** 2026-09-09 | **STATUS** resolved as a finding, and as a qualification on D55's
+consequence 1 rather than on D55 itself. It closes one candidate for MSL's silence and
+names the last one
+
+**CONTEXT.** D55 established that absolute constants in data units do not transfer and
+that the toolkit must ship dimensionless equivalents. `docs/MODELS.md` 30 registered one
+implementation of that principle -- telemanom's two candidate filters, `max(e_s) > 0.05`
+and `e_s > 0.05 * inter_range`, replaced by `mean(e_s) + 1*sd(e_s)` with the multiplier
+fixed in advance and not swept -- and predicted, structurally and as a stop, that **every
+replacement is a relaxation**, so the new arm's alarm set would be a superset of the old
+one's on every channel.
+
+**EVIDENCE.** One read, 165 Class B, weight store +0, artifact
+`runs/smap-msl/_forensics/2026-09-09T043011Z-wi910-port.json`. Arm R was re-scored in the
+same load as its own control and reproduced 29.4 in every cell.
+
+1. **G4 refuted at 79 of 81 channels.** On `D-2` and `G-6` the dimensionless arm alarms on
+   steps the absolute arm did not, **and loses 140 and 350 steps the absolute arm had.**
+   On `G-6` the whole-window bail-out fires **2** times under the absolute floor and **64**
+   under the dimensionless one.
+2. **In aggregate it is nevertheless a relaxation**: bail-outs fall from 1,836 to 996 of
+   13,995 windows, the magnitude conjunct binds 4 times and then 0, and the nominal alarm
+   rate rises from 2.0450% to 3.7958%. **A pooled statistic would have reported a
+   relaxation and concealed the two channels.**
+3. **G1 refuted, and it is the more useful half.** MSL recall is **3/36 before and after**,
+   with 2 false positives before and after. Not one event moves. G2 held at 2 and G3 held
+   at 45/68, so the arm works; what it does is not what MSL needed.
+
+**ALTERNATIVES.** Sweep the multiplier until the arm is a relaxation everywhere. Replace
+only the filter that is fully absolute and leave the semi-absolute one. Take G4's
+refutation as a finding about the **form** and stop, which is what 30.1 said in advance
+would happen.
+
+**Against the first**: 30.1 fixed `DIM_K = 1.0` and stated that needing another value is a
+finding about the form rather than a parameter to search -- and a swept multiplier is the
+alarm-budget failure (`docs/HARNESS.md` section 1) arriving in a new costume. **Against the
+second**: it is a second lever, and it would answer a question nobody registered.
+
+**CONSEQUENCE.**
+
+1. **The finding, stated for the toolkit.** A constant expressed relative to a series' own
+   dispersion is **not** a strictly weaker version of an absolute one. It is *channel-relative*:
+   looser where the residuals are small, **tighter where they are large**. Replacing an
+   absolute constant therefore changes **which** channels a filter binds on, not only how
+   hard it binds, and a mission whose channels differ in residual scale will see the filter
+   move between them.
+2. **It qualifies D55 consequence 1 and does not withdraw it.** The principle -- that a
+   constant in the units of the data belongs to the dataset it was fitted on -- is
+   untouched, and this is direct evidence for it, since the two forms disagree per channel
+   exactly because the scale varies per channel. What is qualified is the assumption that
+   the dimensionless form is the safe default. **`Objective.md` 10.2's one-command training
+   must report, per channel, where a dimensionless guard binds and an absolute one would
+   not, rather than presenting the substitution as free.**
+3. **A pooled check would not have caught it.** G4 was written per channel and as a stop,
+   before any number existed, and it is the only reason the two channels are on the record.
+   That is the argument for structural predictions rather than metric ones, and it is the
+   second time one has paid (26.26 was the first).
+4. **The guards are eliminated as the cause of MSL's silence.** With 29.4's residual rung
+   inert and its scale hypothesis refuted, and now the guards moving nothing, **pruning at
+   `p = 0.13` is the last named candidate.** It was named in 29.4 and again in 30.2's
+   refutation clause, both before this ran.
+5. **This implementation is not adopted**, and 30.2 pre-registered that adoption was
+   decided on G1 to G4 rather than inherited from D55. No source file changes, no ESA-ADB
+   figure moves, `src/sentinel_models/telemanom.py` is untouched.
+6. **An ambiguity in 30.1 is recorded rather than absorbed.** `errors.py:337-339` has three
+   terms and the table named two; the middle one, `max(e_s) > 0.05 * inter_range`, is not
+   listed and was **left as published** on the literal reading. `docs/MODELS.md` 30.4 states
+   which test was run, because G4's adjudication depends on it.
+
+---
+
+## D59. D6 is re-opened on the far side of D49's own bound, and only there
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision to measure, recorded before the
+measurement. It re-opens a closed question without withdrawing the finding that closed it
+
+**CONTEXT.** D49 closed D6 on 2026-09-03: on the only data this project holds that carries
+commands, conditioning on them made the detector **worse** at a matched alarm rate -- 6/38
+against 10/38 in-range contextual, 33/100 against 47/100 overall. That finding is not
+withdrawn and nothing here contradicts it. **What has changed is that two things outside
+its own stated bound are now buildable, and D57 made the command context one of the three
+claims the project stands on.**
+
+D49 consequence 3, verbatim: *"Bounded to what was measured. One-hot command indicators,
+SMAP/MSL, per-channel univariate models, the published dynamic threshold. It says nothing
+about a different encoding, and nothing about ESA-ADB, whose telecommands remain
+unwired."*
+
+**EVIDENCE that the bound is doing real work rather than being an escape hatch.**
+
+1. **The published model is command-conditioned and this project only reproduced its
+   training on 2026-09-08.** `channel.py:63-67`: telemanom's `X` is all columns, telemetry
+   **and** the one-hot commands, while `y` is column 0 alone. D49's arms were built on
+   *our* training configuration, which differs from the published one in eight named ways
+   (`docs/MODELS.md` 28.1) -- including a per-fold sequence budget where the paper trains
+   full epochs, and a stopping rule that stalls six channels where the published one stalls
+   none. **Arm T is the first arm in this project to carry the published configuration, and
+   it carries the commands with it.** Whether the commands help is therefore untested under
+   the only configuration the paper's own numbers were produced with.
+2. **31.8's failure names a mechanism commands would supply.** `gru-zscore`'s `sigma`
+   collapsed to a per-channel constant, coefficient of variation 0.0504 at the median. 31.9
+   named why and deliberately did not register it: **a single univariate channel gives the
+   likelihood no reason to vary sigma with state.** Commands are state, and they are the
+   cheapest of the three candidates that hypothesis admits.
+3. **No published work settles it either.** `docs/RESEARCH.md` records that ESA's own
+   baselines got *worse* precision when telecommands were added, and that **no paper has
+   published a commands-on / commands-off ablation.** D49 was the first; this is the
+   second, on the other side of its bound.
+
+**ALTERNATIVES.** Treat D49 as settling command conditioning and move to the physics
+testbed. Re-test with a **richer encoding**, which is the explanation `docs/RESEARCH.md`
+flags. Re-test the **same encoding** under the two conditions D49 explicitly excluded.
+
+**Against the first**: D57 lists the command context as one of three claims and marks it
+*barely tested*; retiring it on a finding that bounded itself to one configuration would be
+asserting more than the evidence carries, which is the error D57 exists to correct.
+**Against the second**: it changes the arm and the encoding together, which is the
+two-lever arm rung 1c's stop fired for (26.26). The encoding is registered as the **next**
+lever in `docs/MODELS.md` 32.6, conditional on this one refuting.
+
+**CONSEQUENCE.**
+
+1. **D6 is re-opened narrowly and D49 stands.** `docs/MODELS.md` 32 tests exactly the two
+   conditions D49 named as outside its scope: the published training configuration (C1,
+   Arm T **minus** its commands, since Arm T already has them) and a probabilistic head
+   (C2, Arm H **plus** them). The encoding is unchanged, deliberately, so the arm has one
+   lever.
+2. **Whatever it measures, D49's numbers are not restated.** If commands help here, D49 was
+   correct within its bound and the bound was load-bearing -- which is an argument for
+   bounding findings, not against D49. If they do not, D49 generalises past its own
+   caution and the encoding becomes the last explanation standing.
+3. **C2's stop is adjudicated first.** K3 asks whether `sigma` varies at all with commands
+   attached before any recall number from that arm is read, because 31.8 established that a
+   collapsed sigma makes the arm the old detector with extra parameters.
+4. **A recorded defect is repaired rather than carried.** Arm H's weights were never
+   persisted (31.8), so that arm is reproducible only from its seed. C2 persists them, and
+   the pre-registered weight-store growth is **+162** rather than +81 for that reason.
+5. **It does not touch `model.bin`.** Whether command inputs ship in the flight file is a
+   `format_version` question (D30, `docs/MODEL_FILE.md` 11) and `n_exogenous` already
+   exists in the header. That is decided after this reports.
+
+---
+
+## D60. Command conditioning is negative on this data under both training configurations, and D49 did not need its bound
+
+**DATE** 2026-09-09 | **STATUS** resolved as a finding. It answers D59's re-opening in the
+same direction D49 found, removes the bound D49 placed on itself, and closes the first of
+31.9's three candidates
+
+**CONTEXT.** D49 closed D6 by measuring command conditioning making the detector worse, and
+bounded itself to "one-hot command indicators, SMAP/MSL, per-channel univariate models, the
+published dynamic threshold". D59 re-opened the question **only** on the far side of that
+bound: the published training configuration, which is command-conditioned in the source and
+which this project reproduced on 2026-09-08, and a probabilistic head, whose failure in
+31.8 had a named cause that commands would supply. `docs/MODELS.md` 32 pre-registered K1 to
+K5 before anything ran.
+
+**EVIDENCE.** One read, 165 Class B, weight store +153, artifact
+`runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json`.
+
+1. **K1 refuted, and by an arm that dominates on every axis.** Arm T carries the commands
+   and scores 46/104 at 83.6% precision, 9 false positives, 2.0450% nominal. C1 is Arm T
+   with the commands withheld and **nothing else changed**: 54/104 at **93.1%**, **4** false
+   positives, **1.8815%** nominal. Eight events gained, five false alarms removed, and the
+   alarm rate lower at the same time. **The quieter arm is also the one that catches more,
+   so the comparison is not rate-confounded.**
+2. **K3 refuted and its stop fired.** With commands attached, `sigma`'s coefficient of
+   variation rises from 0.0504 to **0.1145** at the median and clears 0.25 on **16 of 78**
+   channels against a prediction of more than half. Directionally right, numerically
+   insufficient. The likelihood trained on **78 of 78** fitted channels, so this is not an
+   optimisation failure: the head could have learned a state-varying sigma from the
+   commands and did not.
+3. **K5 held.** C1 fitted the same 81 channels and scored the same 104 sequences as Arm T,
+   so narrowing the input did not change which channels train.
+4. **The direction is now measured twice, on two training configurations, by two different
+   model families.** D49's arms were `gru-quantile` under our configuration; C1 is an LSTM
+   under the published one. Both say the same thing.
+
+**ALTERNATIVES.** Conclude that command conditioning is wrong for this method. Conclude it
+is wrong **for this encoding on this data**, and name the encoding as the remaining
+explanation. Conclude nothing and re-run with more channels.
+
+**Against the first**: the paper's own model is command-conditioned and its numbers are the
+ones this project has failed to reach, so a general claim would be asserting that the
+authors' own inputs hurt them, which this evidence cannot support. **Against the third**:
+the population is already the whole dataset at 104 of the paper's 105 sequences; there is
+no more data to add.
+
+**CONSEQUENCE.**
+
+1. **D49's bound is discharged rather than defended.** Commands failing to help under the
+   published training too is what K1's refutation clause said this outcome would mean,
+   written before it was measured. **D49's finding stands and no longer needs the
+   qualification it gave itself** on the training-configuration axis. Its other
+   qualifications -- the encoding, and ESA-ADB, whose telecommands remain unwired -- are
+   untouched and still bind.
+2. **The encoding is the last standing explanation and is one lever.**
+   `docs/RESEARCH.md` records that telemanom encodes commands by module and by
+   sent-or-received, flags richer features as the obvious next step, and notes ESA's own
+   baselines losing precision when telecommands were added. `docs/MODELS.md` 32.6 registers
+   it as the next lever, conditional on exactly this outcome, and it is not built.
+3. **D57's context (b) is measured and the result is negative.** `Objective.md` 1.1 lists
+   commands-to-telemetry as *barely tested*; it is now tested, twice, and what it buys on
+   this data at this encoding is **less than nothing**. The claim is amended to say so
+   rather than left reading as an open opportunity.
+4. **31.9's first candidate is closed.** A single univariate channel plus commands still
+   does not give the likelihood enough reason to vary sigma. The two remaining candidates --
+   a multivariate channel set, and a variance term the loss cannot trivially satisfy -- are
+   unchanged and unregistered.
+5. **C1 is the best arm on this population and is not adopted on the strength of it.**
+   93.1% precision against the paper's 87.5% on 4 false positives against a scaled 11, at
+   51.9% recall against 80.0%. Adoption is a D28-shaped decision on the ESA gate set, and
+   nothing here licenses it.
+6. **A pre-registered comparison is owed.** K2 asked for the in-range contextual count at a
+   rate matched to stage 4's 0.6838% and **the sweep for C1 was never implemented**, so K2
+   has no verdict. The 20/39 C1 catches at its own 1.8815% is above the ceiling 27.3 sets
+   for quoting a per-event number and is **not** compared to Arm T's 12/39 or to stage 4's
+   10/38. Recorded as a defect in the instrument, not as a result.
+
+---
+
+## D61. C1 is the base for the improvement ladder, and the ladder is label-free by construction
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision about what future arms are measured
+against. It adopts no detector for flight and changes no published figure
+
+**CONTEXT.** 32.7 measured C1 -- the published training configuration with the command
+inputs withheld -- at **54/104, 93.1% precision, 4 false positives, 1.8815% nominal**. It
+is the highest recall and the highest precision this project has reached on the population
+that matches the paper's, and it beats the paper's own precision of 87.5% on a third of its
+false positives. Every arm from here needs something to be measured against, and choosing
+it after the fact for each arm is how a ladder becomes a search.
+
+**EVIDENCE.** From `runs/smap-msl/_forensics/2026-09-09T054400Z-wi910-port.json`:
+
+```
+   arm     recall            precision (TP/(TP+FP))    FP    nominal
+   A0      57/98             62/110  (ours)             -    prop regime
+   F       34/98    34.7%    34/38    89.5%              4    1.4424%
+   T       46/104   44.2%    46/55    83.6%              9    2.0450%
+   R       46/104   44.2%    46/55    83.6%              9    2.0450%
+   G       48/104   46.2%    48/70    68.6%             22    3.7958%
+   C1      54/104   51.9%    54/58    93.1%              4    1.8815%
+   paper   84/105   80.0%    84/96    87.5%             12
+```
+
+**ALTERNATIVES.** Keep Arm F, the faithful port, as the base because it is the arm with no
+deviations. Keep Arm T, because C1 differs from it by a deliberate departure from the
+published inputs. Take C1.
+
+**Against the first**: F is 20 events behind C1 at lower precision, so measuring
+improvements against it would flatter every arm that follows. **Against the second**:
+withholding the commands is a departure from the published configuration and it is recorded
+as one -- but D60 measured it strictly better on every axis, and a base chosen for fidelity
+rather than for quality makes the ladder's numbers harder to read, not more honest. The
+departure travels with the name wherever C1 appears.
+
+**CONSEQUENCE.**
+
+1. **C1 is the base**, and every arm of the improvement ladder reports against **54/104, 4
+   false positives, and the 39 in-range contextual at a rate matched to stage 4's 0.6838%**
+   once `docs/MODELS.md` 33 supplies that last figure. A base is not an endorsement: C1
+   flies nowhere and nothing in this entry reopens D28.
+2. **The ladder is label-free where it selects.** Arm 2 chooses a forecaster from a fixed
+   grid **only** on held-out nominal validation error and scores the winner once. That is
+   Objective.md 6.1's constraint -- a spacecraft has no failure examples -- applied to model
+   selection rather than only to training, and it is what keeps the grid from becoming a
+   test-set search. **Selecting on recall would be choosing the model that best fits 104
+   labelled sequences, which is exactly what this dataset cannot support.**
+3. **One lever per arm, and each pre-registered separately** with its own compute plan and
+   its own smoke: the dial (33), then forecaster selection, then a seed ensemble. Bundling
+   them would make an improvement unattributable, which is what rung 1c's stop fired for.
+4. **The ensemble does not change what flies.** `model.bin` version 1 carries one model
+   (D30, `docs/MODEL_FILE.md`), so an ensemble measured to help is a finding about the
+   ceiling and a question for the format, not a configuration this component can ship
+   today. It is measured for what it says about the residual, not as a candidate.
+5. **Then the pipeline freezes and the toolkit begins.** The ladder is bounded at three
+   arms in advance so that "one more idea" is a new pre-registration rather than a
+   continuation, and Objective.md 13's work item 12 does not wait on an open-ended search.
+
+---
+
+## D62. The pipeline freezes on stage 4's configuration, because nine arms failed to beat it
+
+**DATE** 2026-09-09 | **STATUS** resolved as a decision to stop searching, from a measured
+ceiling rather than from exhaustion. It adopts a configuration for the toolkit and the C++
+port, and it closes the improvement ladder
+
+**CONTEXT.** Stage 4 measured **10 of 38** in-range contextual sequences at **0.6838%** of
+nominal steps on 2026-09-03, and every arm since has been an attempt to beat it. D61 bounded
+the ladder at three arms in advance; it ran to nine.
+
+**EVIDENCE.** Every figure at or below stage 4's alarm rate, from
+`runs/smap-msl/_forensics/2026-09-09T2245*-wi910-port.json` and its two predecessors.
+
+```
+   arm                                      nominal%   in-range contextual, on stage 4's 38
+   stage 4  gru-telemanom, swept             0.6820                10/38
+   WS       34.8's label-free winner         0.6828                 8/38
+   C1S      C1, the command-free port        0.6021                 6/38
+   S3       3-seed ensemble                  0.0000                 0/39
+   S4C      isolation forest                 0.1195                 0/39
+   S1, S2, S12, S4                             --      NO operating point at or below target
+```
+
+1. **The forecaster is not the ceiling.** 34.8 selected a forecaster label-free from 32
+   configurations, moving held-out forecast error by 26.5% best to worst. Its winner scores
+   **8/38** where stage 4 scores 10.
+2. **The decision layer is not the ceiling either.** A transition-aware floor, per-channel
+   calibration, both together, and a tree forecaster **cannot be brought to 0.6838% at all**,
+   even with the threshold at the training maximum -- which is D48 arriving for the fifth
+   through eighth arms.
+3. **A better forecast made the detector worse.** The 3-seed ensemble's residual is smooth
+   enough that a train-calibrated quantile finally transfers, and the result is 2 events at
+   zero false alarms: **a better forecaster and a silent detector**, which is D18's shape
+   again.
+4. **A different model class loses on both halves of its own split.** Trees lose the steppy
+   half 7/54 to 27/54 and the smooth half 10/50 to 29/50, while running louder. No hybrid
+   is built.
+
+**ALTERNATIVES.** Keep going -- lookback ensembles, a learned threshold, more seeds. Freeze
+on the best arm measured, which is stage 4's. Abandon SMAP/MSL and go to the testbed with
+nothing frozen.
+
+**Against the first**: nine arms across three stages of the method have now been measured and
+the best of them is 20% *below* the arm from six days ago. Continuing would be searching, and
+the difference between a ladder and a search is that a ladder was bounded in advance -- D61
+bounded this one at three. **Against the third**: a frozen configuration is what the toolkit
+and the C++ port are written against, and Objective.md 13's work items 11 and 12 cannot start
+without one.
+
+**CONSEQUENCE.**
+
+1. **The frozen pipeline is stage 4's configuration**: `gru-telemanom` -- the GRU forecaster
+   under this project's own training rules, scored **per channel, univariate, without command
+   inputs**, with **telemanom's published nonparametric dynamic threshold**, swept to a
+   nominal rate of **0.6838%**. It catches **10 of 38** in-range contextual sequences. That is
+   **26%**, on one dataset, with no floor available to compare against at that rate.
+2. **What the C++ port must carry**, and this is the operative half of the decision. The
+   **nonparametric dynamic threshold** is mandatory: it is the only rule measured to reach a
+   flyable alarm rate on a non-stationary regime (D48), and `flight/` currently transcribes
+   D25's static quantile alone. **S1 and S2 are NOT adopted** and add nothing to the port. The
+   multiplier that matches an alarm rate is a **labelled deviation** from the published
+   algorithm (28.6) and travels with its label. A selectable mode is a `format_version` 2
+   decision (D30) and is work item 10's second half, taken after the testbed.
+3. **The ladder is closed and its negative results are the record.** Commands hurt (D60);
+   dimensionless guards move MSL by zero (D58); the forecaster grid moves 26.5% of forecast
+   error and loses 2 events; the ensemble silences the detector; trees lose both halves. **A
+   ceiling established by elimination is worth more than one asserted**, and this one cost
+   nine arms.
+4. **The premise that survives is the one Phase 3 tests.** Every arm here varied the model or
+   the rule on a dataset of 81 unsynchronised univariate streams. **The claim D57 re-framed --
+   early warning from whatever context the telemetry carries -- has one context left
+   unmeasured, and no public data can measure it.** The F' Ref physics testbed is next.
+5. **Nothing here reopens D28.** `gru-quantile` still flies on ESA-ADB; the component ships
+   both rules and a mission selects one, because which rule is needed is a property of the
+   telemetry regime and not of the method.

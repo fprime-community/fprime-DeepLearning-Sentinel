@@ -55,11 +55,15 @@ from sentinel_eval.metrics.counts import Count                          # noqa: 
 from sentinel_eval.metrics.ranges import mask_to_ranges                 # noqa: E402
 from sentinel_models import detectors as D                             # noqa: E402
 from sentinel_models.lstm import Hyper, TelemanomRNN, train as fit_model  # noqa: E402
-from sentinel_models.windows import aggregate_predictions               # noqa: E402
+from sentinel_models.windows import aggregate_predictions, decay        # noqa: E402
 import torch                                                            # noqa: E402
 from sentinel_models import registry                                   # noqa: E402
 from sentinel_models import telemanom                                  # noqa: E402
 
+#: Cells fitted in a worker rather than in the parent, because they refit or
+#: are expensive. Everything else is scored from banked weights in-process.
+DEFERRED_CELLS = ("published", "rung", "zscore", "published_nc", "zscore_cmd",
+                  "winner", "trees", "iforest", "ensemble")
 MANIFEST_KEY = "_manifest/smap_msl.json"
 PRE_REGISTRATION = "docs/MODELS.md 27"
 
@@ -73,6 +77,11 @@ N_PREDICTIONS = 10         # config.yaml n_predictions
 PUBLISHED_HYPER = dict(train_batch_size=64, min_delta_absolute=0.0003,
                        validation_split="shuffled", full_epochs=True,
                        restore_best=False)
+#: 30.1. One multiplier, **fixed at 1.0 and not swept**, chosen because it is
+#: the weakest non-trivial statement of "above the channel's own noise". If the
+#: arm needs a different value to work, that is a finding about the form and is
+#: reported as one rather than absorbed by a sweep.
+DIM_K = 1.0
 SD_LIM = 12.0              # errors.py:241
 Z_STEP = 0.5               # errors.py:285
 Z_FLOOR = 2.5              # errors.py:285
@@ -97,6 +106,14 @@ class Mech:
     inverse: bool = False       # errors.py:132-148  the reflected pass
     published_window: bool = False   # errors.py:84-93  adjust_window_size
     clip: bool = True           # errors.py:355-359. False = 1c-ii's unclipped union
+    #: 30.1, work item 9.13. Replaces the two candidate filters that are
+    #: absolute in the units of the data with `mean(e_s) + DIM_K*sd(e_s)`.
+    #: The two that are already scale-free -- `sd_e_s > 0.05*sd_values`, the
+    #: coverage cap and the sequence cap -- are left exactly as published,
+    #: because changing a rule that is already dimensionless would be a second
+    #: lever. D55 is the principle; this is one implementation of it, and 30.2
+    #: decides whether it earns adoption.
+    dimensionless: bool = False
     #: A multiplier on epsilon. **A deviation from the source**, and the only
     #: one here: the port emits a boolean decision with no dial, so matching it
     #: to another arm's alarm rate (D41, D44) needs one introduced. 1.0 is the
@@ -216,22 +233,45 @@ def compare_to_epsilon(e_s, e_s_fwd, epsilon, y_win, window_num, batch_size,
     """
     n = e_s.shape[0]
     sd_e_s = float(np.std(e_s_fwd))
+    mean_e_s = float(np.mean(e_s_fwd))
     sd_values = float(np.std(y_win))
     perc_high, perc_low = np.percentile(y_win, [95, 5])
     inter_range = float(perc_high - perc_low)
 
+    # 30.1. The channel's own noise level, in the channel's own units. Computed
+    # from the FORWARD window like every other statistic these guards use, so
+    # the arm differs from the source in the CONSTANT and in nothing else.
+    dim_cut = mean_e_s + DIM_K * sd_e_s
+
     # errors.py:337-340. Note the source tests the FORWARD e_s on both passes.
     if mech.bailout:
+        # errors.py:337-339 is a THREE-term test and 30.1's table names two of
+        # them. Replaced: `max(e_s) > 0.05`, its first row. Left as published:
+        # `sd_e_s > 0.05 * sd_values`, its third row, because that is already a
+        # ratio -- and ALSO `max(e_s) > 0.05 * inter_range`, the middle term of
+        # `big_enough`, which 30.1's table does not list at all.
+        #
+        # **That omission is the pre-registration's and is not resolved here.**
+        # Its second row is `e_s > 0.05 * inter_range`, the conjunct at :343,
+        # and the same FORM appears at :338 applied to `max(e_s)`. Reading the
+        # table literally leaves :338 alone; reading it as a form-substitution
+        # would change it too. The literal reading is taken, because a
+        # pre-registration is a literal instrument and moving an unlisted lever
+        # is the thing rung 1c's stop fired for (26.26). Recorded in 30.4.
+        floor = dim_cut if mech.dimensionless else 0.05
         big_enough = (sd_e_s > 0.05 * sd_values
                       or float(np.max(e_s_fwd)) > 0.05 * inter_range)
-        if not big_enough or not float(np.max(e_s_fwd)) > 0.05:
+        if not big_enough or not float(np.max(e_s_fwd)) > floor:
             GUARDS["bailout"] = GUARDS.get("bailout", 0) + 1
             return np.array([], dtype=np.int64), [], -1000000.0
 
     above = e_s >= epsilon * mech.eps_mult
     bound = 0
     if mech.magnitude:                                        # errors.py:342-343
-        keep = above & (e_s > 0.05 * inter_range)
+        # 30.1 replaces `e_s > 0.05 * inter_range`, which is semi-absolute --
+        # a fraction of the VALUES' spread applied to the ERRORS' scale.
+        cut = dim_cut if mech.dimensionless else 0.05 * inter_range
+        keep = above & (e_s > cut)
         bound = int(above.sum() - keep.sum())   # how often the conjunct BINDS
         if bound:
             GUARDS["magnitude"] = GUARDS.get("magnitude", 0) + 1
@@ -310,7 +350,7 @@ def _one_window(e_s_win, y_win, window_num, batch_size, num_to_ignore,
 
 
 def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
-             alarm_len=None):
+             alarm_len=None, dimensionless=False, eps_mult=1.0):
     """errors.py:111-168, `process_batches`, with `adjust_window_size`.
 
     Operates in telemanom's own coordinates: `y_test` is the raw series offset by
@@ -354,8 +394,13 @@ def run_port(e_s_full, y_full, error_buffer, p, tail=0, presliced=False,
         idx = (window_size * BATCH_SIZE) + (i * BATCH_SIZE)
         if i == n_windows:
             idx = n
+        # 33.3. `eps_mult` is a LABELLED DEVIATION from the source (28.6): the
+        # published algorithm emits a boolean and has no multiplier, and this
+        # arm needs one to be brought to another arm's alarm rate at all.
+        # 1.0 is the published algorithm exactly.
         full = Mech(magnitude=True, bailout=True, guards=True,
-                    inverse=True, published_window=True, clip=True)
+                    inverse=True, published_window=True, clip=True,
+                    dimensionless=dimensionless, eps_mult=eps_mult)
         win = e_s[prior_idx:idx]
         eps = find_epsilon(win, float(np.mean(win)), float(np.std(win)),
                            error_buffer, full)
@@ -440,6 +485,19 @@ def make_grid(top: float = 50.0) -> np.ndarray:
                                      np.geomspace(1.0, top, 60), [1.0]]))
 
 
+#: 33.3's grid for the port dial. Bounded at [1, 6] because the multiplier
+#: RAISES epsilon and C1 has to come DOWN from 1.88% to 0.68%.
+#:
+#: **Two-stage since 2026-09-09 (33.8).** The 24-point geometric grid resolved the
+#: curve's shape and NOT its crossing: its neighbours landed at 0.7578% and
+#: 0.4465% with the 0.6838% target between them, so the arm was compared 35%
+#: quieter than the one it was measured against and M1 could not be adjudicated.
+#: The coarse points are kept unchanged so the two curves are comparable, and
+#: [1.80, 2.10] is resolved at 0.01 where the crossing actually is.
+PORT_GRID = np.unique(np.concatenate([np.geomspace(1.0, 6.0, 24),
+                                      np.arange(1.80, 2.101, 0.01)]))
+
+
 def free_memory_gib() -> float:
     """Free plus inactive pages, in GiB. 31.6's gate."""
     try:
@@ -477,6 +535,19 @@ def ctx_cmd(cid, n, commands):
                    commands=commands, command_ids=())
 
 
+def _exog(commands) -> np.ndarray:
+    """`(T, 2K)` -- each command's impulse and how recently it fired.
+
+    32.1's encoding, and it is the one already in the tree: `windows.decay` is
+    the same function `command_features` calls, and computing the trace over the
+    whole series is what that function's warm-up prefix approximates. It is exact
+    here and bounded because a SMAP/MSL channel is thousands of steps, not the
+    14.7M ESA-ADB's windowing was written for (`windows.py:73-88`).
+    """
+    imp = np.ascontiguousarray(np.asarray(commands, dtype=np.float32))
+    return np.concatenate([imp, decay(imp)], axis=1)
+
+
 def build_published(cid, train, test):
     """Arm T: telemanom's training configuration, its inputs and its aggregation.
 
@@ -501,6 +572,33 @@ def build_published(cid, train, test):
             "cfg": {"prop": det.config, "pub": det.config}}
 
 
+def build_published_nocmd(cid, train, test):
+    """Arm C1: Arm T with the commands withheld, and nothing else changed.
+
+    32.1. Arm T is already the command-conditioned arm (28.1 T-f,
+    `channel.py:63-67`), so the counterfactual is this one and it is the one that
+    has to be fitted. Every other published difference -- T-a's aggregation,
+    T-b's trainer batch, T-c's absolute `min_delta`, T-d's shuffled split, T-e's
+    full epochs, T-h's non-restoration -- is held identical, so the pair differs
+    in exactly one lever.
+    """
+    det = registry.build("lstm-telemanom")
+    det.hyper = Hyper(cell="lstm", **PUBLISHED_HYPER)
+    det.wants_commands = False                                  # <- the lever
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+    s_ctx = ctx_for(cid, len(v_te))
+    e_s = np.asarray(det._smoothed_errors(v_te, s_ctx), dtype=np.float64)[:, 0]
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
+
+
 def _fit_published(job):
     """One published fit, in its own process. Must be module-level to be picklable.
 
@@ -513,16 +611,26 @@ def _fit_published(job):
     """
     cid, train, test, cells = job
     import sentinel_models.lstm as L
+    import resource
     L.THREADS = 4
     started, out, err = time.time(), {}, {}
+    builders = {"published": build_published, "zscore": build_zscore,
+                "published_nc": build_published_nocmd, "zscore_cmd": build_zscore_cmd,
+                "winner": build_winner, "trees": build_trees,
+                "iforest": build_iforest, "ensemble": build_ensemble}
     for cell in cells:
         try:
-                out[cell] = (build_published(cid, train, test) if cell == "published"
-                         else build_zscore(cid, train, test) if cell == "zscore"
-                         else build_rung(cid, train, test))
+            out[cell] = builders.get(cell, build_rung)(cid, train, test)
         except Exception as exc:
             err[cell] = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
-    return cid, out, err, time.time() - started
+    # 32.5. Peak RSS of THIS process, which for a worker includes its own torch
+    # import -- the term 28.5's arithmetic left out and the reason that run died.
+    # `ru_maxrss` is bytes on macOS and kibibytes on Linux; there is no portable
+    # unit and guessing from the magnitude is how a plausible number becomes a
+    # wrong one, so the platform decides.
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return cid, out, err, time.time() - started, peak_mb
 
 
 def raw_errors(det, values, s_ctx):
@@ -606,7 +714,7 @@ def _to_torch(weights, hyper, n_channels, n_exogenous):
     return model
 
 
-def predictive_moments(model, values, window, chunk=1000):
+def predictive_moments(model, values, window, chunk=1000, exog=None):
     """`mu` and `sigma` per timestep, from warmed chunks started at a zero state.
 
     The same geometry `ForecastDetector._forecast` uses -- every chunk is
@@ -616,12 +724,17 @@ def predictive_moments(model, values, window, chunk=1000):
     mixture the ten of them form.
     """
     steps = values.shape[0]
+    # 32.1. The exogenous columns ride alongside the telemetry into the model and
+    # never into the target: `mu` and `sigma` are read from channel 0 below,
+    # which is the only channel the head predicts.
+    series = values if exog is None else np.concatenate(
+        [values, np.asarray(exog, dtype=values.dtype)], axis=1)
     mu_out = np.zeros(steps, dtype=np.float64)
     var_out = np.ones(steps, dtype=np.float64)
     for start in range(0, steps, chunk):
         stop = min(start + chunk, steps)
         front = max(0, window - start)
-        take = values[max(0, start - window):stop]
+        take = series[max(0, start - window):stop]
         if front:
             take = np.concatenate([np.repeat(take[:1], front, axis=0), take])
         with torch.no_grad():
@@ -670,6 +783,435 @@ def build_zscore(cid, train, test):
             "nll": float(report.best_validation_mse), "objective": report.objective,
             "epochs": int(report.epochs_run), "best_epoch": int(report.best_epoch),
             "nll_improved": bool(report.best_epoch > 0),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+# ===========================================================================
+#  Work item 9.17 stage A: label-free forecaster selection (docs/MODELS.md 34)
+# ===========================================================================
+
+#: 34.2. Thirty-two configurations, varying the forecaster and nothing else.
+GRID_CELLS = ("lstm", "gru")
+GRID_WINDOWS = (50, 100, 150, 250)
+GRID_HIDDEN = ((40, 40), (80, 80))
+GRID_EPOCHS = (35, 70)
+
+#: 34.4. Positions are pinned to the LONGEST lookback in the grid so every
+#: configuration is scored on identical targets. This is the whole reason the
+#: comparison is meaningful; without it each model would choose its own
+#: validation set and the MSEs would not be commensurable.
+GRID_PIN = max(GRID_WINDOWS)
+GRID_HOLDOUT = 0.20                      # 34.4, the chronological tail
+
+
+def grid_configs():
+    """The 32, in a fixed order so the artifact's rows are stable."""
+    out = []
+    for cell in GRID_CELLS:
+        for window in GRID_WINDOWS:
+            for hidden in GRID_HIDDEN:
+                for epochs in GRID_EPOCHS:
+                    out.append(dict(cell=cell, window=window, hidden=hidden,
+                                    max_epochs=epochs))
+    return out
+
+
+def grid_subsample(channels, per_craft=8, seed=0):
+    """34.3, written before it was run and reproduced from the seed alone.
+
+    No label and no result is consulted: the metric this feeds is label-free
+    forecast error, so the draw cannot leak anything a scored arm would.
+    """
+    chosen = []
+    for craft in ("SMAP", "MSL"):
+        pool = [c for c in channels if c["spacecraft"] == craft]
+        rng = np.random.default_rng(seed)
+        take = rng.choice(len(pool), size=min(per_craft, len(pool)), replace=False)
+        chosen.extend(pool[int(i)] for i in sorted(take))
+    return chosen
+
+
+def grid_validation_mse(cid, train, cfg):
+    """One configuration on one channel: held-out ten-step-ahead squared error.
+
+    34.4. Fitted on the first 80% of the training split and scored on the last
+    20%, at positions valid under `GRID_PIN` so every configuration in the grid
+    predicts the SAME targets from the same timestamps. Returns the channel's
+    mean squared error and the count of positions behind it.
+
+    **No label is read and no anomaly span is consulted.** This is the only
+    number 34.1 permits to decide the winner.
+    """
+    hyper = Hyper(cell=cfg["cell"], window=cfg["window"], hidden=cfg["hidden"],
+                  max_epochs=cfg["max_epochs"], **PUBLISHED_HYPER)
+    v = train[:, :1].astype(np.float32)               # commands withheld (D60)
+    n = len(v)
+    cut = int(n * (1.0 - GRID_HOLDOUT))
+    fit_on = v[:cut]
+    usable = np.ones(len(fit_on), dtype=bool)
+
+    # 34.6's +593 is only meaningful if the fits are BANKED. `fit_model` is
+    # `lstm.train`, which does not persist -- the cache lives in
+    # `ForecastDetector.fit` -- and that is 31.8's defect, which cost Arm H its
+    # reproducibility. Its own namespace, so a grid fit can never be served to a
+    # detector or vice versa.
+    key = ("wi917-grid-a", hyper.as_dict_key(), cid, GRID_HOLDOUT,
+           fit_on.shape, D._sample_digest(fit_on))
+    digest = D._digest(key)
+    cached = D._load_weights(digest)
+    if cached is None:
+        weights, rep = fit_model(fit_on, usable, hyper, fold=0)
+        report = rep.as_dict()
+        D._save_weights(digest, weights, report)
+    else:
+        weights, report = cached
+    model = _to_torch(weights, hyper, 1, 0)
+
+    lo, hi = cut + GRID_PIN, n - N_PREDICTIONS
+    if hi <= lo:
+        raise ReferenceError(f"held-out window too short: [{lo}, {hi})")
+    starts = np.arange(lo, hi)
+    # Targets: the next ten steps after each t. Identical for every config.
+    targets = np.stack([v[t + 1:t + 1 + N_PREDICTIONS, 0] for t in starts])
+    win = cfg["window"]
+    hist = np.stack([v[t + 1 - win:t + 1, 0] for t in starts])[:, :, None]
+    with torch.no_grad():
+        # `last_only=True` already drops the sequence axis, so the output is
+        # (batch, n_predictions, n_channels). Indexing [:, -1] here took the
+        # LAST PREDICTION instead of the last timestep and collapsed ten
+        # horizons into one; the smoke caught it before any grid ran.
+        out = model(torch.from_numpy(hist.astype(np.float32)))
+    pred = np.asarray(out)[:, :, 0]
+    mse = float(np.mean((pred - targets) ** 2))
+    n_par = int(sum(a.size for _, a in weights.arrays()))
+    D.clear_caches()
+    return {"mse": mse, "positions": int(len(starts)), "parameters": n_par,
+            "epochs_run": int(report.get("epochs_run", 0)),
+            "best_epoch": int(report.get("best_epoch", 0)),
+            "stalled": bool(report.get("best_epoch", 0) == 0
+                            and report.get("epochs_run", 0) > 1)}
+
+
+def grid_select(rows):
+    """34.4's tie-break, implemented exactly as written and in that order.
+
+    Every clause is a FLIGHT property -- size, then lookback, then cell -- so a
+    tie is broken by what is cheaper to fly and never by what scores better on
+    anything downstream. The 1% band exists because choosing on the fourth
+    decimal of a validation MSE is choosing on noise.
+    """
+    live = [r for r in rows if not r["disqualified"] and r["primary"] is not None]
+    if not live:
+        return None, []
+    best = min(r["primary"] for r in live)
+    tied = [r for r in live if r["primary"] <= best * 1.01]
+    order = sorted(tied, key=lambda r: (r["parameters"], r["window"],
+                                        0 if r["cell"] == "gru" else 1))
+    return order[0], tied
+
+
+def _fit_grid(job):
+    """One (channel, configuration) pair, in its own process."""
+    cid, train, cfg, tag = job
+    import sentinel_models.lstm as L
+    import resource
+    L.THREADS = 4
+    started = time.time()
+    try:
+        out, err = grid_validation_mse(cid, train, cfg), None
+    except Exception as exc:
+        out, err = None, f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return cid, tag, out, err, time.time() - started, peak_mb
+
+
+#: 34.8's winner, read from the stage A artifact and pinned here in the same
+#: commit as the figure it produces. Stage B fits ALL 81 channels with it and
+#: scores once; the selection that chose it saw no label (34.1).
+WINNER_HYPER = dict(cell="gru", window=250, hidden=(80, 80), max_epochs=35)
+WINNER_ARTIFACT = "runs/smap-msl/_forensics/2026-09-09T205949Z-wi917-grid-a.json"
+
+
+def build_winner(cid, train, test):
+    """Arm W: stage A's winner, on the full population, scored like C1.
+
+    Identical to `build_published_nocmd` -- the published training block, the
+    commands withheld (D60), telemanom's own aggregation -- with the four
+    forecaster axes replaced by the ones 34.8 selected. So W differs from C1 in
+    the forecaster and in nothing else, which is what makes the pair readable.
+    """
+    det = registry.build("gru-telemanom")
+    det.hyper = Hyper(**WINNER_HYPER, **PUBLISHED_HYPER)
+    det.wants_commands = False
+    det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                  stride=BATCH_SIZE, aggregate="first")
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+    s_ctx = ctx_for(cid, len(v_te))
+    e_s = np.asarray(det._smoothed_errors(v_te, s_ctx), dtype=np.float64)[:, 0]
+    # 35.1/35.2 calibrate on the TRAINING residual, which is label-free by
+    # construction here: the paper's train split is the nominal one.
+    e_tr = np.asarray(det._smoothed_errors(
+        v_tr, ctx_for(cid, len(v_tr))), dtype=np.float64)[:, 0]
+    warm = int(det.warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_s, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "e_s_train": e_tr, "values_train": v_tr[:, 0].astype(np.float64),
+            "step_likeness": step_likeness(v_tr[:, 0]),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": det.config, "pub": det.config}}
+
+
+#: 35.1, fixed in advance and never swept: the quantile of |dx| that calls a
+#: sample a level change, and the span over which a step keeps influencing a
+#: residual smoothed at EWMA(105). SPAN is the smoothing window already in the
+#: stack, not a new constant.
+STEP_Q = 0.99
+STEP_SPAN = 105
+
+
+def transition_mask(values_train, values_series):
+    """35.1's rule, on the RAW input. Returns a boolean mask over the series.
+
+    Label-free and dimensionless: the cut is a quantile of the channel's own
+    training first differences, so it carries no unit and no threshold chosen
+    against a result.
+    """
+    vt = np.asarray(values_train, dtype=np.float64)
+    d_tr = np.abs(np.diff(vt, prepend=vt[0]))
+    cut = float(np.quantile(d_tr, STEP_Q)) if d_tr.size else np.inf
+    v = np.asarray(values_series, dtype=np.float64)
+    d = np.abs(np.diff(v, prepend=v[0]))
+    mask = np.zeros(len(v), dtype=bool)
+    for i in np.flatnonzero(d > cut):
+        mask[max(0, i - STEP_SPAN):min(len(mask), i + STEP_SPAN + 1)] = True
+    return mask
+
+
+def step_likeness(values_train):
+    """35.4's score: the share of total variation carried by the largest 1% of
+    |dx| on the TRAINING split. Dimensionless, label-free, fixed in advance."""
+    d = np.abs(np.diff(np.asarray(values_train, dtype=np.float64)))
+    if d.size == 0 or d.sum() == 0:
+        return 0.0
+    k = max(1, int(round(0.01 * d.size)))
+    return float(np.sort(d)[-k:].sum() / d.sum())
+
+
+def _ensemble_series(dets, values, cid):
+    """Mean FORECAST across seeds, then one residual. 35.3.
+
+    Averaging the forecasts before the residual is what the goal specifies and is
+    not the same as averaging three residuals: `|x - mean(f)|` is not
+    `mean(|x - f|)`, and only the first is an ensemble forecast. It mirrors
+    `ForecastDetector._smoothed_errors` (`detectors.py:456-471`) with the mean
+    taken inside the loop.
+    """
+    span = telemanom.Config().smoothing_window
+    filled = dets[0]._filled(values)
+    steps = filled.shape[0]
+    smoothed = np.empty((steps, filled.shape[1]), dtype=np.float32)
+    state = telemanom.EwmaState()
+    block = dets[0].chunks * dets[0].chunk_steps
+    for lo in range(0, steps, block):
+        hi = min(lo + block, steps)
+        fc = np.mean([d._forecast(filled, lo, hi) for d in dets], axis=0)
+        smoothed[lo:hi] = telemanom.ewma(np.abs(filled[lo:hi] - fc), span, state)
+    return np.asarray(smoothed, dtype=np.float64)[:, 0]
+
+
+def build_ensemble(cid, train, test):
+    """Arm S3: three seeds of 34.8's winner, forecasts averaged before residual."""
+    v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
+    dets = []
+    for seed in (0, 1, 2):
+        det = registry.build("gru-telemanom")
+        det.hyper = Hyper(**WINNER_HYPER, seed=seed, **PUBLISHED_HYPER)
+        det.wants_commands = False
+        det.config = telemanom.Config(error_window=BATCH_SIZE * WINDOW_SIZE,
+                                      stride=BATCH_SIZE, aggregate="first")
+        det.fit(v_tr, np.ones(len(v_tr), dtype=bool), ctx_for(cid, len(v_tr)))
+        dets.append(det)
+    e_te = _ensemble_series(dets, v_te, cid)
+    e_tr = _ensemble_series(dets, v_tr, cid)
+    warm = int(dets[0].warmup_steps)
+    D.clear_caches()
+    return {"e_s": e_te, "as_source": np.zeros(len(v_te)),
+            "values": v_te[:, 0].astype(np.float64),
+            "e_s_train": e_tr, "values_train": v_tr[:, 0].astype(np.float64),
+            "warm": {"prop": warm, "pub": warm},
+            "cfg": {"prop": dets[0].config, "pub": dets[0].config}}
+
+
+#: 35.4's features, fixed in advance: the last ten values, their ten first
+#: differences, and the age of the current level. All label-free.
+TREE_LAGS = 10
+
+
+def tree_features(values, trans):
+    """`(T, 21)`: x[t-9..t], dx[t-9..t], and steps since the last level change.
+
+    Row `t` uses only information available at `t`, so nothing peeks. The first
+    `TREE_LAGS` rows are padded by edge repetition and are inside the warm-up the
+    detection stack discards anyway.
+    """
+    v = np.asarray(values, dtype=np.float32)
+    n = len(v)
+    idx = np.clip(np.arange(n)[:, None] - np.arange(TREE_LAGS)[None, ::-1], 0, n - 1)
+    lags = v[idx]                                            # (T, 10)
+    dv = np.diff(v, prepend=v[0]).astype(np.float32)
+    dlags = dv[idx]                                          # (T, 10)
+    # age: steps since the last transition sample, which is S1's own rule
+    age = np.zeros(n, dtype=np.float32)
+    last = -1
+    for i in range(n):
+        if trans[i]:
+            last = i
+        age[i] = (i - last) if last >= 0 else i
+    return np.concatenate([lags, dlags, age[:, None]], axis=1)
+
+
+def build_trees(cid, train, test):
+    """Arm S4: histogram-binned gradient-boosted trees, one model per channel.
+
+    35.4. The target is the NEXT value, which is what telemanom's
+    `method='first'` aggregation uses, and the residual goes into the identical
+    decision stack -- so the arm varies the model class and nothing downstream.
+    """
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    import resource
+    v_tr = train[:, 0].astype(np.float64)
+    v_te = test[:, 0].astype(np.float64)
+    tr_tr = transition_mask(v_tr, v_tr)
+    tr_te = transition_mask(v_tr, v_te)
+    X_tr, X_te = tree_features(v_tr, tr_tr), tree_features(v_te, tr_te)
+    started = time.time()
+    m = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.1,
+                                      early_stopping=True, random_state=0)
+    m.fit(X_tr[:-1], v_tr[1:])
+    fit_s = time.time() - started
+    span = telemanom.Config().smoothing_window
+
+    def resid(X, v):
+        pred = np.empty(len(v), dtype=np.float64)
+        pred[:-1] = m.predict(X[:-1])
+        pred[-1] = pred[-2] if len(v) > 1 else v[-1]
+        e = np.abs(np.roll(v, -1) - pred)
+        e[-1] = e[-2] if len(e) > 1 else 0.0
+        return telemanom.ewma(e.reshape(-1, 1), span).ravel().astype(np.float64)
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return {"e_s": resid(X_te, v_te), "as_source": np.zeros(len(v_te)),
+            "values": v_te, "e_s_train": resid(X_tr, v_tr), "values_train": v_tr,
+            "fit_seconds": fit_s, "peak_rss_mb": peak_mb,
+            "step_likeness": step_likeness(v_tr),
+            "warm": {"prop": 0, "pub": 0},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+def build_iforest(cid, train, test):
+    """Arm S4's CONTROL: an isolation forest on the identical features.
+
+    Not a forecaster. Its score replaces `e_s` in the same stack, which is
+    defensible because the stack thresholds a scalar series -- and if a
+    non-forecaster matches a forecaster here, 35.5's S4c says that is the
+    finding and is reported prominently.
+    """
+    from sklearn.ensemble import IsolationForest
+    import resource
+    v_tr = train[:, 0].astype(np.float64)
+    v_te = test[:, 0].astype(np.float64)
+    X_tr = tree_features(v_tr, transition_mask(v_tr, v_tr))
+    X_te = tree_features(v_te, transition_mask(v_tr, v_te))
+    started = time.time()
+    f = IsolationForest(n_estimators=200, random_state=0).fit(X_tr)
+    fit_s = time.time() - started
+    span = telemanom.Config().smoothing_window
+    to_e = lambda X: telemanom.ewma(
+        (-f.score_samples(X)).reshape(-1, 1), span).ravel().astype(np.float64)
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1048576.0 if sys.platform == "darwin" else peak / 1024.0
+    return {"e_s": to_e(X_te), "as_source": np.zeros(len(v_te)),
+            "values": v_te, "e_s_train": to_e(X_tr), "values_train": v_tr,
+            "fit_seconds": fit_s, "peak_rss_mb": peak_mb,
+            "step_likeness": step_likeness(v_tr),
+            "warm": {"prop": 0, "pub": 0},
+            "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
+
+
+#: 35.6's dial for the floor family. `r` is the tail fraction of the TRAINING
+#: residual, so a SMALLER `r` is a HIGHER threshold. The grid ran from 1e-4 and
+#: not one arm reached 0.6838% of nominal test steps -- the 99.99th percentile of
+#: training was still exceeded 2.2% to 21% of the time on test. It is extended to
+#: 1e-8, which is below `1/len(train)` on every channel and therefore saturates at
+#: the training maximum: if the family cannot reach the target THERE, no `r` can,
+#: and the reason is D48 rather than a coarse grid.
+FLOOR_GRID = np.geomspace(1e-8, 5e-2, 72)
+
+
+def build_zscore_cmd(cid, train, test):
+    """Arm C2: `gru-zscore` with the command columns as exogenous inputs.
+
+    32.1 and D59. 31.8's H4 stop fired because `sigma` collapsed to a per-channel
+    constant, and 31.9 named the reason without registering it: a single
+    univariate channel gives the likelihood no reason to vary `sigma` **with
+    state**. Commands are state. Everything else is Arm H unchanged -- the same
+    GRU, the same Gaussian head, the same NLL, D25's threshold rule.
+
+    **It also repairs 31.8's recorded defect.** Arm H fitted through `lstm.train`
+    directly while the cache lives in `ForecastDetector.fit`, so its weights were
+    never persisted and the arm was reproducible only from its seed. The key
+    below is `ForecastDetector.fit`'s own construction (`detectors.py:328-331`),
+    so a re-run hits the store rather than refitting.
+    """
+    hyper = Hyper(**ZSCORE_HYPER)
+    v_tr = train[:, :1].astype(np.float32)
+    v_te = test[:, :1].astype(np.float32)
+    c_tr = np.ascontiguousarray(train[:, 1:].astype(np.float32))
+    c_te = np.ascontiguousarray(test[:, 1:].astype(np.float32))
+    usable = np.ones(len(v_tr), dtype=bool)
+
+    key = (hyper.as_dict_key(), (cid,), 0, hyper.window, v_tr.shape,
+           D._sample_digest(v_tr), D._digest(usable[::997]),
+           D._sample_digest(c_tr))
+    digest = D._digest(key)
+    cached = D._load_weights(digest)
+    if cached is None:
+        weights, rep = fit_model(v_tr, usable, hyper, fold=0, impulses=c_tr)
+        report = rep.as_dict()
+        D._save_weights(digest, weights, report)               # 31.8's defect, fixed
+    else:
+        weights, report = cached
+
+    n_exog = 2 * c_tr.shape[1]                     # impulse + decay, 48 SMAP / 108 MSL
+    model = _to_torch(weights, hyper, 1, n_exog)
+    span = telemanom.Config().smoothing_window                      # 105, unchanged
+
+    def statistic(values, commands):
+        mu, sigma = predictive_moments(model, values, hyper.window,
+                                       exog=_exog(commands))
+        z = np.abs(values[:, 0].astype(np.float64) - mu) / sigma
+        return telemanom.ewma(z.reshape(-1, 1), span).ravel().astype(np.float64), sigma
+
+    s_tr, _ = statistic(v_tr, c_tr)
+    s_te, sigma_te = statistic(v_te, c_te)
+    warm = hyper.window + telemanom.Config().error_window
+    finite = s_tr[np.isfinite(s_tr)][warm:]
+    threshold = float(np.quantile(finite, 0.999)) if finite.size else float("inf")
+    cv = float(np.std(sigma_te) / np.mean(sigma_te)) if np.mean(sigma_te) > 0 else 0.0
+    return {"e_s": s_te, "as_source": s_te / max(threshold, 1e-12),
+            "values": v_te[:, 0].astype(np.float64),
+            "threshold": threshold, "sigma_cv": cv,
+            "sigma_median": float(np.median(sigma_te)),
+            "n_exogenous": n_exog,
+            "nll": float(report.get("best_validation_mse", float("nan"))),
+            "epochs": int(report.get("epochs_run", 0)),
+            "best_epoch": int(report.get("best_epoch", 0)),
+            "nll_improved": bool(report.get("best_epoch", 0) > 0),
             "warm": {"prop": warm, "pub": warm},
             "cfg": {"prop": proportional_config(len(test)), "pub": published_config()}}
 
@@ -733,6 +1275,161 @@ def score_arm(alarm, scorable, spans):
             "tp": len(caught), "fp": len(ranges) - hits, "fired": fired}
 
 
+def grid_stage_a(args, client, cfg, ledger, budget, man) -> int:
+    """Work item 9.17 stage A. Produces a RANKING and nothing else (34.1).
+
+    No label is read, no anomaly span is loaded, and no scored arm is touched.
+    If this function ever computes a recall figure, 34.1 voids the arm.
+    """
+    chosen = grid_subsample(man["channels"])
+    configs = grid_configs()
+    if args.grid_smoke:
+        # 34.6's corners: the cheapest and the dearest of each cell, so the
+        # projection is not anchored on one arbitrary point in the middle.
+        configs = [dict(cell=c, window=w, hidden=h, max_epochs=e)
+                   for c, w, h, e in (("lstm", 50, (40, 40), 35),
+                                      ("lstm", 250, (80, 80), 70),
+                                      ("gru", 50, (40, 40), 35),
+                                      ("gru", 250, (80, 80), 70))]
+        chosen = chosen[:1] + chosen[-1:]                   # one SMAP, one MSL
+    print(f"  stage A: {len(configs)} configurations x {len(chosen)} channels "
+          f"= {len(configs) * len(chosen)} fits")
+    print(f"  subsample (seeded rule, 34.3): "
+          f"{', '.join(c['channel_id'] for c in chosen)}")
+
+    store = D.WEIGHT_STORE
+    before = sum(1 for p in store.iterdir() if p.suffix == ".npz")
+    jobs = []
+    for ch in chosen:
+        keys = {o["split"]: o["key"] for o in ch["objects"]}
+        train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
+        for i, conf in enumerate(configs):
+            jobs.append((ch["channel_id"], train, conf, i))
+
+    if args.workers > 1:
+        free = free_memory_gib()
+        print(f"  free memory {free:.1f} GiB (gate: 4.0)")
+        if free < 4.0:
+            print("  ABORT: below the pre-registered 4 GiB gate; not starting the pool.")
+            return 7
+    started, done = time.time(), []
+    if args.workers > 1:
+        batch = 4 * args.workers
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            for lo in range(0, len(jobs), batch):
+                done.extend(pool.map(_fit_grid, jobs[lo:lo + batch]))
+                for k in range(lo, min(lo + batch, len(jobs))):
+                    jobs[k] = None                      # release the arrays
+                print(f"    {min(lo + batch, len(jobs))}/{len(jobs)} fits")
+    else:
+        done = [_fit_grid(j) for j in jobs]
+    elapsed = time.time() - started
+
+    per_conf = collections.defaultdict(list)
+    stalls, secs, peaks = collections.defaultdict(list), [], []
+    for cid, tag, out, err, sec, peak in done:
+        secs.append(sec); peaks.append(peak)
+        if err is not None:
+            stalls[tag].append({"channel": cid, "error": err})
+        else:
+            per_conf[tag].append({"channel": cid, **out})
+
+    rows = []
+    for i, conf in enumerate(configs):
+        got = per_conf.get(i, [])
+        n_stall = len(stalls.get(i, []))
+        # 34.3: more than half the subsample stalled disqualifies the row.
+        dq = n_stall > len(chosen) // 2
+        rows.append({
+            "index": i, **{k: (list(v) if isinstance(v, tuple) else v)
+                           for k, v in conf.items()},
+            "channels_fitted": len(got), "stalls": n_stall, "disqualified": dq,
+            "parameters": got[0]["parameters"] if got else None,
+            # 34.4: primary is the MEAN OF PER-CHANNEL MEANS; pooled is beside it.
+            "primary": (float(np.mean([g["mse"] for g in got])) if got and not dq
+                        else None),
+            "pooled": (float(np.average([g["mse"] for g in got],
+                                        weights=[g["positions"] for g in got]))
+                       if got and not dq else None),
+            "per_channel": got,
+        })
+    winner, tied = grid_select(rows)
+
+    print()
+    print("  rank  cell  l_s  hidden  epochs  params   primary MSE   stalls")
+    for r in sorted([r for r in rows if r["primary"] is not None],
+                    key=lambda r: r["primary"])[:10]:
+        print(f"        {r['cell']:4s} {r['window']:4d}  {r['hidden'][0]:3d}   "
+              f"{r['max_epochs']:4d}  {r['parameters']:7d}  {r['primary']:.6e}  "
+              f"{r['stalls']:3d}")
+    if winner:
+        print()
+        print(f"  WINNER (34.4): cell={winner['cell']} window={winner['window']} "
+              f"hidden={winner['hidden']} epochs={winner['max_epochs']} "
+              f"params={winner['parameters']}  primary={winner['primary']:.6e}")
+        print(f"  tied within 1%: {len(tied)} configuration(s)")
+
+    after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
+    print(f"  weight store {before} -> {after} (+{after - before})")
+    if secs:
+        med, mean = float(np.median(secs)), float(np.mean(secs))
+        full = len(grid_configs()) * len(grid_subsample(man["channels"]))
+        print(f"  fits: n={len(secs)} mean {mean:.1f}s median {med:.1f}s "
+              f"min {min(secs):.1f}s max {max(secs):.1f}s  spread "
+              f"{max(secs)/max(1e-9, min(secs)):.0f}x  |  wall clock {elapsed/60:.1f} min")
+        # A TOTAL is n * MEAN, never n * median. On this grid the corners span
+        # 40x, so the median is a statistic about a typical fit and says nothing
+        # about the sum -- which is 28.5's error in a different costume, where a
+        # per-unit figure was multiplied by a count and the total was wrong.
+        print(f"  -> the full {full} fits project to {full*mean/3600:.1f} h serial "
+              f"from the MEAN, {full*mean/3600/max(1,args.workers):.1f} h at "
+              f"{args.workers} workers")
+        print(f"     (the median would have said {full*med/3600:.1f} h serial, and a "
+              f"total is not n x median)")
+        print(f"  peak RSS per worker: max {max(peaks):.0f} MB median "
+              f"{float(np.median(peaks)):.0f} MB")
+
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+    path = Path("runs/smap-msl/_forensics") / f"{stamp}-wi917-grid-a.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    out = {
+        "generated_utc": stamp, "pre_registration": "docs/MODELS.md 34",
+        "smoke": bool(args.grid_smoke),
+        "label_free": ("34.1: the winner is chosen ONLY on held-out nominal "
+                       "validation error. No label, recall or alarm rate enters."),
+        "subsample": [c["channel_id"] for c in chosen],
+        "subsample_rule": "34.3: default_rng(0).choice, 8 per spacecraft, manifest order",
+        "holdout_fraction": GRID_HOLDOUT, "position_pin": GRID_PIN,
+        "n_predictions": N_PREDICTIONS,
+        "tie_break": "34.4: within 1% relative, then fewer parameters, then shorter "
+                     "lookback, then gru",
+        "configurations": rows,
+        "winner": (None if winner is None else
+                   {k: winner[k] for k in ("cell", "window", "hidden", "max_epochs",
+                                           "parameters", "primary", "pooled")}),
+        "tied_within_1pc": len(tied),
+        "stalls": {str(k): v for k, v in stalls.items()},
+        "timing": {"wall_clock_min": elapsed / 60.0, "workers": args.workers,
+                   "median_fit_s": float(np.median(secs)) if secs else None,
+                   "mean_fit_s": float(np.mean(secs)) if secs else None,
+                   "fit_seconds": [round(x, 2) for x in secs],
+                   "peak_rss_mb": [round(x, 1) for x in peaks],
+                   "peak_rss_mb_max": max(peaks) if peaks else None},
+        "weight_store": {"before": before, "after": after},
+    }
+    out["operations"] = budget.as_dict()
+    path.write_text(json.dumps(out, indent=1))          # ARTIFACT BEFORE LEDGER
+    print(f"\n  artifact {path}")
+    try:
+        ops.commit(client, cfg.bucket, ledger, budget)
+    except Exception as exc:
+        print(f"  (!) LEDGER COMMIT FAILED: {exc}")
+        print(f"      {budget.class_a} Class A and {budget.class_b} Class B WERE "
+              f"spent and are NOT recorded.")
+    print(budget.report())
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--visibility", required=True, help="the stage 1 artifact")
@@ -749,6 +1446,11 @@ def main(argv=None) -> int:
                          "2 torch threads, ~32 min and ~2.8 GB")
     ap.add_argument("--only", default="", metavar="A,B",
                     help="score only these arms; the timing smoke uses it")
+    ap.add_argument("--grid-a", action="store_true",
+                    help="work item 9.17 stage A: the 32-configuration grid on the "
+                         "16-channel subsample. THIS REFITS -- see docs/MODELS.md 34.6")
+    ap.add_argument("--grid-smoke", action="store_true",
+                    help="34.6's smoke: 4 corner configurations x 2 channels")
     args = ap.parse_args(argv)
 
     vis = json.loads(Path(args.visibility).read_text())
@@ -775,8 +1477,12 @@ def main(argv=None) -> int:
         classes = [x.strip() for x in r["class"].strip("[]").split(",") if x.strip()]
         seqs[cid] = list(zip(ast.literal_eval(r["anomaly_sequences"]), classes))
 
+    if args.grid_a or args.grid_smoke:
+        return grid_stage_a(args, client, cfg, ledger, budget, man)
+
     channels = man["channels"][: args.limit] if args.limit else man["channels"]
     fit_seconds: list[float] = []
+    fit_peaks: list[float] = []
     pending: list[tuple] = []
     store = D.WEIGHT_STORE
     before = sum(1 for p in store.iterdir() if p.suffix == ".npz")
@@ -789,15 +1495,24 @@ def main(argv=None) -> int:
         train = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["train"])))
         test = np.load(io.BytesIO(fetch(client, cfg.bucket, keys["test"])))
         built, failed = {}, {}
-        cells = ({"T": ("published",), "R": ("rung",),
-                  "H": ("zscore",), "HM": ("zscore",)}.get(args.only)
-                 or (("zscore",) if args.zscore and args.only == ""
-                     and not args.published else None)
-                 or (("lstm", "gru", "published", "rung") if args.published
-                     else ("lstm", "gru")))
+        # Which cells this run has to build, derived from the arms it will
+        # score. This was a hard-coded map of four arm names; arm G needed a
+        # fifth and a map that has to be edited alongside `ARM_TABLE` is a map
+        # that goes stale, which is D14's shape of failure. `--only ""` and the
+        # four names it already knew resolve identically, so no prior run's
+        # cells change.
+        asked = {a for a in args.only.split(",") if a}
+        if asked:
+            cells = tuple(dict.fromkeys(c for n, c, *_ in ARM_TABLE if n in asked))
+        elif args.published:
+            cells = ("lstm", "gru", "published", "rung")
+        elif args.zscore:
+            cells = ("zscore",)
+        else:
+            cells = ("lstm", "gru")
         if args.zscore and "zscore" not in cells:
             cells = tuple(cells) + ("zscore",)
-        for cell in [c for c in cells if c not in ("published", "rung", "zscore")]:
+        for cell in [c for c in cells if c not in DEFERRED_CELLS]:
             try:
                 built[cell] = build(cid, cell, train, test)
             except Exception as exc:         # D17's guard refuses a channel outright
@@ -807,7 +1522,7 @@ def main(argv=None) -> int:
         if failed:
             stalls[cid] = failed
             print(f"    {cid}: STALL -- " + "; ".join(f"{k} {v}" for k, v in failed.items()))
-        deferred = [c for c in cells if c in ("published", "rung", "zscore")]
+        deferred = [c for c in cells if c in DEFERRED_CELLS]
         if deferred:
             pending.append((cid, train, test, deferred))
         if not built and not deferred:
@@ -860,8 +1575,9 @@ def main(argv=None) -> int:
                     print(f"    {min(lo + batch, len(pending))}/{len(pending)} fitted")
         else:
             done = [_fit_published(job) for job in pending]
-        for cid, out, err, seconds in done:
+        for cid, out, err, seconds, peak_mb in done:
             fit_seconds.append(seconds)
+            fit_peaks.append(peak_mb)
             for cell, message in (err or {}).items():
                 stalls.setdefault(cid, {})[cell] = message
                 print(f"    {cid}: STALL -- {cell} {message}")
@@ -871,13 +1587,27 @@ def main(argv=None) -> int:
         print(f"  fits done in {(time.time() - started)/60:.1f} min wall clock")
 
     after = sum(1 for p in store.iterdir() if p.suffix == ".npz")
-    expected = "28.5 expects +78 (3 banked by the smoke)" if args.published else "27.6 expects +0"
+    refitting = {a for a in args.only.split(",") if a} & {"T", "C1", "C2", "C2M",
+                                                         "W", "WS", "S3"}
+    if refitting:
+        expected = f"32.5 expects +81 per refitting arm ({sorted(refitting)})"
+    elif args.published:
+        expected = "28.5 expects +78 (3 banked by the smoke)"
+    else:
+        expected = "27.6 expects +0"
     print(f"  weight store {before} -> {after} (+{after - before}; {expected})")
     if fit_seconds:
         med = float(np.median(fit_seconds))
         print(f"  fits: n={len(fit_seconds)} median {med:.1f}s "
               f"min {min(fit_seconds):.1f}s max {max(fit_seconds):.1f}s "
               f"-> 81 channels projects to {81 * med / 60:.0f} min serial")
+        if fit_peaks:
+            # 32.5. Measured, per worker process, INCLUDING its torch import.
+            pk = max(fit_peaks)
+            print(f"  peak RSS per worker: max {pk:.0f} MB "
+                  f"median {float(np.median(fit_peaks)):.0f} MB "
+                  f"-> {args.workers} workers project to {args.workers * pk / 1024:.1f} GiB "
+                  f"against {free_memory_gib():.1f} GiB free now")
     return report(args, per_channel, stalls, geometry, in_range, base_rate,
                   before, after, client, cfg, ledger, budget)
 
@@ -907,6 +1637,33 @@ ARM_TABLE = [
      "work item 9.11: the published training configuration under Arm F's stack"),
     ("R", "rung", "port", None, "pub",
      "work item 9.12: Arm T plus the residual rung (errors.py:48-64)"),
+    ("G", "rung", "port", Mech(dimensionless=True), "pub",
+     "work item 9.13: Arm R with the two absolute filters made dimensionless"),
+    ("C1", "published_nc", "port", None, "pub",
+     "work item 9.15: Arm T with the commands WITHHELD -- D49's counterfactual"),
+    ("C2", "zscore_cmd", "source", None, "prop",
+     "work item 9.15: gru-zscore WITH the command columns, at D25's threshold"),
+    ("C2M", "zscore_cmd", "swept", None, "prop",
+     "gru-zscore+cmd swept to stage 4's rate -- a COMPARISON DEVICE, not a calibration"),
+    ("W", "winner", "port", None, "pub",
+     "work item 9.17 stage B: 34.8's winner on all 81, at its own cut"),
+    ("WS", "winner", "port-swept", None, "pub",
+     "work item 9.17 stage B: the winner swept to stage 4's rate -- a LABELLED DEVIATION"),
+    ("S3", "ensemble", "floor", None, "pub",
+     "work item 9.18: a 3-seed ensemble over 34.8's winner, means before residual (35.3)"),
+    ("S4", "trees", "floor", None, "pub",
+     "work item 9.18: gradient-boosted trees on label-free lag features (35.4)"),
+    ("S4C", "iforest", "floor", None, "pub",
+     "work item 9.18: the isolation-forest CONTROL on the same features (35.4)"),
+    ("S1", "winner", "floor", None, "pub",
+     "work item 9.18: a transition-aware floor on the winner's residual (35.1)"),
+    ("S2", "winner", "floor", None, "pub",
+     "work item 9.18: per-channel calibration, D25's recipe per channel (35.2)"),
+    ("S12", "winner", "floor", None, "pub",
+     "work item 9.18: S1 and S2 together -- different stages, so a cell (35.3)"),
+    ("C1S", "published_nc", "port-swept", None, "pub",
+     "work item 9.16: C1 swept to stage 4's rate -- a LABELLED DEVIATION (28.6), "
+     "and the comparison K2 was left owed"),
     ("H", "zscore", "source", None, "prop",
      "work item 9.14: gru-zscore at D25's label-free threshold"),
     ("HM", "zscore", "swept", None, "prop",
@@ -917,7 +1674,9 @@ ARM_TABLE = [
 def report(args, per_channel, stalls, geometry, in_range, base_rate,
            before, after, client, cfg, ledger, budget) -> int:
     p = telemanom.PRUNING_P
-    cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore")
+    cells = tuple(c for c in ("lstm", "gru", "published", "rung", "zscore",
+                              "published_nc", "zscore_cmd", "winner",
+                              "trees", "iforest", "ensemble")
                   if any(c in v["built"] for v in per_channel.values()))
 
     # -- populations, per cell, each naming the stall set that fixed it (26.30.3)
@@ -961,7 +1720,8 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
 
     # -- every arm, one pass -------------------------------------------------
     wanted = {a for a in args.only.split(",") if a} or None
-    results, per_ch_rows, diagnostics = {}, [], {}
+    results, per_ch_rows, diagnostics, sweeps = {}, [], {}, {}
+    structural_stops = {}
     for name, cell, kind, mech, regime, note in ARM_TABLE:
         if wanted is not None and name not in wanted:
             continue
@@ -973,20 +1733,34 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
             v, b = per_channel[cid], per_channel[cid]["built"][cell]
             if kind == "ladder":
                 mask, _ = run_ladder(b["e_s"], b["values"], b["cfg"][regime], p, mech)
-            elif kind == "port":
+            elif kind in ("port", "port-swept"):
                 reset_guards()
+                dim = bool(mech is not None and mech.dimensionless)
                 if b.get("supervised"):
                     mask, _, _, eps_at = run_port(
                         b["e_s"], b["y_sup"], telemanom.ERROR_BUFFER, p,
-                        presliced=True, alarm_len=b["n_full"])
+                        presliced=True, alarm_len=b["n_full"], dimensionless=dim)
                 else:
                     mask, _, _, eps_at = run_port(
                         b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
-                        tail=N_PREDICTIONS if name == "T" else 0)
+                        # 28.1 T-g. Every arm built on the PUBLISHED training
+                        # configuration carries the published target length.
+                        # C1 was omitted here until 2026-09-09 and therefore
+                        # differed from Arm T in two levers rather than one --
+                        # the commands, which was the point, and the tail, which
+                        # was not. Named by cell, so a new published arm cannot
+                        # be forgotten the way C1 was.
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc", "winner",
+                                          "ensemble")
+                              else 0),
+                        dimensionless=dim)
                 diagnostics[(name, cid)] = {
                     "guards": dict(GUARDS),
                     "max_e_s": float(np.max(b["e_s"])),
+                    "mean_e_s": float(np.mean(b["e_s"])),
                     "sd_e_s": float(np.std(b["e_s"])),
+                    "dim_k": DIM_K,
                     "sd_values": float(np.std(b["values"])),
                     "inter_range": float(np.subtract(
                         *np.percentile(b["values"], [95, 5]))),
@@ -997,7 +1771,154 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
                 mask = b["as_source"] >= 1.0
             alarms[cid] = np.asarray(mask, dtype=bool) & scorable[cell][regime][cid]
 
-        if kind == "swept":
+        if kind == "floor":
+            # 35.1-35.3. A static-quantile decision layer, swept on `r`. Four
+            # variants over two independent switches: per-channel calibration,
+            # and a transition-aware floor. Both are label-free -- every cut is
+            # a quantile of the channel's own TRAINING residual.
+            per_ch = name in ("S2", "S12")
+            trans = name in ("S1", "S12")
+            cal, masks_te, masks_tr = {}, {}, {}
+            for cid in chans:
+                b = per_channel[cid]["built"][cell]
+                cal[cid] = (np.asarray(b["e_s_train"], dtype=np.float64),
+                            np.asarray(b["e_s"], dtype=np.float64))
+                if trans:
+                    masks_tr[cid] = transition_mask(b["values_train"], b["values_train"])
+                    masks_te[cid] = transition_mask(b["values_train"], b["values"])
+                else:
+                    masks_tr[cid] = np.zeros(len(b["e_s_train"]), dtype=bool)
+                    masks_te[cid] = np.zeros(len(b["e_s"]), dtype=bool)
+            empty = sum(1 for c in chans if not masks_te[c].any())
+            if trans and empty > len(chans) // 2:
+                print(f"    {name}: STRUCTURAL STOP -- transition mask empty on "
+                      f"{empty}/{len(chans)} channels; the arm is inert by "
+                      f"construction and no recall number is reported.")
+                structural_stops[name] = {"empty_masks": empty, "channels": len(chans)}
+                continue
+
+            def _q(sample, r):
+                f = sample[np.isfinite(sample)]
+                return float(np.quantile(f, 1.0 - r)) if f.size else np.inf
+
+            def at(r):
+                out = {}
+                if not per_ch:                      # pooled, D25's own recipe
+                    pool_s = np.concatenate([cal[c][0][~masks_tr[c]] for c in chans])
+                    pool_t = (np.concatenate([cal[c][0][masks_tr[c]] for c in chans])
+                              if trans else np.array([]))
+                    thr_s, thr_t = _q(pool_s, r), (_q(pool_t, r) if pool_t.size else np.inf)
+                for cid in chans:
+                    tr, te = cal[cid]
+                    if per_ch:
+                        thr_s = _q(tr[~masks_tr[cid]], r)
+                        thr_t = (_q(tr[masks_tr[cid]], r)
+                                 if trans and masks_tr[cid].any() else np.inf)
+                    m = masks_te[cid]
+                    out[cid] = ((~m & (te > thr_s)) | (m & (te > thr_t))) \
+                        & scorable[cell][regime][cid]
+                return out
+
+            curve, best = [], None
+            for r in FLOOR_GRID:
+                a = at(float(r))
+                fl, ct, base = 0, set(), 0
+                for cid in chans:
+                    v = per_channel[cid]
+                    anom = np.zeros(v["n"], dtype=bool)
+                    for lo, hi in v["spans"]:
+                        anom[lo:hi + 1] = True
+                    fl += int((a[cid] & ~anom).sum())
+                    for k, (lo, hi) in enumerate(v["spans"]):
+                        if a[cid][lo:hi + 1].any():
+                            ct.add(base + k)
+                    base += len(v["spans"])
+                rate = fl / max(1, nominal[cell][regime])
+                irc = len(set(ct) & set(pops[cell]["in_range_contextual"]))
+                curve.append({"r": float(r), "nominal_rate": rate, "caught": len(ct),
+                              "in_range_contextual": irc, "caught_ids": sorted(ct)})
+                if rate <= base_rate and (best is None or len(ct) > best[2]):
+                    best = (float(r), rate, len(ct), a)
+            sweeps[name] = curve
+            if best is None:
+                print(f"    {name}: no r reaches {100*base_rate:.4f}%; none invented.")
+                mult, alarms = float(FLOOR_GRID[0]), at(float(FLOOR_GRID[0]))
+            else:
+                mult, alarms = best[0], best[3]
+            if best is None:
+                # Report what the FALLBACK actually produced, not zeros. The
+                # previous form printed `best[1] if best else 0`, which printed
+                # 0.0000% and 0 caught whenever no point qualified -- a placeholder
+                # rendered as a measurement, beside an arm row showing 2% to 21%.
+                lo = min(curve, key=lambda c: c["nominal_rate"])
+                print(f"    {name}: FALLBACK r={mult:.2e}; the quietest point on the "
+                      f"grid is {100*lo['nominal_rate']:.4f}% (caught {lo['caught']}), "
+                      f"still above the {100*base_rate:.4f}% target")
+            else:
+                print(f"    {name}: r={mult:.2e} nominal {100*best[1]:.4f}% "
+                      f"caught {best[2]}")
+        elif kind == "port-swept":
+            # 33.3. The port has no dial, so one is threaded through and
+            # LABELLED as a deviation from the source (28.6). Same selection
+            # rule as the as_source sweep below, so the two are comparable:
+            # among multipliers at or under the target rate, the one catching
+            # most events wins.
+            curve, best = [], None
+            for m in PORT_GRID:
+                masks, fl, ct, base = {}, 0, set(), 0
+                for cid in chans:
+                    v, b = per_channel[cid], per_channel[cid]["built"][cell]
+                    mk, _, _, _ = run_port(
+                        b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc", "winner")
+                              else 0),
+                        eps_mult=float(m))
+                    f = np.asarray(mk, dtype=bool) & scorable[cell][regime][cid]
+                    masks[cid] = f
+                    anom = np.zeros(v["n"], dtype=bool)
+                    for a, bb in v["spans"]:
+                        anom[a:bb + 1] = True
+                    fl += int((f & ~anom).sum())
+                    for k, (a, bb) in enumerate(v["spans"]):
+                        if f[a:bb + 1].any():
+                            ct.add(base + k)
+                    base += len(v["spans"])
+                rate = fl / max(1, nominal[cell][regime])
+                # 33.8. The CAUGHT SET, not a count of it. A summary retained
+                # at lower resolution than the question needs is what left M1
+                # unadjudicable and S1/S2 unadjudicable before it (27.8); with
+                # the ids kept, any population restriction is computable from
+                # the artifact forever without spending another read.
+                curve.append({"multiplier": float(m), "nominal_rate": rate,
+                              "caught": len(ct),
+                              "in_range_contextual": len(
+                                  set(ct) & set(pops[cell]["in_range_contextual"])),
+                              "caught_ids": sorted(ct)})
+                irc = len(set(ct) & set(pops[cell]["in_range_contextual"]))
+                flag = "" if rate > base_rate else "  <= target"
+                print(f"    {name} mult {m:5.3f}  nominal {100*rate:7.4f}%  "
+                      f"caught {len(ct):3d}  in-range contextual {irc:3d}{flag}")
+                if rate <= base_rate and (best is None or len(ct) > best[2]):
+                    best = (float(m), rate, len(ct), masks)
+            sweeps[name] = curve
+            if best is None:
+                print(f"    {name}: NO multiplier reaches {100*base_rate:.4f}%; "
+                      f"the arm has no matched point and none is invented.")
+                mult = float(PORT_GRID[-1])
+                for cid in chans:
+                    b = per_channel[cid]["built"][cell]
+                    mk, _, _, _ = run_port(
+                        b["e_s"], b["values"], telemanom.ERROR_BUFFER, p,
+                        tail=(N_PREDICTIONS
+                              if cell in ("published", "published_nc", "winner")
+                              else 0),
+                        eps_mult=mult)
+                    alarms[cid] = (np.asarray(mk, dtype=bool)
+                                   & scorable[cell][regime][cid])
+            else:
+                mult, alarms = best[0], best[3]
+        elif kind == "swept":
             # `scripts/smap_stage2.py:265-289`, replicated literally: the arm is
             # matched on pooled nominal-step rate, and among multipliers at or
             # under the target the one catching most events wins. Any change to
@@ -1148,7 +2069,14 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
     structural = {}
     for lower, upper, kind in (("A0", "L1", "subset"), ("L1", "L2", "subset"),
                                ("L2", "L3", "subset"), ("L3", "L4", "superset"),
-                               ("A0", "A2", "subset")):
+                               ("A0", "A2", "subset"),
+                               # 30.2 G4, structural and a stop: every
+                               # replacement is a relaxation, so the
+                               # dimensionless arm's alarm set must be a
+                               # superset of the absolute arm's on EVERY
+                               # channel. A channel where it is not means a
+                               # replacement tightened and the forms are wrong.
+                               ("R", "G", "superset")):
         if lower not in results or upper not in results:
             continue
         held, total = 0, 0
@@ -1187,13 +2115,34 @@ def report(args, per_channel, stalls, geometry, in_range, base_rate,
         "stalls": stalls, "geometry": geometry,
         "weight_store": {"before": before, "after": after},
         "structural_checks": structural,
+        # 33.3: the whole curve, not only the matched point, so the
+        # operating point is visible rather than asserted.
+        "port_sweeps": sweeps,
+        "structural_stops": structural_stops,
         "guard_diagnostics": guard_rows,
+        # 32.4 K3 is C2's stop and is adjudicated FIRST, so `sigma_cv` has to
+        # reach the artifact for BOTH probabilistic cells. It collected only
+        # "zscore" until 2026-09-09, which would have left K3 unadjudicable from
+        # the artifact -- 27.8's defect exactly, where S1 and S2 could not be
+        # settled because the instrument did not retain what the check needed.
+        # 35.4 requires per-channel fit time, peak memory and the step-likeness
+        # score to reach the record; the builders returned all three and nothing
+        # collected them. Third time this class of gap has been caught (27.8's
+        # alarm ranges, 32.7's sigma_cv, 33.7's caught sets) -- a value computed
+        # and not retained is a value that does not exist.
+        "tree_diagnostics": [
+            {"channel": c, "cell": cell, "spacecraft": v["spacecraft"],
+             **{k: v["built"][cell].get(k) for k in
+                ("fit_seconds", "peak_rss_mb", "step_likeness")}}
+            for c, v in per_channel.items()
+            for cell in ("trees", "iforest", "winner") if cell in v["built"]],
         "zscore_diagnostics": [
-            {"channel": c, "spacecraft": v["spacecraft"],
-             **{k: v["built"]["zscore"][k] for k in
-                ("threshold", "sigma_cv", "sigma_median", "nll", "objective",
-                 "epochs", "best_epoch", "nll_improved")}}
-            for c, v in per_channel.items() if "zscore" in v["built"]],
+            {"channel": c, "cell": cell, "spacecraft": v["spacecraft"],
+             **{k: v["built"][cell].get(k) for k in
+                ("threshold", "sigma_cv", "sigma_median", "n_exogenous", "nll",
+                 "objective", "epochs", "best_epoch", "nll_improved")}}
+            for c, v in per_channel.items()
+            for cell in ("zscore", "zscore_cmd") if cell in v["built"]],
         "forensics": forensics,
         "magnitude_conjunct": {"indices_removed": CONJUNCT_BOUND[0],
                                "window_passes": CONJUNCT_TESTED[0]},
