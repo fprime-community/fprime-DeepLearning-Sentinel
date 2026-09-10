@@ -54,16 +54,24 @@ _PREFIXED = re.compile(
     + r"):(\d+(?:[-,]\d+)*)")
 
 
+#: Files that quote citation forms in order to talk about them, rather than to
+#: cite. Counting them would make the index describe itself. The same exemption,
+#: for the same reason, that `tests/test_documents_are_current.py` takes when it
+#: skips itself: "this file quotes every pattern it bans".
+SELF_REFERENTIAL = (
+    "docs/TELEMANOM_EXCERPTS.md",        # the index
+    "scripts/telemanom_citations.py",    # this generator's docstring
+    "tests/test_telemanom_index.py",     # its guard, which asserts on row text
+)
+
+
 def tracked_prose() -> list[Path]:
     out = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True,
                          capture_output=True, text=True).stdout.split()
     return [ROOT / f for f in out
             if f.endswith((".md", ".py"))
             and not f.startswith("third_party/")
-            # The index itself, and this generator, whose docstring shows the
-            # citation forms it matches. Neither is a citation *by* the project.
-            and f not in ("docs/TELEMANOM_EXCERPTS.md",
-                          "scripts/telemanom_citations.py")]
+            and f not in SELF_REFERENTIAL]
 
 
 def citations() -> dict[str, set[str]]:

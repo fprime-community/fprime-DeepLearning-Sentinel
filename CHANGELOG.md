@@ -80,6 +80,12 @@ no fit, weight store unmoved. **No C++ is written until this is reviewed.**
   of it: the generated table equals the generator's output, section 4's three named rows are
   present, and both anchors are unique. **The guard exists because the mistake happened, not
   in case it might.**
+- **And that guard then counted itself.** Its assertions quote row text -- `errors.py`,
+  `detector.py` and `modeling.py` line references -- so once it was tracked the scan read
+  them as citations and the index described itself, at 13 citing files instead of 12. The
+  generator now names its self-referential files explicitly, which is the same exemption
+  `tests/test_documents_are_current.py` already takes when it skips itself for quoting every
+  pattern it bans.
 
 ## [0.6.30] - 2026-09-10 - Reorganisation tranches 1 and 2: the guards, and the figures they did not catch
 
