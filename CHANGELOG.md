@@ -14,6 +14,65 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.22] - 2026-09-10 - Governance before the arms: rule 1 adjudicated, and a metric authorised
+
+**Work item 9.21, governance half. NO ARM IS REGISTERED YET and nothing ran.** D62's
+freeze stands, the weight store is untouched, **zero R2 operations**. These four changes
+alter the rules the next pre-registration is written under, so they land before it rather
+than alongside it.
+
+### Added
+- **D63 -- rule 1 governs the model and its weights, not the alarm threshold.** The
+  conflict was real and unreconciled: `docs/RESEARCH.md` rejected SPOT because *"SPOT
+  refits online and Objective.md 11 rule 1 forbids that outright"*, while **the frozen
+  pipeline does the same thing** -- D62 froze stage 4 on telemanom's published *dynamic*
+  threshold, which recomputes its cut every `stride` steps from a trailing window of the
+  stream being scored (`telemanom.py:397-411`; `error_window = 0.05 * len(test)`,
+  `stride = 70` under `proportional_config`, D47). On the strict reading, the pipeline this
+  project selected could not fly under its own permanent rule. Adopted: the threshold is a
+  **measured noise floor** (`docs/HARNESS.md` 1), and one measured from nominal data is not
+  online learning. The boundary is stated so it can be applied: what rule 1 forbids is any
+  path by which the detector's notion of normal is updated from data it has not been told
+  is normal -- which makes an anomaly entering the trailing window unlabelled a
+  **measurement question per arm**, not a licence. `Objective.md` 11 is not edited; its
+  text already says "model".
+- **`docs/RESEARCH.md` Part V** -- Kim et al. (AAAI 2022), Huet et al. (KDD 2022) and
+  Gibbs & Candes (NeurIPS 2021), each read at first hand and each marked for what was
+  actually read. Plus the two source sets deliberately **not** obtained, with the reason.
+
+### Changed
+- **`docs/HARNESS.md` 5a gains its fifth authorised addition and second-ever metric**:
+  affiliation precision/recall (Huet et al., arXiv:2206.13167), escalated under D8 rather
+  than added. Additive only; no existing metric changed; the gate stays event-wise F0.5
+  (D3, D9); existing artifacts stay byte-identical.
+- **`docs/HARNESS.md` 1 now discloses that a metric this project reports is gameable.**
+  Huet et al. show *"an adversary algorithm can reach high precision and recall on almost
+  any dataset under weak assumption"* under the recent event-based metrics -- the family
+  the range-based pair in `metrics/eventwise.py` belongs to. **Nothing is withdrawn**; it
+  is no longer reported alone. Two further facts a reader needs are recorded with it: the
+  pair is fixed at `alpha = 0.0` and `bias = "flat"`, and `eventwise.score` does not plumb
+  `alpha` or `cardinality` through, so they are locked at their defaults in **every**
+  scored run this project has published.
+- **Point-adjusted F1's quarantine gains its primary citation** -- Kim et al.: *"even a
+  random anomaly score can easily turn into a state-of-the-art TAD method"*. It had been
+  quarantined on Wu & Keogh and Objective.md 9.5 alone.
+- **`docs/RESEARCH.md`'s Siffer entry is corrected in the house form, old text kept.** Its
+  conclusion -- prefer the static variant -- may still be right; its stated *reason* was
+  wrong. It also now says plainly that the entry is **Secondary**, that a whole method was
+  set aside on an unread reading, and that nothing further is claimed about SPOT's
+  mechanism until the paper is read at first hand.
+
+### Recorded
+- **(!) Hundman's own paper says `p` is tuned against labels.** Read at first hand,
+  section 4.3: *"The `p` parameter is an important lever ... an appropriate value can be
+  inferred **when labels are available**. In our setting, reasonable results were achieved
+  with `0.05 < p < 0.20`."* A deploying mission has no labels (`docs/HARNESS.md` 6b). And
+  37.7a measured that **all 13 pruned-and-recoverable events would be retained at a `p`
+  inside that published band** -- max 0.1137, median 0.0834. They are lost to one value the
+  author calls reasonable while another equally reasonable value keeps them.
+- The 38.6 / 4.8 figures are the arithmetic of the two Table 2 rows already at
+  `docs/MODELS.md` 26.19; they had never been stated in points anywhere here.
+
 ## [0.6.21] - 2026-09-10 - A1, A5 and A6: the pruning curve, and every caught event is late
 
 **Work item 9.20, diagnosis half. NO ARM RAN and nothing is adjudicated; D62's freeze

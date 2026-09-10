@@ -41,6 +41,23 @@ command features as the obvious next step.
 *Source of the 41% figure* in Objective.md 2.3: contextual anomalies as a share
 of real expert-confirmed anomalies.
 
+**(!) Read at first hand 2026-09-10, section 4.3, and it bears directly on `p`.** The
+paper's own ablation: *"pruning only decreases overall recall by 4.8 percentage points
+(84.8% to 80.0%) while increasing overall precision by 38.6 percentage points (48.9% to
+87.5%)"* -- the arithmetic of the two Table 2 rows already recorded at `docs/MODELS.md`
+26.19. The sentence that follows is the load-bearing one and was not on record here:
+
+> *"The `p` parameter is an important lever for controlling precision and recall, and an
+> appropriate value can be inferred **when labels are available**. In our setting,
+> reasonable results were achieved with `0.05 < p < 0.20`."*
+
+**The method's own author states that `p` is tuned against labels**, which a deploying
+mission does not have (`docs/HARNESS.md` 6b) -- the shippability objection this project
+had reached by inference. And `docs/MODELS.md` 37.7a measured that **every one of the 13
+pruned-and-recoverable events would be retained at a `p` inside that published band**
+(max 0.1137, median 0.0834). They are not lost to an exotic setting; they are lost to one
+value the author calls reasonable while another equally reasonable value keeps them.
+
 **(!) Vendored and pinned, 2026-09-08 (D53).** The source now lives at
 `third_party/telemanom/`, commit `2e6c5b6c3558e7835601519b7bdef37c649bdbdc`,
 because five readings of it had been published from line numbers with no copy
@@ -212,11 +229,30 @@ quantile.
 Pareto tail; the main parameter is a risk `q`, an explicit false-positive
 regulator, typically 1e-3 to 1e-5.
 
-*Taken:* the **static** variant only. SPOT refits online and Objective.md 11 rule
-1 forbids that outright -- a slowly degrading spacecraft must never teach the
-detector that degradation is normal. We fit the tail offline and freeze it, losing
+*Taken:* the **static** variant only. We fit the tail offline and freeze it, losing
 drift adaptation and gaining determinism; drift is handled by ground
 recalibration and model v2 (Objective.md 10.2 fix 4).
+
+**(!) The REASON given here was wrong, and it is corrected rather than deleted
+(D63, 2026-09-10).** This paragraph used to begin: *"the **static** variant only.
+SPOT refits online and Objective.md 11 rule 1 forbids that outright -- a slowly
+degrading spacecraft must never teach the detector that degradation is normal."*
+That reading extends rule 1 from the model to the threshold, and **the frozen
+pipeline does not survive it**: D62 froze stage 4 on telemanom's published
+*dynamic* threshold, which recomputes its cut every `stride` steps from a trailing
+window of the stream being scored (`src/sentinel_models/telemanom.py:397-411`;
+`docs/MODELS.md` 26.17). Rule 1 governs the model and its weights; a noise floor
+measured from nominal data is not online learning within its meaning. **The
+preference for the static variant may still be right on other grounds -- it is
+deterministic, and it is what `flight/` can carry today -- but it is no longer
+supported by this reason**, and an EVT arm that adapts from nominal data is
+registrable rather than refused at the door.
+
+**Still Secondary, and that now matters more than it did.** This entry was written
+without reading the paper, and it is the basis on which a whole method was set
+aside. `docs/NARRATIVE.md` 11 records what carrying an unread reading cost the last
+time. The paper is being obtained; nothing further is claimed about SPOT's
+mechanism until it is read at first hand.
 
 ### EGPWS and TCAS -- certified avionics
 
@@ -402,3 +438,93 @@ should be adopted for the cross-channel claim until it is.
 **Caveat carried from the survey and worth repeating**: near-binary channels
 defeat a z-score diagnostic, which is a live concern for SMAP/MSL specifically,
 and absence across eight benchmarks is strong evidence rather than proof.
+
+---
+
+## Part V -- evaluation metrics, and the decision layer's prior art
+
+**Added 2026-09-10.** Sources read for the decision-layer arms registered in
+`docs/MODELS.md` 38 and for the metric authorised in `docs/HARNESS.md` 5a.
+
+### Kim et al., AAAI 2022 -- "Towards a Rigorous Evaluation of Time-series Anomaly Detection"
+
+**Primary for the abstract**, fetched `arxiv.org/abs/2109.05257` on 2026-09-10; body not
+read. Siwon Kim, Kukjin Choi, Hyun-Soo Choi, Byunghan Lee, Sungroh Yoon.
+
+The paper *"theoretically and experimentally reveal[s] that the PA protocol has a great
+possibility of overestimating the detection performance; that is, **even a random anomaly
+score can easily turn into a state-of-the-art TAD method**"*, and that *"the comparison of
+TAD methods after applying the PA protocol can lead to misguided rankings."*
+
+*Taken:* nothing new -- point-adjusted F1 was already quarantined on Wu & Keogh's
+authority and Objective.md 9.5. **What this supplies is the primary citation that
+quarantine did not have**, and a sharper statement of the failure: not merely inflation but
+inflation that survives a random input. `docs/HARNESS.md` 1's table now carries it.
+
+### Huet et al., KDD 2022 -- "Local Evaluation of Time Series Anomaly Detection Algorithms"
+
+**Primary for the abstract**, fetched `arxiv.org/abs/2206.13167` on 2026-09-10; body not
+read. Alexis Huet, Jose Manuel Navarro, Dario Rossi.
+
+The paper first *"highlight[s] the limitations of the classical precision/recall, as well
+as the main issues of the recent event-based metrics -- for instance, we show that **an
+adversary algorithm can reach high precision and recall on almost any dataset under weak
+assumption**"*, then proposes *"a theoretically grounded, robust, **parameter-free** and
+interpretable extension to precision/recall metrics, based on the concept of 'affiliation'
+between the ground truth and the prediction sets"*, which *"leverage[s] measures of
+duration between ground truth and predictions"* and yields a *"normalized
+precision/recall, quantifying how much a given set of results is better than a random
+baseline prediction."*
+
+*Taken:* the authorisation of affiliation precision/recall as a reported metric
+(`docs/HARNESS.md` 5a, 2026-09-10), and the disclosure in `docs/HARNESS.md` 1 that **the
+range-based pair this project already reports belongs to the family the adversary result
+covers**. Nothing is withdrawn; the existing metrics are no longer reported alone.
+
+*Where it is thin:* the adversary construction is in the body and has not been read here,
+so the *strength* of the attack against this project's specific configuration -- fixed
+`alpha = 0.0`, flat bias -- is not established. The disclosure states the finding and
+attributes it; it does not claim to have reproduced it.
+
+### Gibbs & Candes, NeurIPS 34 (2021) -- "Adaptive Conformal Inference Under Distribution Shift"
+
+**Primary**, read at `ar5iv` on 2026-09-10 including the update rule and Proposition 4.1.
+
+The method updates a miscoverage level online, `alpha_{t+1} := alpha_t + gamma * (alpha -
+err_t)`, where `err_t` is the indicator that the observation fell outside the prediction
+set at `alpha_t`. Proposition 4.1 gives, **with probability one and for all `T`**,
+`|(1/T) sum_t err_t - alpha| <= (max{alpha_1, 1 - alpha_1} + gamma) / (T * gamma)`, so
+long-run coverage holds **with no distributional assumption on the data-generating
+process**. The authors use `gamma = 0.005` and caution that *"large fluctuations in
+alpha_t may be undesirable as it allows the method to oscillate between outputting small
+conservative and large anti-conservative prediction sets."*
+
+*Taken:* the mechanism for `docs/MODELS.md` 38's Arm 6. It is registered against D29 --
+a threshold calibrated on Mission 1's first 7.36M steps sat under **86.7%** of *fold 1's*
+nominal residual -- and against D48, no train-calibrated threshold transferring on
+SMAP/MSL at all.
+
+*Where it is thin, and it is stated because the arm must not overstate it:* D29's finding
+is that **the frozen rule's premise failed, not the forecaster** -- *"the forecaster
+fitted; the frozen rule's premise did not hold"* -- and fold 2's collapse is 4.4% and 0.7%,
+not 86.7%. ACI addresses the class of failure D29 exposed; **it has not been shown to
+address D29's instance**, and Arm 6 is written to test that rather than to assume it. The
+guarantee is also a *long-run average* over `T`, which is a different object from the
+per-window behaviour a mission cares about.
+
+### Page 1954; Lorden 1971; Moustakides 1986; Pollak -- quickest change detection
+
+**Not read.** Cited as *framing* only: the formal statement of the problem the decision
+layer is solving is minimising detection delay subject to a false-alarm constraint.
+**No mechanism in this repository is taken from any of them.** Page 1954 is being obtained
+for Arm 4b's CUSUM; nothing about CUSUM is written until it is read.
+
+### Nelson 1984; Western Electric 1956; Hawkins 1987; Quesenberry 1991 -- SPC runs rules and self-starting charts
+
+**Not read, and deliberately not chased.** They would supply runs rules and a
+self-starting parameterisation for Arm 4. That arm is **predicted inert** on this stack
+(`Objective.md` 7.1 measured persistence as subsumed: N=5 removed one alarm range of 182,
+because `error_buffer` already dilates every exceedance by +/-99), so the sources are not
+worth obtaining ahead of the measurement. **The slot is registered in `docs/MODELS.md` 38
+with the sources it would need**, so that a later reader knows the gap is deliberate
+rather than overlooked.

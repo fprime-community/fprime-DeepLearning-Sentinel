@@ -4183,3 +4183,86 @@ without one.
 5. **Nothing here reopens D28.** `gru-quantile` still flies on ESA-ADB; the component ships
    both rules and a mission selects one, because which rule is needed is a property of the
    telemetry regime and not of the method.
+
+---
+
+## D63. Rule 1 governs the model and its weights, not the alarm threshold
+
+**DATE** 2026-09-10 | **STATUS** resolved as an adjudication. **It reconciles two things
+already in the repository and changes no measurement.** No figure moves.
+
+**CONTEXT.** `Objective.md` 11 rule 1 reads *"Model frozen in flight. Retraining is
+explicit and human-approved"*, with the reason *"a slowly degrading spacecraft must never
+be able to teach the detector that degradation is normal"*, and section 11 closes **"No
+online learning. Ever."**
+
+`docs/RESEARCH.md`'s entry on Siffer et al. (KDD 2017) applies that rule to a *threshold*:
+*"SPOT refits online and Objective.md 11 rule 1 forbids that outright."* On that reading
+this project accepted only the static POT variant.
+
+**But the currently-frozen configuration does the same thing that sentence forbids.** D62
+froze the pipeline on stage 4 -- `gru-telemanom` under telemanom's **published
+nonparametric dynamic threshold** -- and that threshold is recomputed from a trailing
+window of the stream being scored. `src/sentinel_models/telemanom.py:397-411`: every
+`stride` steps, `dynamic_threshold` re-derives `mu` and `sigma` from
+`e_s[seg_lo - error_window : seg_hi]` and sweeps `z` to pick `eps = mu + z*sigma`. In the
+frozen SMAP/MSL configuration that is `error_window = 0.05 * len(test)` and `stride = 70`
+(`proportional_config`, D47). The weights are frozen; **the threshold is recomputed every
+seventy timesteps from recent data**, and 26.17 says so in its own words: *"telemanom's own
+threshold ... recomputes the cut from a trailing window of the stream being scored, so
+there is no train-to-test transfer to fail."*
+
+**No document reconciles the two.** Searched: `docs/HARNESS.md` 1 invokes rule 1 only
+against *tuning to a target rate*; D25 and D48 discuss the dynamic threshold without
+raising rule 1; `docs/PHASE2.md` 5b frames recalibration entirely as ground uplink;
+`docs/PHASE5.md` 68-71 applies rule 1 to **weights only** -- *"The shadow is a separate set
+of weights in separate memory ... rule 1 holds literally, not in spirit."* The conflict has
+been latent since stage 4 and is recorded here rather than left for the next reader.
+
+**ALTERNATIVES.**
+
+1. **Rule 1 reaches any in-flight adaptation, thresholds included.** Then `RESEARCH.md` is
+   right, and D62's own frozen arm is non-compliant -- the pipeline this project selected
+   could not fly under its own permanent rule. That is not a tenable position to hold
+   silently, and adopting it would require either withdrawing D62 or rewriting rule 1.
+2. **Rule 1 governs the model and its weights.** The threshold is a separate object with a
+   separate meaning: `docs/HARNESS.md` 1 defines it as **a measured noise floor, never a
+   dial**, calibrated *from nominal residuals* and never from labels or scores. A noise
+   floor that tracks recent nominal behaviour is measuring the same quantity it always
+   measured; it is not learning what is normal from an anomaly.
+
+**EVIDENCE.** The distinction is already load-bearing elsewhere and is not invented here.
+`docs/PHASE5.md` 1 splits the problem exactly this way: *"Work item 10 answers half of
+that: **the threshold** is recalibrated in orbit without retraining"*, while the shadow
+*model* needs a human-approved swap. `Objective.md` 14.10 puts normalisation constants and
+detection thresholds outside the weights as PrmDb-style parameters, replaceable without
+retraining. And `model.bin`'s PARAMS block is separately CRC'd with its own
+`param_version` precisely so a threshold can be replaced while the 278.0 KiB of weights are
+neither read nor rewritten (`docs/MODEL_FILE.md` 6.1).
+
+**CONSEQUENCE.**
+
+1. **Alternative 2 is adopted.** Rule 1 constrains the model and its weights. A threshold
+   derived from nominal data -- including data arriving in flight -- is not online
+   learning within the meaning of rule 1.
+2. **The boundary, stated so it can be applied without re-deriving it.** What rule 1
+   forbids is any path by which *the detector's notion of normal is updated from data it
+   has not been told is normal*. A trailing-window noise floor is inside the rule when the
+   window is nominal and outside it the moment an anomaly can enter the window unlabelled
+   and quietly raise the bar. **That failure mode is real and is not dismissed**: it is the
+   masking effect CFAR guard cells exist for, it is why `guard_segment` was built, and
+   `telemanom.py:49-56` measures that a judged segment contributes about 3.2% of its own
+   threshold today. It is a *measurement* question per arm, not a licence.
+3. **`docs/RESEARCH.md`'s Siffer entry is corrected in place**, old text kept. Its
+   conclusion -- prefer the static variant -- may still be right on other grounds; its
+   *reason* was wrong.
+4. **`Objective.md` 11 is not edited.** Rule 1's text already says "model"; the
+   over-broad reading lived only in `RESEARCH.md`. The five permanent rules stand as
+   written.
+5. **This unblocks nothing by itself.** It permits an arm that adapts a threshold from
+   nominal data to be *registered as a flight candidate* rather than refused at the door.
+   Whether any such arm is adopted is a measurement, and D62's freeze stands until one
+   beats stage 4 at a matched rate.
+6. **The exception that is not touched.** `Objective.md` 11 rule 1's second sentence --
+   retraining is explicit and human-approved -- and Phase 5's shadow-model design are
+   unchanged. Nothing here weakens either.

@@ -24,7 +24,22 @@ the rate invites a reader to treat a one-event difference as a finding.
 | Contextual / headline-cell / point recall | Recall over `Multivariate`, over `Multivariate/Global/Subsequence`, over `Length == Point` | components |
 | VUS-PR | Threshold-free, buffer-integrated | required |
 | Alarms per 1,000 nominal **timesteps** | Never per hour -- see section 4 | supporting |
-| Point-adjusted F1 | **Quarantined.** `--diagnostics` only, never in RESULTS.md | diagnostic |
+| Point-adjusted F1 | **Quarantined.** `--diagnostics` only, never in RESULTS.md. Kim et al., AAAI 2022 (arXiv:2109.05257): **"even a random anomaly score can easily turn into a state-of-the-art TAD method"** under point adjustment | diagnostic |
+
+**(!) A metric this document reports is known to be gameable, and that is disclosed
+rather than left for a reader to discover.** Huet et al. (KDD 2022, arXiv:2206.13167)
+show that the recent event-based metrics -- the family the range-based precision/recall
+in `src/sentinel_eval/metrics/eventwise.py` belongs to -- are "heuristically built as an
+aggregate of multiple desirable aspects, introduce parameters and wipe out the
+interpretability of the output", and that **"an adversary algorithm can reach high
+precision and recall on almost any dataset under weak assumption"**. Nothing is withdrawn:
+range-based precision/recall stays, because it is a published standard and because
+withdrawing a reported figure on the strength of a critique is not how this repository
+corrects anything. What changes is that **it is no longer reported alone**, and affiliation
+precision/recall is authorised beside it (5a's register, 2026-09-10). Two further facts a
+reader needs: the range-based pair here is fixed at `alpha = 0.0` and `bias = "flat"`, and
+`eventwise.score` does not plumb `alpha` or `cardinality` through, so those are locked at
+their defaults in **every** scored run this project has published.
 
 **Bare recall is never reported alone, anywhere.** Recall is satisfiable by
 carpet-bombing: the trivial baseline reached 29/31 headline-cell recall by firing
@@ -439,6 +454,8 @@ addition nobody re-examines.
 | 2026-08-25 | **`--no-cache` flag** | Weight persistence is now permitted for iteration, so a published result needs a way to be reproduced from cold | Additive only; default behaviour unchanged |
 
 | 2026-09-03 | **SMAP/MSL ingest** -- `smap-msl/v1/`, 162 arrays, its own `_manifest/smap_msl.json` | Work item 9.9 study 1. ESA-ADB's headline cell is 6/32 min-max-contextual (D43) and nothing catches it; SMAP/MSL carries 43 labelled contextual sequences of 105 and per-channel commands, which is D6's open question. Explicitly **not** a cross-channel test -- Objective.md 9.2 stands | **Additive only.** A separate manifest object; `_manifest/manifest.json` byte-identical; `Catalog.load` and every ESA-ADB task untouched; no existing module changed; the ingest writes only under `smap-msl/v1/` and its own manifest. Every array verified against the canonical `labeled_anomalies.csv` before upload, 82/82 rows, 0 mismatches |
+
+| 2026-09-10 | **Affiliation precision/recall** -- Huet et al., "Local Evaluation of Time Series Anomaly Detection Algorithms", KDD 2022, arXiv:2206.13167 | The metrics this harness already reports are known to be gameable. Huet et al. show that **an adversary algorithm can reach high precision and recall on almost any dataset under weak assumption** under the recent event-based metrics -- which includes the range-based pair in `metrics/eventwise.py`. Affiliation is **parameter-free** by construction, is defined by duration to the nearest ground-truth event rather than by an aggregate of desirable properties, and is normalised against a random baseline, which is the direct answer to Kim et al.'s random-score result. Escalated under D8 rather than added, because a new metric is a scope change and this is the second ever authorised | **Additive only.** A new module beside the existing eight; no existing metric changed, removed or reweighted; absent from a scorecard unless computed, so every existing artifact stays byte-identical; the gate metric is untouched and stays event-wise F0.5 (D3, D9); tests carry hand-computed values |
 
 ### The first case, recorded here
 
