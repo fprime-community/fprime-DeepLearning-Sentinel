@@ -339,7 +339,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 607 tests
+.venv/bin/python -m pytest -q                                    # 608 tests
 .venv/bin/python scripts/check_no_list.py                        # 75 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
