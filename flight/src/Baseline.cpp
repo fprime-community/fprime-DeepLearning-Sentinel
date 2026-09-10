@@ -136,8 +136,9 @@ void Baseline::step(const F32* values, bool valid) {
         const F64 mean = sum / count;
         const F64 second = sumSquares / count;
         // `baselines.py:55`, the variance floor. Cancellation cannot drive this
-        // negative the way `_rolling`'s float32 prefix sums do (D37), but the
-        // floor is part of the rule and is transcribed with it.
+        // negative the way `_rolling`'s float32 prefix sums DID (D37) -- that
+        // repair landed 2026-09-10 and the past tense is the correction; the
+        // floor is part of the rule and is transcribed with it either way.
         const F64 variance = std::max(second - (mean * mean), 0.0);
         const F64 spread = std::sqrt(variance);
         const F64 divisor = (m_scale[c] > EPSILON) ? m_scale[c] : EPSILON;

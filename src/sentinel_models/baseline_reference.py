@@ -19,6 +19,18 @@ So the flight baseline transcribes **the rule**, not the implementation, and the
 divergence is deliberate: see `docs/DECISIONS.md` D37 and `docs/MODELS.md` 20.6.
 `baselines.py` is not changed here; that repair is scoped as `docs/MODELS.md` 21.
 
+(!) CORRECTED 2026-09-10. The two paragraphs above describe `baselines._rolling`
+as it stood when this module was written, and are kept because they are why this
+module exists. **The repair has since landed**: `baselines.py` now promotes to
+float64 *before* accumulating (`baselines.py:51`), and `tests/test_rolling_precision.py`
+pins it. Re-measured today on N(1000, 3), float32, T = 8,000, W = 120,
+post-warm-up: `_rolling` agrees with ``numpy.nanstd`` to **3.5e-07** -- float32
+input resolution -- with **zero** spurious exact zeros, against the 7.66 of error
+and 3,975 zeros recorded above. **The reason for a separate reference module is
+unchanged**: it states the rule the flight core transcribes, independently of any
+harness implementation, which is what makes the golden vectors evidence rather
+than a copy.
+
 THE RULE
 --------
 Per channel, over a trailing, right-inclusive window of ``WINDOW`` samples that

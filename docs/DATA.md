@@ -20,6 +20,8 @@ restatement.
 | CATS | Synthetic stress test | Full root-cause metadata. Always mark as synthetic |
 | SMAP/MSL | Legacy comparability only | Discredited (Wu & Keogh, TKDE 2023) and its channels are not synchronised with each other, so our core claim could not be demonstrated on it. See `Objective.md` section 9.2 |
 
+<!-- hand-authored -->
+
 **SMAP/MSL is now ingested too, for work item 9.9 study 1** -- and its role is unchanged
 from the table above. It is **legacy comparability only** and it is **not** a test of the
 cross-channel claim: Objective.md 9.2 stands, its 81 channels are unsynchronised
@@ -66,6 +68,12 @@ quietly fixed.
 hand-added prose inside a file whose footer says not to edit it by hand.
 Regenerating `docs/DATA.md` from `src/sentinel_data/docs_gen.py` would delete
 the block. Named here so the next person to run the generator knows.
+**Corrected 2026-09-10: it no longer would.** That sentence described a real defect --
+`write_data_md` ended in a bare `path.write_text(text)` -- and a warning in prose is not a
+guard. This block is delimited, the generator carries it across a regeneration verbatim,
+and the footer records a digest of the generated text. **An undelimited edit is now
+refused rather than discarded**, naming the file and what to do.
+`tests/test_docs_gen_refuses.py` pins all three behaviours.
 
 **(!) One labelling defect, recorded rather than silently deduplicated.** `P-2` appears
 **twice** in `labeled_anomalies.csv`, both SMAP, with conflicting spans `[5350, 6575]`
@@ -74,8 +82,10 @@ the 82 rows** its own label file implies. It is carried in the manifest's
 `labelling_defects` field. This is a live instance of the "mislabelled ground truth"
 flaw Wu & Keogh (TKDE 2023) name, found before any modelling.
 
-Only ESA-ADB and SMAP/MSL are ingested so far. `opssat-ad/v1/` and `cats/v1/` are later
-tasks.
+<!-- /hand-authored -->
+
+Only ESA-ADB and SMAP/MSL are ingested so far. `opssat-ad/v1/` and `cats/v1/` are
+later tasks.
 
 ## 2. Where it lives
 
@@ -202,3 +212,5 @@ parquet objects we wrote.
 
 *Generated from the manifest on every ingest. Do not edit by hand -- edit
 `src/sentinel_data/docs_gen.py` instead.*
+
+<!-- generated-digest: 524b7842017d607d827f2f2c07ef0dcde31eda68a3ff682e86176a8c08c8b9e1 -->

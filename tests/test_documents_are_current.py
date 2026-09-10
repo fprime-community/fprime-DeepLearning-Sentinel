@@ -63,11 +63,27 @@ CLAIMS = {
     # Objective.md 1.1 KEPT: "a forecaster ... finds 28 of 32 headline-cell
     # events where a per-channel statistic finds 3". Falsified by D37, and D38
     # reversed the direction it argued for.
+    # NOT widened to the bare `28/32`, and the reason is worth keeping.
+    # `docs/REORG_PLAN.md` 3b proposed it. Measured before making the change:
+    # it matches **30 sites** across RESULTS, MODELS, DECISIONS, Objective,
+    # THRESHOLD and a script docstring -- and every one of them is
+    # `lstm-telemanom`'s **measured** headline-cell recall, a legitimate `k/n`
+    # record that also appears inside a pre-registered band (`docs/MODELS.md`
+    # 703's P3 asks for "at or above 25/32"). What D37 and D38 retired is the
+    # **comparison** -- 28 of 32 *where a per-channel statistic finds 3* -- and
+    # the `three` pattern below is what carries that. Widening here would put
+    # 30 standing records into the register, which is the failure this test's
+    # own docstring names: a debt list that outlives its debt is one nobody
+    # reads. Reported rather than made.
     "ratio": re.compile(r"28 of 32"),
     "three": re.compile(
         r"finds three\b|finds 3\b|floor's 3\b|statistic's 3\b|`rstd`'s 3\b"),
     # Objective.md 1.1 RETIRED: "+26 timesteps of early warning" (D21).
-    "lead": re.compile(r"\+26 timesteps|26 timesteps early"),
+    # Widened 2026-09-10: the claim survives rephrasing. `26-timestep head start`
+    # and `a median of 26 timesteps ahead` are the same retired assertion and the
+    # original two alternatives matched neither.
+    "lead": re.compile(
+        r"\+26 timesteps|26 timesteps early|26-timestep|26 timesteps ahead"),
 }
 
 #: A hit on a line carrying one of these is corrected in place, which is the
@@ -80,7 +96,12 @@ CORRECTED = re.compile(
 
 BASELINE = {
     ("CHANGELOG.md", "three"): 1,             # 0.3.0, the history entry
-    ("docs/DECISIONS.md", "lead"): 1,         # D9's measured lead table
+    # Three, since the `lead` pattern was widened 2026-09-10 to catch the claim's
+    # rephrasings. All three sit inside decision entries, which are records and
+    # are never edited (`docs/DECISIONS.md` header): D9's measured lead table,
+    # D9's "only surviving candidate" paragraph, and a blockquote inside a later
+    # entry quoting that reasoning back. Pinned as records, not corrected.
+    ("docs/DECISIONS.md", "lead"): 3,
     ("docs/MODELS.md", "three"): 3,           # section 4 PREDICTED, and 21's re-quotation
     ("docs/NARRATIVE.md", "lead"): 1,         # the narrative, as it happened
     ("docs/RESULTS.md", "lead"): 1,           # section 1's lead table
@@ -190,6 +211,20 @@ def test_every_tracked_document_is_ascii() -> None:
 LIVE_COUNT_SITES = ("docs/STATUS.md", "README.md")
 
 
+def _flattened(path: Path) -> str:
+    """The document as one line, emphasis stripped, whitespace collapsed.
+
+    The count wraps. `docs/STATUS.md` once carried it as `**605` on one line and
+    `tests**,` on the next, and a pattern anchored to a single line read that as
+    *no count stated at all* -- so the guard passed while its subject was wrong,
+    which is the one failure mode a guard may not have. Markdown emphasis is
+    stripped for the same reason: `**608** tests` and `608 tests` are the same
+    claim to a reader and must be the same claim here.
+    """
+    text = path.read_text(encoding="utf-8")
+    return re.sub(r"\s+", " ", text.replace("*", "").replace("`", ""))
+
+
 def test_the_live_documents_state_the_real_test_count() -> None:
     """A count a document states about this repository must match it.
 
@@ -207,7 +242,7 @@ def test_the_live_documents_state_the_real_test_count() -> None:
     wrong = {}
     for name in LIVE_COUNT_SITES:
         stated = {int(n) for n in
-                  re.findall(r"(\d{3,4}) tests", (ROOT / name).read_text(encoding="utf-8"))}
+                  re.findall(r"(\d{3,4})\s+tests", _flattened(ROOT / name))}
         assert stated, f"{name} no longer states a test count; this test is stale"
         if stated != {collected}:
             wrong[name] = sorted(stated)

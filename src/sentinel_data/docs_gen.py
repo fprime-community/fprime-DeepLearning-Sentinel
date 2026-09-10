@@ -9,6 +9,8 @@ them into prose guarantees drift and then nobody knows which copy is right.
 """
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 
 from .config import (
@@ -21,6 +23,107 @@ from .config import (
     OPS_TRIPWIRE,
 )
 from .manifest import dumps
+
+#: Delimiters for prose the generator must carry across a regeneration.
+#: Anything between them is preserved verbatim and re-anchored to the generated
+#: line that precedes it.
+HAND_OPEN = "<!-- hand-authored -->"
+HAND_CLOSE = "<!-- /hand-authored -->"
+
+#: The footer line that records what the generator last produced. It is the
+#: whole of the guard: if the file on disk no longer hashes to it, somebody
+#: edited the file and the generator must not silently discard that edit.
+DIGEST_PREFIX = "<!-- generated-digest: "
+_DIGEST_RE = re.compile(r"^<!-- generated-digest: ([0-9a-f]{64}) -->$", re.M)
+
+
+class HandAuthoredContentWouldBeLost(RuntimeError):
+    """Raised instead of overwriting prose the generator did not write.
+
+    `docs/DATA.md` carries hand-added prose inside a file whose own footer says
+    not to edit it by hand -- section 1's SMAP/MSL block, and three `(!)` riders
+    recording provenance corrections. `write_data_md` used to end in a bare
+    `path.write_text(text)`, so the next ingest would have deleted all of it and
+    said nothing. The file warned about that in prose, which is not a guard.
+
+    Refusing is the whole behaviour: the artifact is not written, the operator is
+    told which lines are at risk, and the fix is theirs to make -- wrap the prose
+    in `HAND_OPEN`/`HAND_CLOSE` so it is carried across, or delete the file to
+    ask for a clean generation on purpose.
+    """
+
+
+_HAND_BLOCK_RE = re.compile(
+    re.escape(HAND_OPEN) + r".*?" + re.escape(HAND_CLOSE), re.S)
+
+
+def _without_digest(text: str) -> str:
+    """The document as it is written: digest line removed, tail trimmed.
+
+    Hashing the raw text does not round-trip -- removing the footer leaves the
+    blank line that preceded it -- so both the stamp and the check normalise
+    here first.
+    """
+    return _DIGEST_RE.sub("", text).rstrip()
+
+
+def _digest_body(text: str) -> str:
+    """The **generated** part alone: what the digest actually covers.
+
+    Delimited hand-authored regions are excluded, because those are the parts a
+    person is invited to edit. If they counted towards the digest, fixing a typo
+    inside one would make the next ingest refuse, and the lesson everyone would
+    take from that is to delete the footer. The guard binds on the generated
+    text and nothing else.
+    """
+    return _HAND_BLOCK_RE.sub("", _without_digest(text)).rstrip()
+
+
+def _digest(text: str) -> str:
+    """SHA-256 over the generated body."""
+    return hashlib.sha256(_digest_body(text).encode("utf-8")).hexdigest()
+
+
+def _stamped(text: str) -> str:
+    """The full document -- hand-authored regions included -- with its footer."""
+    return f"{_without_digest(text)}\n\n{DIGEST_PREFIX}{_digest(text)} -->\n"
+
+
+def _hand_authored_blocks(text: str) -> list[tuple[str, str]]:
+    """`(anchor, block)` for each delimited region, in order.
+
+    The anchor is the last non-blank line before the region, which is what the
+    region is re-attached to in the newly generated text.
+    """
+    lines, out, i = text.splitlines(), [], 0
+    while i < len(lines):
+        if lines[i].strip() == HAND_OPEN:
+            j = i + 1
+            while j < len(lines) and lines[j].strip() != HAND_CLOSE:
+                j += 1
+            if j >= len(lines):
+                raise HandAuthoredContentWouldBeLost(
+                    f"{HAND_OPEN} at line {i + 1} is never closed; refusing to write.")
+            anchor = next((ln for ln in reversed(lines[:i]) if ln.strip()), "")
+            out.append((anchor, "\n".join(lines[i:j + 1])))
+            i = j + 1
+        else:
+            i += 1
+    return out
+
+
+def _carry_over(generated: str, existing: str) -> str:
+    """Re-attach every delimited region to its anchor in the generated text."""
+    for anchor, block in _hand_authored_blocks(existing):
+        if not anchor or generated.count(anchor) != 1:
+            raise HandAuthoredContentWouldBeLost(
+                "a hand-authored region cannot be re-anchored: its preceding line "
+                f"{anchor.strip()!r} appears {generated.count(anchor)} times in the "
+                "newly generated text, not once. Refusing to write -- move the "
+                "region under a line the generator emits exactly once.")
+        generated = generated.replace(anchor, f"{anchor}\n\n{block}", 1)
+    return generated
+
 
 SNAPSHOT_HEADER = (
     "Snapshot for reference only. R2's _manifest/manifest.json is authoritative. "
@@ -198,7 +301,26 @@ parquet objects we wrote.
 `src/sentinel_data/docs_gen.py` instead.*
 """
     path = docs_dir / "DATA.md"
-    path.write_text(text)
+
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+        recorded = _DIGEST_RE.search(existing)
+        if recorded is None:
+            raise HandAuthoredContentWouldBeLost(
+                f"{path} carries no generated-digest footer, so this generator "
+                "cannot tell what of it is generated and what is hand-authored. "
+                "Refusing to write. Wrap any hand-authored prose in "
+                f"{HAND_OPEN} / {HAND_CLOSE} and add the footer, or delete the "
+                "file to ask for a clean generation on purpose.")
+        if recorded.group(1) != _digest(existing):
+            raise HandAuthoredContentWouldBeLost(
+                f"{path} has been edited since it was last generated: its content "
+                "no longer matches its own digest. Refusing to write, because the "
+                "next line would have discarded those edits in silence. Wrap them "
+                f"in {HAND_OPEN} / {HAND_CLOSE} so they are carried across.")
+        text = _carry_over(text, existing)
+
+    path.write_text(_stamped(text), encoding="utf-8")
     return path
 
 

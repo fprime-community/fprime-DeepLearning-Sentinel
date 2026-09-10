@@ -90,6 +90,13 @@ it is small, and several of the mechanisms that buy precision buy it by waiting 
 the persistence sweep already moved lead time from +26 to -37 as N rose from 1 to
 60, for almost no gain in F0.5. Every layer from here reports its lead-time cost
 beside its precision gain.
+**(!) The head start above is RETIRED as a claim (D21) and the candidate above was later
+disqualified (D37, D38).** The paragraph is kept as the reasoning of the time. `+26
+timesteps` was `lstm-telemanom`'s measured median lead on `m1-g8.9.10` and stands as that
+measurement; what does not stand is reading it as early warning the component offers.
+`Objective.md` 1.1 carries the retirement, and `docs/MODELS.md` 37.7a later measured **0 of
+10 positive leads** on the frozen arm. **No early-warning claim is made anywhere on this
+evidence.**
 
 ## 1a. The cross-channel claim, restated after the correction
 
@@ -224,6 +231,12 @@ scaled, so no figure on this data may be expressed in hours.
 and **every one of its catches is after the event has already begun**, on alarm
 ranges five times wider. It is not detecting early; it is detecting broadly and
 late. `lstm-telemanom` warns a median of 26 timesteps ahead, on tight alarms.
+**(!) RETIRED as a claim (D21), kept as a measurement.** The median above is what was
+measured on `m1-g8.9.10`; `lstm-telemanom` was afterwards disqualified (D37, D38), and
+`docs/MODELS.md` 37.7a measured **0 of 10 positive leads** on the arm that replaced it. The
+sentence is not withdrawn -- it records what the lead-time metric found when it was added,
+which is why the metric exists -- but it may not be quoted as early warning this project
+claims.
 
 For a component whose purpose is warning hours before a limit trips, a detector
 that fires after the fact has failed at the thing being built, whatever its
