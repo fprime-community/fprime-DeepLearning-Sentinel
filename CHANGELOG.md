@@ -14,6 +14,41 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.27] - 2026-09-10 - D65: the freeze is superseded, and the derivative is the finding
+
+**D62's freeze is superseded and nothing is adopted.** Zero bucket operations; no fit; weight
+store **1,313 -> 1,313**. The entry is written from the two reads already recorded at
+`docs/MODELS.md` 38.15 -- artifacts `runs/smap-msl/_forensics/2026-09-10T173015Z-arms.json`
+and `...T182234Z-arms2.json` -- and adds no measurement of its own.
+
+### Decided
+- **D65.** Arm 2, the smoothed residual fused with the first derivative of the raw value,
+  both standardised against a trailing window only, reaches **EVAL 17 of 19 against the
+  frozen arm's 4** at the frozen arm's own **0.6820%**, a **strict superset**, reproduced
+  identically on two independent reads. **n = 19, UNDERPOWERED (D3).** The all-38 figure of
+  30 is **CONTAMINATED** and is labelled so wherever it appears.
+- **D62 is superseded and kept.** Its finding -- nine arms failed to beat stage 4 -- stands
+  as the record of what was measured then; its freeze does not survive a tenth arm.
+- **Nothing is adopted.** D65 re-opens the decision layer and names no flight configuration.
+
+### Named rather than omitted
+- **P2.3 is NOT ADJUDICATED.** Neither artifact carries the per-event causal `z`, so the
+  prediction cannot be settled from what was measured. **36.4's second rider is therefore
+  not triggered and stays owed.**
+- Arms 4a, 6 and 7 remain unadjudicated and the union unmeasured, as 38.15 already records.
+- The affiliation metric authorised under `docs/HARNESS.md` 5a is **not yet built** and has
+  been applied to none of these figures.
+
+### Corrected in the live documents, records left alone
+- `docs/STATUS.md`: five live-prose sites gave the frozen arm's rate as **0.6838%**, which is
+  the **commanded** arm's rate at 6/38 (`docs/MODELS.md` 26.18). Corrected to
+  **0.6820% (was 0.6838%)** in the house form. Section 4's stage-4 table row is a
+  measured-at-the-time record and is **not** touched.
+- `docs/STATUS.md` operations line: 214 Class A / 4,415 Class B -> **222 / 4,966**, read from
+  the last artifact.
+- `docs/STATUS.md` verify block: `check_no_list` states **78 files** (was 75), which is what
+  the script reports today.
+
 ## [0.6.26] - 2026-09-10 - Second read: pruning and CUSUM close as negatives; three arms still will not run
 
 **Work item 9.21, second read. Both approved reads are now spent.** D62's freeze is NOT

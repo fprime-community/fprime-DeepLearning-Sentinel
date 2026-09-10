@@ -4318,3 +4318,128 @@ been the thing that caught something.
    Nothing about what may be committed changes; only how many bytes of prose may be.
 5. **This is not a licence to stop watching.** If tracked content reaches 8 MiB the same
    question is asked again, and the answer may then be that prose belongs somewhere else.
+
+---
+
+## D65. The decision layer is not the residual: the first derivative reaches 17 of 19 where the frozen arm reaches 4. Supersedes D62
+
+**DATE** 2026-09-10 | **STATUS** resolved as a finding and as a re-opening. **It
+supersedes D62's freeze and adopts nothing.**
+
+**CONTEXT.** D62 froze the pipeline on stage 4 -- `gru-telemanom`, per channel,
+univariate, no commands, telemanom's published dynamic threshold -- at **10 of 38**
+in-range contextual anomalies at **0.6820%** of nominal steps, on the ground that nine
+improvement arms had failed to beat it. `docs/MODELS.md` 36 then measured *why* the other
+28 are missed: 18 are lost in the decision layer, 13 of those in pruning, and 10 carry no
+residual peak an oracle per-channel threshold would clear. 36.4 measured that **all ten of
+the last group show `z > 3` in the first derivative of the raw value, in the disagreement
+across the ten predicted horizons, or both** -- neither of which reaches the decision layer.
+
+37.4 then found that those `z` figures are **normalised against the whole test array** and
+are therefore diagnostic, not causal: they establish that the signal exists, not that a
+causal detector reaches it. `docs/MODELS.md` 38 pre-registered seven arms and a stride item
+to settle it.
+
+**EVIDENCE.** Two independent reads, **165 Class B each**, cached weights, **weight store
+1,313 -> 1,313** on both. Artifacts
+`runs/smap-msl/_forensics/2026-09-10T173015Z-arms.json` and
+`...T182234Z-arms2.json`; producer `scripts/decision_layer_arms.py`. **The reproduction
+gate passes on both**: the frozen arm, rebuilt independently, returns 0.6820% and 10/38.
+
+Each artifact records `operations.class_a = 0`, because the ledger `PutObject` is written
+**after** the artifact and is therefore counted into the month rather than into the run
+that spent it (commit `75cc846`, "Write the artifact before the ledger, not after"). The
+month moved 219 Class A / 4,779 Class B -> **222 Class A / 4,966 Class B of 50,000**
+across the second read and its two smokes.
+
+Every figure is at the frozen arm's own **0.6820%** -- not 0.6838%, which is the commanded
+arm's rate (26.18) -- on the channel-disjoint split committed at 37.8 before any sweep.
+
+```
+  arm                                rate      TUNE    EVAL     all 38
+  frozen (stage 4)                 0.6820%     6/19    4/19     10/38
+  arm 2: residual + derivative      0.6820%    13/19   17/19     30/38   <- the finding
+  arm 2: fused with disagreement    0.6889%    10/19   15/19     25/38
+  arm 5: POT/EVT, unbounded         0.6899%    11/19   10/19     21/38
+  arm 5: POT/EVT, bounded (512)     0.6899%    11/19   10/19     21/38
+  arm 1: pruning, legal dial        0.6820%     6/19    4/19     10/38
+  arm 4b: CUSUM, k = 3.0            0.6820%     0/19    0/19      0/38
+```
+
+**The headline is EVAL's 17 of 19.** It is the clean number: the parameters were selected
+on TUNE and this is the half they were never selected on. **n = 19, UNDERPOWERED (D3)**,
+and it is stamped so wherever it is quoted.
+
+**(!) The 30 of 38 figure is CONTAMINATED and is labelled so wherever it appears.** It is
+scored on all 38, including the 19 TUNE events the cut was selected on. It is reported
+because 38.10 requires the comparison against stage 4's published 10/38 to exist, and it
+is never quoted without the word.
+
+**FALSIFICATIONS TESTED, AND WHAT THEY DID.**
+
+- **P2.1 HELD**, and by a margin the band did not anticipate: EVAL recall +13 against a
+  band of +3. The arm is a **strict superset** of the frozen arm -- it loses nothing the
+  frozen arm caught -- so the gain is not a trade.
+- **P2.2 HELD.** Four of EVAL's five invisible-in-residual events are recovered. This is
+  36.4's finding **reached causally**, which 37.4 had explicitly recorded as unproven.
+- **(!) P2.3 IS NOT ADJUDICATED, and it is named here rather than passed over.** It asked
+  whether the ten otherwise-invisible events still reach `z > 3` **under a trailing
+  normalisation**, with a HOLD at 6 or more of 10 and a FAIL at 2 or fewer. **Neither
+  artifact carries the per-event causal `z`**: `detail.arm2` and `detail.arm2_nodis` hold a
+  threshold and an EVAL event list and nothing else, so the prediction cannot be settled
+  from what was measured, and no number of its is reported. **P2.2's four-of-five is not a
+  substitute** -- it counts events recovered by the fused rule, which is a different
+  question from whether the derivative's causal `z` clears 3 on the ten. **The consequence
+  is that 36.4's second rider is not triggered and stays owed**: 38.5 makes that rider
+  conditional on P2.3 failing, and P2.3 has not failed, because it has not been read. It is
+  adjudicated when the statistic is emitted into an artifact, which needs no new fit and no
+  new arm -- only that the producer record it.
+- **P2.4 REFUTED, in the informative direction.** The band predicted the ablation would
+  *retain* two-thirds of the gain; instead **dropping horizon disagreement is better** --
+  30/38 against 25/38 fused. That matches 37.4's measurement that the derivative reaches
+  10 of 10 and the disagreement 4 of 10: **the disagreement stream spends alarm budget for
+  less than it returns.** A prediction written so it could fail, failing usefully.
+- **P1.1 FAILED, twice.** Pruning does not beat the frozen arm at a matched rate. The
+  first read appeared to show `p = 0.16` and `p = 0.20` reaching 20/38 and 21/38; the
+  dials were 0.5099 and 0.5045, **below 1.0, therefore re-admitting steps pruning had
+  deleted**. With the dial floored at 1.0 so it can only tighten, those collapse to 10/38
+  and 8/38, and at `p = 0.13` the arm is **identical to the frozen arm event for event**.
+  **Pruning is closed as a lever.**
+- **P4b.1 FAILED.** A CUSUM on the standardised residual, with the reference slack set so
+  the in-control drift is negative as B&N's derivation requires, matches the rate exactly
+  and catches **0 of 38**.
+- **P5.1 HELD** (EVAL 10/19, band +4) and **P5.5 HELD at its strongest**: the bounded
+  peaks set is **identical to the unbounded fit in every cell**, so **the price of
+  flight-legality is zero events** on this data. The bound is this project's departure,
+  not Siffer's (38.2), and it now has a measured price rather than an assumption.
+
+**NOT ADJUDICATED, and named rather than omitted.** Arms 4a (run length), 6 (adaptive
+conformal inference) and 7 (the union) did not run cleanly on either read. **No number of
+theirs is reported.** The union is therefore **unmeasured**, and no claim is made here
+about whether heterogeneity across detectors buys anything. P2.3 above joins them.
+
+**CONSEQUENCE.**
+
+1. **D62 is superseded.** Its finding -- that nine arms failed to beat stage 4 -- stands as
+   the record of what was measured then. Its *freeze* does not survive a tenth arm that
+   beats it by +13 on the half its parameters were never selected on.
+2. **Nothing is adopted.** This entry re-opens the decision layer; it does not name a
+   flight configuration. The arm is one lever measured on one dataset with n = 19 per half.
+3. **The residual is not the ceiling, and 36's oracle bound is not the bound it was read
+   as.** 28 of 38 was computed on the **residual stream alone**. Arm 2 exceeds it because
+   the derivative is a different stream. 36.6's third bullet should be read with that.
+4. **What the C++ port must now carry.** D62 required the dynamic threshold. This adds the
+   **first derivative and its trailing standardisation** -- one extra scalar stream per
+   channel, a first difference and a trailing mean and variance, **O(1) per tick**.
+   **Cheaper than the threshold it rides beside in compute, and equal to it in memory**:
+   `scripts/decision_layer_arms.py:224` standardises `|dx|` over `span = error_window`, the
+   same 2,100 samples the threshold's own window holds, so the port carries two trailing
+   windows of that depth and not one. The compute is what is cheap -- no `z` sweep, no
+   pruning, no dilation.
+5. **What is owed before anything is adopted.** Arms 4a, 6 and 7 repaired and run; **P2.3
+   emitted and adjudicated**; the stride item; and the affiliation metric authorised under
+   `docs/HARNESS.md` 5a on 2026-09-10, which is **not yet built** -- there is no
+   `affiliation.py` beside the eight modules in `src/sentinel_eval/metrics/` -- and has
+   therefore not been applied to any of these figures.
+6. **No early-warning claim is made or implied.** 37.7a measured 0 of 10 positive leads on
+   the frozen arm, and this entry measures recall at a matched alarm rate, not lead time.

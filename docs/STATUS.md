@@ -97,16 +97,27 @@ SMAP's.
 | `W` | 34.8's label-free forecaster winner, own cut | 3/36 | 56/104 (53.8%) | 56/61 (91.8%) | 5 | `runs/smap-msl/_forensics/2026-09-09T224554Z-wi910-port.json` |
 
 **(!) FROZEN 2026-09-09 (D62): the pipeline is stage 4's configuration.** Nine arms have now
-been measured against stage 4's **10/38 at 0.6838%** and none beats it. At or below that
+been measured against stage 4's **10/38 at 0.6820% (was 0.6838%)** and none beats it. At or below that
 rate: `WS`, the label-free forecaster winner, reaches **8/38**; `C1S` reaches 6/38; the
 3-seed ensemble and the isolation forest reach 0; and **four arms - a transition-aware
 floor, per-channel calibration, both together, and gradient-boosted trees - have no
-operating point at or below 0.6838% at all**, which is D48 arriving for the fifth through
+operating point at or below 0.6820% (was 0.6838%) at all**, which is D48 arriving for the fifth through
 eighth arms. The full ladder is `docs/MODELS.md` 35.7.
 | **paper** | Hundman et al., Table 2 | **25/36** | 84/105 (80.0%) | 84/96 (87.5%) | **12** | - |
 
+**(!) SUPERSEDED 2026-09-10 by D65. The paragraph above stands as the record of what nine
+arms measured; its freeze does not.** A tenth arm -- the smoothed residual fused with the
+**first derivative of the raw value**, both standardised against a trailing window only --
+reaches **EVAL 17 of 19 against the frozen arm's 4**, at the frozen arm's own **0.6820%**,
+on the channel-disjoint split committed before any sweep. It is a **strict superset**: it
+loses nothing the frozen arm caught. **n = 19, UNDERPOWERED (D3).** Reproduced identically
+on two independent reads (`docs/MODELS.md` 38.15). The all-38 figure of 30 is
+**CONTAMINATED** -- it includes the 19 TUNE events the cut was selected on -- and is never
+the headline. **D65 adopts nothing**: it re-opens the decision layer and does not name a
+flight configuration.
+
 **The headline number is stage 4's `10 of 38`**: in-range contextual sequences caught, at
-0.6838% of nominal steps, by `gru-telemanom` scored per channel, univariate, without
+0.6820% (was 0.6838%) of nominal steps, by `gru-telemanom` scored per channel, univariate, without
 commands (D46, D48, `docs/MODELS.md` 26.18). **It is 26%**, on one dataset, with no floor
 available to compare against at that alarm rate - `rstd` at 5,000x its calibrated
 threshold still alarms on 15.17% of nominal steps. **Seven model variants have since been
@@ -139,7 +150,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 214 Class A and 4,415 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 222 Class A and 4,966 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -244,7 +255,7 @@ does not survive being brought near a flyable rate. **The grid refinement ran th
 day** (33.8): resolved at 0.01 across the crossing, 55 points, with the caught set retained
 at every one. **M1 and M2 are refuted robustly** - the best count at or under the target is
 **6 against stage 4's 10**, and even given a rate 10% **louder** than stage 4's, C1 reaches
-only 8. There is no operating point near 0.6838% where C1 competes. Also corrected
+only 8. There is no operating point near 0.6820% (was 0.6838%) where C1 competes. Also corrected
 here: C1 carried a second unintended lever (T-g, the published target length), **worth zero
 events** - both numbers kept.
 
@@ -274,9 +285,17 @@ before any sweep, with the union budget **fitted jointly rather than allocated**
 **D62's freeze stands until one of them beats stage 4 at a matched rate.**
 
 **THE PIPELINE IS FROZEN (D62)** on stage 4's configuration: `gru-telemanom`, per channel,
-univariate, no commands, published dynamic threshold swept to 0.6838%, **10 of 38**. **The
+univariate, no commands, published dynamic threshold swept to 0.6820% (was 0.6838%), **10 of 38**. **The
 C++ port must carry the dynamic threshold**, which `flight/` does not yet have - it
 transcribes D25's static quantile alone. S1 and S2 are not adopted.
+
+**(!) THE FREEZE IS SUPERSEDED 2026-09-10 (D65), and the sentence above is kept.** Arm 2 --
+residual plus first derivative, trailing-standardised -- reaches **EVAL 17/19 against 4** at
+the same 0.6820%. **Nothing is adopted and no flight configuration is named.** What the C++
+port must carry grows by one stream: the dynamic threshold **and** the first derivative with
+its trailing standardisation. Pruning (P1.1) and CUSUM (P4b.1) close as clean negatives;
+arms 4a, 6 and 7 and prediction P2.3 are **NOT ADJUDICATED** and no number of theirs is
+reported.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
@@ -340,7 +359,7 @@ seed.
 
 ```bash
 .venv/bin/python -m pytest -q                                    # 608 tests
-.venv/bin/python scripts/check_no_list.py                        # 75 files, no LIST, no glob
+.venv/bin/python scripts/check_no_list.py                        # 78 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
 make -C flight lint                                              # clang-tidy, three configs
