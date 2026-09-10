@@ -297,6 +297,17 @@ its trailing standardisation. Pruning (P1.1) and CUSUM (P4b.1) close as clean ne
 arms 4a, 6 and 7 and prediction P2.3 are **NOT ADJUDICATED** and no number of theirs is
 reported.
 
+**Roadmap item 1, the C++ port, is PRE-REGISTERED and not yet written**
+(`docs/MODELS.md` 39, 2026-09-10). `model.bin` stays at **`format_version` 1** -- the
+dynamic rule's constants become `constexpr` and the selectable mode remains a version-2
+decision after Phase 3. Three departures are registered with their costs: the window
+**already trails**, so what is at stake is emission timing and **guard cells are not a free
+way to remove it** (10.7 measured 38/46 -> 34/46 on `m1-g8.9.10` and the reverse on
+`m1-ss5`); **backward dilation cannot be emitted** and is dropped, its price registered as
+**N6 and unadjudicated**, because measuring it needs a read that has not been taken; and the
+footprint grows **312,112 -> 581,488 B**, which is a new numbered prediction beside 19.8's
+F1 rather than an edit to it. **No C++ is written until 39 is reviewed.**
+
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
 seeded **in the physics** and in-limits throughout for the contextual family, ground truth
@@ -342,7 +353,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**617 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**623 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -358,7 +369,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 617 tests
+.venv/bin/python -m pytest -q                                    # 623 tests
 .venv/bin/python scripts/check_no_list.py                        # 79 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1

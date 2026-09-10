@@ -114,17 +114,17 @@ without a regeneration will simply be missing from this table rather than wrong
 in it.
 
 **(!) The generator is committed as of 2026-09-10, and until then it was not.**
-The sentence above claimed this table was generated while nothing in the tree could
-regenerate it, which is how it came to be missing fifteen locations -- among them
-`errors.py:62`, `errors.py:70`, `errors.py:337-339` and the whole `403`-`418`
-pruning ladder that `docs/MODELS.md` 37.2 reads line by line. The script also
-checks every cited range against the length of the file it names; **no citation
-overruns its file**. One rule in it is worth knowing before adding a citation:
-**a bare `detector.py:NNN` is NOT indexed**, because this repository has a
-`detector.py` of its own and every bare occurrence in the tree resolves to that
-one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
+The sentence above claimed this table was generated while nothing in the tree
+could regenerate it, which is how it came to be missing fifteen locations --
+among them `errors.py:62`, `errors.py:70`, `errors.py:337-339` and the whole
+`403`-`418` pruning ladder that `docs/MODELS.md` 37.2 reads line by line. The
+script also checks every cited range against the length of the file it names:
+**no citation overruns its file**. One rule in it is worth knowing before adding
+a citation: **a bare `detector.py:NNN` is NOT indexed**, because this repository
+has a `detector.py` of its own and every bare occurrence in the tree resolves to
+that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 
-| Location | Cited by |
+| Location in `third_party/telemanom/` | Cited by |
 |---|---|
 | `telemanom/channel.py:55` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/channel.py:55-67` | `docs/MODELS.md` |
@@ -137,7 +137,7 @@ one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:48-64` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-52` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-59` | `docs/MODELS.md` |
-| `telemanom/errors.py:62` | `docs/MODELS.md`, `docs/REORG_PLAN.md` |
+| `telemanom/errors.py:62` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/REORG_PLAN.md` |
 | `telemanom/errors.py:62-64` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md` |
 | `telemanom/errors.py:84-93` | `docs/MODELS.md`, `scripts/smap_rungs.py` |

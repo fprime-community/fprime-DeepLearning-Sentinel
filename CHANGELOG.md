@@ -14,6 +14,73 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.31] - 2026-09-10 - The C++ port, pre-registered before a line of it exists
+
+**Roadmap item 1, registered and not built.** `docs/MODELS.md` 39. Zero bucket operations,
+no fit, weight store unmoved. **No C++ is written until this is reviewed.**
+
+### Registered
+- **`model.bin` stays at `format_version` 1** (39.3). The dynamic rule's constants become
+  `constexpr` in `Config.hpp`; PARAMS already carries `ewma_span` 105 and `warmup_steps`
+  2,350, so the format anticipated the trailing window before there was one. The selectable
+  mode remains a version-2 decision after Phase 3, unchanged from D62 c.2. **D30 untouched.**
+  19.7's stop condition 3 is discharged rather than tripped.
+- **Eight numbered predictions, N1 to N8**, with bands and a stated falsification: the 1e-5
+  accuracy contract, the footprint, determinism, the two departure costs, the derivative's
+  per-tick cost, and the vector budget.
+- **The derivative is computed and reported, never in the emitted flag** (39.8). D65 adopts
+  nothing, so wiring the fused rule into the warning would make the port the adoption
+  decision.
+
+### Two things the reading corrected, and both were in the plan this section came from
+- **The window already trails.** The plan said the C++ window must end at `t-1` because the
+  published one looks ahead. It does not -- `telemanom.py`'s docstring records that this
+  repository already replaced telemanom's forward-extending window. What is actually at
+  stake is **emission timing**: the window includes the 70 steps it judges, so a segment is
+  decided at its end. **And guard cells are not a free way to remove that latency**: 10.7
+  measured recall **38/46 -> 34/46** and alarm ranges **+27%** on `m1-g8.9.10`, and the
+  *reverse* on `m1-ss5`, with the sign reversing for reasons not established. Neither is
+  adopted; **N5** measures the choice on the 38.
+- **Backward dilation cannot be emitted.** `_buffered` widens every run by `+/-99` and
+  merges; the backward half marks timesteps already emitted, and there is no un-emit.
+  Dropped, with **N6** registering its price -- and **N6 cannot be measured at zero
+  operations**, because it needs the smoothed error and no telemetry is on local disk. It is
+  carried unadjudicated and the read is brought to the owner with its cost.
+
+### Measured while writing it
+- **The footprint.** Both trailing windows are unavoidable: `dynamic_threshold` needs the
+  window materialised, and the derivative's `z` needs the departing sample. Three layouts
+  costed against the measured **312,112 B**: L1 two rings at 16 channels, **581,488 B**;
+  L2 at 12 channels, **495,520 B**, which buys its saving from capability and would collapse
+  the maxima onto the flown shape; L3 sharing `Baseline`'s ring, **573,872 B**, for 1.3%.
+  **L1 registered, L2 the named fallback, L3 not recommended.** 19's F1 is a record and is
+  not edited; N3 sits beside it.
+- **The vector format will not scale.** `g3.vec` is 94,960 B for 80 steps -- about 1,187
+  B/step, dominated by the hidden-state trace -- and the dynamic rule needs ~3,000 steps, so
+  ~3.5 MB per tier. A leaner decision-layer format is registered at ~250 B/step, and **N8
+  stops the work if tracked content would pass 7 MiB**. Read back, that is a second reason
+  D64 was right, and not the one given at the time.
+- **`GoldenVectors.cpp:83` silently skips a tier whose files are absent**, and only `g1`,
+  `g2` and `b1`-`b4` are tracked. Under D67 `flight/test/` is the evidence on `master`, so
+  the new tiers are committed or they are not counted.
+
+### Recorded
+- **39.1: the second handover brief, adjudicated in eighteen rows**, in the form 37.1 uses.
+  Neither handover brief was ever committed -- `SENTINEL_PM_HANDOVER.md` has never existed
+  in the tree or in any commit's tree.
+
+### A defect of mine, found and repaired in the same work
+- **The 0.6.30 regeneration overwrote `docs/TELEMANOM_EXCERPTS.md` section 4.** That section
+  is nine hand-written findings -- the batch clip, `evaluate_sequences`' mixed precision
+  denominator, `aggregate_predictions(method='first')` and six more -- under a
+  `| Location | Mechanism | What it settled |` header. The generator anchored on the prefix
+  `| Location`, matched section 4 first, and replaced analysis with an index. **Restored from
+  `8476ad7` and verified row by row.** The generator now anchors on section 5's exact and
+  unique header, excludes itself from the scan, and `tests/test_telemanom_index.py` pins all
+  of it: the generated table equals the generator's output, section 4's three named rows are
+  present, and both anchors are unique. **The guard exists because the mistake happened, not
+  in case it might.**
+
 ## [0.6.30] - 2026-09-10 - Reorganisation tranches 1 and 2: the guards, and the figures they did not catch
 
 **Recorded as done in the handover; verified as not done, then done.** Zero bucket

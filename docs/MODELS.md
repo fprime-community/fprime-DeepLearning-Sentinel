@@ -10661,3 +10661,309 @@ Repairing the three and running Arm 7 needs a third read and is not taken here.
   superset, with 4 of EVAL's 5 invisible-in-residual events recovered.
 - **EVT is a real but smaller gain** (EVAL 10/19) whose flight-legal bound costs nothing.
 - **The union is unmeasured**, so no claim is made about heterogeneity.
+
+---
+
+## 39. Pre-registration: the decision layer in C++, and the derivative stream (roadmap item 1)
+
+**Written before any C++ exists.** `flight/` today transcribes D25's static quantile alone
+(`flight/include/sentinel/Detector.hpp:1-10`). D62 required it to carry telemanom's dynamic
+threshold; D65 added the first derivative and its trailing standardisation. This section
+registers what will be built, what it predicts, and what would falsify it. **No code is
+written until this is reviewed**, which is the form every section from 19 onward uses.
+
+**Nothing here is implemented from a description.** Every mechanism below was read at first
+hand in `src/sentinel_models/telemanom.py` and `scripts/decision_layer_arms.py` while this
+was written, and is cited by line. Two things that section 38 and this project's own briefs
+had recorded loosely were found wrong in the reading and are corrected in 39.4 and 39.5.
+
+### 39.1 What the handover brief said, and where this repository disagrees
+
+The second handover brief this project has taken, and **neither was ever committed**:
+`SENTINEL_PM_HANDOVER.md` does not exist in the working tree, in any commit's tree, or in
+`git log --all --diff-filter=A`. The first is the one 37.1 and `docs/REORG_PLAN.md` 2
+adjudicate. Recorded the same way, so a later reader can tell which claims came from outside
+the repository and which from it. **The repository wins in every row.**
+
+| # | The brief | This repository |
+|---|---|---|
+| 1 | tranches 1 and 2 are "done in passing" | **Neither was.** The test-count guard's pattern was unchanged, the retired-claim guard was still narrow with two uncaught live sites, `docs_gen` still overwrote unconditionally, and `docs/reorg_plan.json`'s `execution_order` carries **no status field at all**. Done at `8476ad7` and `68d3f17` |
+| 2 | read `SENTINEL_PM_HANDOVER.md` first, section 9.1 | **It does not exist**, and never did |
+| 3 | commit the scaling-confound draft as D64 | **D64 was already the 8 MiB size cap** (`7b20464`). The draft's own header resolved it: D65 supersede-D62, **D66** the confound |
+| 4 | a selectable dynamic mode is the first open design decision | **Already decided three times as a deferral** -- D62 c.2, `docs/STATUS.md` 7.D, `docs/PHASE2.md` 5b.2. Settled again at 39.3: **version 1 stays frozen** |
+| 5 | C++ must match `src/sentinel_models/reference.py` on the new rule | `reference.py` is the **forward pass only** -- no threshold, no quantile, no decision logic. The reference for the new rule is `telemanom.py` and `decision_layer_arms.py` (39.2) |
+| 6 | "measured 1.8e-07, D30" | **19.8 prediction F5.** D30's own figure is the 1.2e-07 torch-vs-NumPy one at `docs/DECISIONS.md:1853` |
+| 7 | every comparison at 0.6820% nominal **(D41)** | D41 is ESA-ADB Mission-1 at ~0.0009-0.0240% and never mentions SMAP/MSL. The rate is **26.18**'s; the 0.6820-vs-0.6838 correction is **37.1 row 1**. No D-entry performs it |
+| 8 | the 0.6838 -> 0.6820 correction is done | **Never reached `docs/STATUS.md`**: six sites, and zero occurrences of 0.6820. Five were live prose and are corrected at `19e0c2b`; line 89 is stage 4's own artifact row and is a record |
+| 9 | "nothing under `runs/` is committed except the 144 scorecards" | **`git ls-files runs` returns 0.** `.gitignore:13` is `runs/`. `docs/REORG_PLAN.md:392`'s phrase is *committed-by-citation* -- cited by path, not in git |
+| 10 | `check_no_list` is 78 files | **True of the script, false of the document**: `docs/STATUS.md:343` said 75. Now 79, after this work added a generator |
+| 11 | 25 scripts compute root as `parents[1]` | **27**, and now 28. The JSON's inventory predates two scripts |
+| 12 | flight rules "Objective.md 11": CPP-1, CPP-3 | `Objective.md:953-968` is the five permanent safety rules and names **no** CPP rule. The F' table is **`docs/MODELS.md`:2612-2620**. Rule 5 *is* Objective 11 |
+| 13 | tracked content 3.70 MiB | D64 says 3.67; measured **3.71** at the time of reading. Re-measured per commit rather than restated |
+| 14 | "165 Class B and 1 Class A each" | Both artifacts record `class_a: 0`. The Class A is the ledger `PutObject`, written after the artifact (`75cc846`), so it lands in the month counter: 219/4,779 -> **222/4,966** |
+| 15 | the affiliation metric is "authorised, not yet applied" | It is **not yet built**. `src/sentinel_eval/metrics/` holds eight modules and no `affiliation.py` |
+| 16 | the derivative is "cheaper than the threshold beside it" | Cheaper in **compute**, **equal** in memory: `decision_layer_arms.py:224` standardises over `span = error_window`, the same 2,100 samples (39.6) |
+| 17 | D65's falsifications, as drafted | **P2.3 was passed over.** It is registered at 38.5 with a rider conditional on it, and neither artifact carries the per-event causal `z`. Stamped NOT ADJUDICATED in D65 |
+| 18 | "D1 to D63" on four live pages | D64 had already landed. Now **D1 to D67** |
+
+### 39.2 What is ported, and what the reference is
+
+**The reference for the new rule is not `reference.py`.** That module is the plain-NumPy
+forward pass and contains no decision logic of any kind. The C++ is held to:
+
+```
+  the dynamic threshold      src/sentinel_models/telemanom.py
+    constants                  :83-88, :100-102   ERROR_WINDOW_BATCH 70, ERROR_WINDOW_COUNT 30,
+                               ERROR_BUFFER 100, PRUNING_P 0.13, Z_FLOOR 2.5, Z_CEILING 12.0,
+                               Z_STEP 0.5, SMOOTHING_PERC 0.05
+    the smoothing              :171-210  ewma(), span 105, bias-corrected, F64
+    the sweep                  :254-303  eps = mu + z*sigma over arange(2.5, 12.0, 0.5),
+                               scored (d_mu + d_sigma) / (n_seq^2 + covered), ties to the
+                               larger z, falling back to mu + Z_LIMIT*sigma
+    runs and dilation          :214-237  _runs, _buffered: +/-(ERROR_BUFFER - 1) = 99, merged
+    pruning                    :306-338  the descending ladder, drop below PRUNING_P
+    the driver                 :374-450  channel_ratios, span 2,100, stride 70
+
+  the derivative stream      scripts/decision_layer_arms.py
+    trailing mean and sd       :53-58    trailing_stats, F64 cumulative sums
+    the standardisation        :60-62    zstat, z = (x - mu) / max(sd, 1e-12)
+    the stream                 :224      dx[t] = |x[t] - x[t-1]| with x[-1] := x[0],
+                               standardised over span = error_window = 2,100
+    the fused score            :233-235  max(z_residual, z_derivative) -- the ablation,
+                               which is the arm that won
+```
+
+Already in `flight/` and reused rather than rewritten: `Ewma` (span 105, bias-corrected, F64,
+recursive rather than `pow`-per-tick, drift `<1e-12` over 8,000 steps) and `Baseline`'s
+trailing-window technique -- **F64 `sum`/`sumSquares`/`count` accumulated over a ring, never
+differenced float32 prefix sums**, which is `docs/DECISIONS.md` D37's defect and is pinned by
+`tests/test_rolling_precision.py` and vector tier `b3`.
+
+### 39.3 The format decision: `model.bin` stays at version 1
+
+`docs/MODEL_FILE.md` 11 is absolute -- *"Adding a field is a `format_version` bump. Reserved
+fields are not a growth mechanism -- a version-1 reader refuses a non-zero reserved field"* --
+and `flight/src/ModelFile.cpp:80-81,165-167` enforces it with `BAD_SHAPE`. **19.7 stop
+condition 3, "the format needs a field the documents did not anticipate", is discharged here
+rather than tripped.**
+
+PARAMS already carries what the dynamic rule needs and it is reused unchanged: `ewma_span`
+**105** -- telemanom's own `smoothing_window` -- and `warmup_steps` **2,350 = window 250 +
+error_window 2,100**, so the format anticipated the trailing window before there was one.
+The rest become `constexpr` in `Config.hpp`, each beside its citation. The static `threshold`
+F64 keeps its meaning and drives the Level 1 `baseline_only` path, **so no existing file
+changes meaning and no committed vector moves.**
+
+**Consequence, stated rather than left implicit: the flown rule is not mission-tunable in
+orbit.** Making it so is a version-2 decision with its own pre-registration and D-entry,
+taken after Phase 3 shows which rule a mission needs -- unchanged from D62 c.2,
+`docs/STATUS.md` 7.D and `docs/PHASE2.md` 5b.2. **D30 is untouched.**
+
+### 39.4 (!) Departure 1 -- the window already trails. What is at stake is emission timing, and the fix is not free
+
+**This corrects the plan this section was written from, and the correction came from reading
+the source.** The plan said the C++ window must end at `t-1` because the published window
+looks ahead. **It does not.** `telemanom.py`'s module docstring records the deviation
+already: telemanom's own windows extend forward, and this repository's port replaced them
+with a strictly trailing one -- *"the window is `e_s[seg_lo - 2100 : seg_hi]`"*, which
+contains no sample later than the segment being judged. **There is no lookahead to remove.**
+
+What is left is narrower and real. That window is **2,170 samples and includes the 70 being
+judged**, so a segment contributes **about 3.2%** of its own threshold -- a **guard-cell
+violation** in the CFAR sense, which `channel_ratios` states in as many words. Every sample
+in it exists by the time the segment ends, so it is causal. But telemanom decides a **segment
+at its end**, and a flight detector emits **per tick**. The two are not the same thing, and
+the choice between them is the departure:
+
+```
+  (i)  decide at the segment's end, exactly as the reference does
+       identical numbers, and up to stride - 1 = 69 timesteps of emission latency
+
+  (ii) guard cells: threshold from window[:offset], strictly earlier cells only
+       per-tick emission, no latency -- and it CHANGES THE MEASURED NUMBERS
+```
+
+**(ii) is not free, and this repository has already measured what it costs.** 10.7, on
+`m1-g8.9.10`: recall **38/46 -> 34/46**, alarm ranges **3,548 -> 4,507 (+27%)**, lead
+**+26.0 -> +21.0**, fold 0 collapsing from 12/15 to 8/15. And on `m1-ss5` guard cells
+**helped** -- 38/42 to 39/42, MVGS 29/31 to 30/31. **The sign reverses between channel sets
+for a reason that is not established**, and 10.7 leaves guard cells *"neither adopted nor
+rejected"*. `config.guard_segment` defaults to **False**.
+
+**So this section does not adopt either, and P39.5 measures the choice on the population that
+matters.** Adopting (ii) silently would import a four-event recall loss from a variant the
+repository has explicitly declined to adopt; adopting (i) silently would put 69 timesteps of
+latency into a detector whose lead time is already 0 of 10 positive (37.7a). **Both are
+stated in timesteps and never in hours** -- both datasets' timestamps are anonymised or
+resampled and no wall-clock figure may be read off either.
+
+### 39.5 (!) Departure 2 -- backward dilation cannot be emitted, and it is not optional
+
+`_buffered` (`telemanom.py:220-237`) widens every exceedance run by `ERROR_BUFFER - 1 = 99`
+steps **on both sides** and merges the overlaps. Forward dilation is free in flight: it
+extends an alarm that is already on. **Backward dilation is not.** It marks up to 99
+timesteps that have already been emitted -- and a warn-only component that has already said
+nothing about tick `t - 99` cannot go back and say something. There is no un-emit.
+
+Two ways out, and one of them is worse than it looks:
+
+```
+  drop the backward half     alarm sets change; the cost is measurable and is P39.6
+  delay emission by 99       every alarm arrives 99 timesteps later than the reference,
+                             on top of 39.4(i)'s 69 -- up to 168 in total
+```
+
+**Registered choice: drop the backward half**, because delaying a warning by up to 168
+timesteps to preserve an offline set's exact boundaries is the wrong trade for a component
+whose only job is to warn. **The cost is measured, not assumed** -- P39.6 -- and if it is
+large the choice is re-opened rather than defended.
+
+**(!) That measurement cannot be made at zero operations, and is not made here.** It needs
+the smoothed error for the 38 events, which needs the forecast, which needs the test arrays
+-- and **no telemetry is on local disk, ever** (Rule 1). The artifacts hold event lists and a
+threshold, not `e_s`. So **P39.6 is registered and carried unadjudicated**, and the read that
+would settle it -- 165 Class B and 1 Class A, the same shape as 38.15's, after a smoke -- is
+brought to the owner with its cost before it is spent. **No number of it is reported until
+then**, and the port does not wait on it: the C++ implements the forward-only rule and the
+Python reference gains the same option, so the two match whatever the measurement says.
+
+### 39.6 (!) Departure 3 -- the footprint, and the three layouts costed
+
+`flight/test/Footprint.cpp:39` asserts `sizeof(Detector) < 320,000` against 19's
+pre-registered **312,642 B**; measured **312,112 B** at 19.8 F1. **A pre-registration is a
+record and is never edited**, so 19's F1 stands untouched and this section carries a new
+numbered prediction beside it, with `Footprint.cpp` gaining a second, separately-labelled
+check.
+
+**Neither window can be avoided, and this is why.** `dynamic_threshold` needs the `e_s`
+window **materialised** -- it recomputes the mean and standard deviation with the candidate
+points removed, and it extracts and prunes exceedance runs inside the window, none of which a
+running moment can supply. The derivative's `z` needs the **departing** `|dx[t-2100]|` to
+update its sums exactly, which needs a ring of the same depth. Reducing `DERIV_SPAN` below
+2,100 changes the statistic that produced EVAL 17/19 and would need a new measurement, so it
+is not a saving available here.
+
+```
+  layout                                          added        sizeof(Detector)      delta
+  L1  two dedicated rings, MAX_CHANNELS = 16    +269,376 B    581,488 B  567.9 KiB   +86.3%
+  L2  two dedicated rings, MAX_CHANNELS = 12    +202,032 B    495,520 B  483.9 KiB   +58.8%
+  L3  one e_s ring + Baseline's raw ring         +261,760 B    573,872 B  560.4 KiB   +83.9%
+      extended from 120 to 2,101 and shared
+```
+
+- **L1** is exact, keeps `Baseline` and the new unit independent, and gives up nothing. The
+  rings are `2 x 2100 x 16 x 4 B`, plus one previous `x` per channel and four F64
+  accumulators per channel.
+- **L2** takes its saving from **capability, not design**. `MAX_CHANNELS` 16 -> 12 is
+  `Config.hpp`'s own "flown is 12", and it also shrinks the arena, because `MAX_PARAMETERS`
+  falls **75,360 -> 71,160** -- which is exactly `Footprint.cpp:42`'s `flownWeights`, so the
+  maxima would collapse onto the flown shape and the 5.9% headroom 19.8 F3 measured would be
+  gone. It moves the loader's `TOO_LARGE` boundary, contradicts two **exact** pre-registered
+  assertions (19.8 F2 and F3), and **refuses any 13-to-16-channel mission for good**. No
+  committed vector breaks: `g1` is 3 channels, `g2` is 7, `g3` and `g4_*` are 12.
+- **L3** buys **7.6 KB, 1.3%**, by deriving `|dx|` from raw values `Baseline` already rings.
+  It pays by coupling two units, making `BASELINE_WINDOW` no longer the ring's length, and
+  requiring `Baseline` to become a member of `Detector` rather than the separate object it is.
+
+**L1 is the registered choice.** It is the only one of the three whose cost is design rather
+than capability or coupling; it keeps every existing exact assertion true; and **567.9 KiB
+against the 278.0 KiB of weights the component already carries is a number that can be
+accepted or refused on its own terms**, which is what a pre-registration is for. **L2 is
+registered as the named fallback** -- with its two assertion changes and its capability cost
+written down in advance, so taking it later is a decision and not a drift. **L3 is registered
+and not recommended.**
+
+### 39.7 The vector format will not scale, and a second one is registered
+
+The dynamic rule cannot be exercised by a vector shorter than its own window: it needs
+`error_window` 2,100 plus at least one stride of 70, so roughly **3,000 steps** against the
+existing tiers' 24 to 80. The `.vec` format records the full hidden-state trace and costs
+**94,960 B for `g3`'s 80 steps at 12 channels** -- about **1,187 B/step**, dominated by 160
+F32 of hidden state. At 3,000 steps that is **~3.5 MB per tier**, and two tiers would exceed
+the whole 8 MiB cap on their own against today's 3.94 MiB.
+
+So a **second, leaner format for the decision layer** is registered: inputs, the smoothed
+error, `eps` per window, the surviving sequence boundaries, `z_residual`, `z_derivative`, the
+fused score and the three flags -- and **no hidden-state trace**, because stages 1 to 5 of
+the forward pass are already pinned at 1e-5 by the existing `.vec` tiers and re-recording
+them buys nothing. At roughly **250 B/step** that is **~750 KB per tier**, and two tiers fit
+inside the headroom D64 created. **Read back, that is a second reason D64 was right**, and it
+was not the reason given at the time.
+
+**And the vectors must be tracked.** `flight/test/` is on `master` under D67, where it *is*
+the evidence the component works. Today only `g1`, `g2` and `b1`-`b4` are tracked; `g3.bin`
+and the four `g4_*` tiers are local-only, and `GoldenVectors.cpp:83` **silently skips a tier
+whose files are absent**. A suite that passes by skipping is not evidence, so the new tiers
+are committed or they are not counted.
+
+### 39.8 The derivative stream is computed and reported, never in the flag
+
+`crossing()` and `emitted()` stay driven by the dynamic threshold alone. The derivative,
+its trailing standardisation and the fused `max(z_r, z_d)` are computed every tick and
+exposed beside `score()`. **D65 re-opens the decision layer and names no flight
+configuration**, so wiring the fused rule into the warning would make this port the adoption
+decision, which is not its to make. The flight cost gets measured now; adopting the fused
+rule later is a one-line change and a D-entry.
+
+### 39.9 Predictions
+
+Numbered, with bands, written before the code. **Reported beside their outcomes, whatever
+those are.**
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **N1** | **The accuracy contract, and it is the commissioned one.** The C++ matches the Python reference to **1e-5** on every continuous output of the new path -- `e_s`, `eps`, `z_residual`, `z_derivative`, the fused score -- and **exactly** on `crossing` and `emitted`, over every tier | worst `<= 1e-5`, flags exact | worst in `(1e-5, 1e-4]` with flags exact | worst `> 1e-4`, **or any flag differing on any step** -- a transcription defect, reported and not tuned away |
+| **N2** | **And it lands where the existing path landed.** 19.8 F5 measured 1.788e-07 over seven tiers; the new path is float32 arithmetic of the same shape | worst `<= 1e-6` | `(1e-6, 1e-5]` | `> 1e-5` -- something in the new path is not float32 resolution and is found before anything else is believed |
+| **N3** | **The footprint, L1.** `sizeof(Detector)` at the compile-time maxima | **581,488 B +/- 64 B** of alignment padding | within 1% | outside 1% -- the declaration drifted from what is registered here, and the difference is itemised the way 19.8 F1's 530 B was |
+| **N4** | **Determinism survives the trailing state.** Two runs in one process, and two processes, CRC-identical over 400 ticks | bit-identical, both | -- | any difference at all. **A stop**: a detector with 2,100 samples of carried state that is not reproducible cannot fly (Objective.md 11 rule 5) |
+| **N5** | **The guard-cell choice of 39.4, measured rather than assumed.** Emitting per tick from guard cells, against deciding at the segment's end, on the 38 in-range contextual events at the matched **0.6820%** | the two agree within **1 event** | 2 to 3 events | **4 or more** -- 10.7's `m1-g8.9.10` result carries to SMAP/MSL, guard cells are not a free way to remove latency, and the port takes (i) with its 69 timesteps stated on the front page |
+| **N6** | **The price of dropping backward dilation.** Forward-only against the reference's `+/-99`, same 38, same matched rate | **0 to 1 event** | 2 to 3 | **4 or more** -- the choice at 39.5 is re-opened rather than defended, and delaying emission is costed against it |
+| **N7** | **The derivative costs one stream and no more.** Per tick, per channel, beyond the dynamic threshold: one subtraction, one absolute value, two F64 accumulator updates and one divide -- and **no** second `z` sweep, pruning pass or dilation | exactly that | -- | anything requiring a second pass over the window -- the O(1) claim in D65 c.4 is then wrong and D65 gains a rider |
+| **N8** | **The vectors fit.** Tracked content after the new tiers are committed | **under 6 MiB** | 6 to 7 MiB | **above 7 MiB** -- a **stop**: report rather than trimming coverage to fit under the cap |
+
+### 39.10 Falsification
+
+**If N1 fails, this port is not a transcription and the section is a negative result.** The
+frozen rule would then be one this project can state in NumPy and cannot state in flight-legal
+C++ at float32, which is a finding about the rule rather than about the code, and it is
+published as one. `flight/` would keep the static quantile and D62's requirement would go back
+to the owner unmet.
+
+**If N5 and N6 both fail**, the flight-legal form of telemanom's decision layer differs from
+the published one by **8 or more of 38** at a matched rate. The port would then no longer be
+carrying "telemanom's published rule" in any honest sense, the ported rule would need scoring
+in its own right against the frozen arm, and **D62's and D65's language about what the port
+must carry would need rewriting rather than citing**.
+
+### 39.11 Reporting
+
+Recall at the fixed **0.6820%** (26.18), with `k/n` and the **UNDERPOWERED** stamp wherever
+`n < 20`. Affiliation precision/recall when the module authorised under `docs/HARNESS.md` 5a
+exists -- **it does not yet**, and no figure here waits on it. Range-based precision/recall
+with `docs/HARNESS.md` 1's gameability disclosure. A lead-time distribution **in timesteps**.
+
+**Point-adjusted F1 is never reported** (Kim et al., AAAI 2022). **No early-warning claim is
+made or implied**: 37.7a measured 0 of 10 positive leads, and 39.4 and 39.5 both *add*
+latency rather than removing it, which is stated on the front page rather than buried here.
+
+### 39.12 Cost, and stop and report
+
+**The port's own budget is zero bucket operations.** Golden vectors are generated from cached
+weights and the seeded fixture, exactly as 19's were. The one measurement that cannot be made
+that way is **N6**, and 39.5 says so: it needs one read of the shape 38.15 spent -- **165
+Class B and 1 Class A after a smoke** -- and **that read is not taken here**. It is brought to
+the owner with its cost, and N6 stays unadjudicated until it is.
+
+Stop and report, carrying 19.7's five forward and adding three:
+
+1. The C++ cannot reach 1e-5 on any tier, or a crossing flag ever differs (N1).
+2. A vector needs anything beyond the cached weights and the fixture.
+3. The format needs a field the documents did not anticipate. **39.3 discharges the instance
+   in hand; the trigger stays armed for the next one.**
+4. Anything would touch `main`, the frozen decision layer, the spent held-back sets, or
+   Python training code.
+5. Any bucket operation at all.
+6. **N4 fires** -- determinism is not a prediction that gets a NO VERDICT.
+7. **N8 fires** -- the vectors would take tracked content past 7 MiB.
+8. **The measured `sizeof` lands outside N3's band**, which means the layout drifted from L1
+   without a decision, and L2 is a decision rather than a fallback taken quietly.

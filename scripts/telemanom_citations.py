@@ -60,7 +60,10 @@ def tracked_prose() -> list[Path]:
     return [ROOT / f for f in out
             if f.endswith((".md", ".py"))
             and not f.startswith("third_party/")
-            and f != "docs/TELEMANOM_EXCERPTS.md"]
+            # The index itself, and this generator, whose docstring shows the
+            # citation forms it matches. Neither is a citation *by* the project.
+            and f not in ("docs/TELEMANOM_EXCERPTS.md",
+                          "scripts/telemanom_citations.py")]
 
 
 def citations() -> dict[str, set[str]]:
@@ -82,8 +85,14 @@ def _sort_key(location: str) -> tuple[str, int, int]:
     return module, int(first), int(last)
 
 
+#: Section 5's header, matched exactly. Anchoring on a looser prefix once
+#: replaced section 4's `| Location | Mechanism | What it settled |` table by
+#: mistake -- nine hand-written findings, not an index.
+TABLE_HEADER = "| Location in `third_party/telemanom/` | Cited by |"
+
+
 def table(found: dict[str, set[str]]) -> str:
-    rows = ["| Location | Cited by |", "|---|---|"]
+    rows = [TABLE_HEADER, "|---|---|"]
     for location in sorted(found, key=_sort_key):
         citers = ", ".join(f"`{c}`" for c in sorted(found[location]))
         rows.append(f"| `{location}` | {citers} |")
