@@ -401,6 +401,13 @@ budget, not a gate.
 
 ## 7. Branches
 
+> **(!) SUPERSEDED IN PART 2026-09-10 by `docs/DECISIONS.md` D67, and kept.** This
+> section proposes a `master` whose tree is **identical** to `dev`'s head. D67 decides
+> instead that **`master` is curated** -- the component and the evidence it works, and
+> nothing else -- with every omission stated and off-branch paths resolving on `dev` at
+> a named commit. What survives here is the mechanics: branch from `main`, never rewrite
+> `dev`, never force-push, leave the tags and Releases where they are.
+
 **Current state, verified.** `dev` has 152 commits and the full history. `main` has 7,
 one per approved checkpoint, and its tree is byte-identical to `dev` commit `9b2fb1f`.
 Tags `wi1`..`wi9` **all point at commits reachable only from `dev`** -- none is on

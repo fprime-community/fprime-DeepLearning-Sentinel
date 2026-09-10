@@ -4531,3 +4531,112 @@ anomalies have a median span of **0.274**.
   entry, puts that document on the public branch**, so this qualification is not an internal
   note but part of what a customer reads before quoting the figure -- which is the audience
   it was always written for and now formally has.
+
+---
+
+## D67. `master` is curated: it carries the component and the evidence it works, and nothing else. Supersedes the branch proposal in `docs/REORG_PLAN.md` 7
+
+**DATE** 2026-09-10 | **STATUS** resolved as a release-policy decision, recorded **before**
+the branch exists so that the reorganisation's tranche 5 inherits a decision rather than
+taking one. **No branch is created here and nothing is pushed.**
+
+**CONTEXT.** `docs/REORG_PLAN.md` section 7 and `docs/reorg_plan.json`'s
+`branch_proposal.recommended` propose keeping `main`, adding `master` branched from it, and
+making `master` the GitHub default -- with **a tree identical to `dev`'s head** at the
+approved checkpoint. That proposal was written when the question was *which branch is the
+default*. The question has since become *what does a customer receive*, and those are not
+the same question. A repository whose public branch is a byte-for-byte copy of the
+development branch publishes the research apparatus -- 4,320 lines of decision reasoning,
+the ground toolkit's source, the referee, the vendored evidence, every pre-registration --
+as though all of it were the product. It is not. **The product is the F' component and the
+evidence that it works.**
+
+**ALTERNATIVES.**
+
+1. **`master` identical to `dev`.** The standing proposal. Refused: it publishes an
+   unreleased ground toolkit as though it were released, and it makes a reader work out
+   which of 227 tracked files are the deliverable.
+2. **Publish nothing until the toolkit ships.** Refused: the component and its golden
+   vectors are finished work, and withholding them until an unstarted work item lands is a
+   longer wait than the evidence requires.
+3. **`master` identical to `dev` minus the obvious secrets.** Refused as the worst of both:
+   it looks curated without being curated, and every omission would be silent.
+4. **Curate explicitly, and state every omission.** Adopted.
+
+**EVIDENCE, and it is arithmetic rather than judgement.** Of **227** tracked files,
+**68** are the component and its evidence -- **1,067,548 bytes, 1.02 MiB** -- and **159**
+are the apparatus that produced it. The split is not marginal and it does not require a
+close call about any individual file.
+
+**CONSEQUENCE.**
+
+1. **`master` carries the customer-facing C++ component and the evidence it works, and
+   nothing else. `dev` remains complete, carries the full history, and is never rewritten.**
+
+```
+  ON master     flight/  including flight/test/ and its tracked vectors
+                fprime/Sentinel/Monitor/     the component itself
+                fprime/SentinelRef/          the deployment that instantiates it
+                fprime/CMakeLists.txt   fprime/library.cmake   fprime/settings.ini
+                README.md   Objective.md
+                docs/STATUS.md   docs/RESULTS.md   docs/DECISIONS.md   docs/datasets/
+                docs/MODEL_FILE.md           normative for the loader
+                docs/FPRIME.md               pins the v4.3.0 toolchain
+                LICENSE, once selected
+
+  NOT on master src/   scripts/   tests/
+                docs/MODELS.md and the remaining docs/ internals
+                docs/INDEX.md   CHANGELOG.md
+                third_party/
+```
+
+2. **Why `fprime/Sentinel/Monitor/` and the three build files are on the list.**
+   `fprime/SentinelRef/` is only the deployment; `fprime/Sentinel/Monitor/` is the
+   component -- and `Monitor.fpp`'s **zero declared commands** are `Objective.md` 11 rule 3
+   in machine-checkable form, which is the single most useful artifact a reviewer can be
+   handed. Without `Monitor/` and the three top-level build files, `master` does not build.
+3. **Why `docs/MODEL_FILE.md` and `docs/FPRIME.md` are on the list.** `MODEL_FILE.md` is
+   **normative**: its own text says that where it and any implementation disagree, the
+   document is right and the implementation is a defect. A customer holding `flight/`
+   without it has nothing to validate a `model.bin` against. `FPRIME.md` pins the v4.3.0
+   toolchain `fprime/` is built against.
+4. **Every omission is stated; none is silent.** `README.md` on `master` carries a section
+   naming what is not there and why, and stating plainly that **the ground training toolkit
+   is unreleased, so a mission cannot deploy this without it**. `docs/INDEX.md` and
+   `CHANGELOG.md` are off by decision and named there too, with `README.md` carrying the
+   orientation `INDEX.md` would have given.
+5. **(!) Any path outside the branch resolves on `dev` at the named commit, and the
+   convention has to be stated because it reaches about 380 references, not a handful.**
+   Counted across the five prose documents `master` carries: `docs/DECISIONS.md` alone makes
+   **64** references into `docs/MODELS.md`, **37** into `runs/`, **16** each into
+   `docs/HARNESS.md` and `tests/`, **11** each into `docs/RESEARCH.md` and `src/`, and
+   **10** into `scripts/`; `docs/RESULTS.md` a further **79**; `docs/STATUS.md`, `README.md`
+   and `Objective.md` about **127** between them. `scripts/` and `runs/` are **116** of the
+   total. So the convention is stated **once at the top of each on-`master` document**,
+   naming the `dev` commit, and `tests/test_references_resolve.py` gains a **`master` mode**
+   that honours it: a path absent from `master` resolves against `dev` and is reported as
+   dev-resolving; a path absent from **both** is a break.
+6. **One licence precision.** `third_party/telemanom/` is off `master`, so `master` **does
+   not redistribute** the BSD 3-Clause source and clauses 1 and 2 -- the retain-the-notice
+   obligations -- do not bind there. **Clause 3 does**: it forbids using the Caltech or JPL
+   name to endorse anything derived from that work, and this project is derived from it. The
+   non-endorsement text goes on the public `README.md` regardless of whether the source
+   ships. `docs/datasets/SMAP_MSL.md` is where the provenance and the pinned commit
+   `2e6c5b6c` reach a public reader, since `docs/TELEMANOM_EXCERPTS.md` does not.
+7. **Mechanically, and no history is rewritten.** `git branch master main` -- so `main`'s
+   existing links, Releases and citations keep resolving -- then **one ordinary commit** on
+   `master` whose tree is the curated subset of `dev`'s head. No orphan branch, no rebase, no
+   force-push, ever. `dev` is untouched and tags `wi1`-`wi9` and their Releases stay on
+   `dev`. The author-email disclosure note stays and **no commit's authorship is rewritten**.
+8. **Nothing is pushed until the licence is selected and the owner says so.** The licence is
+   still "not yet selected" (`docs/STATUS.md` section 7 item H), so tranche 5 ends at a
+   local branch, and the GitHub default moves only after a push that has not been authorised.
+9. **What this does to the documents that cross over.** `docs/STATUS.md`,
+   `docs/RESULTS.md` and `docs/DECISIONS.md` become public material. **They are not
+   rewritten for it** -- house form forbids it and the reasoning is the point of keeping
+   them. The pre-publication sweep over them is a **read for disclosure**, not for editing:
+   it confirms no entry names a person, a meeting, a reviewer or a pod address, and it
+   reports rather than corrects.
+10. **`docs/REORG_PLAN.md` 7 and the JSON's `branch_proposal` are superseded and kept.**
+    They are a dated research snapshot and record what was proposed on 2026-09-09; the
+    prose gains a rider pointing here and is not otherwise edited.

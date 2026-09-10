@@ -14,6 +14,43 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.29] - 2026-09-10 - D67: `master` is curated, and every omission is stated
+
+**A release-policy decision recorded before the branch exists, so tranche 5 inherits a
+decision rather than taking one. No branch is created and nothing is pushed.** Zero bucket
+operations.
+
+### Decided
+- **D67.** `master` carries the customer-facing C++ component and the evidence it works, and
+  nothing else. `dev` remains complete and is never rewritten. Of **227** tracked files,
+  **68** are the component and its evidence (**1.02 MiB**) and **159** are the apparatus that
+  produced it.
+- **On `master`:** `flight/` including `flight/test/`, `fprime/Sentinel/Monitor/`,
+  `fprime/SentinelRef/`, the three top-level `fprime/` build files, `README.md`,
+  `Objective.md`, `docs/STATUS.md`, `docs/RESULTS.md`, `docs/DECISIONS.md`,
+  `docs/datasets/`, `docs/MODEL_FILE.md`, `docs/FPRIME.md`, and `LICENSE` once selected.
+- **Not on `master`:** `src/`, `scripts/`, `tests/`, `docs/MODELS.md` and the remaining
+  `docs/` internals, `docs/INDEX.md`, `CHANGELOG.md`, `third_party/`.
+- **Every omission is stated; none is silent.** The public `README.md` names what is absent
+  and why, and states that **the ground training toolkit is unreleased, so a mission cannot
+  deploy this without it**.
+- **Any off-branch path resolves on `dev` at a named commit**, stated once per document --
+  the convention reaches about **380** references, of which `scripts/` and `runs/` are 116 --
+  and enforced by a **`master` mode** in `tests/test_references_resolve.py`.
+- **BSD clause 3 travels regardless.** `master` does not redistribute the telemanom source,
+  so clauses 1 and 2 do not bind there; the non-endorsement obligation does, and goes on the
+  public `README.md`.
+
+### Superseded and kept
+- `docs/REORG_PLAN.md` section 7 and `docs/reorg_plan.json`'s `branch_proposal`, which
+  proposed a `master` whose tree is identical to `dev`'s head. The prose gains a rider
+  pointing at D67 and is not otherwise edited; it is a dated research snapshot.
+
+### Unchanged
+- No history is rewritten and nothing is force-pushed, ever. Tags `wi1`-`wi9` and their
+  Releases stay on `dev`. The author-email disclosure note stays. **Nothing is pushed until
+  the licence is selected and the owner says so** -- and it is still "not yet selected".
+
 ## [0.6.28] - 2026-09-10 - D66: the in-range contextual class is confounded with envelope width
 
 **A qualification, not a correction. D46's arithmetic stands and nothing is edited.** Zero

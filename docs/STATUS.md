@@ -9,7 +9,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D63 (was D57) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D67 (was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -155,7 +155,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D63 (was D57),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D67 (was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).

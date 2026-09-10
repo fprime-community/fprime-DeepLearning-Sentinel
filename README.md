@@ -129,7 +129,7 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
 Reading order: this README, then [Objective.md section 1.1](Objective.md), then
 [docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
 a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
-mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D63** (was D57): why, what else was
+mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D67** (was D63): why, what else was
 considered, what settled it; superseded entries marked, never deleted).
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
