@@ -8,7 +8,7 @@ instead of at the source.
 
 **Why an index and not an excerpt file.** A handover proposed replacing the
 vendored tree with a document containing the cited lines verbatim. That was
-withdrawn on the evidence: **64 distinct locations are cited across 9 files**, and
+withdrawn on the evidence: **75 distinct locations are cited across 12 files** (was 64 across 9, counted by hand), and
 the cited ranges of `errors.py` alone cover most of it, so an honest excerpt file
 would be the source with prose around it and a worse provenance. More
 importantly, `docs/MODELS.md` 26.29 opens *"Every line number below is a line in
@@ -108,18 +108,38 @@ published constants this project conflated until T-b (`docs/MODELS.md` 28.1).
 ## 5. The complete index
 
 Every location cited anywhere in this repository, and what cites it. **Generated
-from the tree on 2026-09-09**, not hand-maintained: it is regenerated rather than
-edited, and a citation added without a regeneration will simply be missing from
-this table rather than wrong in it.
+from the tree on 2026-09-10 by `scripts/telemanom_citations.py`**, not
+hand-maintained: it is regenerated rather than edited, and a citation added
+without a regeneration will simply be missing from this table rather than wrong
+in it.
 
-| Location in `third_party/telemanom/` | Cited by |
+**(!) The generator is committed as of 2026-09-10, and until then it was not.**
+The sentence above claimed this table was generated while nothing in the tree could
+regenerate it, which is how it came to be missing fifteen locations -- among them
+`errors.py:62`, `errors.py:70`, `errors.py:337-339` and the whole `403`-`418`
+pruning ladder that `docs/MODELS.md` 37.2 reads line by line. The script also
+checks every cited range against the length of the file it names; **no citation
+overruns its file**. One rule in it is worth knowing before adding a citation:
+**a bare `detector.py:NNN` is NOT indexed**, because this repository has a
+`detector.py` of its own and every bare occurrence in the tree resolves to that
+one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
+
+| Location | Cited by |
 |---|---|
+| `telemanom/channel.py:55` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/channel.py:55-67` | `docs/MODELS.md` |
+| `telemanom/channel.py:62` | `docs/MODELS.md`, `src/sentinel_models/lstm.py` |
+| `telemanom/channel.py:63-67` | `docs/DECISIONS.md`, `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/channel.py:69-82` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `scripts/decision_layer_probe.py` |
+| `telemanom/detector.py:117-136` | `docs/MODELS.md` |
 | `telemanom/errors.py:40-42` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/errors.py:48-64` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `docs/STATUS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:48-49` | `docs/MODELS.md` |
+| `telemanom/errors.py:48-64` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-52` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-59` | `docs/MODELS.md` |
+| `telemanom/errors.py:62` | `docs/MODELS.md`, `docs/REORG_PLAN.md` |
 | `telemanom/errors.py:62-64` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md` |
 | `telemanom/errors.py:84-93` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:111-168` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:123-130` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
@@ -131,53 +151,56 @@ this table rather than wrong in it.
 | `telemanom/errors.py:157-160` | `docs/MODELS.md` |
 | `telemanom/errors.py:159-160` | `docs/MODELS.md` |
 | `telemanom/errors.py:159-166` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:165-166` | `docs/MODELS.md` |
 | `telemanom/errors.py:165` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:165-166` | `docs/MODELS.md` |
 | `telemanom/errors.py:241` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:249-250` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:252-253` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:252` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:252-253` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:262-267` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:269-322` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:285` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:286` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:288` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:290` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:291-298` | `CHANGELOG.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:291` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:291-298` | `CHANGELOG.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:302-304` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:304` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:310-311` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:314-315` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:315` | `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:324-384` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:337-339` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/REORG_PLAN.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:337-340` | `docs/MODELS.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:339` | `CHANGELOG.md`, `Objective.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md` |
 | `telemanom/errors.py:342-343` | `CHANGELOG.md`, `docs/MODELS.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:343` | `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:347` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:347-353` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:355-359` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `docs/STATUS.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
+| `telemanom/errors.py:355-359` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:359` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:363-371` | `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:365-371` | `docs/MODELS.md`, `docs/NARRATIVE.md` |
 | `telemanom/errors.py:367-369` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:374-375` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:386-435` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:386-435` | `CHANGELOG.md`, `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:403` | `docs/MODELS.md` |
 | `telemanom/errors.py:403-418` | `docs/MODELS.md` |
+| `telemanom/errors.py:404` | `docs/MODELS.md` |
 | `telemanom/errors.py:404-405` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:405` | `docs/MODELS.md` |
+| `telemanom/errors.py:408-414` | `docs/MODELS.md` |
 | `telemanom/errors.py:411` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:411-412` | `docs/MODELS.md` |
+| `telemanom/errors.py:414` | `CHANGELOG.md` |
+| `telemanom/errors.py:417-418` | `docs/MODELS.md` |
 | `telemanom/errors.py:427-435` | `scripts/smap_rungs.py` |
 | `telemanom/modeling.py:72-75` | `docs/MODELS.md` |
 | `telemanom/modeling.py:83,88` | `docs/MODELS.md` |
 | `telemanom/modeling.py:99` | `docs/MODELS.md`, `src/sentinel_models/lstm.py` |
 | `telemanom/modeling.py:113` | `CHANGELOG.md`, `docs/MODELS.md`, `src/sentinel_models/windows.py` |
 | `telemanom/modeling.py:133-136` | `src/sentinel_models/windows.py`, `tests/test_published_training.py` |
-| `telemanom/channel.py:55` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/channel.py:55-67` | `docs/MODELS.md` |
-| `telemanom/channel.py:62` | `docs/MODELS.md`, `src/sentinel_models/lstm.py` |
-| `telemanom/channel.py:63-67` | `docs/MODELS.md` |
-| `telemanom/detector.py:117-136` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 
 **Not cited anywhere, and vendored anyway**: `telemanom/helpers.py`,
 `telemanom/plotting.py`, `telemanom/__init__.py`, `README.md`,

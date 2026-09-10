@@ -14,6 +14,56 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.30] - 2026-09-10 - Reorganisation tranches 1 and 2: the guards, and the figures they did not catch
+
+**Recorded as done in the handover; verified as not done, then done.** Zero bucket
+operations, no fit, weight store unmoved. 617 tests, up from 608.
+
+### Guards repaired (tranche 1)
+- **The test-count guard matched only an unwrapped count.** A count broken across a line --
+  which is how `docs/STATUS.md` once carried it -- read as no count at all, so the guard
+  passed while its subject was wrong. It now flattens the document first. Proven against the
+  three forms it was blind to: wrapped, emphasised, and both. It fired on its first real use
+  in this very tranche, at 616 against a collected 617.
+- **The retired-claim guard's `lead` pattern was widened** to `26-timestep` and
+  `26 timesteps ahead`. Four new sites: two live-prose ones in `docs/RESULTS.md` corrected in
+  house form, two inside decision entries pinned as records.
+- **The `ratio` pattern was NOT widened to the bare `28/32`, and that is a measurement.** It
+  matches **30** sites, every one of them `lstm-telemanom`'s standing measured headline-cell
+  recall -- one of them inside a pre-registered band. What D37 and D38 retired is the
+  comparison against a per-channel statistic's 3, which the `three` pattern carries. Recorded
+  where the change would have gone.
+- **`docs_gen.write_data_md` refuses instead of overwriting.** It ended in a bare
+  `path.write_text`, so the next ingest would have deleted `docs/DATA.md`'s hand-added prose
+  in silence. A digest footer records the generated text; delimited hand-authored regions are
+  carried across verbatim and excluded from the digest. `docs/DATA.md` is armed.
+  `tests/test_docs_gen_refuses.py` pins eight behaviours.
+- **The `_rolling` float32 defect is described in the past tense** in
+  `baseline_reference.py`, `flight/include/sentinel/Baseline.hpp` and
+  `flight/src/Baseline.cpp`. Re-measured: **3.5e-07** against `numpy.nanstd` with **zero**
+  spurious exact zeros, against the 7.66 of error recorded when those comments were written.
+  The flight core is unchanged and needed no change.
+
+### Stale figures and dangling citations (tranche 2)
+- **`docs/TELEMANOM_EXCERPTS.md` section 5 is generated, and now there is a generator.** The
+  section claimed to be generated from the tree while nothing in the tree could regenerate
+  it. `scripts/telemanom_citations.py` is committed with it. The index was missing **15**
+  locations -- `errors.py:62`, `:70`, `:337-339` and the whole `403`-`418` pruning ladder
+  `docs/MODELS.md` 37.2 reads line by line. **75 distinct locations across 12 files**
+  (was 64 across 9). No cited range overruns the file it names.
+- One rule in that generator is worth knowing: **a bare `detector.py:NNN` is not indexed**,
+  because this repository has a `detector.py` of its own and every bare occurrence resolves
+  to it. Indexing it bare would have added a dozen false rows.
+- `docs/MODELS.md` 35.7 cited `runs/.../2026-09-09T2138*`, which matches no artifact; the
+  two real timestamps are named. **A path correction, not a figure correction.**
+- `README.md` said Releases `wi1` to `wi7`; **nine tags exist**.
+- `CHANGELOG.md`'s `[Unreleased]` link compared against tag `wi9.5`, **which was never
+  created**. Repointed at `wi9`, with a note that versions 0.6.1 onward are untagged and no
+  link is invented for them.
+- `docs/RESULTS.md`'s "warning **hours** before a limit trips" is retired as a unit and
+  kept: both datasets' timestamps are anonymised or resampled, so every lead figure is in
+  **timesteps**, and an hours figure can come only from the unbuilt physics testbed.
+
 ## [0.6.29] - 2026-09-10 - D67: `master` is curated, and every omission is stated
 
 **A release-policy decision recorded before the branch exists, so tranche 5 inherits a
@@ -1968,8 +2018,10 @@ in Python before a line of flight C++ is written.
 - Metrics: event-wise F0.5 / VUS-PR. Point-adjusted F1 is avoided as it inflates results.
 - Datasets are never committed to the repository. Code and docs only.
 
-[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9.5...dev
-[0.6.1]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9...wi9.5
+<!-- Versions 0.6.1 onward are untagged: work items 9.5 and later land on `dev` without a
+     tag, so there is no tag pair to compare and no link is invented for them. The nine tags
+     that exist are wi1..wi9. `wi9.5` was referenced here and never created. -->
+[Unreleased]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi9...dev
 [0.6.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi8...wi9
 [0.5.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi7...wi8
 [0.4.0]: https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/compare/wi3...wi7

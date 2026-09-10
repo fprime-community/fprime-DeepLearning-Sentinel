@@ -135,9 +135,9 @@ considered, what settled it; superseded entries marked, never deleted).
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
   newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
-  `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
-  that tag. Work items 9.5 to 9.14 are untagged, and are recorded in `CHANGELOG.md` 0.6.1 to
-  0.6.14 with the artifact behind every figure.
+  `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
+  linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
+  in `CHANGELOG.md` 0.6.1 to 0.6.29 with the artifact behind every figure.
 - **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
   complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
   Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
@@ -172,7 +172,7 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 616 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 617 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |

@@ -242,6 +242,13 @@ For a component whose purpose is warning hours before a limit trips, a detector
 that fires after the fact has failed at the thing being built, whatever its
 F0.5. Neither number is discarded; both are reported, because they measure
 different properties and the gate has to weigh them.
+**(!) "Hours" is RETIRED as a unit and the sentence is kept.** SMAP/MSL's timestamps are
+anonymised and ESA-ADB's are resampled, so **no wall-clock figure may be read off either**;
+every lead figure in this document is in **timesteps**. A time-to-limit number in hours can
+come only from the F' Ref physics testbed, on a real clock against real dictionary limits,
+which is Phase 3 and is unbuilt. The argument the sentence makes -- that a detector firing
+after the fact has failed at the thing being built -- does not depend on the unit and
+stands.
 
 By taxonomy cell, `lstm-telemanom`: **+41** median on
 `Multivariate/Global/Point` (n=9), **+21** on `Multivariate/Global/Subsequence`

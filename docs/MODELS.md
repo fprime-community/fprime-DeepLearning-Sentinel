@@ -9285,7 +9285,9 @@ one; or above 200 Class B in any read. **A refuted prediction is not a stop.**
 **2026-09-09. Four reads at 165 Class B and 1 Class A each** (one for stage B's arms, one
 for the S-family, one after extending the dial, one after adding the diagnostics the first
 run failed to retain), plus a 7 Class B smoke. Artifacts
-`runs/smap-msl/_forensics/2026-09-09T2138*`, `2240*`, `2245*`. Weight store
+`runs/smap-msl/_forensics/2026-09-09T213116Z-wi910-port.json` (was cited as `2138*`,
+which matches no artifact -- the correction is the path, not the figure),
+`...T213437Z-...`, `2240*`, `2245*`. Weight store
 **1155 -> 1313 (+158)**, S3's two extra seeds on 79 of 81 channels.
 
 ### The ladder, at each arm's own operating point
