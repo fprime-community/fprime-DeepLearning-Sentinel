@@ -14,6 +14,64 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.33] - 2026-09-10 - Port stage 2: the dynamic threshold, and a correction to 39.6's own arithmetic
+
+**`docs/MODELS.md` 39 stage 2 of 4.** Zero bucket operations, no fit, weight store
+**1,313 -> 1,313**. 649 tests, up from 632. Tracked content **5.24 MiB**, against N8's
+6 MiB band and 7 MiB stop.
+
+### Built
+- **`Sentinel::DynamicThreshold`** -- telemanom's nonparametric threshold, streamed. It
+  solves once per 70-tick segment over the trailing window, sweeping 19 `z` candidates,
+  skipping any above the window's own reach, scoring
+  `(dmu + dsigma) / (sequences^2 + covered)` and taking ties to the larger `z`. When
+  nothing qualifies it returns `mu + 12*sigma` and reports nothing: **silence, not a guess.**
+- **`src/sentinel_models/flight_reference.py`** -- the NumPy statement of the streamed rule,
+  the same move `baseline_reference.py` made and for the same reason: the core transcribes
+  **the rule**, not a harness implementation, and adding a forward-only option to
+  `telemanom.py` would be a scope change to the module every published figure rests on.
+
+### (!) 39.6's footprint arithmetic was wrong, and the code is right instead
+The solve window is **`error_window + stride` = 2,170**, not 2,100:
+`telemanom.py:397-400` takes `e_s[seg_lo - error_window : seg_hi]`, which is 2,100 of
+history **plus the 70 being judged** -- and 39.4's entire guard-cell question is about those
+70. 39.6 nonetheless sized both rings at 2,100, so its L1 figure is **8,960 bytes light**.
+`Config::SOLVE_WINDOW` is added and says so; `TrailingWindow` now carries a logical span
+inside a ring sized for the larger user, so one class serves the threshold's 2,170 and the
+derivative's 2,100. **N3's band will be missed and the miss is reported rather than the band
+being moved.**
+
+### Measured
+Against `flight_reference`, forward-only dilation, tiers of 3 and 12 channels x 2,800 steps:
+
+```
+  d1    3 ch   eps max |diff| 1.064e-06    emissions 17 of 17, exact
+  d2   12 ch   eps max |diff| 5.072e-06    emissions 40 of 40, exact
+```
+
+**N1 HOLDS**: within 1e-5 on `eps`, and the emission flag is exact on every step of both
+tiers. **N2 gets NO VERDICT** -- its band asked for 1e-6 and the worst is 5.072e-06 -- and
+**the cause is identified rather than left open**: the reference means and standard-deviates
+a **float32** array where the core accumulates in F64, and the gap scales with `z` exactly as
+observed (6.9e-07 at z=2.5, 2.9e-06 at z=11.5 on a representative window). **The core is the
+more accurate of the two**; the residual is the reference's own float32 resolution, which is
+what 19.8 F5 said of the forward pass.
+
+### The faithfulness claim, and it is tested rather than asserted
+Two of the three streaming departures are real (`39.5`), so the third must be nothing: with
+**backward dilation restored**, `flight_reference.emissions` reproduces
+`telemanom.channel_ratios`' own emission array **byte-identically** across four
+seed-and-length combinations. Whatever the streamed form changes, it is not the arithmetic.
+`solve_window` also delegates to the published sweep outright in that mode, so there is one
+sweep and not two.
+
+### One thing the first run got wrong, and it was the test
+The eps comparison ran **after** `step`, and on a segment's last tick `step` solves and
+replaces the threshold -- so it compared the next segment's threshold against this segment's
+expectation. Every difference it reported sat on a boundary tick, which is what said so.
+`eps_held[t]` is the threshold **in force** at `t`; the comparison now reads it before the
+tick, and the test carries the reason.
+
 ## [0.6.32] - 2026-09-10 - Port stage 1: the trailing window, and its drift measured rather than assumed
 
 **`docs/MODELS.md` 39 stage 1 of 4.** Zero bucket operations, no fit, weight store

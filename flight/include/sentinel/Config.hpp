@@ -95,10 +95,21 @@ constexpr U32 ERROR_BUFFER = 100U;
 // `telemanom.py:87`. The pruning ladder's relative-drop floor.
 constexpr F32 PRUNING_P = 0.13F;
 
+// (!) THE WINDOW THE THRESHOLD IS SOLVED OVER IS `ERROR_WINDOW + STRIDE`, NOT
+// `ERROR_WINDOW`, AND `docs/MODELS.md` 39.6 GOT THIS WRONG.
+// `telemanom.py:397-400`: the window is `e_s[seg_lo - error_window : seg_hi]`,
+// which is 2,100 of history plus the 70 being judged. The module docstring says
+// so in as many words -- "the window is 2,170 samples and includes the 70 being
+// judged" -- and 39.4's whole guard-cell question is about those 70. 39.6's
+// footprint arithmetic nonetheless sized both rings at 2,100, so its L1 figure
+// is 8,960 bytes light. Corrected here; N3's band is missed and the miss is
+// reported rather than the band being moved.
+constexpr U32 SOLVE_WINDOW = ERROR_WINDOW + STRIDE;   // 2170
+
 // The largest number of exceedance runs a single window can hold: a run needs at
 // least one sample above and one below to be distinguishable, so the bound is
 // half the window, and CPP-34 wants every loop bounded by a compile-time value.
-constexpr U32 MAX_SEQUENCES = ERROR_WINDOW / 2U;
+constexpr U32 MAX_SEQUENCES = SOLVE_WINDOW / 2U;
 
 // The Level 1 statistical baseline's trailing window, from `RollingStd`'s only
 // ever-used value -- `src/sentinel_models/baselines.py:91`, `window = 120`, which

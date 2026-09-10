@@ -54,7 +54,14 @@ class TrailingWindow {
     //! Set the channel width and clear. A width past `Config::MAX_CHANNELS`
     //! clamps to zero, which leaves the window inert rather than reading past an
     //! array -- the same refusal `Baseline::configure` makes.
-    void configure(U32 nChannels);
+    //! Set the channel width and the logical span, and clear. The span is how
+    //! many trailing samples the moments are taken over; the ring is sized for
+    //! the larger of the two users at `Config::SOLVE_WINDOW`, so one class
+    //! serves the threshold's 2,170 and the derivative's 2,100 without either
+    //! carrying the other's depth. A width past `Config::MAX_CHANNELS`, or a
+    //! span past the ring, clamps to zero channels -- inert, rather than
+    //! reading past an array.
+    void configure(U32 nChannels, U32 span = Config::ERROR_WINDOW);
 
     //! Clear the ring, the accumulators and the step count.
     void reset();
@@ -90,13 +97,16 @@ class TrailingWindow {
     //! moments are of a shorter window and are honest about being so -- the
     //! reference does the same, `trailing_stats` dividing by `cnt` rather than
     //! by `span` (`scripts/decision_layer_arms.py:56`).
-    bool full() const { return m_filled >= Config::ERROR_WINDOW; }
+    bool full() const { return m_filled >= m_span; }
+
+    //! The logical span the moments are taken over.
+    U32 span() const { return m_span; }
 
   private:
     //! Channel-major, unlike `Baseline`'s slot-major ring. The threshold walks
     //! one channel's whole window 19 times per re-solve and never walks a slot
     //! across channels, so this is the order those reads want.
-    F32 m_ring[Config::MAX_CHANNELS][Config::ERROR_WINDOW];
+    F32 m_ring[Config::MAX_CHANNELS][Config::SOLVE_WINDOW];
 
     F64 m_sum[Config::MAX_CHANNELS];
     F64 m_sumSquares[Config::MAX_CHANNELS];
@@ -105,6 +115,7 @@ class TrailingWindow {
     U64 m_steps;
     U32 m_channels;
     U32 m_filled;
+    U32 m_span;      //!< logical window depth, <= Config::SOLVE_WINDOW
     U32 m_head;      //!< ring slot the next sample goes into
 };
 

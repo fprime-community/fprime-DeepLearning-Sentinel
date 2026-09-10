@@ -8,13 +8,17 @@ const F64 TrailingWindow::EPSILON = 1e-12;
 
 TrailingWindow::TrailingWindow()
     : m_ring{}, m_sum{}, m_sumSquares{}, m_count{},
-      m_steps(0U), m_channels(0U), m_filled(0U), m_head(0U) {}
+      m_steps(0U), m_channels(0U), m_filled(0U),
+      m_span(Config::ERROR_WINDOW), m_head(0U) {}
 
-void TrailingWindow::configure(U32 nChannels) {
+void TrailingWindow::configure(U32 nChannels, U32 span) {
     // Refuse by going inert, never by reading past an array. `ModelFile` has
     // already refused an oversized model with TOO_LARGE before this is reached;
     // this is the second line of the same defence.
-    m_channels = (nChannels <= Config::MAX_CHANNELS) ? nChannels : 0U;
+    const bool ok = (nChannels <= Config::MAX_CHANNELS)
+                 && (span > 0U) && (span <= Config::SOLVE_WINDOW);
+    m_channels = ok ? nChannels : 0U;
+    m_span = ok ? span : Config::ERROR_WINDOW;
     reset();
 }
 
@@ -23,7 +27,7 @@ void TrailingWindow::reset() {
         m_sum[c] = 0.0;
         m_sumSquares[c] = 0.0;
         m_count[c] = 0U;
-        for (U32 i = 0U; i < Config::ERROR_WINDOW; ++i) {
+        for (U32 i = 0U; i < Config::SOLVE_WINDOW; ++i) {
             m_ring[c][i] = 0.0F;
         }
     }
@@ -37,14 +41,19 @@ void TrailingWindow::push(const F32* values) {
         return;
     }
 
-    const bool wrapped = (m_filled >= Config::ERROR_WINDOW);
+    const bool wrapped = (m_filled >= m_span);
 
     for (U32 c = 0U; c < m_channels; ++c) {
         // Remove the sample this slot is about to overwrite. It leaves by the
         // same subtraction that admitted it, which is why the mean's drift
         // measured exactly zero over 1e6 ticks (see the header).
         if (wrapped) {
-            const F64 leaving = static_cast<F64>(m_ring[c][m_head]);
+            // The sample leaving the LOGICAL span, which is `span` slots back
+            // from where this one lands -- not the slot being overwritten, which
+            // is only the same thing when the span fills the ring.
+            const U32 departing = (m_head + Config::SOLVE_WINDOW - m_span)
+                                  % Config::SOLVE_WINDOW;
+            const F64 leaving = static_cast<F64>(m_ring[c][departing]);
             if (std::isfinite(leaving) && (m_count[c] > 0U)) {
                 m_sum[c] -= leaving;
                 m_sumSquares[c] -= leaving * leaving;
@@ -64,7 +73,7 @@ void TrailingWindow::push(const F32* values) {
         }
     }
 
-    m_head = (m_head + 1U) % Config::ERROR_WINDOW;
+    m_head = (m_head + 1U) % Config::SOLVE_WINDOW;
     if (!wrapped) {
         ++m_filled;
     }
@@ -104,8 +113,9 @@ F32 TrailingWindow::at(U32 channel, U32 index) const {
     }
     // Oldest first. `m_head` is where the next sample goes, so it is also the
     // oldest slot once the ring has wrapped; before that the oldest is slot 0.
-    const U32 oldest = (m_filled >= Config::ERROR_WINDOW) ? m_head : 0U;
-    return m_ring[channel][(oldest + index) % Config::ERROR_WINDOW];
+    const U32 oldest = (m_head + Config::SOLVE_WINDOW - m_filled)
+                       % Config::SOLVE_WINDOW;
+    return m_ring[channel][(oldest + index) % Config::SOLVE_WINDOW];
 }
 
 }  // namespace Sentinel

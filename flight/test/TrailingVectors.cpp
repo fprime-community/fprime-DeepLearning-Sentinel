@@ -105,7 +105,7 @@ F64 runTier(const char* tier, const char* path, U32& tiersRun) {
     }
 
     TrailingWindow window;
-    window.configure(h.channels);
+    window.configure(h.channels, h.span);
 
     const U32 record = static_cast<U32>(h.channels) * 20U;   // F32 + 2 x F64
     U8 row[Config::MAX_CHANNELS * 20U];
@@ -158,13 +158,13 @@ void checkTheRingWraps(U32 steps) {
 //! `at()` returns the window oldest-first, which every rule reading it needs.
 void checkOrdering() {
     TrailingWindow window;
-    window.configure(1U);
+    window.configure(1U, Config::ERROR_WINDOW);
     for (U32 t = 0U; t < Config::ERROR_WINDOW + 37U; ++t) {
         const F32 sample = static_cast<F32>(t);
         window.push(&sample);
     }
     SentinelTest::checkEqualU32(window.filled(), Config::ERROR_WINDOW,
-                                "a wrapped window is exactly ERROR_WINDOW deep");
+                                "a wrapped window is exactly its span deep");
     const F32 oldest = window.at(0U, 0U);
     const F32 newest = window.at(0U, window.filled() - 1U);
     SentinelTest::check(oldest < newest, "at(0) is older than at(filled - 1)");
@@ -180,13 +180,18 @@ void checkOrdering() {
 //! A width past the maxima goes inert instead of reading past an array.
 void checkRefusal() {
     TrailingWindow window;
-    window.configure(Config::MAX_CHANNELS + 1U);
+    window.configure(Config::MAX_CHANNELS + 1U, Config::ERROR_WINDOW);
     SentinelTest::checkEqualU32(window.nChannels(), 0U,
                                 "an oversized width configures to zero channels");
     const F32 sample = 1.0F;
     window.push(&sample);
     SentinelTest::check(window.steps() == 0U, "an inert window never advances");
     SentinelTest::check(window.mean(0U) == 0.0, "an inert window scores zero");
+
+    TrailingWindow deep;
+    deep.configure(1U, Config::SOLVE_WINDOW + 1U);
+    SentinelTest::checkEqualU32(deep.nChannels(), 0U,
+                                "a span past the ring configures to zero channels");
 }
 
 }  // namespace
@@ -211,6 +216,9 @@ int main() {
     SentinelTest::check(tiers == 3U, "every committed tier ran; none was skipped");
 
     checkTheRingWraps(Config::ERROR_WINDOW + 200U);
+    SentinelTest::checkEqualU32(Config::SOLVE_WINDOW,
+                                Config::ERROR_WINDOW + Config::STRIDE,
+                                "the solve window is history plus the judged segment");
     checkOrdering();
     checkRefusal();
 
