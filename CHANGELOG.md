@@ -14,6 +14,63 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.32] - 2026-09-10 - Port stage 1: the trailing window, and its drift measured rather than assumed
+
+**`docs/MODELS.md` 39 stage 1 of 4.** Zero bucket operations, no fit, weight store
+**1,313 -> 1,313**. 632 tests, up from 623.
+
+### Built
+- **`Sentinel::TrailingWindow`** -- a trailing right-inclusive window per channel with its
+  mean and standard deviation carried in F64. Both new streams need it and they need
+  different halves: the dynamic threshold needs the window's **contents** (it re-solves over
+  19 `z` candidates, recomputes both moments with candidates removed, and finds and prunes
+  runs inside it), the derivative stream needs only the **moments**. One class, two
+  instances, which is layout **L1** as 39.6 registered it.
+- **Channel-major**, unlike `Baseline`'s slot-major ring: the threshold walks one channel's
+  whole window 19 times per re-solve and never walks a slot across channels.
+
+### (!) It carries its moments where `Baseline` recomputes them, and the drift was measured
+`Baseline.cpp` recomputes its 120-sample window every tick and says why -- *"a running
+add/subtract drifts without bound over a mission"*. At 2,100 x 16, twice over, that would
+cost **67,200 operations a tick** against the model path's own 70,080, and 39's **N7**
+registers the derivative at O(1). So the drift was measured on D37's own regime before the
+choice was made: **1,000,000 ticks, window 2,100, N(1000, 3) float32**, running against an
+exact recompute --
+
+```
+  worst relative drift, mean   0.000e+00
+  worst relative drift, sd     4.246e-10
+```
+
+The mean's is exactly zero because every sample leaves by the same subtraction that admitted
+it. **Stated as a measurement over 1e6 ticks and not as a proof for all time.**
+
+### Measured against the reference
+`scripts/decision_layer_arms.py:53-58`'s `trailing_stats`, which differences float64 prefix
+sums over the whole series where the core carries a window -- the same quantity by different
+means, which is what makes the comparison worth drawing.
+
+```
+  t1    3 ch x 2300 steps   max |diff| 6.661e-16
+  t2    6 ch x 2300 steps   max |diff| 4.263e-14
+  t3   12 ch x 2300 steps   max |diff| 3.738e-10   <- D37's N(1000, 3) regime
+```
+
+**Worst 3.738e-10 against N1's 1e-5**, and it lands within 12% of the 4.246e-10 the Python
+drift measurement predicted, which is the two arriving at the same answer independently.
+**N2's band is met with four orders to spare.** Every tier runs 200 steps past the window,
+so the ring wraps and the subtraction is exercised rather than assumed.
+
+### Two things found while building it
+- **`TestSupport::readFile` fills a 512 KiB buffer and tier T3 is 552,064 B.** Reading it
+  whole would have truncated it **silently** -- a short read looks like a short file -- and
+  the comparison would then have run against the wrong bytes. `TrailingVectors` streams a
+  record at a time instead; a record is at most 320 bytes, and 39.7's larger decision-layer
+  vectors will not hit the same wall.
+- **T2 was cut from 12 channels to 6.** T3 already covers the flown width, and a second tier
+  at the same width buys coverage nobody has and 276 KB of tracked content somebody pays
+  for. Tracked content is **4.73 MiB**, against N8's 6 MiB band and 7 MiB stop.
+
 ## [0.6.31] - 2026-09-10 - The C++ port, pre-registered before a line of it exists
 
 **Roadmap item 1, registered and not built.** `docs/MODELS.md` 39. Zero bucket operations,

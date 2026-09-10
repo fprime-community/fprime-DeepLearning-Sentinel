@@ -38,6 +38,7 @@ set(SENTINEL_SOURCES
     src/Ewma.cpp
     src/Detector.cpp
     src/Baseline.cpp
+    src/TrailingWindow.cpp
 )
 
 add_library(sentinel_core STATIC ${SENTINEL_SOURCES})
