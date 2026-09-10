@@ -10524,7 +10524,81 @@ All decision-layer arms share **one** bundle load: they differ only after the re
 P5.3 fires; if any statistic requires a value at or after the timestep it scores; if an arm
 turns out to need a second lever; or if a figure would be quoted without its alarm rate.
 
-### 38.15 OBSERVED -- reserved, before the run
+### 38.15 OBSERVED -- first read: four arms adjudicated, three not, Arm 7 not run
 
-**Empty on purpose.** Nothing has been measured. A reader finding this heading still empty
-knows the arms have not run.
+**2026-09-10. One 165 Class B and 1 Class A read over all 81 channels**, cached weights,
+**weight store 1,313 -> 1,313** (asserted), 151.8 s to load. Artifact
+`runs/smap-msl/_forensics/2026-09-10T173015Z-arms.json`; producer
+`scripts/decision_layer_arms.py`, in this commit. Three 7-to-11 Class B smokes preceded
+it and **the projected cost matched the actual exactly** at every size.
+
+**The reproduction gate passes.** Rebuilt independently, the frozen arm returns
+**0.6820% and 10 of 38**, TUNE 6/19 and EVAL 4/19. Nothing below rests on a stack that
+differs from the measured one.
+
+#### The adjudicated arms, all at the matched 0.6820%
+
+```
+  arm                              rate      TUNE    EVAL     all 38
+  frozen (stage 4)               0.6820%     6/19    4/19     10/38
+  arm 1, p = 0.13                0.6820%     6/19    4/19     10/38
+  arm 1, p = 0.20                0.6820%    12/19    9/19     21/38
+  arm 2, residual + derivative   0.6820%    13/19   17/19     30/38
+  arm 2, fused with disagreement 0.6889%    10/19   15/19     25/38
+  arm 5, POT unbounded           0.6899%    11/19   10/19     21/38
+  arm 5, POT bounded (cap 512)   0.6899%    11/19   10/19     21/38
+```
+
+**P2.1 HOLDS decisively.** Arm 2's EVAL recall is **17 of 19** against the frozen arm's 4
+-- **+13**, where the band asked for +3. And it is a **strict superset**: it loses nothing
+the frozen arm caught.
+
+**P2.2 HOLDS.** Of EVAL's five invisible-in-residual events it catches **four**
+(`E-12[5610]`, `E-13[5309]`, `F-3[5600]`, `T-13[690]`) against a band of two. **This is
+36.4's finding reached causally** -- the signal 37.4 warned was only demonstrated under
+whole-array normalisation is reachable under a trailing one.
+
+**P2.4 REFUTED, and in the informative direction.** The ablation is **better**: dropping
+horizon disagreement takes 30/38 where fusing it takes 25/38. The band expected the
+ablation to *retain* at least two-thirds of the gain; it exceeds it. That is consistent
+with 37.4's measurement -- the derivative reaches 10 of 10 and the disagreement 4 of 10 --
+and it says the disagreement stream is **spending alarm budget for less than it returns**.
+
+**P5.1 HOLDS** -- Arm 5 reaches EVAL 10/19, +6 over the baseline, against a band of +4.
+**P5.5 HOLDS at its strongest**: the bounded peaks set (cap 512) is **identical** to the
+unbounded fit in every cell, so **the price of flight-legality is zero events** on this
+data, where the band allowed one.
+
+**(!) Arm 1 is not the clean negative result it was registered as, and the reason is a
+defect in the arm rather than in pruning.** At `p = 0.20` it reaches 21/38 -- but the
+multiplier re-solved to 0.5045, and a multiplier **below 1.0 re-admits pruned steps**,
+because `channel_ratios` maps a suppressed step to `raw/(1+raw)` and a cut under 1.0
+crosses that band. So tightening `p` and lowering the dial does not isolate pruning; it
+trades pruning for a different rule. **The dial is not rate-matching here, it is changing
+the character of the decision, and 38.3's separation of lever from dial does not hold for
+this score shape.** P1.1 and P1.2 are therefore **NOT ADJUDICATED**, and Arm 1 must be
+re-registered with a dial that cannot cross 1.0 before it is scored again.
+
+#### Three arms did NOT run cleanly and are NOT adjudicated
+
+**None of their numbers is reported as a result**, because a defective implementation is
+an unrun arm rather than a losing one.
+
+| Arm | What went wrong |
+|---|---|
+| **4a, run length** | The per-segment score is a percentile in `[0, 1]`; the achievable-cut search settled on 1.0, which admits nothing, and the realised rate was **0.0000%**. A scoring defect, not a measurement |
+| **4b, CUSUM** | With the reference slack at `k = 0.5` standard deviations the statistic has positive drift on nominal data, so `g_k` grows without bound; `h` solved to **67,026** and nothing fired inside an event. The slack must be set so the in-control drift is negative, which B&N's derivation requires and this parameterisation did not honour |
+| **6, ACI** | `alpha_0` pinned at its floor and the realised rate came out at **24.77%**, 3,532% off target. The trailing buffer is `error_window = 0.05 * len(test)`, which on short channels is a few dozen samples -- too few to support a 0.68% quantile at all. That is the same effect `docs/PHASE2.md` 5b already records, and it means **Arm 6 as parameterised cannot be brought to the matched rate**, not that ACI fails |
+
+**Arm 7 has not run.** It needs the constituents adjudicated first (38.10), and three of
+them are not.
+
+#### What this decides, and what it does not
+
+- **It does not lift D62's freeze.** The 30/38 figure is scored on all 38, including the
+  19 the parameters were selected on, and is **reported as contaminated** exactly as
+  38.10's P7.3 requires. The clean number is EVAL's **17 of 19**.
+- **It does establish that the residual is not the ceiling.** 36's oracle bound of 28/38
+  was computed on the residual stream alone; Arm 2 exceeds it because the derivative is a
+  different stream, which is what 36.4 said and 37.4 said had not been shown causally.
+- **The next work is to repair three arms and run Arm 7**, not to adopt anything.

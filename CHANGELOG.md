@@ -14,6 +14,47 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.25] - 2026-09-10 - The derivative stream reaches 17 of 19 at the frozen arm's own rate
+
+**Work item 9.21, first read. Four arms adjudicated, three NOT, Arm 7 not run. D62's
+freeze is NOT lifted.** `docs/MODELS.md` 38.15. **One read of 165 Class B and 1 Class A**
+after three smokes whose projected cost matched actual exactly at every size; cached
+weights, **weight store 1,313 -> 1,313**. Artifact
+`runs/smap-msl/_forensics/2026-09-10T173015Z-arms.json`; producer
+`scripts/decision_layer_arms.py`, in this commit.
+
+### Measured
+- **The reproduction gate passes**: the frozen arm rebuilt independently returns
+  **0.6820% and 10 of 38**.
+- **P2.1 holds decisively.** Residual plus first derivative, both standardised on a
+  **trailing** window, reaches **EVAL 17 of 19** against the frozen arm's 4 -- +13 where
+  the band asked +3 -- at the same 0.6820%, and it is a **strict superset**: it loses
+  nothing the frozen arm caught.
+- **P2.2 holds.** Four of EVAL's five invisible-in-residual events are caught. **36.4's
+  finding is reached causally**, which 37.4 had explicitly said was unproven.
+- **P2.4 refuted in the informative direction.** Dropping horizon disagreement is
+  **better** -- 30/38 against 25/38 fused -- consistent with 37.4's 10-of-10 for the
+  derivative against 4-of-10 for the disagreement.
+- **P5.1 holds** (Arm 5 POT, EVAL 10/19) and **P5.5 holds at its strongest**: the bounded
+  peaks set is **identical to the unbounded fit in every cell**, so the price of
+  flight-legality is **zero events** on this data.
+
+### Not adjudicated, and reported as such
+- **Arm 1** is not the clean negative result it was registered as: a multiplier below 1.0
+  **re-admits pruned steps**, because `channel_ratios` maps a suppressed step to
+  `raw/(1+raw)`. So tightening `p` and lowering the dial trades pruning for a different
+  rule rather than isolating the lever, and **38.3's separation of lever from dial does
+  not hold for this score shape**. To be re-registered with a dial that cannot cross 1.0.
+- **Arms 4a, 4b and 6 did not run cleanly** -- a scoring defect, a reference slack that
+  left the CUSUM with positive in-control drift, and a trailing buffer too short to
+  support a 0.68% quantile. **None of their numbers is reported as a result**, because a
+  defective implementation is an unrun arm and not a losing one.
+
+### Unchanged
+- **D62's freeze stands.** The 30/38 figure is scored on all 38 including the 19 the
+  parameters were selected on and is **reported as contaminated**, as 38.10 requires. The
+  clean number is EVAL's 17 of 19. Nothing is adopted.
+
 ## [0.6.24] - 2026-09-10 - The size cap is raised to 8 MiB; the format refusals are untouched
 
 **Infrastructure only. Zero R2 operations, no arm ran, D62's freeze stands.** Landed as
