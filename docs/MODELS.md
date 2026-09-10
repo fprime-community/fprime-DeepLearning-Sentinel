@@ -10602,3 +10602,60 @@ them are not.
   was computed on the residual stream alone; Arm 2 exceeds it because the derivative is a
   different stream, which is what 36.4 said and 37.4 said had not been shown causally.
 - **The next work is to repair three arms and run Arm 7**, not to adopt anything.
+
+#### Second read, 2026-09-10: the repairs, and what they settle
+
+**One further 165 Class B and 1 Class A**, cached weights, **weight store 1,313 ->
+1,313**, 154.4 s, after two smokes at 11 Class B whose projected cost again matched
+actual exactly. Artifact `runs/smap-msl/_forensics/2026-09-10T182234Z-arms2.json`. The
+reproduction gate passes again at **0.6820% and 10 of 38**.
+
+**Arm 1 is now the clean negative result it was registered as, and the diagnosis above is
+confirmed.** With the dial floored at 1.0 so it can only tighten:
+
+```
+      p       rate      TUNE   EVAL   all 38
+   0.00     0.4814%    12/19  11/19   23/38   below budget, unmatched
+   0.10     0.0793%     8/19   5/19   13/38   below budget, unmatched
+   0.13     0.6820%     6/19   4/19   10/38   MATCHED
+   0.16     0.5955%     6/19   4/19   10/38   below budget, unmatched
+   0.20     0.4827%     5/19   3/19    8/38   below budget, unmatched
+```
+
+**At `p = 0.13` with a legal dial the arm is identical to the frozen arm event for
+event**, and **no other `p` reaches the rate at all**. The 20/38 and 21/38 that the first
+read showed at `p = 0.16` and `p = 0.20` were produced by dials of 0.5099 and 0.5045 --
+below 1.0, therefore re-admitting steps pruning had deleted -- and they collapse to 10/38
+and 8/38 once the dial is legal. **P1.1 FAILS. Pruning is closed as a lever**, and the
+first read's suspicion about the dial is now a measurement rather than a diagnosis.
+
+**Arm 4b is a second clean negative.** With the reference slack at `CUSUM_K = 3.0` the
+in-control drift is negative as B&N's derivation requires, and the arm **matches the rate
+exactly at 0.6820% and catches 0 of 38**. **P4b.1 FAILS.** A CUSUM on the standardised
+residual, correctly parameterised, reaches none of this population at a flyable rate.
+
+**Arm 2 reproduces exactly on an independent run** -- 0.6820%, TUNE 13/19, **EVAL 17/19**,
+and the EVAL event set is **identical** to the first read's. Arm 5 likewise, at EVAL 10/19
+with the bounded and unbounded fits still identical in every cell.
+
+**Three arms still did not run cleanly and remain NOT ADJUDICATED.** Arm 4a's
+length-relative score still leaves no cut that admits the budget (0.0000% at a cut of
+70.0); Arm 6's ACI, given a 1,000-sample buffer floor, now returns 17.88% and pins
+`alpha_0` at its bound; and **Arm 7 inherits both**, reaching 11.65% while catching
+nothing, so its joint fit never descends to the budget. **None of their numbers is
+reported as a result.** Arm 7's P7.1, P7.2 and P7.3 are unadjudicated, and the union
+remains unmeasured.
+
+**Both approved reads are now spent.** Month: **222 Class A and 4,966 Class B of 50,000**.
+Repairing the three and running Arm 7 needs a third read and is not taken here.
+
+#### What the two reads settle
+
+- **Pruning is closed** (P1.1 fails, twice, the second time with a legal dial).
+- **CUSUM on the residual is closed at this parameterisation** (P4b.1 fails at a matched
+  rate).
+- **The derivative stream is the finding**, reproduced identically on two independent
+  reads: EVAL **17 of 19** against the frozen arm's 4, at the same 0.6820%, a strict
+  superset, with 4 of EVAL's 5 invisible-in-residual events recovered.
+- **EVT is a real but smaller gain** (EVAL 10/19) whose flight-legal bound costs nothing.
+- **The union is unmeasured**, so no claim is made about heterogeneity.

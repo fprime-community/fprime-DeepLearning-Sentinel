@@ -14,6 +14,39 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.26] - 2026-09-10 - Second read: pruning and CUSUM close as negatives; three arms still will not run
+
+**Work item 9.21, second read. Both approved reads are now spent.** D62's freeze is NOT
+lifted here; a draft entry that would supersede it is prepared and **not committed**.
+**One read of 165 Class B and 1 Class A** after two 11 Class B smokes whose projected cost
+again matched actual exactly; cached weights, **weight store 1,313 -> 1,313**. Artifact
+`runs/smap-msl/_forensics/2026-09-10T182234Z-arms2.json`.
+
+### Repaired, and the repairs settled two arms
+- **Arm 1's dial is floored at 1.0 so it can only tighten.** The first read's 20/38 and
+  21/38 at `p = 0.16` and `p = 0.20` came from dials of 0.5099 and 0.5045 -- **below 1.0,
+  therefore re-admitting steps pruning had deleted**. With a legal dial they collapse to
+  10/38 and 8/38, and at `p = 0.13` the arm is **identical to the frozen arm event for
+  event**. **P1.1 fails; pruning is closed as a lever**, and the first read's diagnosis is
+  now a measurement.
+- **Arm 4b's reference slack is `CUSUM_K = 3.0`**, so the in-control drift is negative as
+  B&N's derivation requires. It **matches the rate exactly and catches 0 of 38**.
+  **P4b.1 fails.**
+
+### Confirmed on an independent run
+- **Arm 2 reproduces exactly**: 0.6820%, TUNE 13/19, **EVAL 17/19**, and the EVAL event
+  set is **identical** to the first read's. Arm 5 likewise at EVAL 10/19, bounded and
+  unbounded still identical in every cell.
+
+### Still not adjudicated
+- **Arms 4a, 6 and 7.** Arm 4a's rescored run-length statistic still leaves no cut that
+  admits the budget; Arm 6's ACI, given the 1,000-sample buffer floor `docs/PHASE2.md` 5b
+  argues for, returns 17.88% and pins `alpha_0` at its bound; **Arm 7 inherits both** and
+  never descends to the budget. **No number of theirs is reported.** The union is
+  **unmeasured** and no heterogeneity claim is made.
+- Repairing them needs a third read, which is not taken. Month: **222 Class A and
+  4,966 Class B of 50,000**.
+
 ## [0.6.25] - 2026-09-10 - The derivative stream reaches 17 of 19 at the frozen arm's own rate
 
 **Work item 9.21, first read. Four arms adjudicated, three NOT, Arm 7 not run. D62's

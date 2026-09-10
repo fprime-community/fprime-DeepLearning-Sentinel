@@ -45,6 +45,8 @@ P_GRID = [0.0, 0.02, 0.05, 0.08, 0.10, 0.13, 0.16, 0.20]
 Q_GRID = [0.50, 0.75, 0.90, 0.95, 0.99]
 GAMMA_GRID = [0.001, 0.005, 0.02]
 PEAK_CAP = 512
+CUSUM_K = 3.0
+ACI_MIN_BUFFER = 1000
 TARGET_RATE = [None]
 
 
@@ -111,7 +113,7 @@ def pooled_rate(masks, per):
     n = sum(int(per[c]["nominal"].sum()) for c in masks)
     return a/n if n else float("nan")
 
-def solve_threshold(per, key, target, lo=None, hi=None, steps=None):
+def solve_threshold(per, key, target, lo=None, hi=None, steps=None, floor=None):
     """The threshold is the (1 - target) quantile of the POOLED NOMINAL scores.
 
     Exact by construction, and immune to the step-shaped scores
@@ -129,7 +131,10 @@ def solve_threshold(per, key, target, lo=None, hi=None, steps=None):
     # matter -- `channel_ratios` forces every surviving step to exactly 1.0, so the
     # achievable rates are DISCRETE and a target between two of them is unreachable.
     q0 = float(np.quantile(pool, 1.0 - target))
+    if floor is not None: q0 = max(q0, floor)
     uniq = np.unique(pool)
+    if floor is not None: uniq = uniq[uniq >= floor]
+    if not uniq.size: uniq = np.array([floor])
     i = int(np.searchsorted(uniq, q0))
     cands = uniq[max(0, i - 3): i + 4]
     cands = np.unique(np.concatenate([cands, [q0, np.nextafter(q0, np.inf)]]))
@@ -218,8 +223,12 @@ def main(argv=None) -> int:
         cfg = det.config; span = cfg.error_window
         zr = zstat(e_s, span); zd = zstat(np.abs(np.diff(x, prepend=x[0])), span)
         zg = zstat(np.nan_to_num(np.nanstd(hz, axis=1), nan=0.0), span)
+        # B&N's CUSUM needs E[s_k] < 0 in control. The trailing-standardised residual
+        # is right-skewed, so a slack of 0.5 left positive drift and h solved to 67,026
+        # with nothing firing (38.15). CUSUM_K = 3.0 sigma is fixed a priori and
+        # dimensionless: no label, no data-unit constant (D55).
         g = np.zeros(len(zr)); acc = 0.0
-        for k, sk in enumerate(zr - 0.5):
+        for k, sk in enumerate(zr - CUSUM_K):
             acc = max(0.0, acc + sk); g[k] = acc
         per[cid] = dict(e_s=e_s, nominal=nominal, cfg=cfg, steps=len(x), zr=zr,
                         S={"arm2": np.maximum.reduce([zr, zd, zg]),
@@ -252,9 +261,13 @@ def main(argv=None) -> int:
             cfg_p = telemanom.Config(error_window=d["cfg"].error_window, stride=d["cfg"].stride,
                                      pruning_p=p)
             d["S"][f"p{p}"] = np.asarray(telemanom.channel_ratios(d["e_s"], cfg_p), float)
-        got = solve_threshold(per, f"p{p}", target, 0.0, 50.0)
+        # (!) The dial may only TIGHTEN. `channel_ratios` maps a suppressed step to
+        # raw/(1+raw) < 1 and a surviving one to max(raw, 1) >= 1, so ANY cut below
+        # 1.0 re-admits steps pruning deleted -- which is not rate-matching, it is a
+        # different rule. 38.15 recorded that defect; the dial is now floored at 1.0.
+        got = solve_threshold(per, f"p{p}", target, floor=1.0)
         arm1[p] = got
-        rows.append(report(f"arm1 p={p:.2f}", got[2], per, targets, f"mult {got[0]:.4f}"))
+        rows.append(report(f"arm1 p={p:.2f}", got[2], per, targets, f"mult {got[0]:.4f} (dial >= 1)"))
     best_p = max(P_GRID, key=lambda p: len(caught(arm1[p][2], targets, TUNE)))
     detail["arm1_selected_p"] = best_p
     print(f"  ARM 1: p selected on TUNE = {best_p}")
@@ -274,7 +287,7 @@ def main(argv=None) -> int:
     for cid, d in per.items():
         cfgc, e = d["cfg"], d["e_s"]
         span, stride = cfgc.error_window, max(1, cfgc.stride)
-        score = np.full(d["steps"], -np.inf)
+        score = np.zeros(d["steps"])
         for seg_lo in range(0, d["steps"], stride):
             seg_hi = min(seg_lo + stride, d["steps"])
             ref_lo = max(0, seg_lo - span)
@@ -283,10 +296,12 @@ def main(argv=None) -> int:
             eps, _ = telemanom.dynamic_threshold(np.asarray(win, dtype=np.float32), cfgc)
             ref = e[ref_lo:seg_lo]
             rl = np.array([hi-lo for lo, hi in raw_runs(ref >= eps)]) if ref.size else np.array([])
+            # Score a candidate run by its length RELATIVE to the reference cells' own
+            # run lengths. Finite and unbounded above, so a cut exists; 38.15 recorded
+            # that a percentile in [0,1] left the search with nothing to cut at.
+            scale = float(np.median(rl)) if rl.size >= 5 else 1.0
             for lo, hi in raw_runs(e[seg_lo:seg_hi] >= eps):
-                L = hi - lo
-                pct = float((rl < L).mean()) if rl.size >= 5 else 1.0   # abstain -> retain
-                score[seg_lo+lo:seg_lo+hi] = max(pct, 1e-9)
+                score[seg_lo+lo:seg_lo+hi] = (hi - lo) / max(scale, 1.0)
         runlen[cid] = score
         d["S"]["arm4a"] = score
     got = solve_threshold(per, "arm4a", target)
@@ -317,6 +332,7 @@ def main(argv=None) -> int:
             if r == r and abs(r - target) <= 0.02*target: break
         rows.append(report(tag, best[2], per, targets, f"q {best[0]:.3e}"))
         detail[key] = dict(q=best[0], eval=caught(best[2], targets, EVAL))
+    z5 = {c: pot_z(per[c]["pot"], detail["pot"]["q"]) for c in per}
     fits = [per[c]["pot"] for c in per if per[c]["pot"]]
     detail["pot_gamma_ok"] = sum(1 for f in fits if f["gamma"] > -0.5)
     detail["pot_fitted"] = len(fits); detail["pot_channels"] = len(per)
@@ -328,40 +344,103 @@ def main(argv=None) -> int:
         The quantile is refreshed once per `stride`, not per sample -- the cadence
         the frozen arm already runs at, and O(T/stride) rather than O(T) quantiles.
         """
-        masks, traj = {}, []
+        masks, traj, ratio = {}, [], {}
         for cid, d in per.items():
-            span, stride = d["cfg"].error_window, max(1, d["cfg"].stride)
+            # PHASE2 5b: a 0.1%-tail quantile needs ~1,000 samples to be an interior
+            # one. error_window is 0.05*len(test), a few dozen on short channels, and
+            # 38.15 measured the consequence -- 24.77% realised against a 0.68% target.
+            span = max(d["cfg"].error_window, ACI_MIN_BUFFER)
+            stride = max(1, d["cfg"].stride)
             e, alpha = d["e_s"], alpha0
             m = np.zeros(d["steps"], dtype=bool); a_hist = []
+            rr = np.zeros(d["steps"])
             for seg_lo in range(0, d["steps"], stride):
                 seg_hi = min(seg_lo + stride, d["steps"])
                 buf = e[max(0, seg_lo - span):seg_lo]
                 thr = (float(np.quantile(buf, 1.0 - np.clip(alpha, 1e-6, 0.5)))
-                       if buf.size > 50 else np.inf)
+                       if buf.size >= ACI_MIN_BUFFER else np.inf)
                 hit = e[seg_lo:seg_hi] >= thr
                 m[seg_lo:seg_hi] = hit
+                rr[seg_lo:seg_hi] = (e[seg_lo:seg_hi] / thr) if np.isfinite(thr) and thr > 0 else 0.0
                 err = float(hit.mean()) if hit.size else 0.0
                 alpha = float(np.clip(alpha + gam * (alpha0 - err), 1e-6, 0.5))
                 a_hist.append(alpha)
-            masks[cid] = m; traj.append(np.array(a_hist))
-        return masks, traj
+            masks[cid] = m; traj.append(np.array(a_hist)); ratio[cid] = rr
+        return masks, traj, ratio
 
     for gam in GAMMA_GRID:
         lo_a, hi_a, best = 1e-6, 0.2, None
         for _ in range(24):                       # rate-match by bisecting alpha0 (38.3)
             a0 = (lo_a * hi_a) ** 0.5
-            masks, traj = aci(gam, a0)
-            r = pooled_rate(masks, per); best = (a0, r, masks, traj)
+            masks, traj, ratio = aci(gam, a0)
+            r = pooled_rate(masks, per); best = (a0, r, masks, traj, ratio)
             if r > target: hi_a = a0
             else: lo_a = a0
             if r == r and abs(r - target) <= 0.02 * target: break
-        a0, r, masks, traj = best
+        a0, r, masks, traj, ratio = best
         alla = np.concatenate([x for x in traj if x.size]) if traj else np.array([a0])
         iqr = float(np.percentile(alla, 75) - np.percentile(alla, 25))
         rows.append(report(f"arm6 ACI g={gam}", masks, per, targets,
                            f"alpha0 {a0:.3e} iqr/alpha {iqr/max(a0,1e-12):.2f}"))
+        if gam == GAMMA_GRID[0]:
+            a6_score = dict(ratio)      # continuous, so it scales with u
         detail[f"arm6_g{gam}"] = dict(alpha0=a0, eval=caught(masks, targets, EVAL),
                                       alpha_iqr_over_alpha=iqr / max(a0, 1e-12))
+
+    # ---- Arm 7: the union, budget FITTED JOINTLY (38.3) --------------------
+    # oscfar.py:80-84 records this project making the other half of this error:
+    # calibrating each term to the target on its own "is wrong, and it is kept
+    # because it is what ran". Here a single shared level `u` is bisected until the
+    # UNION admits the target, exactly as oscfar._fit_jointly does.
+    members = ["arm2_nodis", "arm4a", "arm4b", "arm5", "arm6"]
+    for cid, d in per.items():
+        d["S"]["arm5"] = np.where(np.isfinite(z5.get(cid, np.inf)) & (z5.get(cid, np.inf) > 0),
+                                  d["e_s"] / max(z5.get(cid, np.inf), 1e-30), 0.0) \
+            if cid in z5 else np.zeros(d["steps"])
+        d["S"]["arm6"] = a6_score.get(cid, np.zeros(d["steps"]))
+
+    def union_at(u):
+        """Each member cut at its own pooled-nominal (1-u) quantile, then OR'd."""
+        cuts, masks = {}, {}
+        for k in members:
+            pool = np.concatenate([per[c]["S"][k][per[c]["nominal"]] for c in per])
+            pool = pool[np.isfinite(pool)]
+            cuts[k] = float(np.quantile(pool, 1.0 - u)) if pool.size else np.inf
+        for c in per:
+            m = np.zeros(per[c]["steps"], dtype=bool)
+            for k in members: m |= per[c]["S"][k] >= cuts[k]
+            masks[c] = m
+        return cuts, masks
+
+    lo_u, hi_u, best7 = 1e-8, 0.05, None
+    for _ in range(40):
+        u = (lo_u * hi_u) ** 0.5
+        cuts, masks = union_at(u)
+        r = pooled_rate(masks, per); best7 = (u, r, masks, cuts)
+        if r > target: hi_u = u
+        else: lo_u = u
+        if r == r and abs(r - target) <= 0.02 * target: break
+    u, r7, masks7, cuts7 = best7
+    rows.append(report("arm7 union (joint fit)", masks7, per, targets, f"shared level u {u:.3e}"))
+
+    # per-event attribution: which member fired on each caught event
+    attribution = {}
+    for cid, lo, hi in targets:
+        if cid not in per or not masks7[cid][lo:hi+1].any(): continue
+        who = [k for k in members if (per[cid]["S"][k][lo:hi+1] >= cuts7[k]).any()]
+        attribution[f"{cid}[{lo}]"] = who
+    from collections import Counter
+    share = Counter(k for v in attribution.values() for k in v)
+    solo = Counter(v[0] for v in attribution.values() if len(v) == 1)
+    detail["arm7"] = dict(shared_level=u, cuts=cuts7, attribution=attribution,
+                          eval=caught(masks7, targets, EVAL),
+                          member_share={k: share.get(k, 0) for k in members},
+                          sole_credit={k: solo.get(k, 0) for k in members})
+    n7 = max(1, len(attribution))
+    top = max(share.values()) / n7 if share else 0.0
+    print(f"    attribution over {len(attribution)} caught events: "
+          + ", ".join(f"{k} {share.get(k,0)}" for k in members))
+    print(f"    largest single-member share {100*top:.0f}%  (P7.2 band: under 70%)")
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     out = dict(generated_utc=stamp, pre_registration="docs/MODELS.md 38",
