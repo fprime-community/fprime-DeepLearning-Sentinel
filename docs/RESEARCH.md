@@ -248,11 +248,100 @@ deterministic, and it is what `flight/` can carry today -- but it is no longer
 supported by this reason**, and an EVT arm that adapts from nominal data is
 registrable rather than refused at the door.
 
-**Still Secondary, and that now matters more than it did.** This entry was written
-without reading the paper, and it is the basis on which a whole method was set
-aside. `docs/NARRATIVE.md` 11 records what carrying an unread reading cost the last
-time. The paper is being obtained; nothing further is claimed about SPOT's
-mechanism until it is read at first hand.
+**(!) NOW PRIMARY, read at first hand 2026-09-10.** The entry above was written
+without reading the paper, and it was the basis on which a whole method was set
+aside. The paper has since been read from the open mirror
+`www.eecs.yorku.ca/course_archive/2017-18/F/6412/reading/kdd17p1067.pdf`
+(cite as DOI `10.1145/3097983.3098144`; the mirror is recorded because that is
+what was read). What follows is transcribed from it, not recalled.
+
+**How it was read, and why that is stated.** `WebFetch` returns undecoded streams
+for this PDF, and the machine has no PDF text extractor. The document was decoded
+with a stdlib-only reader that resolves **every glyph through the `/ToUnicode` CMap
+of the font that was active when it was drawn**, per page and per Form XObject.
+That matters here specifically: a first attempt used one global ligature map and
+**silently rendered `sigma` as the "fi" ligature**, because code `0x1b` is `sigma`
+in the maths fonts (`rtxmi`, `rtxmi7`, `LinLibertineI7`) and the `fi` ligature in
+the text fonts (`LinLibertineT`, `TB`, `TI`). The font-aware decode was verified on
+exactly that point before anything was read from it.
+
+**Residual ambiguity, named rather than inferred.** 81 glyph instances of 46,628
+(0.17%) have no CMap entry. In the two formulas transcribed below **every one of
+them is from `txexs`**, the TX extension font, which carries only large delimiters
+and big operators: `0x20`/`0x21` big brackets, `0x12`/`0x13` big parentheses,
+`0xd5` the summation sign, `0x10`/`0x11` interval brackets. **No variable is
+missing from either formula.**
+
+*Taken, and this is the mechanism `docs/MODELS.md` 38's Arm 5 is built on:*
+
+```
+  Theorem 3.1 (Pickands-Balkema-de Haan). F in D_gamma iff a function sigma
+  exists, for all x with 1 + gamma*x > 0, such that
+      Fbar(t + sigma(t)x) / Fbar(t)  ->  (1 + gamma*x)^(-1/gamma)   as t -> tau
+  so the excesses X - t over a high threshold t follow a Generalized Pareto
+  Distribution with parameters (gamma, sigma); the location mu is null here.
+
+  Equation 1, the quantile:
+      z_q  ~=  t + (sigma_hat / gamma_hat) * [ (q*n / N_t)^(-gamma_hat) - 1 ]
+  where t is a "high" threshold, q the desired probability, n the total number of
+  observations, and N_t the number of peaks, i.e. of X_i with X_i > t.
+
+  Algorithm 1 (POT), verbatim:
+      1: procedure POT(X_1 ... X_n, q)
+      2:   t     <- SetInitialThreshold(X_1 ... X_n)
+      3:   Y_t   <- { X_i - t | X_i > t }
+      4:   gamma_hat, sigma_hat <- Grimshaw(Y_t)
+      5:   z_q   <- CalcThreshold(q, gamma_hat, sigma_hat, n, N_t, t)
+      6:   return z_q, t
+
+  The Grimshaw reduction (3.4.2): with l(gamma, sigma) = log L(gamma, sigma), any
+  solution of grad l = 0 has x* = gamma*/sigma* solving the SCALAR equation
+      u(x) v(x) = 1,   u(x) = (1/N_t) sum_i 1 / (1 + x Y_i)
+                       v(x) = 1 + (1/N_t) sum_i log(1 + x Y_i)
+  and then gamma* = v(x*) - 1, sigma* = gamma* / x*. Roots are only candidates:
+  all of them are found, their likelihoods computed, and the best tuple kept.
+  1 + x*Y_i must be strictly positive, so the search runs on (-1/Y_M, +inf) with
+  Y_M = max Y_i.
+
+  The initial threshold t (4.3.3): "in practice its value is not paramount except
+  that it must be 'high' enough" -- higher t means a better GPD fit (low bias) but
+  a sparser peaks set (high variance); the one hard condition is t < z_q. "In
+  practice we set t to a high empirical quantile (98%)."
+
+  DSPOT (4.2.2): SPOT is run not on X_i but on X'_i = X_i - M_i, where
+  M_i = (1/d) * sum_{k=1..d} X*_{i-k} over "the last d NORMAL observations".
+  Strictly trailing, and anomalies are excluded from the local model. It adds one
+  parameter, the window d.
+```
+
+**(!) Verified against a second source, as the transcription rule requires.**
+Equation 1 was cross-checked against an independent statement of the POT return
+level, `z_m = u + (sigma/xi) * [ (m * zeta_u)^xi - 1 ]` with `zeta_u` the
+exceedance fraction and `m` the return period. Substituting `u = t`,
+`zeta_u = N_t/n` and `m = 1/q` gives `t + (sigma/gamma) * [ ((1/q)(N_t/n))^gamma - 1 ]`,
+and `(q*n/N_t)^(-gamma) = ((1/q)(N_t/n))^gamma`, so the two are algebraically
+identical. The decode and the independent statement agree.
+
+**(!) Two sentences that bear directly on D63, and they are the arm's flight case
+rather than a footnote.** First, on the initialisation (4.2): *"The POT primitive
+may be seen as a training step but this is partly wrong because the initial batch
+X_1 ... X_n is not labeled and is not considered as a ground truth in our
+algorithm. The initialization is more a calibration step."* Second, on the update
+(4.2.1): *"The anomalies are not taken into account for the model update."*
+**SPOT withholds what it has flagged from its own update**, which is exactly the
+boundary D63 draws -- the detector's notion of normal is never updated from data
+it has not treated as normal. And 4.2.1 records that *"it is possible to do it
+off-line at fixed time interval"* rather than per sample, which maps onto this
+project's `stride` structure rather than requiring a per-tick refit.
+
+**What is NOT in the paper, and must not be attributed to it.** There is **no
+statement that the peaks set may be bounded to a fixed size**. The paper says only
+that it stores "only the peaks", so "it requires low memory". Any bound is this
+project's own engineering decision under F' CPP-1, and `docs/MODELS.md` 38 registers
+it as such and measures what it costs.
+
+*Where it is thin:* the experiments (section 5) and the complexity analysis have not
+been read; nothing is claimed here about SPOT's measured performance on any dataset.
 
 ### EGPWS and TCAS -- certified avionics
 
@@ -512,12 +601,67 @@ address D29's instance**, and Arm 6 is written to test that rather than to assum
 guarantee is also a *long-run average* over `T`, which is a different object from the
 per-window behaviour a mission cares about.
 
+### Basseville and Nikiforov, "Detection of Abrupt Changes: Theory and Application", Prentice-Hall 1993 -- the read source for CUSUM
+
+**Primary**, read at first hand 2026-09-10 from the authors' own freely-available copy at
+`people.irisa.fr/Michele.Basseville/kniga/kniga.pdf`. Chapter 2, section 2.2, pages 35-41.
+Decoded with the same stdlib font-aware reader used for Siffer; this document is a
+1992-era PDF with standard encodings and its mathematics decoded cleanly.
+
+*Taken, and it is the mechanism `docs/MODELS.md` 38's Arm 4b is built on:*
+
+```
+  The intuition (2.2.1, p.36-37). The log-likelihood ratio S_k drifts negative before
+  a change and positive after it, so the informative quantity is the difference
+  between S_k and its running minimum:
+      g_k = S_k - m_k >= h                                          (2.2.1)
+      S_k = sum_{i=1..k} s_i,   s_i = log[ p_1(y_i) / p_0(y_i) ]    (2.2.2)
+      m_k = min_{1<=j<=k} S_j
+      t_a = min{ k : g_k >= h } = min{ k : S_k >= m_k + h }         (2.2.3, 2.2.4)
+  B&N note this "is nothing but a comparison between the cumulative sum S_k and an
+  ADAPTIVE threshold m_k + h", modified on-line.
+
+  The recursive form (2.2.2, p.38-39), which is what makes it flight-shaped:
+      g_k = g_{k-1} + log[p_1(y_k)/p_0(y_k)]  if that is > 0, else 0    (2.2.8)
+      g_0 = 0
+  compacted as
+      g_k = (g_{k-1} + s_k)^+,  where (x)^+ = sup(0, x)                (2.2.9)
+      t_a = min{ k : g_k >= h }                                        (2.2.10)
+  and B&N state this form "is equivalent to the other form that we presented in
+  (2.2.4)". One scalar of state, one add, one max, one compare per sample.
+```
+
+**Why this source rather than Page 1954.** Page's original has no open full text. B&N
+carry the algorithm, its derivation as a **repeated sequential probability ratio test**
+(2.2.2), the off-line statistical derivation (2.2.3), the two-sided form (2.2.5), and the
+average-run-length theory -- so one read source discharges what four paywalled ones were
+wanted for.
+
+**(!) One caution taken from it, and it changes Arm 4b's design.** B&N introduce the
+**average run length function** as the tool that "concentrates the information about
+both these performance indexes" -- mean delay and mean time between false alarms -- and
+state plainly that **"the computation of this function is difficult for most of the
+practically relevant change detection problems"**, which is why they give numerical
+algorithms for it. So the map from the decision interval `h` to an alarm-rate budget is
+**not closed-form in general**. Arm 4b therefore calibrates `h` by bisection on nominal
+data to hit the budget, the way `src/sentinel_models/oscfar.py`'s `_fit_jointly` already
+calibrates its multipliers, rather than inverting an ARL formula.
+
+*Where it is thin:* only chapter 2 section 2.2 has been read. The ARL numerical algorithms,
+the two-sided form's details and the optimality results are cited as framing, not
+transcribed.
+
 ### Page 1954; Lorden 1971; Moustakides 1986; Pollak -- quickest change detection
 
-**Not read.** Cited as *framing* only: the formal statement of the problem the decision
-layer is solving is minimising detection delay subject to a false-alarm constraint.
-**No mechanism in this repository is taken from any of them.** Page 1954 is being obtained
-for Arm 4b's CUSUM; nothing about CUSUM is written until it is read.
+**CITED BUT NOT READ, and the distinction is deliberate.** Page, *"Continuous inspection
+schemes"*, Biometrika 41(1-2):100-115, DOI `10.1093/biomet/41.1-2.100`, is the origin of
+CUSUM and has no open full text. **Nothing in this repository is implemented from it.**
+The mechanism is taken from Basseville and Nikiforov above, which is read; Page is cited
+as the origin, as B&N themselves cite it. Lorden, Moustakides and Pollak are cited as
+*framing* only -- the formal statement that the decision layer is minimising detection
+delay subject to a false-alarm constraint -- and no mechanism is taken from any of them.
+This is the same treatment `docs/DECISIONS.md` D53 established for a published method:
+the claim is only as strong as the source actually opened.
 
 ### Nelson 1984; Western Electric 1956; Hawkins 1987; Quesenberry 1991 -- SPC runs rules and self-starting charts
 

@@ -10152,3 +10152,379 @@ rate; or if R1.3 fires.
 **Empty on purpose.** Nothing has been measured. This heading exists so that the outcome
 lands beside the prediction rather than replacing it, and so that a reader who finds it
 still empty knows the arms have not run.
+
+## 38. Pre-registration: the decision layer replaced, seven arms and a stride (work item 9.21)
+
+**Registered 2026-09-10. NOTHING HERE HAS RUN.** D62's freeze stands: the pipeline is
+stage 4's configuration at **10 of 38**, and stays there until an arm below beats it at a
+matched rate. 38.15 is the OBSERVED heading and is empty on purpose.
+
+**Zero R2 operations were spent registering it.** Every mechanism below is transcribed
+from a source **read at first hand** and cited by section; `docs/RESEARCH.md` Part I and
+Part V record what was read, how, and what was not. Nothing is implemented from a
+description of a source.
+
+### 38.1 Why the decision layer is being replaced rather than tuned
+
+37.7a measured that **no pruning value catches more than 10 at or below 0.6820%**, and
+that all 13 pruned-and-recoverable events die by wide margins -- the most nearly retained
+needs `p <= 0.1137` against a published 0.13.
+
+**The published method's own author says why.** Hundman et al. section 4.3, read at first
+hand: pruning *"only decreases overall recall by 4.8 percentage points (84.8% to 80.0%)
+while increasing overall precision by 38.6 percentage points (48.9% to 87.5%)"* -- on a
+population that is **59% point anomalies** (`third_party/telemanom/README.md:119-121`).
+This project deliberately selected the 38 **in-range contextual** events, which is the
+subset where pruning's premise is false: it asks whether a candidate's peak stands out
+from the channel's other peaks, and an in-range event's peak by construction does not.
+
+And the same section continues:
+
+> *"The `p` parameter is an important lever for controlling precision and recall, and an
+> appropriate value can be inferred **when labels are available**. In our setting,
+> reasonable results were achieved with `0.05 < p < 0.20`."*
+
+**Two things follow, and both are registered rather than assumed.** A deploying mission
+has no labels (`docs/HARNESS.md` 6b), so a fixed `p` is exactly the absolute-constant
+transfer D55 warns about -- now on the author's own authority rather than by inference.
+And **every one of the 13 lost events sits inside that published band** (max 0.1137,
+median 0.0834): they are not lost to an exotic setting but to one value the author calls
+reasonable while another equally reasonable value keeps them.
+
+### 38.2 One correction to the commissioning brief, and it changes an attribution
+
+The brief stated that Siffer's paper sanctions bounding the peaks set to a fixed size and
+that this is what makes the method flight-legal. **It does not.** The paper says only that
+it stores "only the peaks" and so "requires low memory"; there is no statement permitting
+a fixed bound. **The bound is this project's own engineering decision and is registered as
+such in Arm 5**, justified from `Objective.md` 11 rule 5 and F' CPP-1 rather than from the
+paper, and **measured rather than assumed** (P5.5).
+
+### 38.3 How every arm is matched, and how the union budget is fitted
+
+As 37.9, restated because 38 adds a union: the **multiplier is the rate-matching dial, not
+a second lever** (33's M3), no arm reports a figure at its own cut, every arm is matched to
+the frozen arm's own **0.6820%** with 0.6838% reported beside it, scored on 37.8's
+committed channel-disjoint split, **both halves UNDERPOWERED (D3, n = 19)**, MSL first.
+
+**(!) The union budget is FITTED JOINTLY, not allocated -- and this repository has already
+made the other mistake once.** `src/sentinel_models/oscfar.py:80-84` records it:
+
+> *"`independent` calibrates each term to the target rate on its own and takes the
+> maximum. **It is wrong, and it is kept because it is what ran**: the maximum of two
+> thresholds each admitting r admits far less than r."*
+
+For a union of alarm masks the error runs the other way -- independently calibrating `k`
+detectors each to 0.6820% admits **more** than 0.6820% -- but it is the same class of
+error, and the same fix applies: one shared inner level bisected until **the rule actually
+applied** admits the target, exactly as `oscfar._fit_jointly` does over 40 iterations to a
+2% relative tolerance. Arm 7 does that; **no arm is allocated a share of the budget.**
+
+### 38.4 Arm 1 -- pruning, demoted to a registered negative result
+
+**Lever:** `p`. Run **once** at the matched rate, reported, and closed. 37.7a's curve is
+at a fixed multiplier; this is the matched-rate reading it does not have.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P1.1** | At 0.6820% with the multiplier re-solved, EVAL recall exceeds the frozen arm's EVAL baseline | +3 or more of 19 | +1 to +2 | **0 or fewer** |
+| **P1.2** | **D55 transfer.** `p` chosen on TUNE is within 0.02 of EVAL's best `p` | within 0.02 | 0.02 to 0.05 | above 0.05 -- `p` is a fitted quantity and the toolkit may not ship a value for it |
+
+**Falsification.** P1.1 failing closes pruning as a lever and makes 36.2's "pruning is the
+single largest killer" a correct diagnosis with no implementable remedy. **That is
+published as prominently as a win.** Expected, on 37.7a's evidence.
+
+### 38.5 Arm 2 -- causal normalisation, and the two extra streams
+
+**Lever:** the normalisation of the detection statistic. 37.4 established that 36.4's
+`z` figures normalise against the **whole test array** and are therefore diagnostic, not
+causal; **this arm may not use 10-of-10 as its commissioned number.**
+
+Every term is standardised against a **trailing window only**, reusing the two correct
+primitives already here: `baselines._rolling` (trailing mean/sd, float64-hardened -- read
+`baselines.py:39-51` before touching it) and `whiten._trailing_quantile` (trailing order
+statistic). The derivative stream `|x[t] - x[t-1]|` and the horizon-disagreement stream
+(the spread across the ten predictions **of** `t`, each made from a window ending at or
+before `t-1`) then become monitored channels in their own right.
+
+**No new learned uncertainty head.** D56 closed that; empirical trailing scale is the
+substitute.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P2.1** | At the matched rate, EVAL recall exceeds the frozen arm's baseline | +3 or more of 19 | +1 to +2 | 0 or fewer |
+| **P2.2** | The gain lands on EVAL's **5** invisible-in-residual events | 2 or more of 5 | 1 of 5 | 0 of 5 |
+| **P2.3** | **The causal cost, and 37.4 forces this question.** Under trailing normalisation, the ten otherwise-invisible events still reach `z > 3` | 6 or more of 10 | 3 to 5 | **2 or fewer** -- 36.4's table is then an artifact of its normalisation and **gains a second rider in the same commit as this outcome** |
+| **P2.4** | **The derivative does the work.** Ablated to residual-plus-derivative, the arm keeps most of its gain | keeps >= 2/3 | 1/3 to 2/3 | below 1/3 -- horizon disagreement is carrying it, against 37.4's 4-of-10, and that is worth more than the arm |
+
+### 38.6 Arm 4a -- persistence by run length, and it is predicted inert
+
+**Lever:** `q`, a quantile of the channel's own exceedance-run-length distribution measured
+on the trailing reference cells. Label-free by construction; no external source needed.
+
+**(!) This arm is predicted to do nothing, and the prediction is registered up front.**
+`Objective.md` 7.1 already measured persistence as **subsumed** on the LSTM: N=5 removed
+**one alarm range out of 182**, because `error_buffer` dilates every exceedance by +/-99
+before the filter sees it. 7.1 leaves it open only for stacks with no equivalent widening
+-- and the frozen arm **has** that widening.
+
+> **Implementation note, and getting it wrong would hide the very effect being tested:**
+> `telemanom.sequences_at` returns runs **already dilated by +/-99 and merged**, so a run
+> length taken from it is very nearly constant. This arm must use
+> `telemanom._runs(e_s >= eps)` for raw exceedance runs.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P4a.1** | At the matched rate, EVAL recall exceeds the baseline | +3 or more | +1 to +2 | 0 or fewer |
+| **P4a.2** | **The inertness prediction.** Raw run lengths at `eps` are near-degenerate because of the +/-99 dilation: their interquartile range on nominal data is under 20% of their median | IQR/median < 0.20 | 0.20 to 0.50 | above 0.50 -- the dilation is not flattening them and 7.1's subsumption does not carry to this stack |
+
+**Falsification, and it is a result either way.** If P4a.1 fails **and** P4a.2 holds, that
+is 7.1's subsumption confirmed on a second detection stack and a second dataset, which is
+a finding rather than a failed arm, and it closes persistence as a lever here.
+
+### 38.7 Arm 4b -- CUSUM, from Basseville and Nikiforov
+
+**Lever:** `h`, the decision interval. Mechanism read at first hand from Basseville and
+Nikiforov, *Detection of Abrupt Changes*, Prentice-Hall 1993, chapter 2 section 2.2,
+pp. 35-41 (`docs/RESEARCH.md` Part V). **Page 1954 is cited as the origin and is not read;
+nothing is taken from it.**
+
+```
+  g_k = (g_{k-1} + s_k)^+,  (x)^+ = sup(0, x),  g_0 = 0        B&N (2.2.9)
+  alarm when g_k >= h                                          B&N (2.2.10)
+```
+
+with `s_k` the log-likelihood ratio (2.2.2). B&N give the equivalent form
+`g_k = S_k - min_j S_j >= h` (2.2.1, 2.2.4) and observe it is *"a comparison between the
+cumulative sum and an adaptive threshold"*. **One scalar of state, one add, one max, one
+compare per sample** -- which is why it is flight-shaped.
+
+Here the log-likelihood ratio is taken on the standardised residual under a mean-shift
+alternative on the channel's own trailing nominal statistics, so `s_k` is dimensionless
+and the arm carries no constant in data units (D55).
+
+**(!) `h` is calibrated, not derived, and B&N say why.** They introduce the average run
+length as the function that *"concentrates the information about both these performance
+indexes"* and state that **"the computation of this function is difficult for most of the
+practically relevant change detection problems"**. So `h` is bisected on **nominal data
+only** to hit the budget, reusing `oscfar._fit_jointly`'s pattern -- label-free, and it
+ships as a procedure rather than a number.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P4b.1** | At the matched rate, EVAL recall exceeds the baseline | +3 or more | +1 to +2 | 0 or fewer |
+| **P4b.2** | **The mechanism.** The gain concentrates on sustained modest deviation: recovered events have a longer above-mean residual run than those still missed | median run >= 2x | 1x to 2x | at or below 1x |
+| **P4b.3** | **D55 transfer.** `h` chosen on TUNE is within 20% of EVAL's best `h` at the matched rate | within 20% | 20% to 50% | above 50% |
+| **P4b.4** | **Redundancy with Arm 4a, asked in advance.** The two recover overlapping sets | Jaccard >= 0.6 | 0.3 to 0.6 | below 0.3 -- they answer the same question with different events, which is a finding about the population and is reported as one |
+
+### 38.8 Arm 5 -- peaks-over-threshold with an EVT tail. PRIORITY ARM
+
+**Lever:** `q`, the risk. **Pruning and the nonparametric dynamic threshold are both
+removed** and replaced by a POT threshold. Mechanism read at first hand from Siffer et
+al., KDD 2017, DOI `10.1145/3097983.3098144` (`docs/RESEARCH.md` Part I records the mirror
+read, the font-aware decode, and the verification that `sigma` decodes as `sigma` and not
+as the `fi` ligature).
+
+```
+  z_q ~= t + (sigma_hat / gamma_hat) * [ (q*n / N_t)^(-gamma_hat) - 1 ]      eq. 1
+  gamma_hat, sigma_hat from the Grimshaw reduction: x* solves u(x)v(x) = 1,
+      u(x) = (1/N_t) sum_i 1/(1 + x Y_i),  v(x) = 1 + (1/N_t) sum_i log(1 + x Y_i)
+      gamma* = v(x*) - 1,  sigma* = gamma*/x*,  search on (-1/Y_M, +inf)
+  t = a high empirical quantile of nominal residuals; the paper uses 98% (4.3.3)
+```
+
+**Equation 1 was cross-checked against an independent statement of the POT return level**
+and agrees algebraically (`docs/RESEARCH.md` Part I). The Grimshaw root search is
+hand-rolled: **scipy is not a dependency**, and `scripts/threshold_diagnostics.py:415`'s
+`_erfinv` is the precedent for hand-rolling an estimator here.
+
+**Why it is the priority arm.** `q` is a target exceedance probability, not a magnitude
+and not a relative peak drop, so it means the same thing on every channel and at every
+scale -- the property D55 says absolute constants in data units do not have. It ships a
+procedure rather than a number. And **it applies no relative-peak filter at all, so it
+cannot delete a true positive for being modest**, which is precisely how the 13 are lost.
+
+**Calibration requirement, a hard condition of the arm.** The tail is fitted on nominal
+data only. **No labelled event may enter the calibration at any point.** Siffer's own
+framing supports this: the initialisation *"may be seen as a training step but this is
+partly wrong because the initial batch is not labeled and is not considered as a ground
+truth ... The initialization is more a calibration step"* (4.2).
+
+**Its flight case under D63, from the source rather than from convenience.** D63 holds
+that rule 1 forbids any path by which the detector's notion of normal is updated from data
+it has not been told is normal. Siffer 4.2.1 states **"The anomalies are not taken into
+account for the model update"** -- SPOT withholds what it has flagged from its own peaks
+set. That is the D63 boundary satisfied *by construction in the published method*, and it
+is the arm's flight case. Siffer 4.2.1 also records that the update *"is possible to do
+off-line at fixed time interval"* rather than per sample, which **maps onto this project's
+`stride`**: the threshold is refreshed once per segment, exactly where `dynamic_threshold`
+is called today.
+
+**(!) The bounded peaks set is THIS PROJECT'S departure, not Siffer's.** The paper does
+not sanction a bound (38.2). It is required by `Objective.md` 11 rule 5 and F' CPP-1 -- no
+allocation after init, fixed memory, fixed compute per cycle -- so the peaks set is a
+fixed-capacity ring of `N_MAX` most-recent excesses. **The price is measured, not
+assumed:** P5.5 reports the bounded variant against the unbounded one at the matched rate.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P5.1** | **The commissioned number.** At 0.6820%, EVAL recall exceeds the frozen arm's baseline | **+4 or more of 19** | +1 to +3 | 0 or fewer |
+| **P5.2** | The gain lands where pruning was deleting: EVAL's **7** pruning-population events | 4 or more of 7 | 2 to 3 | 1 or fewer |
+| **P5.3** | **Stability, registered in advance and a hard condition.** `z_q` derived on several disjoint healthy windows per channel is stable: the interquartile spread of `z_q` across windows is under **20%** of its median, on at least 80% of channels | IQR/median < 0.20 on >= 80% of channels | 0.20 to 0.40, or 60-80% of channels | **above 0.40, or under 60% of channels -- the method is unstable on this data and THE ARM FAILS ON ITS OWN TERMS.** Reported as the finding; not tuned around |
+| **P5.4** | **The GPD fit is defensible.** The Grimshaw search returns a real root with `gamma_hat > -0.5` (B&N's MLE consistency region, and Siffer 3.4.1's) on at least 80% of channels | >= 80% | 60-80% | below 60% -- the tail is not GPD-shaped here and eq. 1 is being applied outside its warrant |
+| **P5.5** | **The price of flight-legality.** The bounded peaks set costs at most 1 event of EVAL's 19 against the unbounded fit at the same rate | 0 or 1 event | 2 events | **3 or more -- the bound is not free, and Arm 5's flight viability is the finding** |
+| **P5.6** | **D55 transfer.** `q` chosen on TUNE is within one decade of EVAL's best `q` | within 1 decade | 1 to 2 decades | above 2 decades |
+
+**Falsification.** P5.1 failing while P5.3 and P5.4 hold means an EVT tail is correctly
+fitted and still does not help at a flyable rate -- which would say the 13 are not
+recoverable by *any* threshold rule and point the remaining work at Arm 2's streams.
+P5.3 failing is a stop: an unstable threshold is not a candidate whatever its recall.
+
+**State and compute, reported with the result** (`Objective.md` 11 rule 5): the resident
+state is `N_MAX` floats per channel plus `(gamma_hat, sigma_hat, t, z_q)`; the per-tick
+cost is one compare, with the refit amortised once per `stride`. Both are measured and
+reported, not estimated.
+
+### 38.9 Arm 6 -- adaptive conformal inference as the self-calibrating layer
+
+**Lever:** `gamma`, the ACI step size. Mechanism read at first hand from Gibbs and Candes,
+NeurIPS 34 (2021):
+
+```
+  alpha_{t+1} = alpha_t + gamma * (alpha - err_t)
+  err_t = 1 if the observation fell outside the prediction set at alpha_t, else 0
+  Proposition 4.1, with probability one and for all T:
+      | (1/T) sum_t err_t - alpha |  <=  ( max{alpha_1, 1 - alpha_1} + gamma ) / (T * gamma)
+```
+
+distribution-free. The authors use `gamma = 0.005` and caution that large fluctuations in
+`alpha_t` are undesirable. The residual-quantile threshold at level `alpha_t` then
+self-corrects under drift.
+
+**Registered against D29 as corrected.** D29's finding is that a threshold calibrated on
+Mission 1's first 7.36M steps sat under **86.7%** of **fold 1's** nominal residual --
+fold 2 is 4.4% and 0.7% -- and, importantly, *"the forecaster fitted; the frozen rule's
+premise did not hold"*. **ACI addresses the class of failure D29 exposed; it has not been
+shown to address D29's instance**, and P6.3 tests that rather than assuming it.
+
+**The drift trigger is part of the arm, not an optional extra**, because a fixed-size
+calibration buffer degrades under drift unless refreshed. Buffer: the trailing
+`error_window` already resident. Refresh: on a Page-Hinkley trigger on the residual mean,
+using the same accumulator as Arm 4b.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P6.1** | At 0.6820%, EVAL recall exceeds the baseline | +3 or more | +1 to +2 | 0 or fewer |
+| **P6.2** | **The guarantee is observed, not just cited.** Realised long-run miscoverage over the scored stream is within Proposition 4.1's bound | within the bound | within 2x the bound | outside 2x -- the assumptions are not met on this data and the citation may not be leaned on |
+| **P6.3** | **D29's instance.** Replayed on `m1-g3` folds 1-2, ACI keeps nominal-step alarms under 5% where the frozen rule reached 86.7% | under 5% | 5% to 30% | above 30% -- ACI does not repair D29's own case and the in-flight recalibration story does not rest on it |
+| **P6.4** | `alpha_t` does not oscillate: its interquartile range stays under 0.5 of `alpha` | under 0.5 | 0.5 to 1.0 | above 1.0 -- Gibbs and Candes' own caution, realised |
+
+### 38.10 Arm 7 -- the union stack
+
+**Arms 2, 4a, 4b, 5 and 6 run together**, combined by `UnionQuantile`'s primitive -- divide
+each score by its own threshold so 1.0 is a common bar, then take the max. Run **only
+after** the constituents are separately adjudicated; a gain here is not attributable
+before that.
+
+**The budget is fitted jointly (38.3)**: one shared inner level bisected until the
+**union** admits 0.6820%. **Every arm above is re-reported at the union rate**, not at its
+own. Per event, the detector that fired is recorded, so the union's composition is visible.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **P7.1** | At the union rate, EVAL recall exceeds the **best single arm's** EVAL recall | +2 or more of 19 | +1 | **0 or fewer -- splitting the budget costs more than heterogeneity buys, which is the honest possibility and is reported as such** |
+| **P7.2** | **Heterogeneity is real.** No single constituent accounts for more than 70% of the union's catches | under 70% | 70% to 90% | above 90% -- the union is one arm wearing a hat |
+| **P7.3** | Against all 38 at the union rate, the stack beats stage 4's **10 of 38** | **13 or more** | 11 to 12 | **10 or fewer -- D62's freeze stands and is re-affirmed** |
+
+**P7.3 is the only prediction scored on all 38**, is reported **after** the EVAL figures,
+and is **reported as contaminated** wherever it is quoted, because the parameters were
+selected on events it contains. The clean number is EVAL's.
+
+### 38.11 The stride, registered as its own item
+
+**Lever:** `stride`, held apart from everything else. 37.7a measured that **7 of 10 caught
+events sit inside one 70-step stride** and the median lateness of **-63.5** is nine-tenths
+of one, because emission is dated at `seg_hi - 1`. **This is the only certain lead-time
+improvement currently available.**
+
+**(!) Two couplings that must be held, or this is not a one-lever arm.** In the class
+defaults `ERROR_WINDOW_BATCH = 70` feeds `stride`, `error_window` **and**
+`smoothing_window`. In the **frozen** configuration it does not: `proportional_config`
+(D47) sets `error_window = 0.05 * len(test)` and `stride = min(70, error_window // 2)`, so
+stride and window are already decoupled there. This arm registers against
+`proportional_config`, holds `error_window` and `smoothing_window` fixed, and notes that
+`stride` also enters `oscfar._segment_budget`, which is held.
+
+**Shortening the stride raises the overlap ratio and is safe in that direction; raising it
+is not.** `telemanom.py:24-38` records that stepping by a whole window was *silently
+fatal* -- 500-, 2,100- and 8,828-step injections all missed. Cost scales as `1/stride`
+(~112 microseconds per window). `stride` is **not** in the weight-cache key, so this arm
+costs **no refits**; it is in the `_TOPS` key and the fingerprint, so it stays
+distinguishable.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **PS.1** | Halving the stride to 35 improves median lead by 25 to 45 timesteps | 25 to 45 | 10 to 24 | under 10 -- the lateness is not the batching after all, and 37.7a's mechanism is wrong |
+| **PS.2** | It costs recall nothing at the matched rate | 0 events of 19 | 1 event | 2 or more |
+| **PS.3** | Per-tick cost rises by no more than the ratio | <= 2.0x | 2.0 to 2.5x | above 2.5x |
+
+**No wall-clock figure is derived from any of this.** Lead is in timesteps; SMAP/MSL
+carries no clock (`Objective.md` 1.1). **And a limit check never fires on this population
+at all** (D46), so a lead here is measured against a hindsight annotation, not a limit trip.
+
+### 38.12 Deferred, with the slot registered so the gap is visible
+
+**Nelson's runs rules and the Hawkins / Quesenberry self-starting parameterisation are NOT
+registered.** They would need Nelson (J. Quality Technology 16, 1984), the Western Electric
+handbook (1956), Hawkins (The Statistician 36, 1987) and Quesenberry (J. Quality Technology
+23, 1991), none of which is in hand. **They are deliberately not chased**, because Arm 4a
+is predicted inert (38.6) and obtaining four paywalled sources ahead of that measurement is
+not worth it. If Arm 4a surprises its own prediction, they are obtained first and
+registered then. **Nothing about them is implemented from any description.**
+
+Hawkins' own caveat, recorded here so it is not forgotten when the slot is taken up: a
+self-starting chart can be biased if the shift occurs very early in charting. Any future
+arm using one states how it handles that.
+
+### 38.13 Reporting
+
+Recall at a fixed alarm rate; **affiliation** precision/recall (Huet et al., authorised
+under `docs/HARNESS.md` 5a on 2026-09-10); range-based precision/recall, now reported with
+the disclosure that it is gameable (`docs/HARNESS.md` 1); and a lead-time distribution in
+timesteps. Several metrics, never one.
+
+**Point-adjusted F1 is never reported** -- Kim et al., AAAI 2022: *"even a random anomaly
+score can easily turn into a state-of-the-art TAD method"*.
+
+**No early-warning capability is claimed anywhere on this evidence.** 37.7a measured 0 of
+10 positive leads. Critical-slowing-down indicators are a **separate research track** with
+a strictly trailing detrender, reported only, and nothing ships from them without a
+false-positive rate on held-out nominal data.
+
+### 38.14 Cost, and stop-and-report
+
+**Registration cost: zero operations.** Nothing has run.
+
+All decision-layer arms share **one** bundle load: they differ only after the residual and
+`stride` is not in the weight-cache key, so no arm costs a refit.
+
+```
+  smoke, two channels                             7 Class B
+  load 1: Arms 1, 2, 4a, 4b, 5, 6 + the stride  165 Class B, 1 Class A
+  load 2: Arm 7, after the constituents          165 Class B, 1 Class A
+  ------------------------------------------------------------------
+  worst case                                     337 Class B, 2 Class A
+  month now      216 Class A, 4,587 Class B  of 50,000 each
+  month after    218 Class A, 4,924 Class B  of 50,000 each
+```
+
+**No fits.** The weight store is 1,313 and must be 1,313 after; the run asserts it.
+
+**Stop and report** if the weight store moves; if any single read exceeds 200 Class B; if
+P5.3 fires; if any statistic requires a value at or after the timestep it scores; if an arm
+turns out to need a second lever; or if a figure would be quoted without its alarm rate.
+
+### 38.15 OBSERVED -- reserved, before the run
+
+**Empty on purpose.** Nothing has been measured. A reader finding this heading still empty
+knows the arms have not run.

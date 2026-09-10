@@ -266,10 +266,12 @@ recoverable, **13 die in pruning**. An oracle per-channel threshold at the froze
 quiet rate would reach **28 of 38**. And **all ten "invisible" events show z > 3 in the
 first derivative or in the disagreement across the ten predicted horizons**, neither of
 which reaches the decision layer today. **The next work is the alarm rule, not the
-network.** **Three arms are now registered and not run** (`docs/MODELS.md` 37):
-pruning swept, a richer causal detection statistic, and both, on a channel-disjoint 19/19 split
-committed before any sweep. **D62's freeze stands until one of them beats stage 4 at a
-matched rate.**
+network.** **Seven arms and a stride item are now registered and not run** (`docs/MODELS.md` 37 and 38):
+pruning demoted to a registered negative result, a causal normalisation, persistence by
+run length, CUSUM, an EVT peaks-over-threshold threshold (the priority arm), adaptive
+conformal inference, and the union of them -- on a channel-disjoint 19/19 split committed
+before any sweep, with the union budget **fitted jointly rather than allocated**.
+**D62's freeze stands until one of them beats stage 4 at a matched rate.**
 
 **THE PIPELINE IS FROZEN (D62)** on stage 4's configuration: `gru-telemanom`, per channel,
 univariate, no commands, published dynamic threshold swept to 0.6838%, **10 of 38**. **The

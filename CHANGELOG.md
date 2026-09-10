@@ -14,6 +14,69 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.23] - 2026-09-10 - Seven arms registered from sources read at first hand, and none of them runs
+
+**Work item 9.21. NOTHING RAN and nothing is adjudicated.** D62's freeze stands, weight
+store untouched at 1,313, **zero R2 operations**. `docs/MODELS.md` 38.
+
+### Added
+- **`docs/MODELS.md` 38**, pre-registering Arm 1 (pruning, demoted to a registered
+  negative result), Arm 2 (causal normalisation plus the derivative and
+  horizon-disagreement streams), **Arm 4a** (persistence by run length), **Arm 4b**
+  (CUSUM), **Arm 5** (peaks-over-threshold with an EVT tail -- the priority arm),
+  Arm 6 (adaptive conformal inference), Arm 7 (the union) and **the stride as its own
+  item**. Twenty-eight numbered predictions with hold/fail/no-verdict bands and a stated
+  falsification per arm, all on 37.8's committed 19/19 split, all UNDERPOWERED and stamped.
+- **Arm 4 split into 4a and 4b**, because a run-length rule and a CUSUM accumulator are two
+  mechanisms with two levers and the standing rule is one lever per arm.
+
+### Read at first hand
+- **Siffer et al., KDD 2017** (DOI 10.1145/3097983.3098144), now **Primary**. `WebFetch`
+  cannot decode the PDF and the machine has no PDF tooling, so it was decoded with a
+  stdlib font-aware reader that resolves every glyph through the `/ToUnicode` CMap of the
+  font active when it was drawn. **This mattered:** a first attempt with one global
+  ligature map **silently rendered `sigma` as the "fi" ligature**, because code `0x1b` is
+  `sigma` in the maths fonts and `fi` in the text fonts. The map was verified on exactly
+  that point before anything was read from it. Residual ambiguity is **81 glyphs of 46,628
+  (0.17%), named and not inferred** -- and in both transcribed formulas every one is from
+  `txexs`, the extension font of large delimiters, so **no variable is missing**.
+  Recovered: Theorem 3.1, equation 1, Algorithm 1, the Grimshaw reduction, the choice of
+  the initial threshold, and DSPOT's trailing detrender.
+- **Equation 1 was cross-checked against an independent statement of the POT return level**
+  and agrees algebraically. The decode and the second source do not disagree.
+- **Basseville and Nikiforov 1993**, chapter 2 section 2.2, pp. 35-41 -- the read source
+  for CUSUM: the intuition (2.2.1-2.2.4) and the recursive form
+  `g_k = (g_{k-1} + s_k)^+`, `g_0 = 0` (2.2.9), alarm at `g_k >= h` (2.2.10). One read
+  source discharges what four paywalled ones were wanted for.
+- **Hundman et al. section 4.3** -- already recorded in 0.6.22 and now load-bearing for
+  Arm 1's registration.
+
+### Recorded
+- **(!) A correction to the commissioning brief, and it is an attribution.** The brief said
+  Siffer's paper sanctions bounding the peaks set to a fixed size. **It does not** -- it
+  says only that storing "only the peaks" needs little memory. **The bound is this
+  project's own departure**, registered as an engineering decision required by
+  `Objective.md` 11 rule 5 and F' CPP-1, and **measured rather than assumed**: P5.5 reports
+  the bounded variant against the unbounded one at the matched rate, so the price of
+  flight-legality is a number.
+- **Two sentences of Siffer's carry Arm 5's flight case under D63.** 4.2: the initial batch
+  *"is not labeled and is not considered as a ground truth ... The initialization is more a
+  calibration step."* 4.2.1: **"The anomalies are not taken into account for the model
+  update."** SPOT withholds what it has flagged from its own peaks set -- the D63 boundary
+  satisfied by construction in the published method. And 4.2.1's sanction of **batched
+  offline updates** maps onto this project's `stride`, so the flight design is grounded in
+  the source rather than in convenience.
+- **B&N's own caution changes Arm 4b's design:** the average run length *"is difficult to
+  compute for most of the practically relevant change detection problems"*, so `h` is
+  **bisected on nominal data** rather than inverted from an ARL formula.
+- **The union budget is fitted jointly, not allocated** -- `oscfar.py:80-84` already
+  records this project making the other half of that error: *"it is wrong, and it is kept
+  because it is what ran"*.
+- **Page 1954 is cited but unread**, with Basseville and Nikiforov as the read source.
+  Lorden, Moustakides and Pollak are framing only. Nelson, Western Electric, Hawkins and
+  Quesenberry stay **deferred with their slot registered**, deliberately not chased for an
+  arm predicted inert.
+
 ## [0.6.22] - 2026-09-10 - Governance before the arms: rule 1 adjudicated, and a metric authorised
 
 **Work item 9.21, governance half. NO ARM IS REGISTERED YET and nothing ran.** D62's
