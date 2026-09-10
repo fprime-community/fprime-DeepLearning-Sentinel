@@ -136,9 +136,23 @@ def _repository_files(project_root):
 
 
 def test_the_repository_holds_code_and_docs_only(project_root):
-    """784 KB was the agreed size. A dataset would show up as megabytes."""
+    """8 MiB, raised from 4 by D64. The byte count is not what keeps data out.
+
+    784 KB was the original agreement, raised to 4 MiB when the golden vectors were
+    committed, and to 8 MiB when prose reached 92% of that. The cap exists to stop a
+    dataset entering the tree -- and **the format refusals above are what actually do
+    that job**: `DATASET_SUFFIXES` refuses parquet, pickles and archives everywhere
+    including `runs/`, and `ARRAY_SUFFIXES` permits `.npy`/`.npz` only under `runs/`.
+    A byte count cannot tell a dataset from a document; a suffix can, and does.
+
+    So this assertion is a **coarse backstop against bulk**, not the guard. It is
+    raised rather than removed because a repository that quietly grows to hundreds of
+    megabytes is still a defect worth failing on, and it is raised rather than left to
+    strangle the additive documentation work D64 records. **The format refusals are
+    unchanged, and they are the part that matters.**
+    """
     total = sum(p.stat().st_size for p in _repository_files(project_root))
-    assert total < 4 * 1024 * 1024, f"repository is {total / 1048576:.1f} MiB"
+    assert total < 8 * 1024 * 1024, f"repository is {total / 1048576:.1f} MiB"
 
 
 def test_no_gitignored_output_is_mistaken_for_repository_content(project_root):

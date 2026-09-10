@@ -14,6 +14,28 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.24] - 2026-09-10 - The size cap is raised to 8 MiB; the format refusals are untouched
+
+**Infrastructure only. Zero R2 operations, no arm ran, D62's freeze stands.** Landed as
+its own commit before the scoring runs so a size failure cannot interrupt one.
+
+### Changed
+- **`tests/test_no_local_persistence.py`'s tracked-size assertion: 4 MiB -> 8 MiB** (D64).
+  Tracked content was **3.67 MiB, 91.8% of the cap**, and the five largest files are all
+  prose; `docs/REORG_PLAN.md`'s tranches 3 and 4 are entirely additive and would not fit.
+- Its docstring is rewritten to claim what the assertion actually does: **a coarse backstop
+  against bulk, not the guard against data.** It also replaces the stale "784 KB was the
+  agreed size", which had contradicted its own 4 MiB assertion.
+
+### Unchanged, deliberately
+- **The three format refusals, which are the part that matters.** Parquet, pickles and
+  archives stay refused **everywhere including `runs/`**; `.npy`/`.npz` stay permitted only
+  under `runs/`; the counted set and the gitignored set are still asserted disjoint.
+  **A byte count cannot distinguish a dataset from a document; a suffix can**, and every
+  real instance this project has reasoned about was caught by kind, not by size.
+- **Rule 1 itself.** Nothing about what may be committed changes; only how many bytes of
+  prose may be.
+
 ## [0.6.23] - 2026-09-10 - Seven arms registered from sources read at first hand, and none of them runs
 
 **Work item 9.21. NOTHING RAN and nothing is adjudicated.** D62's freeze stands, weight

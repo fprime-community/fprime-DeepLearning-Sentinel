@@ -4266,3 +4266,55 @@ neither read nor rewritten (`docs/MODEL_FILE.md` 6.1).
 6. **The exception that is not touched.** `Objective.md` 11 rule 1's second sentence --
    retraining is explicit and human-approved -- and Phase 5's shadow-model design are
    unchanged. Nothing here weakens either.
+
+---
+
+## D64. The repository size cap is raised to 8 MiB, because the byte count was never the guard
+
+**DATE** 2026-09-10 | **STATUS** resolved as an infrastructure decision. **The format
+refusals are unchanged.**
+
+**CONTEXT.** `tests/test_no_local_persistence.py` enforces Rule 1 -- no dataset on this
+machine -- with three separate assertions: parquet, pickles and archives are refused
+**everywhere** including `runs/`; `.npy`/`.npz` are permitted **only** under `runs/`; and
+the tracked set must stay under a byte cap. That cap was 784 KB originally, raised to
+4 MiB when work item 8's golden vectors were committed.
+
+Tracked content is now **3.67 MiB, 91.8% of the cap**, and the five largest files are all
+prose: `docs/MODELS.md` at 656 KB, `docs/reorg_plan.json` at 314 KB, `docs/DECISIONS.md`
+at 248 KB. `docs/REORG_PLAN.md`'s tranches 3 and 4 are **entirely additive** --
+`scripts/README.md`, four dataset documents, generated tables of contents, a reserved
+Pi-envelope document -- and would not fit.
+
+**ALTERNATIVES.**
+
+1. **Hold the cap and stop writing.** Refused: the documentation work is what makes the
+   repository legible to an outsider, which is the whole point of the reorganisation.
+2. **Hold the cap and delete or split prose.** Refused: `docs/REORG_PLAN.md` measured that
+   splitting `docs/MODELS.md` breaks 69 inbound citations, all of them to section numbers,
+   which the additive-documents rule forbids renumbering.
+3. **Remove the cap.** Refused: a repository that quietly grows to hundreds of megabytes is
+   a defect worth failing on, even if the cause is not a dataset.
+4. **Raise it.** Adopted.
+
+**EVIDENCE, and it is the reason rather than the arithmetic.** The cap was written against
+a threat the format refusals already answer. **A byte count cannot distinguish a dataset
+from a document; a suffix can.** `DATASET_SUFFIXES` and `ARRAY_SUFFIXES` scan the entire
+tree, gitignored files included, and refuse by *kind*. Every real instance this project has
+had to reason about -- telemetry parquet, cached arrays, the 2.0 MB `result-viewer.ipynb`
+deliberately left unvendored -- is caught by kind, not by size. The byte cap has never once
+been the thing that caught something.
+
+**CONSEQUENCE.**
+
+1. **The cap becomes 8 MiB.** Tracked content is 3.67 MiB, so the headroom is 4.3 MiB.
+2. **The three format refusals are unchanged, and they are the part that matters.**
+   Parquet, pickles and archives stay refused everywhere including `runs/`; arrays stay
+   permitted only under `runs/`; `test_no_gitignored_output_is_mistaken_for_repository_content`
+   still asserts the counted set and the gitignored set are disjoint.
+3. **What the assertion now claims is narrower, and its docstring says so**: a coarse
+   backstop against bulk, not the guard against data.
+4. **Rule 1 is untouched.** No telemetry, no parquet, no cached dataset on local disk.
+   Nothing about what may be committed changes; only how many bytes of prose may be.
+5. **This is not a licence to stop watching.** If tracked content reaches 8 MiB the same
+   question is asked again, and the answer may then be that prose belongs somewhere else.
