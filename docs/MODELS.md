@@ -9522,3 +9522,487 @@ step-likeness as an explanatory variable rather than leaving it open.
   **It is not a claim that any implementable rule reaches it.**
 - **Nothing is registered.** D62's freeze stands. `docs/MODELS.md` has no arm against this
   diagnosis and will not until one is pre-registered.
+
+**(!) Registered 2026-09-09, and the sentence above is kept as written.** `docs/MODELS.md`
+37 pre-registers three arms against this diagnosis -- pruning swept, a richer causal
+statistic, and both -- with a channel-disjoint split committed before any sweep.
+**Nothing has run and D62's freeze still stands**; it stands until an arm beats stage 4's
+10 of 38 at a matched rate. 37.1 also records six places where the handover brief that
+commissioned that work disagreed with this repository, and 37.4 records that the `z`
+figures in 36.4 above are normalised against the whole test array and are therefore
+diagnostic rather than causal -- a rider this section should have carried from the start.
+
+## 37. Pre-registration: the decision layer, the split and three arms (work item 9.20)
+
+**Registered 2026-09-09. NOTHING HERE HAS RUN and no arm is adjudicated.** D62's freeze
+stands: the pipeline remains stage 4's configuration at **10 of 38**, and it stays there
+until an arm registered below is measured and beats it at a matched rate. This section is
+the frame; the outcome sections are reserved and empty.
+
+**Zero R2 operations were spent producing it.** Every figure below is read from the
+committed forensic artifact
+`runs/smap-msl/_forensics/2026-09-09T230300Z-forensics38.json`, from the stage-1
+visibility artifact `runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`, from
+stage 4's `runs/smap-msl/_forensics/2026-09-03T212818Z-stage4-ndt.json`, or from a file
+in this repository named by path and line.
+
+### 37.1 What the handover brief said, and where this repository disagrees
+
+Six corrections. The repository wins in each, and each is recorded rather than absorbed.
+
+| # | The brief | This repository | Effect |
+|---|---|---|---|
+| 1 | "at 0.6838% of nominal timesteps", and "every comparison at 0.6838% nominal" | **The frozen arm's own rate is 0.6820%.** 26.18's table: `gru` at multiplier 0.551 gives **0.6820% and 10/38**; `gru+cmd` at 1.000 gives **0.6838% and 6/38**. The forensic artifact's `frozen_arm.pooled_nominal_rate` is **0.006819635** | 0.6838% is the **commanded** arm's rate. The two are the matched pair V24 compared and 26.18 calls "the same rate", but a comparison drawn against 10/38 must match **0.6820%**. Every arm below matches at 0.6820% and reports 0.6838% beside it |
+| 2 | "10 carry no residual signal" | The ten "invisible" events carry a median residual `z` of **1.76** at the **94.15th** percentile of their channels' nominal residuals, and **two of the ten cleared their dynamic threshold and were then pruned** (`E-12[5610]`, `M-4[1250]`) | "Invisible" is defined against the **oracle** at the pooled quiet rate, not against the frozen path's threshold. Two of the ten were candidates. The name is 36.4's and it is kept; the definition travels with it |
+| 3 | "5 sit just under the threshold" | Two do -- `E-1[5000]` at **3.17%** short and `P-1[3539]` at **4.73%**. The other three are **39.71%**, **46.81%** and **63.30%** short | "Just under" is true of 2 of 5. Arm 1 and Arm 3 must not be scored as though five events were within reach of a small threshold move |
+| 4 | "13 ... deleted by the published pruning step" | **13 of the 18 recoverable** die in pruning; **15 of all 28 misses** do, because two of the ten invisible ones die there too | Both figures are live and neither may be quoted for the other. Arm 1's population is the **13** |
+| 5 | "the ten predicted horizons" as a detection signal | The disagreement statistic reaches `z > 3` on **4 of 10**. The **first derivative** reaches it on **10 of 10** | 36.4's "or both" is exact, and the work is being done by the derivative. Arm 2's design turns on this and R2.3 tests it |
+| 6 | "the oracle ceiling on today's residuals is 28 of 38" | Correct, and 36.1 already stamps the oracle **not implementable** | Restated here because Arm 1 and Arm 3 will be compared against 10, never against 28 |
+
+### 37.2 A2 -- the pruning mechanism, read from the vendored source
+
+`third_party/telemanom/telemanom/errors.py:386-435`, `Channel.prune_anoms`. Read, not
+recalled: `docs/NARRATIVE.md` 11 records that five recalled readings of this file were
+later found wrong and one cost four pre-registered rungs.
+
+```
+  errors.py:403   E_seq_max         = the max smoothed error inside each candidate sequence
+  errors.py:404   E_seq_max_sorted  = those peaks, sorted DESCENDING
+  errors.py:405   ...append(non_anom_max)   the largest error OUTSIDE any candidate
+  errors.py:408-414   walk i = 0 .. n-1 over the ladder:
+                        (ladder[i] - ladder[i+1]) / ladder[i] < p   ->  APPEND i to i_to_remove
+                        otherwise                                  ->  i_to_remove = []   (RESET)
+  errors.py:417-418   delete every sequence still in i_to_remove
+```
+
+**The reset at `:414` is the whole mechanism.** Because the removal list is cleared
+whenever a normalised drop reaches `p`, what survives the loop is exactly the **trailing
+run** of the ladder after the **last** drop of at least `p`. Stated as a rule:
+
+> **A candidate sequence at rank `r` survives if and only if `max(drop_i : i >= r) >= p`.**
+> Equivalently, the smallest `p` that would delete it is `M_r = max(drop_i : i >= r)`, and
+> the event is retained for every `p <= M_r`. Lowering `p` therefore retains strictly more,
+> and `p = 0` is no pruning at all.
+
+**Why an in-range contextual event fails it.** `non_anom_max` is appended as the ladder's
+last rung, so the final comparison every candidate is transitively measured against is the
+channel's **largest nominal error**. An in-range contextual anomaly is, by construction,
+an event that never leaves its channel's historical envelope; its smoothed prediction
+error is correspondingly modest, and it lands **low on the ladder, close to the nominal
+maximum**. If it is within `p` of the rung beneath it, and that rung is within `p` of the
+one beneath, and so on down to `non_anom_max`, the entire tail is deleted -- including
+candidates that individually cleared their own dynamic threshold. In the limiting case of
+a channel whose only candidate is the contextual event, the ladder is
+`[peak, non_anom_max]` and a single test decides it: the event is deleted whenever
+`(peak - non_anom_max) / peak < 0.13`.
+
+**So pruning does not ask whether an error is large. It asks whether an error stands out
+from the channel's other errors** -- and standing out is precisely the property an
+in-range contextual anomaly does not have. That is a structural argument, and it is why
+36.2's per-event count (13 of the 18 recoverable) is the expected shape rather than a
+surprise.
+
+**One divergence between the vendored source and the frozen path, recorded not fixed.**
+`src/sentinel_models/telemanom.py:306-338` is the frozen `prune`. It matches the mechanism
+above rung for rung, with one difference: `errors.py:411-412` selects sequences to remove
+**by value**, `np.argwhere(E_seq_max == E_seq_max_sorted[i])`, so exact ties remove every
+sequence sharing that peak; `telemanom.py:332` removes **by index**, `order[i]`, so a tie
+removes one. The two differ only when two candidate sequences in one window have bit-identical
+peaks. It is not measured here and no arm below depends on it.
+
+### 37.3 A3 -- the five below their own threshold, in units of that threshold
+
+From the forensic artifact, `residual_peak / eps_seen` for the five classified
+`lost-in-decision-layer` at stage `below-threshold`:
+
+```
+  event          peak      eps_seen   peak/eps   shortfall
+  E-1[5000]     0.68058    0.70288     0.9683       3.17%
+  P-1[3539]     0.42198    0.44295     0.9527       4.73%
+  E-1[5610]     0.92225    1.52969     0.6029      39.71%
+  F-7[3325]     0.85955    1.61590     0.5319      46.81%
+  T-1[6550]     0.43417    1.18294     0.3670      63.30%
+```
+
+**k/n: 2 of 5 are within 5% of their threshold; 3 of 5 are 40% or more below it.
+n = 5, UNDERPOWERED (D3).** No threshold move that keeps the alarm rate anywhere near
+0.6820% reaches the bottom three. This population is small, it is not uniformly close,
+and **no arm below is designed around it**.
+
+### 37.4 A4 -- the ten, and the statistic that reaches them is not the one the brief names
+
+```
+  event         residual z   pctile    derivative z   disagreement z   stage
+  C-1[2100]           0.20   62.68%          10.19             2.54   below-threshold
+  E-12[5610]          1.87   96.79%           5.89             2.66   pruning
+  E-13[5309]          1.79   93.96%           6.91             3.34   below-threshold
+  E-13[5600]         -0.89   21.22%           4.17             0.25   below-threshold
+  F-3[5600]           1.56   89.23%        1891.71             0.59   below-threshold
+  M-4[1250]           2.92   96.31%           5.79             5.05   pruning
+  P-1[2149]           1.72   94.34%           6.06             1.90   below-threshold
+  P-1[4536]           2.37   99.12%           5.88             4.25   below-threshold
+  T-13[690]           0.95   82.35%          23.03             0.65   below-threshold
+  T-8[1330]           2.42   97.07%           7.05             5.34   below-threshold
+
+  derivative z > 3        10/10
+  disagreement z > 3       4/10
+  either                  10/10
+  both                     4/10
+```
+
+**n = 10, UNDERPOWERED (D3).** 36.4's "in the first derivative, in the disagreement, or
+both" is exact. What it does not say, and what Arm 2 has to be designed around, is that
+**the derivative carries all ten and the disagreement carries four**.
+
+#### (!) Which timesteps each statistic touches -- and the normalisation is not causal
+
+Stated explicitly because the answer differs between the statistic and its scaling.
+
+```
+  the STATISTICS are causal
+    dx[t]        = |x[t] - x[t-1]|                         scripts/smap_forensics_38.py:201
+    disagree[t]  = nanstd over the ten predictions OF t,   scripts/smap_forensics_38.py:202
+                   each made from a window ending at or
+                   before t-1                              scripts/smap_forensics_38.py:62-84
+
+  the NORMALISATION is NOT causal
+    z = (max over the event span - mean over `nom`) / std over `nom`
+                                                           scripts/smap_forensics_38.py:236-239
+    `nom` = every timestep of the WHOLE test array not inside a labelled
+            event, warm-up removed                         scripts/smap_forensics_38.py:191-196
+```
+
+**`nom` includes timesteps after the event.** Every `z` in 36.4, every `residual_z` and
+`residual_percentile` in 36.3, and the oracle threshold in 36.1 are scaled by statistics
+of the entire test array. 36.1 stamps the oracle "not implementable" for exactly this
+reason; **36.4 does not carry the same rider and should.**
+
+**What that costs, precisely.** The table above establishes that *the signal is present in
+causal inputs*. It does **not** establish that a causal detector reaches it, because
+nothing here has been normalised against a trailing window only. **Arm 2 may not use these
+figures as its commissioned number**, and R2.1 is written against a re-derived causal
+statistic rather than against 10/10.
+
+### 37.5 A7 -- label provenance, and a confound in the population itself
+
+**How the labels were produced.** Hundman et al., KDD 2018, **section 4.1, "Setup"**:
+anomalies are drawn from **Incident Surprise Anomaly (ISA) reports** -- "ISA reports ...
+are used by mission personnel to process unexpected events" -- and then
+"all telemetry channels discussed in an individual ISA were reviewed to ensure that the
+anomaly was evident in the associated telemetry data, and specific anomalous time ranges
+were manually labeled." The abstract calls the result "expert-labeled telemetry anomaly
+data". The paper's own categories: "We classify anomalies into two categories, point and
+contextual, to distinguish between anomalies that would likely be identified by
+properly-set alarms or distance-based methods", with contextual defined as "single values
+that do not fall within low-density regions yet are anomalous with regard to local values".
+
+`third_party/telemanom/README.md:117-124`, in this repository, gives the counts:
+**105 labelled sequences from 47 unique ISAs across 82 channels**; 62 point (59%) and
+**43 contextual (41%)**; 496,444 telemetry values evaluated.
+
+**Known criticisms, and this project's own.** Wu & Keogh (IEEE TKDE 2023,
+`arXiv:2009.13807`) name triviality, unrealistic anomaly density, **mislabelled ground
+truth** and run-to-failure bias, and show one-line methods reach state of the art
+(D1, `Objective.md` 9.2). This repository found a live instance before any modelling:
+**`P-2` appears twice in `labeled_anomalies.csv`** with conflicting spans `[5350, 6575]`
+and `[5300, 6420]`, both class `point`, so the dataset has **81 unique channels, not the
+82 rows** its own label file implies (`docs/DATA.md` 1, carried in the manifest's
+`labelling_defects`). Pinet et al. (`arXiv:2606.02670`) add that across eight benchmarks
+including SMAP and MSL, no cross-channel rupture occurs without an accompanying univariate
+deviation (`docs/RESEARCH.md` Part IV).
+
+#### (!) A property of the data preparation that qualifies D46, measured here for the first time
+
+`third_party/telemanom/README.md:94`: "all telemetry values are pre-scaled between
+`(-1,1)` **according to the min/max in the test set**." The repository records
+"pre-scaled to (-1,1)" in two places (D55's T4, 28's T-c) and **has not recorded which
+split the scaling was taken from.** It matters, because D43 defines the contextual class
+by the **training window's min/max**, and D46 reports 39 of 43 inside it.
+
+Measured from the stage-1 visibility artifact:
+
+```
+                  n    in range        training-envelope span, median   span >= 1.9
+  contextual     43   39 (90.7%)                 2.000 of 2.0             42/43
+  point          61   11 (18.0%)                 0.173 of 2.0             20/61
+```
+
+**The two classes sit on systematically different channels.** Every one of the 39
+in-range contextual sequences lies on a channel whose training envelope already spans at
+least 1.9 of the 2.0 available, and 30 of the 39 span the full `[-1, 1]` exactly -- on
+those channels "inside the training min/max" is close to true by construction. The
+channels carrying point anomalies have a median envelope span of **0.274**.
+
+**What this does and does not do to D46.** D46's arithmetic is unchanged: 39 of 43 is
+what the envelope test returns. What is now on record is that the **72.7-point gap**
+between the two classes is confounded with envelope width, and cannot be read as a
+property of the anomalies alone. The only within-channel comparison available is
+**4 channels carrying both classes -- `C-1`, `C-2`, `G-7`, `T-1` -- giving contextual
+4/5 and point 2/4. n = 9. UNDERPOWERED (D3), and no conclusion is drawn from it.**
+
+**What is untouched.** D48 does not depend on the envelope definition at all: `rstd` at
+5,000 times its calibrated threshold still alarms on 15.17% of nominal steps, and the
+range check on 5.84%, against the forecaster's 0.68% (26.18). That is a direct
+measurement of what a per-channel statistic costs on this data, and the confound above
+does not reach it. 26.18's V22 already recorded the adjacent point for the range check --
+"at `w >= 1` the envelope is wider than the training min/max, so an in-range event is
+inside it by definition and 0/38 is arithmetic, not a measurement".
+
+**This subsection is written to be lifted into `docs/datasets/SMAP_MSL.md`** when that
+document is created.
+
+#### And the denominator is 38 because one channel could not be trained
+
+D46 reports **39** in-range contextual sequences across **26** channels. Every figure
+since stage 4 is out of **38** across **25**. The difference is **`G-1[4770-4890]`**, and
+stage 4's artifact records why: `excluded_channels` lists `E-3`, `G-1` and `D-11` with
+"training kept its FIRST epoch after running 11: the stopping rule is rejecting every
+improvement" -- **D17's stall signature** -- and `D-12` with "the training side of the
+split holds no complete sequence". `G-1` is the only one of the four carrying an in-range
+contextual event. **The 38 is a scorable population, not the labelled one**, and the one
+event missing from it is missing because its forecaster would not train. Section 36's
+prose says "the 26 channels carrying one of the 38"; the 38 span **25**.
+
+### 37.6 A8 -- what a mission sees, and what each arm does to it
+
+A deploying mission has **no labelled anomalies** (`docs/HARNESS.md` 6b), so nothing in
+37.3 to 37.5 is available to it. What the toolkit reports at calibration is the
+**pre-launch sanity report** (`docs/HARNESS.md` 1): after the threshold is calibrated as a
+measured noise floor on the mission's own anomaly-masked nominal window, it reports **how
+often the detector fired on held-out healthy data** -- a rate, on their data, with no
+label anywhere in it. **It is reported and never targeted**; nobody adjusts anything on
+the strength of it, and an absurd value means the calibration is broken and should be
+investigated rather than turned down.
+
+What each arm does to that report:
+
+| Arm | Effect on the label-free calibration | Cost |
+|---|---|---|
+| **1, pruning** | **None in kind.** `p` is a rank test on a channel's own errors and consults no label. A mission calibrates exactly as today and the report keeps its meaning | The value of `p` would be inherited from this study rather than measured on the mission's data -- an **absolute-constant-transfer risk of exactly D55's kind**, and R1.4 is written to expose it |
+| **2, richer statistic** | **Changes it.** The detector's score is no longer the smoothed residual, so the noise floor is calibrated on a fused statistic and the report's rate refers to that. Still label-free | The report becomes harder to explain: a mission must now calibrate and sanity-check a statistic with more than one term, and a fused score's floor is less obviously "the residual's noise" |
+| **3, both** | Both of the above | Both of the above |
+
+**Stated as the brief requires: Arm 2 makes the label-free calibration harder to state,
+and that is a cost and not a detail.** It is carried into R2.5 as a reported quantity
+rather than left as a caveat.
+
+### 37.7 A1, A5 and A6 -- specified, costed, and NOT RUN
+
+Three parts of the diagnosis cannot be answered from any committed artifact.
+
+| Part | What it needs | Why the artifact cannot answer it |
+|---|---|---|
+| **A1** | for each of the 13, the smallest `p` that retains it -- `M_r = max(drop_i : i >= r)` from 37.2 -- and the pooled nominal alarm rate at each `p` | The forensic records each event's `residual_peak` and `eps_seen`, **not the ladder**: the other candidates' peaks and `non_anom_max` in the deciding window. `M_r` cannot be reconstructed from a peak alone |
+| **A5** | the alarm rate beside every recall figure | The pooled nominal rate is over **all 81 channels**, and the forensic loaded 26 |
+| **A6** | for each caught event, alarm timestep minus labelled onset | `attribute()` returns a stage and a peak; **no alarm timestep is retained** |
+
+**The cost, stated before it is spent.** One bundle load of all 81 channels, cached
+weights, **no fits**: **165 Class B and 1 Class A**, the documented cost of a SMAP/MSL
+study (33.5, 35.7). Sweeping `p` over many values inside that load is **compute, not
+operations** -- the same argument 33.5 made and 33.7 confirmed. The month stands at
+**214 Class A and 4,415 Class B of 50,000 each**, read from the last artifact; this would
+end at **215 and 4,580**. The per-run tripwire is 1,000 and 165 is well under it.
+**A 7 Class B smoke on two channels runs first**, as 35.7's read did.
+
+**No wall clock is quoted**, because this repository has not recorded one for a no-fit
+81-channel scoring pass; 32.7's 33.3 minutes at four workers included 153 fits and is not
+the same quantity. It will be measured and reported by the run that does it.
+
+**Nothing above has been spent. A1, A5 and A6 are owed, and they are owed before any arm
+is adjudicated**, because R1.1 and R3.1 are written against A1's curve.
+
+### 37.8 Part B -- the split, committed before any sweep
+
+**The rule, fixed before it was run and stated in one sentence:** order the 25 channels
+carrying one of the 38 by (pruning-population events descending, total events descending,
+channel id ascending), then assign each in turn to the side that minimises
+`3|dprune| + 2|dn| + 2|dinvisible| + |dcaught| + |dnear| + |dSMAP|`, ties to TUNE.
+
+```
+  TUNE  12 channels, 19 events   A-3 A-7 A-8 C-1 E-11 F-7 G-7 M-3 M-4 P-1 P-7 T-8
+        pruning 6   near-threshold 2   invisible 5   caught 6   SMAP 11
+  EVAL  13 channels, 19 events   A-2 A-4 A-9 D-16 E-1 E-10 E-12 E-13 F-3 F-8 T-1 T-12 T-13
+        pruning 7   near-threshold 3   invisible 5   caught 4   SMAP 14
+```
+
+Channel-disjoint and complete: no channel appears on both sides and every one of the 38
+is on exactly one.
+
+**Every parameter is selected on TUNE and reported on EVAL. No exceptions**, and an arm
+that reports a TUNE figure as a result is a failed arm rather than a partial one.
+
+**(!) Both sides are UNDERPOWERED and are stamped so wherever they are quoted (D3).**
+19 events resolve to 1/19 = 5.3 percentage points, so a one-event difference is 5.3 points
+and is not a finding. This is not a fixable weakness -- 38 events cannot produce two
+powered halves -- and it bounds what any arm below can establish.
+
+**Four further weaknesses, stated rather than discovered later.**
+
+1. **The split is stratified on the forensic's own classification**, which is derived from
+   the data. It balances outcomes; it does not select a parameter, and it was committed
+   before any sweep. But it is not a blind split and is not presented as one.
+2. **The alarm-rate half of every curve is not split.** The pooled nominal rate is
+   measured over all 81 channels, TUNE and EVAL channels included, because that is what
+   the rate means. Only **recall** is split. So an arm tuned on TUNE still sees EVAL
+   channels' nominal timesteps through the rate constraint. This is unavoidable and is
+   the sharpest limitation of the design.
+3. **The pruning population splits 6/7**, so Arm 1's lever is selected on six events. That
+   is a resolution of 1/6 = 16.7 percentage points on the quantity the arm exists to move.
+4. **Spacecraft are not balanced by design** -- 11 SMAP on TUNE against 14 on EVAL -- and
+   MSL has been this project's hard half since 28.8. MSL is reported first in every arm.
+
+### 37.9 Part C -- how all three arms are matched, stated once
+
+**The lever and the dial are different things, and conflating them would make every arm
+below a two-lever arm.** Changing `p` or the statistic changes the nominal alarm rate, so
+a comparison at each arm's own cut would be exactly the error D41 and D44 exist to
+prevent. In each arm the **multiplier is re-solved** to bring the arm to the frozen arm's
+own pooled nominal rate, the way 33.7 brought C1 to a matched rate and the way 33's M3
+established the dial is usable for. **The multiplier is the rate-matching device, not a
+second lever**, and no arm reports a figure at its own cut.
+
+```
+  matched at   0.6820% pooled nominal steps, the FROZEN arm's own rate
+               (26.18: gru, multiplier 0.551). 0.6838% -- the commanded arm's
+               rate at 6/38 -- is reported beside it in every table, never
+               substituted for it.
+  scored on    EVAL's 19 events. TUNE's 19 select every parameter and are
+               never reported as a result.
+  stamped      UNDERPOWERED on both halves, always (D3, n = 19).
+  reported     MSL first (28.8), k/n throughout, recall never alone,
+               and every arm reported whether it wins or loses.
+```
+
+**One monotonicity, derived in 37.2 and worth stating before the sweep so it cannot be
+mistaken for a finding:** lowering `p` retains strictly more sequences, so recall is
+non-decreasing and the alarm rate non-increasing as `p` falls, and `p = 0` is no pruning.
+**Arm 1's curve is a monotone trade-off by construction.** The question it answers is not
+whether recall rises -- it must -- but whether any point on it **dominates the frozen
+arm's** at the matched rate.
+
+### 37.10 Arm 1 -- pruning, swept
+
+**Lever:** `p`, telemanom's pruning parameter, published at **0.13**
+(`third_party/telemanom/config.yaml`, transcribed at
+`src/sentinel_models/telemanom.py:87`). Swept over `[0.00, 0.30]`. Everything else is
+stage 4's frozen configuration.
+
+**Reported as a full recall-vs-alarm-rate curve at every swept value, and selected at
+none on the eval half.** `p` is chosen on TUNE, once, and that single value is what EVAL
+reports.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **R1.1** | **The commissioned number.** At the matched 0.6820%, EVAL recall exceeds the frozen arm's EVAL baseline | **+3 or more of EVAL's 19** | +1 to +2 | **0 or fewer** |
+| **R1.2** | The gain is concentrated in the population the mechanism predicts: EVAL's **7** pruning-population events are recovered at a higher rate than its other 12 | recovery rate on the 7 at least double that on the other 12 | between 1x and 2x | at or below 1x -- the mechanism in 37.2 would then not be what is moving the number |
+| **R1.3** | Some `p` reaches the matched rate at all | a `p` in `[0.00, 0.30]` lands within 5% relative of 0.6820% | -- | none does, which is D48's shape for a ninth time and **a stop** |
+| **R1.4** | **D55's question, asked in advance.** The `p` selected on TUNE is not an absolute constant in data units, so it should transfer between the two halves | TUNE-selected `p` is within 0.02 of the `p` that maximises EVAL recall at the matched rate | 0.02 to 0.05 | above 0.05 -- `p` is then a **fitted quantity that does not transfer**, and the toolkit may not ship a value for it |
+
+**Falsification, stated plainly.** If R1.1 fails, the claim that "pruning is the single
+largest killer" (36.2, 36.6) does not survive contact with a rate-matched sweep: the 13
+events die in pruning, but recovering them costs more alarms than they are worth, and
+pruning is doing its job. **That outcome is published as prominently as a win**, and it
+would close pruning as a lever rather than leave it open.
+
+**Stop and report** if the weight store moves at all; if the read exceeds 200 Class B; if
+R1.3 fires; or if the TUNE-selected `p` is `0.00`, which would mean the arm is not
+"pruning tuned" but "pruning removed" and is a different claim needing its own
+registration.
+
+### 37.11 Arm 2 -- a richer detection statistic, causally normalised
+
+**Lever:** the detection statistic. The threshold rule stays stage 4's published dynamic
+threshold and `p` stays at **0.13**.
+
+**The statistic must be causal, and the forensic's is not (37.4).** Every term is
+normalised on a **trailing window only** -- the same `error_window` the dynamic threshold
+already uses, so no new memory and no new lookback enter the flight path:
+
+```
+  r[t]  the smoothed residual, exactly as today
+  d[t]  |x[t] - x[t-1]|, smoothed by the same EWMA as r
+  g[t]  the standard deviation across the ten predictions OF t, each made from a
+        window ending at or before t-1
+  each standardised against the mean and sd of its own TRAILING error_window,
+  never against the whole array
+  fused as the MAXIMUM of the three standardised terms -- one operation, no weights
+  to fit, and it degenerates to today's detector when d and g are quiet
+```
+
+**The maximum is chosen over a weighted sum deliberately**, because a weighted sum would
+introduce weights, and weights are levers. This arm has one.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **R2.1** | **The commissioned number.** At the matched 0.6820%, EVAL recall exceeds the frozen arm's EVAL baseline | **+3 or more of EVAL's 19** | +1 to +2 | **0 or fewer** |
+| **R2.2** | The gain lands where 37.4 says the signal is: EVAL's **5** invisible-in-residual events | at least **2 of 5** recovered | 1 of 5 | 0 of 5 |
+| **R2.3** | **The derivative does the work.** Ablated to residual-plus-derivative only, the arm retains most of its gain | retains at least 2/3 of R2.1's gain | 1/3 to 2/3 | below 1/3 -- the horizon disagreement is then carrying it, against 37.4's 4-of-10, and that is a finding worth more than the arm |
+| **R2.4** | **The causal cost, asked because 37.4 forces it.** A trailing-window normalisation reaches the events the whole-array one did | at least **6 of the 10** invisible events reach `z > 3` causally | 3 to 5 | **2 or fewer** -- 36.4's table would then be an artifact of its normalisation and must be re-stamped in place |
+| **R2.5** | The label-free calibration survives (37.6): the fused statistic's noise floor is measurable on nominal data alone and its pre-launch sanity rate is within a factor of 2 of today's | within 2x | 2x to 5x | above 5x -- the arm buys recall by making the calibration a mission cannot check, and **that is a fail even if R2.1 holds** |
+
+**Falsification.** If R2.1 fails while R2.4 holds, the signal is present and causally
+reachable and the fusion is the wrong way to use it -- a result about this arm.
+If **R2.4** fails, 36.4's headline finding is downgraded from "the residual discards
+signal that is present in the input" to "the residual discards signal that a non-causal
+diagnostic can see", and **36.4 gains a rider in the same commit as the outcome**.
+
+**Stop and report** if any term needs a value at `t` or later to score `t`; if the weight
+store moves; or above 200 Class B.
+
+### 37.12 Arm 3 -- both levers
+
+**Lever:** both of the above, at Arm 1's TUNE-selected `p` and Arm 2's statistic. **It is
+run only after Arms 1 and 2 are separately adjudicated**, and it is not interpretable
+before that, because a gain here cannot be attributed without them.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **R3.1** | **The commissioned number.** At the matched 0.6820%, EVAL recall exceeds the frozen arm's EVAL baseline | **+5 or more of EVAL's 19** | +2 to +4 | **+1 or fewer** |
+| **R3.2** | **Additivity.** The two levers reach different populations (37.4: pruning kills candidates that cleared threshold; the invisible ten never became candidates), so the gains should roughly add | R3.1 within 1 event of R1.1 + R2.1 | 2 events off | 3 or more off -- the levers **interact**, and neither arm's individual number then describes what it contributes |
+| **R3.3** | **The bar that matters.** Scored on all 38 at the matched rate, Arm 3 beats stage 4's **10 of 38** | **12 or more of 38** | 11 of 38 | **10 or fewer -- D62's freeze stands and is re-affirmed rather than lifted** |
+
+**R3.3 is the only prediction in this section measured on all 38**, and it is reported
+**after** the EVAL figures, never instead of them: it is the comparison against the frozen
+arm's published number and it uses events the parameters were selected on, so it is
+**reported as contaminated** and carries that word wherever it is quoted. The clean number
+is EVAL's.
+
+**Falsification, and it is the point of the whole section.** If R3.3 fails, nine arms
+become ten, the diagnosis in 36 stands as a correct account of *why* the misses happen
+that nonetheless yields no implementable improvement, and **the oracle's 28 of 38 is
+confirmed as a ceiling nothing reaches.** D62's freeze would then be re-affirmed on
+stronger evidence than it was made with.
+
+### 37.13 Cost, and stop-and-report for the whole section
+
+**Registration cost: zero operations.** Nothing above has run.
+
+**What running all three would cost.** Arms 1 and 2 share one bundle load with the A1/A5/A6
+diagnostic read described in 37.7, because a `p` sweep and a statistic swap are both
+compute inside a single load and neither changes the weight-cache key -- 30.3's argument,
+confirmed by 30.4 and again by 33.7. Arm 3 needs a second load only if it runs after the
+first is released.
+
+```
+  smoke, two channels                        7 Class B
+  load 1: A1 + A5 + A6, Arm 1, Arm 2       165 Class B, 1 Class A
+  load 2: Arm 3                            165 Class B, 1 Class A
+  ------------------------------------------------------------
+  worst case                               337 Class B, 2 Class A
+  month now      214 Class A, 4,415 Class B   of 50,000 each
+  month after    216 Class A, 4,752 Class B   of 50,000 each
+```
+
+**No fits.** The weight store is 1,313 and must be 1,313 afterwards; the run asserts it
+rather than reporting it, as 36's did.
+
+**Stop and report** if the weight store moves at all; if any single read exceeds 200
+Class B; if any statistic requires a value at or after the timestep it scores; if an arm
+turns out to need a second lever; if a figure would be quoted without its nominal alarm
+rate; or if R1.3 fires.
+
+### 37.14 OBSERVED -- reserved, before the run
+
+**Empty on purpose.** Nothing has been measured. This heading exists so that the outcome
+lands beside the prediction rather than replacing it, and so that a reader who finds it
+still empty knows the arms have not run.

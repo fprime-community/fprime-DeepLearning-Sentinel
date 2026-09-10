@@ -14,6 +14,89 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.20] - 2026-09-09 - The decision layer: three arms registered, none run
+
+**Work item 9.20. Research and pre-registration only. NOTHING RAN and no arm is
+adjudicated.** `docs/MODELS.md` 37. **Zero R2 operations**, weight store untouched at
+1,313. **D62's freeze stands** and stays standing until an arm beats stage 4's 10 of 38 at
+a matched rate.
+
+### Added
+- **`docs/MODELS.md` 37**, the pre-registration: the deepened diagnosis (37.1-37.7), the
+  committed channel-disjoint split (37.8), and three arms with numbered predictions,
+  hold/fail/no-verdict bands and stated falsifications (37.9-37.13). 37.14 is the OBSERVED
+  heading, reserved and empty so an outcome lands beside its prediction.
+- **The split, committed before any sweep**: 25 channels carrying the 38 in-range
+  contextual events, ordered by a stated rule and assigned to two channel-disjoint halves
+  of **19 events each**. **Both halves are UNDERPOWERED (D3, n < 20)** and are stamped so
+  wherever quoted; 38 events cannot produce two powered halves and the pre-registration
+  says so rather than discovering it later.
+- **The pruning mechanism, read from `third_party/telemanom/telemanom/errors.py:386-435`
+  and stated as a rule**: a candidate at rank `r` survives if and only if
+  `max(drop_i : i >= r) >= p`, because the removal list is RESET at `errors.py:414`
+  whenever a normalised drop reaches `p`. So what survives is the trailing run of the
+  ladder after the last such drop, and the ladder's last rung is `non_anom_max`, the
+  channel's largest nominal error. **An in-range contextual event fails it because it is
+  in range**: its error is modest, it lands close to the nominal maximum, and pruning asks
+  whether an error stands out rather than whether it is large.
+
+### Recorded
+- **(!) The frozen arm's own nominal alarm rate is 0.6820%, not 0.6838%.** 26.18's table:
+  `gru` at multiplier 0.551 gives 0.6820% and **10/38**; `gru+cmd` at 1.000 gives 0.6838%
+  and 6/38. The two are the matched pair V24 compared, and 26.18 calls them "the same
+  rate" -- but every arm in 37 matches at **0.6820%** and reports 0.6838% beside it.
+- **(!) 36.4's z-scores are not causal, and 36.4 does not say so.** The statistics are
+  (`dx[t] = |x[t] - x[t-1]|`; the ten predictions OF `t` are each made from a window
+  ending at or before `t-1`), but the normalisation is against `nom`, every non-event
+  timestep of the **whole test array** (`scripts/smap_forensics_38.py:191-196, 236-239`).
+  36.1 stamps the oracle "not implementable" for the same reason; 36.4 should carry the
+  same rider. Arm 2 may not use those figures as its commissioned number and R2.4 tests a
+  re-derived causal statistic instead.
+- **(!) The derivative carries ten of ten; the horizon disagreement carries four.** 36.4's
+  "or both" is exact and the work is being done by the derivative. R2.3 is written on it.
+- **(!) A confound in the in-range contextual population, measured for the first time.**
+  `third_party/telemanom/README.md:94` records that SMAP/MSL is pre-scaled to `(-1,1)`
+  **by the min/max of the TEST set** -- which this repository had not recorded. Measured
+  consequence: channels carrying contextual events have a training envelope spanning a
+  median **2.000 of the 2.0 available** (30 of 39 span `[-1,1]` exactly), against
+  **0.173** for channels carrying point anomalies. **D46's arithmetic is unchanged at
+  39/43**, but its 72.7-point gap over the point class is confounded with envelope width
+  and may not be read as a property of the anomalies alone. The only within-channel
+  comparison available is 4 channels and 9 events -- UNDERPOWERED, and no conclusion is
+  drawn. **D48 is untouched**: `rstd` at 5,000x still alarming on 15.17% of nominal steps
+  does not depend on the envelope definition.
+- **(!) The denominator is 38 rather than D46's 39 because one channel would not train.**
+  Stage 4's `excluded_channels` lists `G-1` with "training kept its FIRST epoch after
+  running 11" -- **D17's stall signature** -- and `G-1[4770-4890]` is the only in-range
+  contextual event on the four excluded channels. The 38 is a **scorable** population, not
+  the labelled one.
+- **Label provenance, read from the paper.** Hundman et al. section 4.1 "Setup": anomalies
+  come from **Incident Surprise Anomaly reports**, and "all telemetry channels discussed in
+  an individual ISA were reviewed ... and specific anomalous time ranges were manually
+  labeled." `third_party/telemanom/README.md:117-124` gives 105 sequences from **47 unique
+  ISAs** across 82 channels, 43 of them contextual. Destined for
+  `docs/datasets/SMAP_MSL.md`.
+- **Six places the commissioning brief disagreed with this repository**, in 37.1, the
+  repository winning in each -- including that only **2 of the 5** below-threshold events
+  are "just under" it (3.17% and 4.73% short; the other three are 39.71%, 46.81% and
+  63.30% short), and that **2 of the 10** "invisible" events had in fact cleared their
+  dynamic threshold and were pruned.
+
+### Owed
+- **A1, A5 and A6 are specified and NOT RUN** (37.7): the smallest `p` that retains each of
+  the 13, the pooled alarm rate beside every recall figure, and lead time in timesteps for
+  each caught event. None is reconstructible from a committed artifact -- the forensic
+  keeps each event's peak and threshold but **not the pruning ladder**, and retains **no
+  alarm timestep**. Cost stated before spending: **165 Class B and 1 Class A**, one bundle
+  load, no fits, after a **7 Class B** smoke. Month stands at 214 Class A and 4,415 Class B
+  of 50,000 each.
+
+### Changed
+- `docs/STATUS.md` 7's B4 paragraph, which said "Nothing is registered against this yet",
+  now names the three registered arms and restates that D62's freeze stands.
+- `docs/MODELS.md` 36.6 gains a rider pointing at 37. **Its original sentences are kept
+  verbatim**; a record corrected in hindsight is not a record.
+
 ## [0.6.19] - 2026-09-09 - Per-event forensics: 18 of 28 misses are the alarm rule's fault
 
 Work item 9.19, diagnosis only. One read at 55 Class B and 1 Class A, cached weights,
