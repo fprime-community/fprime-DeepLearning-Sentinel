@@ -14,6 +14,57 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.21] - 2026-09-10 - A1, A5 and A6: the pruning curve, and every caught event is late
+
+**Work item 9.20, diagnosis half. NO ARM RAN and nothing is adjudicated; D62's freeze
+stands.** `docs/MODELS.md` 37.7a. **One 7 Class B smoke, then one read of 165 Class B and
+1 Class A**, cached weights, **weight store 1,313 -> 1,313**, 54.4 s. Artifact
+`runs/smap-msl/_forensics/2026-09-10T041723Z-probe.json`; producer
+`scripts/decision_layer_probe.py`, landed in this commit.
+
+### Added
+- **`scripts/decision_layer_probe.py`**, which records the pruning **ladder** per
+  deciding window -- the quantity the forensic could not answer A1 from -- plus emission
+  timesteps and the pooled nominal rate over all 81 channels.
+- **The reproduction gate passes exactly.** At `p = 0.13` the probe returns 10 caught at
+  0.6820% and the caught set is **event for event identical** to 36's.
+
+### Measured
+- **A1.** All 13 pruned-and-recoverable events are deleted at `p = 0.13` **by wide
+  margins**: the most nearly retained needs `p <= 0.1137`, the median `0.0834`, and three
+  need below `0.05`. Recovering all 13 needs `p <= 0.0058`, which is pruning switched off.
+- **A5.** Swept at the frozen multiplier, **no `p` catches more than 10 at or below
+  0.6820%**. Loosening to 0.10 buys +3 events for a **31% relative rise** in the alarm
+  rate; to 0.08, +9 for +67%; `p = 0` reaches 25 of 39 at **8.06%**, twelve times the
+  flyable rate. **This is the raw trade-off at a fixed multiplier and NOT the matched-rate
+  comparison Arm 1 registers** -- the ladder depends on `eps`, so re-solving the
+  multiplier cannot be done from cached ladders. Arm 1 still has to run, against a prior
+  that is now quantified and unfavourable.
+- **A6, and it is the sharpest new fact. Not one of the ten caught events is detected
+  before its labelled onset**: median **-63.5 timesteps**, 0 of 10 positive. The lateness
+  is substantially **structural** -- the detector emits at the end of the stride segment
+  carrying the crossing and `stride = 70`, so seven of ten sit inside one stride and the
+  median is nine-tenths of one. Reducing the stride costs compute, not detection.
+  Recorded, not registered as an arm. No wall-clock figure is derived.
+- **Every figure above is UNDERPOWERED (D3)**: n = 13, n = 10.
+
+### Corrected
+- **(!) 37.5's account of the scaling confound was wrong about the mechanism, and the
+  old text is kept beside the correction.** It implied the published `(-1,1)` pre-scaling
+  created the confound. Settled from source and from the arrays:
+  `third_party/telemanom/telemanom/channel.py:69-82` `load_data()` calls `np.load()` and
+  **there is no scaler anywhere in the package**; and `S-1` has train
+  `[-0.400000, +1.000000]` against test `[-1.000000, +1.000000]`, so a separately-fitted
+  train scaler is ruled out. There is **one affine map per channel, fitted on the test
+  split and applied to both arrays.** **D46's arithmetic is therefore IMMUNE, not merely
+  unchanged**: a min/max range test is invariant under an affine map applied identically
+  to both arrays. **The confound survives and its mechanism is different** -- it is which
+  channels carry which class, not how the data was scaled.
+- **(!) `0.6838%` corrected to `0.6820%` in `docs/REORG_PLAN.md` and
+  `docs/reorg_plan.json`**, wherever it stood as the frozen arm's rate, in the house form
+  with the old figure kept. It had reached the public reading order's claim-to-evidence
+  table, which is where it would have become public material.
+
 ## [0.6.20] - 2026-09-09 - The decision layer: three arms registered, none run
 
 **Work item 9.20. Research and pre-registration only. NOTHING RAN and no arm is

@@ -21,7 +21,8 @@ Three files were written: this one, `docs/reorg_plan.json`, and two additive row
 D62 froze the pipeline on stage 4 -- `gru-telemanom` under telemanom's **published
 dynamic threshold**. `flight/` transcribes **D25's static quantile alone**
 (`flight/include/sentinel/Detector.hpp:3-7`, `flight/README.md:4`). Every headline
-figure this project quotes -- 10 of 38 at 0.6838% -- comes from a rule the shipped core
+figure this project quotes -- 10 of 38 at 0.6820% (was 0.6838%; that is the commanded
+arm's rate at 6/38, 26.18) -- comes from a rule the shipped core
 does not implement. `docs/STATUS.md:271-274` records the gap; nothing in `flight/`
 does, so a reader of the C++ has to infer it. This becomes **roadmap item 1**, **a
 stated limitation in the public reading order** rather than a footnote, and **a
@@ -461,7 +462,7 @@ was verified at its source this session:
 
 | Claim | Evidence | Caveat |
 |---|---|---|
-| It warns before a limit trips | D46: 39 of 43 contextual anomalies stay inside their channel's historical range. `docs/MODELS.md` 26.18: 10 of 38 at 0.6838% | It is 26%, on one dataset, with no floor to compare against at that rate |
+| It warns before a limit trips | D46: 39 of 43 contextual anomalies stay inside their channel's historical range. `docs/MODELS.md` 26.18: 10 of 38 at **0.6820%** (was 0.6838%, the commanded arm's rate at 6/38) | It is 26%, on one dataset, with no floor to compare against at that rate |
 | **The shipped core runs D25's static rule, not D62's frozen dynamic one** | `Detector.hpp:3-7`; `docs/STATUS.md:271-274` | **A stated limitation, not a footnote.** Roadmap item 1 |
 | It is warn-only | `Monitor.fpp` declares **zero commands**; `cmdIn` exists only for F's autocoded `PARAM_SET`/`PARAM_SAVE`, said in situ at `Monitor.fpp:201-205` | None. Warn-only by interface, not by convention |
 | It fails safe | 11 refusal codes in `Status.hpp`; 11/11 degrade to Level 1, 0/11 fail the topology (D32-D37) | None |
@@ -477,7 +478,7 @@ headline result. Item 2 is R1/R2/R3, stated as the repository has it -- **the fr
 stands, nothing is registered** -- with the shape of a reserved `docs/MODELS.md` section
 37 described so that whoever registers the arms inherits a frame rather than inventing
 one: three arms, one lever each (pruning's `p`; a derivative and horizon-disagreement
-statistic; both), all measured at or below stage 4's 0.6838% and scored against its own
+statistic; both), all measured at or below stage 4's 0.6820% (was 0.6838%) and scored against its own
 38, with the standing bar being the 10 of 38 that nine arms have already failed to beat.
 Then the Pi envelope, WI10, the toolkit, the Ref physics testbed, the OCaml layer,
 Phase 5, and licence and release.
@@ -492,7 +493,12 @@ subject is wrong is repaired before anything cosmetic**, because every later tra
 relies on those guards to keep its work correct.
 
 1. **The guards, and the sources describing a repaired defect** (section 3).
-2. **Stale live figures and dangling citations.**
+2. **Stale live figures and dangling citations** -- including this document's own:
+   `0.6838%` was corrected to `0.6820%` on 2026-09-10 wherever it stood as the frozen
+   arm's rate, in the house form. 0.6838% is the **commanded** arm's rate at 6/38;
+   26.18's table gives the frozen `gru` arm **0.6820% at 10/38**. It had reached the
+   public reading order's claim-to-evidence table, which is where it would have become
+   public material.
 3. **Additive legibility, and the link-check guard that keeps it.**
 4. **The dataset documents and the public reading order.**
 5. **The branch work.**

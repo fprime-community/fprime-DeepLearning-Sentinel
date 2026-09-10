@@ -9716,8 +9716,35 @@ deviation (`docs/RESEARCH.md` Part IV).
 `third_party/telemanom/README.md:94`: "all telemetry values are pre-scaled between
 `(-1,1)` **according to the min/max in the test set**." The repository records
 "pre-scaled to (-1,1)" in two places (D55's T4, 28's T-c) and **has not recorded which
-split the scaling was taken from.** It matters, because D43 defines the contextual class
-by the **training window's min/max**, and D46 reports 39 of 43 inside it.
+split the scaling was taken from.**
+
+**(!) SETTLED 2026-09-10, and it exonerates the scaling. This paragraph originally
+continued: "It matters, because D43 defines the contextual class by the training
+window's min/max, and D46 reports 39 of 43 inside it."** That framing implied the
+scaling was the mechanism of the confound below. It is not, and the correction is
+recorded rather than absorbed.
+
+The vendored source cannot settle it: `third_party/telemanom/telemanom/channel.py:69-82`
+`load_data()` calls `np.load()` on the two `.npy` files and hands them straight to
+`shape_data()`. **There is no scaler anywhere in the package** -- the only "normalized"
+quantity is prediction error, for logging, at `errors.py:70`. `scripts/ingest_smap_msl.py`
+does not rescale either. The arrays ship pre-scaled from upstream.
+
+The **arrays** settle it. Measured over all 81 channels, `runs/smap-msl/_forensics/2026-09-10T041723Z-probe.json`,
+field `extrema`: `S-1` has train `[-0.400000, +1.000000]` against test
+`[-1.000000, +1.000000]`. **A scaler fitted separately on the training array would put
+that array's minimum at exactly -1.** It does not. So there is **one affine map per
+channel, fitted on the test split and applied to both arrays**, exactly as README:94
+states.
+
+> **Therefore D46's arithmetic is IMMUNE, not merely unchanged.** A min/max range
+> determination is invariant under an affine map applied identically to both arrays:
+> `(x - a) / b` exceeds `(train_max - a) / b` exactly when `x` exceeds `train_max`.
+> "Does this test value leave the training range" returns the identical answer scaled
+> or unscaled.
+
+**The confound below survives, and its mechanism is different from the one first
+proposed.** It is not the scaling. It is which channels carry which class.
 
 Measured from the stage-1 visibility artifact:
 
@@ -9810,6 +9837,125 @@ the same quantity. It will be measured and reported by the run that does it.
 
 **Nothing above has been spent. A1, A5 and A6 are owed, and they are owed before any arm
 is adjudicated**, because R1.1 and R3.1 are written against A1's curve.
+
+### 37.7a OBSERVED -- A1, A5 and A6, measured
+
+**2026-09-10. One 7 Class B smoke on two channels, then one read of 165 Class B and
+1 Class A over all 81**, cached weights, **weight store 1,313 -> 1,313** -- the script
+asserts it rather than reporting it. 54.4 s wall clock, one worker. Artifact
+`runs/smap-msl/_forensics/2026-09-10T041723Z-probe.json`; producer
+`scripts/decision_layer_probe.py`, landed in this commit. **The smoke's object count was
+exactly 7 and projected 165 for 81 channels, which is what the read spent**: 1 manifest,
+1 label file, 162 arrays, 1 ledger. **Four channels are skipped and they are stage 4's
+own four** -- `E-3`, `G-1`, `D-11`, `D-12` -- so 77 are scored.
+
+**The reproduction gate passes exactly.** At `p = 0.13` the probe rebuilds the ladder
+independently and returns **10 caught at 0.6820% pooled nominal**, and the caught set is
+**event for event identical** to 36's: `A-8[4569]`, `D-16[600]`, `E-10[5601]`,
+`E-11[5614]`, `F-8[1950]`, `G-7[3650]`, `G-7[7560]`, `M-3[1250]`, `T-13[1900]`,
+`T-8[870]`. Nothing below rests on a rebuilt stack that differs from the measured one.
+
+#### A1 -- the smallest `p` that would have retained each of the 13
+
+Per 37.2, a sequence survives for every `p <= M_r`. Measured `M_r` per event:
+
+```
+  A-3[4575]   0.1137      E-11[5000]  0.0835      P-7[4950]   0.0596
+  E-13[6449]  0.1108      E-10[5000]  0.0834      A-7[6200]   0.0343
+  F-7[2670]   0.1048      A-4[4550]   0.0812      T-12[630]   0.0123
+  A-2[4450]   0.0849      F-7[1250]   0.0597      A-9[4569]   0.0058
+  E-12[5000]  0.0837
+
+  median 0.0834   max 0.1137   min 0.0058
+  need p below 0.10:  10/13        need p below 0.05:  3/13
+```
+
+**All thirteen are deleted at 0.13 and none is close to it.** The most nearly retained
+needs `p <= 0.1137`; recovering the whole population needs `p <= 0.0058`, which is
+pruning switched off. **n = 13, UNDERPOWERED (D3).**
+
+#### A5 -- and the alarm rate rises faster than the recall
+
+The curve, swept at **the frozen arm's own multiplier**, over all 77 scored channels:
+
+```
+      p     pooled nominal    caught        against the frozen 0.6820%
+  0.000        8.0567%         25/39        ABOVE
+  0.020        4.3412%         23/39        ABOVE
+  0.040        2.6750%         21/39        ABOVE
+  0.060        1.7490%         19/39        ABOVE
+  0.080        1.1394%         19/39        ABOVE
+  0.100        0.8921%         13/39        ABOVE
+  0.120        0.7242%         10/39        ABOVE
+  0.130        0.6820%         10/39        AT   <- the frozen arm
+  0.140        0.6398%         10/39        below
+  0.160        0.5955%         10/39        below
+  0.200        0.4827%          8/39        below
+  0.300        0.1008%          2/39        below
+```
+
+**No swept `p` catches more than 10 at or below the frozen arm's rate.** Loosening to
+0.10 buys **+3 events for a 31% relative rise in the alarm rate**; loosening to 0.08 buys
++9 for +67%; switching pruning off entirely reaches 25 of 39 at **8.06% of nominal
+steps**, twelve times the flyable rate.
+
+> **(!) This is the raw `p` trade-off at a fixed multiplier, and it is NOT the
+> matched-rate comparison Arm 1 registers.** 37.9 re-solves the multiplier at each `p` to
+> return the arm to 0.6820%, and that cannot be recomputed from these cached ladders,
+> because the ladder itself depends on `eps`: both the candidate sequences and
+> `non_anom_max` move when the threshold moves. **Arm 1 still has to run.** What this
+> curve establishes is the prior it runs against, and the prior is unfavourable.
+
+#### A6 -- lead time in timesteps, and every caught event is late
+
+```
+  event         onset   emits at   lead (steps)
+  T-8[870]        870        887        -17
+  F-8[1950]      1950       1983        -33
+  D-16[600]       600        647        -47
+  E-11[5614]     5614       5669        -55
+  G-7[3650]      3650       3709        -59
+  E-10[5601]     5601       5669        -68
+  G-7[7560]      7560       7629        -69
+  T-13[1900]     1900       1979        -79
+  M-3[1250]      1250       1430       -180
+  A-8[4569]      4569       8189      -3620
+
+  median -63.5    0 of 10 positive    n = 10, UNDERPOWERED (D3)
+```
+
+**Not one of the ten is detected before its labelled onset.** And the lateness is
+substantially structural rather than a sensitivity result: the detector emits at the
+**end of the stride segment** carrying the crossing (`emits_at = seg_hi - 1`,
+`telemanom.channel_ratios`), and `stride = 70`. **Seven of the ten sit inside one
+stride** and eight inside two. The median, -63.5, is nine-tenths of one stride.
+**Reducing the stride would buy most of this back and costs compute, not detection** --
+recorded here, not registered as an arm.
+
+**(!) No wall-clock figure is derived from any of this, under any framing.** SMAP/MSL's
+arrays carry no clock and its timestamps are anonymised; these are timesteps
+(`Objective.md` 1.1).
+
+**And the fact that qualifies every row above.** **A limit check never fires on this
+population at all**: 39 of 43 labelled contextual anomalies stay entirely inside their
+channel's training min/max (D46,
+`runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`), so there is no limit
+crossing for these figures to be early or late against. A negative lead here means *later
+than a hindsight annotation an operations engineer wrote after the fact*, which is the
+same qualification `Objective.md` 1.1 already puts on every lead-time figure this project
+publishes.
+
+#### What A1, A5 and A6 decide, and what they do not
+
+- **They do not adjudicate anything.** No arm has run; D62's freeze stands.
+- **Arm 1's prior is unfavourable and is now quantified** rather than assumed. The
+  mechanism in 37.2 is confirmed -- the 13 are deleted, and by wide margins -- but
+  recovering them at a fixed multiplier costs more alarms than it buys events at every
+  point on the grid.
+- **A6 is the sharpest new fact.** On the population this project's headline rests on,
+  the frozen detector is **not an early-warning detector**: 0 of 10, median -63.5
+  timesteps. Most of that is the 70-step batch, which is a property of the emission
+  schedule and not of the forecaster or the alarm rule.
 
 ### 37.8 Part B -- the split, committed before any sweep
 
