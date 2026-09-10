@@ -4443,3 +4443,91 @@ about whether heterogeneity across detectors buys anything. P2.3 above joins the
    therefore not been applied to any of these figures.
 6. **No early-warning claim is made or implied.** 37.7a measured 0 of 10 positive leads on
    the frozen arm, and this entry measures recall at a matched alarm rate, not lead time.
+
+---
+
+## D66. The in-range contextual class is confounded with channel envelope width, and the scaling is not the cause
+
+**DATE** 2026-09-10 | **STATUS** resolved as a qualification. **It qualifies D46 and
+edits nothing.** D46's arithmetic stands; what changes is what may be read off it.
+
+**CONTEXT.** D46 measured that **39 of 43** labelled contextual anomalies on SMAP/MSL
+stay entirely inside their channel's training min/max, against **11 of 61** point
+anomalies -- a 72.7-point gap, and the population the claim "Sentinel catches anomalies a
+limit check can never see" rests on. D43 fixed that envelope as the training window's
+min/max, on the ground that a real RED or YELLOW limit sits outside a channel's
+historical operating range. Neither entry asked how wide those envelopes are.
+
+**EVIDENCE.** `runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json` for the
+envelopes, `runs/smap-msl/_forensics/2026-09-10T041723Z-probe.json` field `extrema` for
+the per-split extrema, and `third_party/telemanom/` read directly.
+
+```
+                  n    in range        training-envelope span, median   span >= 1.9
+  contextual     43   39 (90.7%)                 2.000 of 2.0             42/43
+  point          61   11 (18.0%)                 0.173 of 2.0             20/61
+```
+
+**The two classes sit on systematically different channels.** All 39 in-range contextual
+sequences lie on channels whose training envelope spans at least 1.9 of the 2.0
+available, and **30 of the 39 span the full `[-1, 1]` exactly** -- on those channels
+"inside the training min/max" is close to true by construction, because the training
+window already contains everything the channel ever does. Channels carrying point
+anomalies have a median span of **0.274**.
+
+**ALTERNATIVES CONSIDERED, and the first was wrong.**
+
+1. **The published pre-scaling causes it.** `third_party/telemanom/README.md:94` states
+   the arrays are "pre-scaled between `(-1,1)` according to the min/max in the test set",
+   which this repository had not recorded. **Investigated and REFUTED as the mechanism.**
+   The vendored source has no scaler at all: `telemanom/channel.py:69-82` `load_data()`
+   calls `np.load()` on the two `.npy` files and hands them to `shape_data()`, and the
+   only "normalized" quantity in the package is prediction error, for logging, at
+   `errors.py:70`. `scripts/ingest_smap_msl.py` does not rescale either. The arrays
+   themselves settle which map was used: **`S-1` has train `[-0.400000, +1.000000]`
+   against test `[-1.000000, +1.000000]`**, and a scaler fitted separately on the training
+   array would put that array's minimum at exactly -1. So there is **one affine map per
+   channel, fitted on the test split and applied to both arrays.**
+
+   > **D46's arithmetic is therefore IMMUNE, not merely unchanged.** A min/max range
+   > determination is invariant under an affine map applied identically to both arrays:
+   > `(x - a) / b` exceeds `(train_max - a) / b` exactly when `x` exceeds `train_max`.
+   > The question "does this test value leave the training range" returns the identical
+   > answer scaled or unscaled.
+
+2. **The channels differ, and that is the mechanism.** Contextual anomalies are labelled
+   on channels whose signal is rail-to-rail across both splits; point anomalies on
+   channels whose signal is narrow-band. That is a property of the dataset's composition,
+   not of its preparation, and it is not correctable.
+
+**CONSEQUENCE.**
+
+- **D46's 39 of 43 stands as arithmetic and is not withdrawn.**
+- **The 72.7-point gap over the point class may not be read as a property of the
+  anomalies alone.** It is confounded with envelope width, and any statement of the form
+  "contextual anomalies are the population a limit check cannot see, and point anomalies
+  are the population it can" now carries that qualification.
+- **The only within-channel test available is underpowered and settles nothing.** Four
+  channels carry both classes -- `C-1`, `C-2`, `G-7`, `T-1` -- giving contextual 4/5 and
+  point 2/4. **n = 9. UNDERPOWERED (D3), and no conclusion is drawn from it.**
+- **(!) D48 IS NOT TOUCHED, and it is the load-bearing half of the claim.** D48 measured
+  that no per-channel statistic reaches a flyable alarm rate on this data at any
+  multiplier: `rstd` at **5,000 times** its calibrated threshold still alarms on
+  **15.17%** of nominal steps, and a range check on **5.84%**, against the forecaster's
+  **0.6820%** (26.18). **That is a direct measurement of what a per-channel statistic
+  costs, and it does not depend on the envelope definition at all.** The confound reaches
+  D46's framing and stops there.
+- **26.18's V22 already recorded the adjacent point** for the range check -- "at
+  `w >= 1` the envelope is wider than the training min/max, so an in-range event is inside
+  it by definition and 0/38 is arithmetic, not a measurement". This entry generalises it
+  from the detector's envelope to the dataset's.
+- **What would settle it**: a dataset whose contextual and point populations are drawn
+  from comparable channels, or a within-channel comparison with `n >= 20`. Neither exists
+  in SMAP/MSL. `docs/RESEARCH.md` Part IV's acceptance test -- Pinet's per-segment
+  UNIVARIATE / CROSS-CHANNEL / BOTH / UNDETECTED diagnostic -- should gain an envelope-width
+  report beside it before any dataset is adopted for this claim.
+- **This entry is destined for `docs/datasets/SMAP_MSL.md`** in full, because a reader
+  obtaining the dataset independently needs it before quoting 39 of 43. **D67, the next
+  entry, puts that document on the public branch**, so this qualification is not an internal
+  note but part of what a customer reads before quoting the figure -- which is the audience
+  it was always written for and now formally has.

@@ -14,6 +14,33 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.28] - 2026-09-10 - D66: the in-range contextual class is confounded with envelope width
+
+**A qualification, not a correction. D46's arithmetic stands and nothing is edited.** Zero
+bucket operations; no fit; weight store unmoved. Written from
+`runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`, `...2026-09-10T041723Z-probe.json`
+field `extrema`, and `third_party/telemanom/` read directly.
+
+### Decided
+- **D66.** All 39 in-range contextual sequences sit on channels whose training envelope spans
+  at least **1.9 of the 2.0** available, and **30 of the 39 span the full `[-1, 1]` exactly**;
+  channels carrying point anomalies have a median span of **0.274**. The 72.7-point gap over
+  the point class **may not be read as a property of the anomalies alone**.
+- **The published pre-scaling is REFUTED as the mechanism.** The vendored source has no
+  scaler at all (`telemanom/channel.py:69-82`); `S-1`'s train `[-0.400000, +1.000000]` against
+  test `[-1.000000, +1.000000]` settles that there is **one affine map per channel, fitted on
+  the test split and applied to both arrays**. D46's range determination is **immune** to it:
+  an affine map applied identically to both arrays cannot change whether a test value leaves
+  the training range.
+- **D48 is not touched, and it is the load-bearing half of the claim.** `rstd` at 5,000 times
+  its calibrated threshold still alarms on **15.17%** of nominal steps against the
+  forecaster's **0.6820%**, and that measurement does not depend on the envelope definition.
+
+### Named rather than omitted
+- The only within-channel test available is **n = 9. UNDERPOWERED (D3)**, and no conclusion
+  is drawn from it.
+- What would settle it does not exist in SMAP/MSL.
+
 ## [0.6.27] - 2026-09-10 - D65: the freeze is superseded, and the derivative is the finding
 
 **D62's freeze is superseded and nothing is adopted.** Zero bucket operations; no fit; weight
