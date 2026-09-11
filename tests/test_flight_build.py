@@ -121,8 +121,10 @@ def test_the_footprint_is_what_the_pre_registration_predicted(built):
     added telemanom's dynamic threshold and the derivative stream. F1 is a record
     and is not edited; it is asserted here only as the history it is.
 
-    39's **N3 predicted 581,488 B +/- 64 and is MISSED at 603,024 -- +3.70%**,
-    outside its own 1% band. The band is missed, not moved. The account, itemised
+    39's **N3 predicted 581,488 B +/- 64 and is MISSED at 603,032 -- +3.70%**,
+    outside its own 1% band. The band is missed, not moved. (!) 39.13 measured
+    **603,024**; `99fffd2` then added `U32 m_peakChannel` and padding took the
+    object to 603,032, which a 2% band was wide enough to hide. The account, itemised
     the way F1's 530 B was: **+8,960** because the rings are `SOLVE_WINDOW` deep
     (2,170: 2,100 of history plus the 70 the threshold judges) where 39.6 sized
     both at 2,100; **+12,168** for the pruning ladder's scratch, which 39.6 did

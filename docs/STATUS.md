@@ -315,8 +315,12 @@ footprint grows **312,112 -> 581,488 B**, which is a new numbered prediction bes
 F1 rather than an edit to it. **(!) THE PORT IS WRITTEN AND GREEN, 2026-09-11** (`docs/MODELS.md` 39.13). `TrailingWindow`,
 `DynamicThreshold` and `DerivativeStream`, held to the reference at **1e-5 with the emission
 flag exact on every step** (N1 held); determinism bit-identical across processes with 2,170
-samples of carried state (N4 held). **`sizeof(Detector)` is 603,024 B against N3's predicted
+samples of carried state (N4 held). **`sizeof(Detector)` is 603,032 B against N3's predicted
 581,488 -- N3 FAILED at +3.70% and the account is itemised, not the band moved.**
+**(!) It was 603,024 when 39.13 measured it**, and `99fffd2` then added
+`U32 m_peakChannel` so rule 4 could name a channel; padding took it to 603,032 and the
+footprint check's 2% band was wide enough to hide 8 B. The band is now an equality
+(`flight/test/Footprint.cpp`), and 39.13's figure stays as the record it is (39.13.5).
 **Three decision layers run and one emits**: `crossing()` and `emitted()` are still D25's
 static quantile, because D65 names no flight configuration and promoting either new rule
 would make the port the adoption decision. **On the second read (2026-09-11), with the cut floating as the frozen arm's does: neither

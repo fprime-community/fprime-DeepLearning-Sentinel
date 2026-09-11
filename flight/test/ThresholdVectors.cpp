@@ -9,6 +9,7 @@
 //
 // These vectors carry FORWARD-ONLY dilation, which is the flight rule (39.5) and
 // not the published one. The published one cannot be emitted.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -74,6 +75,13 @@ F64 runTier(const char* tier, const char* path, U32& tiersRun) {
     const U32 record = (static_cast<U32>(channels) * 12U) + 1U;
     U8 row[(Config::MAX_CHANNELS * 12U) + 1U];
     F32 values[Config::MAX_CHANNELS];
+
+    if (record > sizeof(row)) {
+        (void)std::fclose(handle);
+        SentinelTest::check(false,
+                            "the vector's record is wider than the reader's buffer");
+        return 0.0;
+    }
 
     F64 worst = 0.0;
     U32 worstStep = 0U;
@@ -443,7 +451,7 @@ int main() {
     const char* names[2] = {"d1", "d2"};
     for (U32 i = 0U; i < 2U; ++i) {
         const F64 seen = runTier(names[i], paths[i], tiers);
-        if (seen > worst) { worst = seen; }
+        worst = std::max(worst, seen);
     }
     std::printf("    %u tier(s) run\n", static_cast<unsigned>(tiers));
     std::printf("    worst eps over all tiers: %.3e, tolerance %.0e\n", worst, TOLERANCE);
@@ -456,7 +464,7 @@ int main() {
     const char* fNames[2] = {"f1", "f2"};
     for (U32 i = 0U; i < 2U; ++i) {
         const F64 seen = runDerivativeTier(fNames[i], fPaths[i], fTiers);
-        if (seen > fWorst) { fWorst = seen; }
+        fWorst = std::max(fWorst, seen);
     }
     std::printf("    %u tier(s) run, worst %.3e, tolerance %.0e\n",
                 static_cast<unsigned>(fTiers), fWorst, TOLERANCE);

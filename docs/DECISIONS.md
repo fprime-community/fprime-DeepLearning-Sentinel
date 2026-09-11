@@ -4871,6 +4871,19 @@ measurement can overturn -- so the third read is owed as an accounting of what t
 departure costs, not as a condition on the configuration. **165 Class B and 1 Class
 A, after a smoke. Not taken.**
 
+### D68.2 Rider, 2026-09-11: the footprint figure this entry quotes moved by 8 bytes
+
+**Alternative 1's arithmetic is not edited.** It refused running the dynamic
+threshold on the fused stream, on the ground that a third 2,170-sample ring per
+channel takes `sizeof(Detector)` **from 603,024 to 742,320 B** -- and, decisively,
+that **no read has ever scored that composition**.
+
+`99fffd2` afterwards added `U32 m_peakChannel` to `Detector`, so the base is now
+**603,032** and the projection **742,328**. **The alternative is refused for the same
+two reasons and by the same margin**: +139,296 B either way, and still unmeasured.
+The account of the drift, and the 2% band that hid it, is `docs/MODELS.md` 39.13.5.
+
+
 ---
 
 ## D69. The public branch carries customer documents; the laboratory record stays on `dev`. Supersedes D67 consequences 1 and 9

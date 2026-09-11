@@ -10,6 +10,7 @@
 // 7.6584e+00 of error against a true sigma of 3.0.
 //
 // Format is written at the head of `scripts/make_trailing_vectors.py`.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -111,6 +112,13 @@ F64 runTier(const char* tier, const char* path, U32& tiersRun) {
     U8 row[Config::MAX_CHANNELS * 20U];
     F32 values[Config::MAX_CHANNELS];
 
+    if (record > sizeof(row)) {
+        (void)std::fclose(handle);
+        SentinelTest::check(false,
+                            "the vector's record is wider than the reader's buffer");
+        return 0.0;
+    }
+
     F64 worst = 0.0;
     U32 worstStep = 0U;
     const char* worstWhat = "-";
@@ -203,13 +211,11 @@ int main() {
     F64 worst = 0.0;
     const char* paths[3] = {"test/vectors/t1.tvec",
                             "test/vectors/t2.tvec",
-                            "test/vectors/t3.tvec"};
+                            "test/vectors/t3.tvec",};
     const char* names[3] = {"t1", "t2", "t3"};
     for (U32 i = 0U; i < 3U; ++i) {
         const F64 seen = runTier(names[i], paths[i], tiers);
-        if (seen > worst) {
-            worst = seen;
-        }
+        worst = std::max(worst, seen);
     }
     std::printf("    %u tier(s) run\n", static_cast<unsigned>(tiers));
     std::printf("    worst over all tiers: %.3e, tolerance %.0e\n", worst, TOLERANCE);

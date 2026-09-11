@@ -11535,6 +11535,35 @@ not established.**
 
 Month after the second read: **227 Class A and 5,321 Class B of 50,000.**
 
+#### 39.13.5 Rider, 2026-09-11: the measurement moved after it was adjudicated, and a 2% band hid it
+
+**N3's row above is not edited.** It measured `sizeof(Detector)` at **603,024 B** on
+2026-09-11 and that is what the object was.
+
+**It is 603,032 B now.** `99fffd2` -- "Tranche 3", the same commit that gave the
+component a named peak channel for `Objective.md` 11 rule 4 -- added
+`U32 m_peakChannel` to `Detector`. A `U32` among `F64` members pads to 8, so the
+object grew by **8 B** a day after N3 was adjudicated.
+
+**N3's verdict is unchanged.** 603,024 is +3.7043% over the predicted 581,488 and
+603,032 is +3.7057%; both round to the **+3.70%** the row reports, and both are
+outside the 1% band. Nothing about the FAILED verdict or 39.13.2's itemisation
+turns on the 8 B.
+
+**(!) What is a finding is that nothing could have caught it.**
+`flight/test/Footprint.cpp` asserted `detector < 615000U` -- *within 2% of the
+measured 603,024 B* -- and `sizeof` on a fixed toolchain is **exact**. A 2% band on
+a compile-time constant tolerates about **12 KB**: a member could be added, or four,
+and the check would not move. The figure then stood in five places while the object
+had changed, which is D69's mechanism arriving on `dev`'s own side rather than on
+`master`'s.
+
+**The repair is an equality**, and it is in `flight/test/Footprint.cpp` rather than
+here: a compile-time constant gets `checkEqualU32`, so moving it is a decision
+somebody makes on purpose and states. Measured both ways to be sure the cause is the
+member and not the toolchain -- building `a0dfafb`, the D68 commit, gives **603,024**,
+and building the same tree at `decdf04` gives **603,032**.
+
 ### 39.14 Deferred, with the slot registered so the gap is visible
 
 **A float64 Python reference for the threshold, so N2's contract can be judged.**
