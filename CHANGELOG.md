@@ -60,9 +60,11 @@ band.
   68. `docs/DECISIONS.md` has **zero** numbered headings -- every entry is `## D42.` -- so a
   bare number after its name can never be a section citation there, and the checker now says
   so. **A guard that cries wolf is one people switch off.**
-- **And it checked itself.** Its own docstring shows `tests/test_x.py::test_y` and
-  `docs/datasets/NAME.md` as examples of the forms it matches, and its test quotes the one
-  dangling citation it caught. Both are now named as self-referential -- the same exemption,
+- **And it checked itself.** Its own docstring shows a pytest node id and a dataset path as
+  worked examples of the forms it matches, and its test quotes the one dangling citation it
+  caught. (This entry originally quoted one of those examples verbatim and the guard flagged
+  **it** -- a third instance of the same shape, fixed by rewording the prose rather than by
+  exempting a third file. The guard was right both times.) Both are now named as self-referential -- the same exemption,
   for the same reason, that `scripts/telemanom_citations.py` takes and that
   `tests/test_documents_are_current.py` has always taken when it skips itself for quoting
   every pattern it bans.
