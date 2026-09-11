@@ -14,6 +14,53 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.35] - 2026-09-11 - N5 and N6: one read spent, and neither departure got its price
+
+**`docs/MODELS.md` 39.13, the port's OBSERVED entry.** **One read of 165 Class B and 1 Class
+A**, cached weights, **weight store 1,313 -> 1,313** (asserted), after two smokes. Artifact
+`runs/smap-msl/_forensics/2026-09-11T011756Z-departures.json`; producer
+`scripts/decision_layer_departures.py`, in this commit. Month: **225 Class A and 5,147 Class
+B of 50,000**.
+
+### Both gates passed, and everything else rests on them
+- **The reproduction gate.** The frozen arm rebuilt on 77 of 81 channels returns **0.6820%
+  and 10 of 38**, TUNE 6/19 and EVAL 4/19 -- identical to 38.15 on both reads.
+- **The reference gate, which is new.** `flight_reference.ratios` with the departure switched
+  off is `telemanom.channel_ratios` **exactly** -- `np.array_equal` on all 77 channels' full
+  score arrays. The restatement the C++ is held to is the published rule.
+
+### (!) N5 and N6 are NOT ADJUDICATED, and the defect is mine
+Both variants were scored with the cut **floored at 1.0** and neither reached the matched
+rate: forward-only landed at **0.3787%**, 44% off target; guard cells at **0.5848%**, 14%
+off. **Neither figure is reported as a result** -- 38.15's rule for arms 4a, 6 and 7 applies
+unchanged, and *a recall figure without its alarm rate is not a result*. **The 16 of 38 in
+particular must not be quoted, in either direction.**
+
+The floor was inherited from Arm 1's repair, where it was right and here is wrong. Arm 1's
+**lever was pruning `p`**, and a dial below 1.0 re-admits deleted steps, so flooring it
+separated lever from dial. Here the levers are dilation and guard cells, and **the frozen
+arm's own operating point sits at 0.5506** -- below 1.0. Flooring the variants at 1.0 while
+the baseline runs at 0.5506 compares two kinds of operating point rather than matching a
+rate. At a cut of exactly 1.0 only surviving-sequence steps alarm, so forward-only's 0.3787%
+is its smaller alarm extent by construction and not a measurement of recall.
+
+**The repair is one line** -- let the cut float as the frozen arm's does -- and it needs a
+**second read of 165 Class B and 1 Class A, which is not taken here** and is brought to the
+owner with its cost. Until then 39.4's and 39.5's choices stand on their stated reasons and
+not on a number.
+
+### The first smoke diverged by one operation, which is what smokes are for
+Projected **6** Class B for two channels, actual **7**. The run was right and the arithmetic
+was wrong: `ops.load` fetches the ledger before anything else and the formula omitted it. The
+**165** this project has quoted all along is `1 ledger + 1 manifest + 1 labels + 162 arrays`,
+so the ledger was always in the number and never in the projection. Corrected, re-smoked:
+**projected 9, actual 9**; the full read then went **projected 165, actual 165**.
+
+### The port's other verdicts
+**N1 held** (1e-5 throughout, emission flag exact), **N4 held** (bit-identical determinism
+with 2,170 samples of carried state), **N7 held**, **N8 held** at 5.53 MiB. **N2 no verdict**
+with its cause identified. **N3 failed** at +3.70%, itemised at 39.13.2.
+
 ## [0.6.34] - 2026-09-10 - Port stages 3 and 4: the derivative stream, wired and reported, and N3 missed
 
 **`docs/MODELS.md` 39 stages 3 and 4 of 4. The port is complete as registered.**

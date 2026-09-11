@@ -10967,3 +10967,109 @@ Stop and report, carrying 19.7's five forward and adding three:
 7. **N8 fires** -- the vectors would take tracked content past 7 MiB.
 8. **The measured `sizeof` lands outside N3's band**, which means the layout drifted from L1
    without a decision, and L2 is a decision rather than a fallback taken quietly.
+
+### 39.13 OBSERVED -- the port, and two departures that did not get their price
+
+**2026-09-10 and 2026-09-11.** The C++ is written and green; **N5 and N6 are NOT
+ADJUDICATED** and the reason is a defect of mine, named below rather than worked
+around. Zero bucket operations for the port itself. **One read of 165 Class B and
+1 Class A** for the departures, after two smokes -- the first of which caught the
+projection wrong by one and is recorded at 39.13.4 -- cached weights, **weight
+store 1,313 -> 1,313** (asserted). Artifact
+`runs/smap-msl/_forensics/2026-09-11T011756Z-departures.json`; producer
+`scripts/decision_layer_departures.py`, in this commit.
+
+#### The predictions
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **N1** | 1e-5 on every continuous output of the new path, exact on the flags | trailing window **3.738e-10**; `eps` **5.072e-06**; `z_derivative` **2.899e-07**; the emission flag **exact on every step of every tier** | **HELD** |
+| **N2** | and it lands where the existing path landed, `<= 1e-6` | **5.072e-06** on `eps` | **NO VERDICT**, with the cause identified: the reference means and standard-deviates a **float32** array where the core accumulates in F64, and the gap scales with `z` -- 6.9e-07 at `z = 2.5`, 2.9e-06 at `z = 11.5`. **The core is the more accurate of the two** |
+| **N3** | `sizeof(Detector)` = 581,488 B +/- 64 | **603,024 B**, **+21,536 (+3.70%)** | **FAILED**, outside its own 1% band. Itemised at 39.13.2. The band is missed, not moved |
+| **N4** | determinism bit-identical, in-process and across processes | bit-identical both ways, with **2,170 samples of carried state per channel on two rings** | **HELD** |
+| **N5** | guard cells against segment-end agree within 1 event | -- | **NOT ADJUDICATED.** 39.13.3 |
+| **N6** | forward-only against `+/-99` costs 0 to 1 event | -- | **NOT ADJUDICATED.** 39.13.3 |
+| **N7** | the derivative costs one subtraction, one absolute value, two F64 accumulator updates and one divide, per channel per tick | exactly that. `DerivativeStream::step` walks the channels once and `z()` is O(1); there is no second sweep, pruning pass or dilation | **HELD** |
+| **N8** | the committed vectors leave tracked content under 6 MiB | **5.53 MiB** after all seven new tiers | **HELD** |
+
+#### 39.13.1 The two gates that did pass, because everything below rests on them
+
+**The reproduction gate.** The frozen arm, rebuilt independently on 77 of 81
+channels, returns **0.6820% and 10 of 38**, TUNE 6/19 and EVAL 4/19 -- identical
+to 38.15 on both reads. Four channels skipped for the training defects D17 and
+37.5 already record (`E-3`, `G-1`, `D-11`, `D-12`).
+
+**The reference gate**, and this one is new. `flight_reference.ratios` with the
+departure switched off must **be** `telemanom.channel_ratios`, not merely agree
+with it: `np.array_equal` on every one of the 77 channels' full score arrays.
+**True.** So the restatement the C++ is held to is the published rule, and a
+failure anywhere else is the transcription's, not the restatement's.
+
+#### 39.13.2 N3's account, itemised the way 19.8 F1's 530 bytes was
+
+```
+   +8,960   the rings are SOLVE_WINDOW deep, not ERROR_WINDOW. 2,170 is 2,100 of
+            history plus the 70 the threshold judges -- which is what 39.4's
+            entire guard-cell question is about -- and 39.6 sized both at 2,100.
+  +12,168   the pruning ladder's scratch: m_seq, m_kept, m_peaks and m_order at
+            MAX_SEQUENCES = 1,085, plus eps and the latest sample per channel.
+            39.6 did not itemise it at all. Shared across channels, so once.
+     +408   the second moment-accumulator set, so one ring serves the threshold's
+            2,170 contents and arm 2's 2,100 moments rather than two rings doing it.
+```
+
+**19's F1 is a record and is not edited.** It measured the detector of 2026-09-01
+-- forward pass, EWMA, one static compare -- and held at 312,112 B, 530 under.
+That object no longer exists; the port's is **1.93x** it. Both footprint guards
+print F1 as history and assert against the measurement.
+
+#### 39.13.3 (!) N5 and N6 did not run cleanly, and the defect is mine
+
+Both variants were scored with the cut **floored at 1.0**, and neither reached the
+matched rate:
+
+```
+  arm                          rate       TUNE    EVAL    all 38
+  frozen (stage 4)           0.6820%      6/19    4/19    10/38   matched
+  N6: forward-only           0.3787%      4/19    3/19     7/38   44% off target
+  N5: guard cells            0.5848%     10/19    6/19    16/38   14% off target
+```
+
+**Neither figure is reported as a result**, for the reason 38.15 gives for arms
+4a, 6 and 7: a comparison at an unmatched rate is an unrun arm, not a losing one,
+and *a recall figure without its alarm rate is not a result*. **The 16 of 38 in
+particular must not be quoted**, in either direction.
+
+**The defect.** The floor was inherited from Arm 1's repair, where it was right
+and here is wrong. Arm 1's **lever was pruning `p`**, and a dial below 1.0
+re-admits steps pruning had deleted, so flooring it was what separated lever from
+dial. Here the levers are **dilation** and **guard cells**, and the dial is the
+rate-matching multiplier -- which for the frozen arm itself sits at **0.5506,
+below 1.0**. Flooring the variants at 1.0 while the baseline runs at 0.5506 is not
+matching a rate; it is comparing two different kinds of operating point. At a cut
+of exactly 1.0 only surviving-sequence steps alarm, so the rate is whatever the
+alarm extent happens to be, and forward-only dilation has **less extent by
+construction** -- 0.3787% is that fact, not a measurement of recall.
+
+**The repair is one line**: let the cut float as the frozen arm's does, solving it
+against the pooled nominal quantile without a floor, which is the same dial at the
+same kind of operating point. **It needs a second read of 165 Class B and 1 Class
+A, and that read is not taken here.** It is brought to the owner with its cost.
+
+**Until it is taken, 39.4's and 39.5's choices stand on their stated reasons and
+not on a number**: backward dilation is dropped because it would mark timesteps
+already emitted and there is no un-emit; the guard-cell question stays open with
+10.7's measurement -- 38/46 to 34/46 on one channel set, the reverse on another --
+as the only evidence there is.
+
+#### 39.13.4 The first smoke diverged by one operation, and that is why smokes exist
+
+Projected **6** Class B for two channels, actual **7**. The run was right and the
+arithmetic was wrong: `ops.load` fetches `_manifest/ops_ledger.json` before
+anything else, and the formula omitted it. The figure this project has quoted for
+a full 81-channel pass all along -- **165** -- is `1 ledger + 1 manifest +
+1 labels + 162 arrays`, so the ledger was always in the number and never in the
+projection. Corrected, re-smoked at three channels: **projected 9, actual 9**. The
+full read then went **projected 165, actual 165**.
+
+Month after the read: **225 Class A and 5,147 Class B of 50,000**.

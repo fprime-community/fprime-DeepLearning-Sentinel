@@ -33,7 +33,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .telemanom import Config, _runs, dynamic_threshold, prune
+from .telemanom import (EWMA_SETTLE, Config, _runs, dynamic_threshold,
+                        prune)
 
 
 @dataclass
@@ -149,3 +150,68 @@ def emissions(e_s: np.ndarray, config: Config,
     if steps % stride:                      # the trailing partial segment
         eps_held[steps - (steps % stride):] = held
     return emission, eps_held
+
+
+def ratios(e_s: np.ndarray, config: Config, forward_only: bool = True,
+           emission: np.ndarray | None = None) -> np.ndarray:
+    """`telemanom.channel_ratios` with the backward pad optional.
+
+    Needed because N6 -- the price of dropping backward dilation
+    (`docs/MODELS.md` 39.5) -- has to be scored at a matched alarm rate, and a
+    matched rate needs a **per-step score**, not the emission instants
+    :func:`emissions` returns. `channel_ratios` produces that score and has no
+    forward-only option; adding one there would be a scope change to the module
+    every published figure rests on.
+
+    With ``forward_only=False`` this is `channel_ratios` exactly, and
+    `tests/test_flight_reference.py` holds it to that byte for byte. The only
+    line that differs in the other mode is the dilation.
+    """
+    e_s = np.asarray(e_s, dtype=np.float32)
+    steps = e_s.shape[0]
+    span, stride = config.error_window, max(1, config.stride)
+
+    raw = np.zeros(steps, dtype=np.float32)
+    alarm = np.zeros(steps, dtype=bool)
+
+    for seg_lo in range(0, steps, stride):
+        seg_hi = min(seg_lo + stride, steps)
+        reference_lo = max(0, seg_lo - span)
+        window = e_s[reference_lo:seg_hi]
+        offset = seg_lo - reference_lo
+
+        emitted = False
+        if config.guard_segment and offset > 0:
+            eps, _ = dynamic_threshold(window[:offset], config)
+            above = window >= eps
+            sequences = dilate(above, config.error_buffer, forward_only) if above.any() else []
+        else:
+            eps, sequences = _sweep(window, config, forward_only)
+        if eps > 0:
+            raw[seg_lo:seg_hi] = e_s[seg_lo:seg_hi] / eps
+        if not sequences:
+            continue
+        for keep, (lo, hi) in zip(prune(window, sequences, eps, config.pruning_p),
+                                  sequences):
+            lo, hi = max(lo, offset), min(hi, window.shape[0])
+            if keep and hi > lo:
+                alarm[reference_lo + lo:reference_lo + hi] = True
+                if np.any(window[offset:] >= eps):
+                    emitted = True
+        if emission is not None and emitted:
+            emission[seg_hi - 1] = True
+
+    out = raw / (1.0 + raw)
+    out[alarm] = np.maximum(raw[alarm], 1.0)
+    opening = min(EWMA_SETTLE * config.smoothing_window, steps)
+    out[:opening] = np.minimum(out[:opening],
+                               np.float32(1.0) - np.finfo(np.float32).eps)
+    return out
+
+
+def _sweep(window: np.ndarray, config: Config, forward_only: bool):
+    """The eps sweep, delegating to the published one when it can."""
+    if not forward_only:
+        return dynamic_threshold(window, config)
+    solved = solve_window(window, config, forward_only=True)
+    return solved.eps, solved.sequences

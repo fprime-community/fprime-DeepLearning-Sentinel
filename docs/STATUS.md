@@ -150,7 +150,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 222 Class A and 4,966 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 225 Class A and 5,147 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -306,7 +306,17 @@ way to remove it** (10.7 measured 38/46 -> 34/46 on `m1-g8.9.10` and the reverse
 `m1-ss5`); **backward dilation cannot be emitted** and is dropped, its price registered as
 **N6 and unadjudicated**, because measuring it needs a read that has not been taken; and the
 footprint grows **312,112 -> 581,488 B**, which is a new numbered prediction beside 19.8's
-F1 rather than an edit to it. **No C++ is written until 39 is reviewed.**
+F1 rather than an edit to it. **(!) THE PORT IS WRITTEN AND GREEN, 2026-09-11** (`docs/MODELS.md` 39.13). `TrailingWindow`,
+`DynamicThreshold` and `DerivativeStream`, held to the reference at **1e-5 with the emission
+flag exact on every step** (N1 held); determinism bit-identical across processes with 2,170
+samples of carried state (N4 held). **`sizeof(Detector)` is 603,024 B against N3's predicted
+581,488 -- N3 FAILED at +3.70% and the account is itemised, not the band moved.**
+**Three decision layers run and one emits**: `crossing()` and `emitted()` are still D25's
+static quantile, because D65 names no flight configuration and promoting either new rule
+would make the port the adoption decision. **N5 and N6 are NOT ADJUDICATED**: both were
+scored with the cut floored at 1.0 while the frozen arm's own operating point sits at 0.5506,
+so neither reached the matched rate. **No number of theirs is reported**, and the repair needs
+a second read of 165 Class B.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
@@ -353,7 +363,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**654 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**655 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -369,8 +379,8 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 654 tests
-.venv/bin/python scripts/check_no_list.py                        # 83 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 655 tests
+.venv/bin/python scripts/check_no_list.py                        # 84 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
 make -C flight lint                                              # clang-tidy, three configs
