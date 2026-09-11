@@ -377,6 +377,21 @@ statistic; and `Hyper.cell` defaults to `lstm` where the adopted forecaster is t
 17 of 19 was measured one model per channel on SMAP/MSL and is **never quoted beside a
 multivariate `model.bin`**. **No full-mission fit is started** until a single-channel wall
 clock is measured and the options are costed (40.13).
+**(!) TIERS 1 AND 2 ARE BUILT AND GREEN, 2026-09-11** (`docs/MODELS.md` 40.14).
+`src/sentinel_toolkit/`, invoked as `PYTHONPATH=src python -m sentinel_toolkit`. On the
+generated fixture's longest healthy run -- 18,000 timesteps by 7 channels, zero cloud
+operations -- it trains, calibrates label-free, writes a `param_version` 2 `model.bin` and
+reads it back through the flight-mirroring loader. **Seven of the eight predictions held**;
+**T1 is NOT ADJUDICATED** and is reported as unrun rather than as the half that passed: the
+round trip holds byte-identically, and the 1e-5 accuracy comparison needs a vector tier
+generated from the toolkit's own model, which was not built. **T6 held at 0.75x.**
+40.7's moves are proven: `to_spec` and the trailing statistic left `scripts/` for `src/`,
+and **every committed golden and fused vector regenerates byte-identically** afterwards.
+**(!) 40.3a is a departure the pre-registration did not know about**: the trailing span the
+statistic standardises against is **compile-time in the flight component and is not a field
+in the model file**, so neither a mission nor the toolkit may choose it -- which sets a
+floor of 250 + 2,100 of warm-up plus 4,200 of calibration before any figure can be reported.
+**Tier 3 is the compute gate and is not started.**
 
 **G. Work item 13, Phase 5**, scoped in `docs/PHASE5.md`. *Done when* the toolkit exists,
 Phase 3 has measured something, and the Armadillo static-allocation claim is discharged with
@@ -422,7 +437,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**690 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**720 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -447,7 +462,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 690 tests
+.venv/bin/python -m pytest -q                                    # 720 tests
 .venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch

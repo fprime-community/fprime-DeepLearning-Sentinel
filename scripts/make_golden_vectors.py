@@ -285,28 +285,17 @@ def write_vector(path, weights, trace, threshold, warmup):
     return crossing, emitted
 
 
-def to_spec(weights, threshold, warmup, provenance, names=None):
-    """`reference.Weights` -> the plain dictionary the writer takes."""
-    n_channels = weights.n_channels
-    names = names or [f"channel_{i}" for i in range(n_channels)]
-    return {
-        "arch": "gru",
-        "n_channels": n_channels,
-        "n_exogenous": weights.n_exogenous,
-        "window": weights.window,
-        "n_predictions": weights.n_predictions,
-        "hidden": [layer.hidden for layer in weights.layers],
-        "channels": [{"id": 1000 + i, "name": names[i]} for i in range(n_channels)],
-        "arrays": [(name, np.ascontiguousarray(a, dtype=np.float32))
-                   for name, a in weights.arrays()],
-        "params": {
-            "ewma_span": 105, "agreement": 1, "persistence": 1,
-            "warmup_steps": warmup, "baseline_only": False, "tier": 3,
-            "threshold": threshold, "provenance": provenance,
-            "norm_offset": np.zeros(n_channels, dtype=np.float32),
-            "norm_scale": np.ones(n_channels, dtype=np.float32),
-        },
-    }
+#: (!) MOVED, 2026-09-11. `to_spec` lived here because `sentinel_export` imports
+#: nothing from this repository by design, so the bridge from `reference.Weights`
+#: to the writer's dict could not live inside it. It could not stay here either:
+#: a shipped entry point under `src/` cannot import from `scripts/`. It is now
+#: `sentinel_toolkit.spec.to_spec` and this is the same function, not a copy --
+#: one definition behind every committed vector (`docs/MODELS.md` 40.7).
+#:
+#: The one change at the call site is that `param_version` is now REQUIRED. It
+#: was omitted here and the writer defaulted it to 1, which is right for these
+#: tiers and is now said rather than assumed (40.6).
+from sentinel_toolkit.spec import to_spec                             # noqa: E402
 
 
 def emit(tier, weights, x, provenance, names=None, write_model_file=True):
@@ -318,7 +307,8 @@ def emit(tier, weights, x, provenance, names=None, write_model_file=True):
     VECTORS.mkdir(parents=True, exist_ok=True)
 
     if write_model_file:
-        spec = to_spec(weights, threshold, FIXTURE_WARMUP, provenance, names)
+        spec = to_spec(weights, threshold, FIXTURE_WARMUP, provenance, names,
+                       param_version=1)
         (VECTORS / f"{tier}.bin").write_bytes(write_model(spec))
 
     crossing, emitted = write_vector(VECTORS / f"{tier}.vec", weights, trace,

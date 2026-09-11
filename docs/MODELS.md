@@ -372,6 +372,7 @@ prediction that failed and why. This document follows the same discipline.
   - [40.1 What the handover brief said, and where this repository disagrees](#401-what-the-handover-brief-said-and-where-this-repository-disagrees)
   - [40.2 What is reused, and what the reference is](#402-what-is-reused-and-what-the-reference-is)
   - [40.3 (!) Departure 1 -- the shape the toolkit produces is not the shape the headline was measured on, and that is stated on the front page rather than here](#403-departure-1----the-shape-the-toolkit-produces-is-not-the-shape-the-headline-was-measured-on-and-that-is-stated-on-the-front-page-rather-than-here)
+  - [40.3a (!) Departure 4 -- the trailing span is not the toolkit's to choose, and the pre-registration did not know that](#403a-departure-4----the-trailing-span-is-not-the-toolkits-to-choose-and-the-pre-registration-did-not-know-that)
   - [40.4 (!) Decision 2 -- the cut is derived and the curve is reported, and the two are not the same act](#404-decision-2----the-cut-is-derived-and-the-curve-is-reported-and-the-two-are-not-the-same-act)
   - [40.5 (!) Decision 3 -- `q` is the one constant that has to be defended, and it is D55's fourth instance](#405-decision-3----q-is-the-one-constant-that-has-to-be-defended-and-it-is-d55s-fourth-instance)
   - [40.6 (!) Decision 4 -- two silent defaults, each of which would produce a plausible and wrong artifact](#406-decision-4----two-silent-defaults-each-of-which-would-produce-a-plausible-and-wrong-artifact)
@@ -382,7 +383,7 @@ prediction that failed and why. This document follows the same discipline.
   - [40.11 Falsification](#4011-falsification)
   - [40.12 Reporting](#4012-reporting)
   - [40.13 Cost, and stop and report](#4013-cost-and-stop-and-report)
-  - [40.14 OBSERVED -- not run](#4014-observed----not-run)
+  - [40.14 OBSERVED -- tiers 1 and 2 built; seven predictions held, one not adjudicated](#4014-observed----tiers-1-and-2-built-seven-predictions-held-one-not-adjudicated)
   - [40.15 Deferred, with the slot registered so the gap is visible](#4015-deferred-with-the-slot-registered-so-the-gap-is-visible)
 
 <!-- /toc -->
@@ -11707,6 +11708,44 @@ not a prediction about this mission's model**.
 reference on the fixture at both shapes, and the comparison is to the reference, never to
 the headline.
 
+### 40.3a (!) Departure 4 -- the trailing span is not the toolkit's to choose, and the pre-registration did not know that
+
+**Found by reading `flight/` while building, not by testing.** 40.4 registers that
+the cut is derived from the mission's own nominal fused statistic. It did not say at
+what span that statistic is standardised, because it assumed the span was a
+calibration choice. **It is not. It is a compile-time constant in the flight
+component and it is not a field in the model file.**
+
+```
+  flight/src/DerivativeStream.cpp:12   m_window.configure(m_channels,
+                                         Config::ERROR_WINDOW, Config::ERROR_WINDOW)
+  flight/src/Detector.cpp:25           m_derivative.configure(m_model.nChannels)
+                                         -- and passes it no span from the file
+```
+
+So a mission does not choose it, and neither does the toolkit. **A calibration at
+any other span derives a cut for a statistic the flight component does not
+compute**, and nothing downstream would notice: the file would load, the version
+check would pass, and the threshold would cut a distribution that never existed on
+board.
+
+**Contrast `ewma_span`, which is a field and IS read** --
+`flight/src/Detector.cpp:23` configures the EWMA from `m_model.ewmaSpan` and
+`ModelFile.cpp:251` refuses a zero. That one the toolkit may choose, and it ships
+telemanom's published 105. The two live one line apart in the same function and
+behave differently, which is exactly why this was worth reading rather than
+assuming.
+
+**Consequence, and it is a floor on how much data a mission needs.** Both
+calibration halves must outlast 2,100 samples, so the toolkit refuses anything
+shorter and says so (40.8's fifth refusal, which is the one with no precedent in
+the code). At the flown 250-step window that is **250 + 2,100 of warm-up plus
+4,200 of calibration** before a single figure can be reported.
+
+**If `ERROR_WINDOW` ever becomes a model-file field**, this section is stale and
+the refusal becomes a choice. `tests/test_toolkit.py` asserts the constant is still
+taken from `Config.hpp`, so the day that changes, it says so.
+
 ### 40.4 (!) Decision 2 -- the cut is derived and the curve is reported, and the two are not the same act
 
 `docs/HARNESS.md` 1 is a standing principle and it strikes the brief's wording:
@@ -11959,11 +11998,63 @@ Stop and report, carrying 39.12's list forward where it still applies and adding
 7. The full-mission tier's measured single-channel wall clock implies a run longer than the
    owner has approved.
 
-### 40.14 OBSERVED -- not run
+### 40.14 OBSERVED -- tiers 1 and 2 built; seven predictions held, one not adjudicated
 
-**Registered and not yet executed.** No code is written, no prediction is adjudicated, and
-no figure from this section exists. This heading is here so that the section's shape is the
-same before and after, and so a reader can see at a glance that the outcomes are owed.
+**2026-09-11. Zero bucket operations**, as 40.13 registers: the fixture is
+generated and the fit is 0.5 s at fixture scale. `src/sentinel_toolkit/` is
+written -- `limits`, `statistic`, `spec`, `validate`, `calibrate`, `report`,
+`fit`, `selftest`, `cli` -- and is invoked as
+`PYTHONPATH=src python -m sentinel_toolkit`.
+
+**The acceptance ladder: rungs 1 and 2 run. Rung 3 is not started** and is the
+compute gate 40.13 names.
+
+| # | Prediction | Outcome |
+|---|---|---|
+| **T1** | The toolkit's file drives the flight component to the reference at 1e-5, flags exact | **(!) NOT ADJUDICATED.** Its *round-trip* half holds -- `RoundTripDump` re-emits the toolkit's own `model.bin` byte-identically -- but the 1e-5 comparison needs a vector tier generated from that model and stepped through the C++, and **no such tier was built**. Reported as unrun rather than as the half that passed |
+| **T2** | The file is `param_version` 2 and round-trips | **HELD**, both |
+| **T3** | Five refusals fire; none fires on the valid fixture | **HELD**, 5 of 5, 0 false |
+| **T4** | Two runs, byte-identical `model.bin` | **HELD** |
+| **T5** | The calibration is label-free | **HELD, structurally.** The check reads the parsed code rather than the prose: no identifier, parameter or import in the calibrating modules carries a label, a truth or an anomaly |
+| **T6** | The held-out rate is within 2x of the fit half's | **HELD at 0.75x** -- 0.1168% against 0.0876% on the fixture |
+| **T7** | Zero bucket operations | **HELD.** There is no client in the package to spend one |
+| **T8** | `provenance` written, and different for different windows | **HELD** |
+
+**What the fixture tier produced.** The longest contiguous anomaly-free run of the
+generated bucket -- **18,000 timesteps x 7 channels** -- 9,000 of them training a
+small GRU and 9,000 scored by a model that never saw them; 6,850 settle after
+warm-up and split into two halves of 3,425. Cut **5.076557** at the 0.999 quantile;
+**4 of 3,425** on the calibration half and **3 of 3,425** held out. A 14,064-byte
+`model.bin` at `param_version` 2, tier 3.
+
+**The moves of 40.7 are proven rather than asserted.** `to_spec` moved out of
+`scripts/make_golden_vectors.py` and `trailing_stats`/`zstat` out of
+`scripts/decision_layer_arms.py`; both scripts import the moved definition.
+**Every committed golden and fused vector regenerates byte-identically afterwards**
+-- `g1`-`g4_3` and `p1`, checked with `cmp` -- so no figure behind a committed
+vector was recomputed by a second implementation.
+
+**(!) And one side effect the pre-registration did not think about: the toolkit
+was growing the weight store.** `ForecastDetector` banks every fit under
+`runs/_weights/` by default, which is right for the harness -- refitting is
+expensive and the store is keyed by fit identity -- and wrong for a ground
+toolkit. Two fixture runs took the store **1,313 -> 1,315**, and the store's own
+count is a standing gate, so a toolkit that moves it as a side effect makes that
+gate meaningless. `reuse_weights=False` now, the two banked files removed, and the
+**cut is identical at 5.076557 either way** -- the fit is seeded, so nothing was
+being bought by the caching. A mission's fit is not this project's evidence.
+
+**One thing the pre-registration got wrong and one it did not anticipate.** 40.6
+predicted `param_version` defaulting to 1 would be a trap, and it was a live one:
+`to_spec` is now required to name the generation, and updating the three call sites
+turned up `tests/test_param_version.py` patching the field after the fact. And
+**40.3a is a departure the pre-registration did not know about** -- the trailing
+span is compile-time in the component, so the toolkit may not choose it.
+
+**What is still owed**, beyond tier 3 and the compute gate: T1's accuracy half; the
+data-sufficiency grader 40.15 defers; Level 2 of the tier ladder; and the no-ML
+quickstart's own acceptance test, which is a claim about a person and has no
+prediction here that could honestly adjudicate it.
 
 ### 40.15 Deferred, with the slot registered so the gap is visible
 

@@ -50,16 +50,12 @@ ACI_MIN_BUFFER = 1000
 TARGET_RATE = [None]
 
 
-def trailing_stats(x, span):
-    x = np.asarray(x, dtype=np.float64); n = len(x)
-    c1 = np.concatenate([[0.0], np.cumsum(x)]); c2 = np.concatenate([[0.0], np.cumsum(x*x)])
-    lo = np.maximum(np.arange(n) + 1 - span, 0); cnt = np.arange(n) + 1 - lo
-    s1 = c1[np.arange(n)+1] - c1[lo]; s2 = c2[np.arange(n)+1] - c2[lo]
-    mu = s1/cnt; return mu, np.sqrt(np.maximum(s2/cnt - mu*mu, 0.0))
-
-def zstat(x, span):
-    mu, sd = trailing_stats(x, span)
-    return (np.asarray(x, dtype=np.float64) - mu) / np.maximum(sd, 1e-12)
+# (!) MOVED, 2026-09-11. `trailing_stats` and `zstat` are the arm D65 measured
+# and D68 adopted, so the toolkit needs the same definitions rather than a second
+# set that agrees today. They are now `sentinel_toolkit.statistic` and this is an
+# import, not a copy (`docs/MODELS.md` 40.7). The arithmetic did not change in the
+# move, and `tests/test_toolkit.py` pins it against this file's own history.
+from sentinel_toolkit.statistic import trailing_stats, zstat   # noqa: E402,F401
 
 def raw_runs(mask):
     m = np.asarray(mask, dtype=np.int8); d = np.diff(np.concatenate([[0], m, [0]]))

@@ -49,9 +49,11 @@ def spec(param_version: int) -> dict:
     that list here would be a second thing to keep right.
     """
     weights = GV.seeded_weights(2, [4], 2, seed=68)
-    out = GV.to_spec(weights, 1.5, 12, "test")
-    out["params"]["param_version"] = param_version
-    return out
+    # `param_version` is a required argument since 2026-09-11: the writer
+    # defaults it to 1, so omitting it is how a version-2 statistic ends up in a
+    # version-1 file (`docs/MODELS.md` 40.6). This test is about that field, so
+    # it names it rather than patching the dict afterwards.
+    return GV.to_spec(weights, 1.5, 12, "test", param_version=param_version)
 
 
 @pytest.mark.parametrize("version", fmt.SUPPORTED_PARAM_VERSIONS)

@@ -109,9 +109,12 @@ def main() -> int:
     crossing = score >= threshold
     emitted = crossing & (np.arange(STEPS) >= WARMUP)
 
+    # `param_version` is an argument rather than a patch after the fact: the
+    # writer defaults it to 1, and a fused z-score cut in a version-1 file is
+    # the silent drift `docs/MODEL_FILE.md` 6.2 forbids (`docs/MODELS.md` 40.6).
     spec = GV.to_spec(weights, threshold, WARMUP,
-                      "D68 fused max(z_residual, z_derivative); seeded tier P1")
-    spec["params"]["param_version"] = fmt.PARAM_VERSION_FUSED
+                      "D68 fused max(z_residual, z_derivative); seeded tier P1",
+                      param_version=fmt.PARAM_VERSION_FUSED)
     (args.out / "p1.bin").write_bytes(write_model(spec))
 
     blob = bytearray(MAGIC + struct.pack("<HHI", VERSION, channels, STEPS)
