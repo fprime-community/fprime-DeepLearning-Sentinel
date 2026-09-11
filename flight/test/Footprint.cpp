@@ -59,10 +59,20 @@ int main() {
     //              2,100 moments.
     //
     // The band is missed, not moved: N3 fails and 39 gains its OBSERVED entry
-    // saying so. The bound here is the measurement plus the same 2% F1 allowed.
+    // saying so.
+    //
+    // (!) AND THE MEASUREMENT MOVED AFTERWARDS, WHICH A 2% BAND HID. This check
+    // read `detector < 615000U` -- "within 2% of the measured 603,024 B" -- until
+    // 2026-09-11. `sizeof` on a fixed toolchain is exact, so a 2% band tolerates
+    // about 12 KB of drift, and 8 B of it happened: `99fffd2` added
+    // `U32 m_peakChannel` so rule 4 could name a channel, and padding took the
+    // object from 603,024 to 603,032. N3's verdict is unchanged -- +3.70% either
+    // way -- but the figure five documents quoted was a day stale and nothing
+    // could have caught it. Exact from here: a compile-time constant gets an
+    // equality, and moving it is a decision somebody makes on purpose.
     std::printf("    predicted (MODELS.md 39, N3)  581,488 B  -- MISSED by +3.70%%\n");
-    SentinelTest::check(detector < 615000U,
-                        "sizeof(Detector) is within 2% of the measured 603,024 B");
+    SentinelTest::checkEqualU32(detector, 603032U,
+                                "sizeof(Detector) is exactly the measured 603,032 B");
 
     // What the flown model actually uses of that budget.
     const U32 flownWeights = 71160U * 4U;

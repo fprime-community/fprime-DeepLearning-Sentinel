@@ -1,5 +1,6 @@
 #include "sentinel/DynamicThreshold.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Sentinel {
@@ -16,9 +17,7 @@ void moments(const TrailingWindow& window, U32 channel, U32 filled,
         const F64 sample = static_cast<F64>(window.at(channel, i));
         sum += sample;
         sumSquares += sample * sample;
-        if (sample > maximum) {
-            maximum = sample;
-        }
+        maximum = std::max(maximum, sample);
     }
     const F64 n = (filled > 0U) ? static_cast<F64>(filled) : 1.0;
     mu = sum / n;
@@ -69,10 +68,8 @@ U32 DynamicThreshold::runsAt(U32 channel, U32 filled, F64 eps) {
                    && (static_cast<F64>(m_window.at(channel, i)) >= eps)) {
                 ++i;
             }
-            U32 hi = i + pad;                     // FORWARD ONLY. `lo` is not moved.
-            if (hi > filled) {
-                hi = filled;
-            }
+            // FORWARD ONLY. `lo` is not moved.
+            const U32 hi = std::min(i + pad, filled);
             if ((count > 0U) && (lo <= m_seq[count - 1U].hi)) {
                 if (hi > m_seq[count - 1U].hi) {
                     m_seq[count - 1U].hi = static_cast<U16>(hi);
@@ -108,9 +105,7 @@ void DynamicThreshold::pruneLadder(U32 channel, U32 filled, F64 eps, U32 count) 
         F32 peak = -3.4e38F;
         for (U32 i = m_seq[s].lo; i < m_seq[s].hi; ++i) {
             const F32 sample = m_window.at(channel, i);
-            if (sample > peak) {
-                peak = sample;
-            }
+            peak = std::max(peak, sample);
         }
         m_peaks[s] = peak;
         m_order[s] = static_cast<U16>(s);

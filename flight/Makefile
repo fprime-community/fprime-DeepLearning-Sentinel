@@ -82,11 +82,17 @@ TIDY := $(shell command -v clang-tidy 2>/dev/null || \
                  ls /opt/homebrew/opt/llvm/bin/clang-tidy 2>/dev/null)
 FPRIME_DIR := ../fprime/lib/fprime
 
+# (!) `set -e` is load-bearing and its absence was a defect. Until 2026-09-11 this
+# recipe ran clang-tidy three times, checked no exit status, and echoed
+# "lint: clean" unconditionally -- so the target could not fail. It was reporting
+# nine errors at the time, three of them in `src/DynamicThreshold.cpp`, and still
+# exiting 0. A gate that cannot go red is not a gate.
 lint:
 	@if [ -z "$(TIDY)" ]; then \
-	    echo "lint: clang-tidy not installed. brew install llvm provides it."; \
+	    echo "  lint: SKIPPED -- clang-tidy not installed. brew install llvm provides it."; \
 	    exit 0; \
 	fi; \
+	set -e; \
 	printf '== lint: '; $(TIDY) --version | head -1; \
 	echo "-- flight/.clang-tidy, core and tests"; \
 	$(TIDY) $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest; \
