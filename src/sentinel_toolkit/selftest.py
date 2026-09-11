@@ -22,7 +22,12 @@ from .limits import FLIGHT_LIMITS
 LADDER = (
     ("minimal fixture", True),
     ("single channel", True),
-    ("full mission", False),
+    # Ran 2026-09-11 on ESA-ADB Mission 1's twelve-channel gate set, after a
+    # smoke, for 15 Class B and 1 Class A. 73.5 s and 2.97 GiB peak, so the
+    # compute gate 40.13 registered is discharged rather than waived
+    # (`docs/MODELS.md` 40.14.1). It is not run from `selftest`, which is and
+    # stays a zero-operation path; `scripts/toolkit_tier3.py` is its producer.
+    ("full mission", True),
 )
 
 #: How many rungs actually run today.

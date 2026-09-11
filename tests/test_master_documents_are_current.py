@@ -237,11 +237,14 @@ FIGURES = (
     Figure("population/EVIDENCE", "docs/EVIDENCE.md",
            r"(\d+) labelled contextual anomalies across",
            _population, "the scored population"),
+    # The pattern is phrased to survive the count changing, which it did within
+    # a day: "tiers 1 and 2" would have stopped matching the moment tier 3 ran,
+    # and a guard that stops matching is a guard that has gone blind.
     Figure("toolkit_rungs/README", "README.md",
-           r"[Tt]iers 1 and (\d+) of its acceptance ladder are built",
+           r"(\d+) of its \d+ acceptance-ladder rungs have run",
            _toolkit_rungs_built, "acceptance-ladder rungs that run"),
     Figure("toolkit_rungs/STATUS", "docs/STATUS.md",
-           r"[Tt]iers 1 and (\d+) of its acceptance ladder are built",
+           r"(\d+) of its \d+ acceptance-ladder rungs have run",
            _toolkit_rungs_built, "acceptance-ladder rungs that run"),
 )
 

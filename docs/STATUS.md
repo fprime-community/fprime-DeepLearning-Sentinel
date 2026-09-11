@@ -156,7 +156,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 227 Class A and 5,321 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 230 Class A and 5,341 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -391,7 +391,16 @@ and **every committed golden and fused vector regenerates byte-identically** aft
 statistic standardises against is **compile-time in the flight component and is not a field
 in the model file**, so neither a mission nor the toolkit may choose it -- which sets a
 floor of 250 + 2,100 of warm-up plus 4,200 of calibration before any figure can be reported.
-**Tier 3 is the compute gate and is not started.**
+**(!) TIER 3 RAN 2026-09-11 AND THE COMPUTE GATE IS DISCHARGED** (`docs/MODELS.md`
+40.14.1): ESA-ADB Mission 1's twelve-channel gate set, after a smoke whose projection
+matched exactly, for **15 Class B and 1 Class A**. **73.5 s and 2.97 GiB peak** -- no
+provisioning and nothing to parallelise, since more threads measured slower on a single
+multivariate fit. Cut **11.875282**, sanity rate **230 / 283,563 = 0.0811%** against a
+calibration half of 0.1002%, **ratio 0.81x**, so **T6 holds on real telemetry** and not
+only on a fixture. **(!) The healthy window is 7.7% of the archive** -- 1,138,952 of
+14,728,316 timesteps -- which is the finding: a mission archive is not a training set, and
+every cost estimate made against the grid was conservative for that reason. The labels were
+read and they chose the **window**, not the cut; `fit_model` has no parameter for a label.
 
 **G. Work item 13, Phase 5**, scoped in `docs/PHASE5.md`. *Done when* the toolkit exists,
 Phase 3 has measured something, and the Armadillo static-allocation claim is discharged with
@@ -437,7 +446,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**720 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**721 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -462,7 +471,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 720 tests
+.venv/bin/python -m pytest -q                                    # 721 tests
 .venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch

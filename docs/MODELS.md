@@ -383,7 +383,7 @@ prediction that failed and why. This document follows the same discipline.
   - [40.11 Falsification](#4011-falsification)
   - [40.12 Reporting](#4012-reporting)
   - [40.13 Cost, and stop and report](#4013-cost-and-stop-and-report)
-  - [40.14 OBSERVED -- tiers 1 and 2 built; seven predictions held, one not adjudicated](#4014-observed----tiers-1-and-2-built-seven-predictions-held-one-not-adjudicated)
+  - [40.14 OBSERVED -- the ladder is complete; seven predictions held, one not adjudicated](#4014-observed----the-ladder-is-complete-seven-predictions-held-one-not-adjudicated)
   - [40.15 Deferred, with the slot registered so the gap is visible](#4015-deferred-with-the-slot-registered-so-the-gap-is-visible)
 
 <!-- /toc -->
@@ -11998,7 +11998,7 @@ Stop and report, carrying 39.12's list forward where it still applies and adding
 7. The full-mission tier's measured single-channel wall clock implies a run longer than the
    owner has approved.
 
-### 40.14 OBSERVED -- tiers 1 and 2 built; seven predictions held, one not adjudicated
+### 40.14 OBSERVED -- the ladder is complete; seven predictions held, one not adjudicated
 
 **2026-09-11. Zero bucket operations**, as 40.13 registers: the fixture is
 generated and the fit is 0.5 s at fixture scale. `src/sentinel_toolkit/` is
@@ -12006,8 +12006,8 @@ written -- `limits`, `statistic`, `spec`, `validate`, `calibrate`, `report`,
 `fit`, `selftest`, `cli` -- and is invoked as
 `PYTHONPATH=src python -m sentinel_toolkit`.
 
-**The acceptance ladder: rungs 1 and 2 run. Rung 3 is not started** and is the
-compute gate 40.13 names.
+**The acceptance ladder: all three rungs have run.** Rungs 1 and 2 are below; rung 3 is a real
+mission and is 40.14.1, which discharges the compute gate 40.13 names.
 
 | # | Prediction | Outcome |
 |---|---|---|
@@ -12055,6 +12055,92 @@ span is compile-time in the component, so the toolkit may not choose it.
 data-sufficiency grader 40.15 defers; Level 2 of the tier ladder; and the no-ML
 quickstart's own acceptance test, which is a claim about a person and has no
 prediction here that could honestly adjudicate it.
+
+#### 40.14.1 Tier 3 OBSERVED -- one real mission, and the compute gate is discharged rather than waived
+
+**2026-09-11. ESA-ADB Mission 1, the twelve-channel gate set `m1-g8.9.10`
+(`channel_41` to `channel_52`).** Producer `scripts/toolkit_tier3.py`; artifact
+`runs/esa-adb/_toolkit/2026-09-11T201935Z-tier3-mission1.json`. **Weight store
+1,313 -> 1,313.**
+
+**The cost was projected before it was spent, and both projections were exact.**
+
+```
+  smoke, 2 channels    projected  5 Class B    actual  5    MATCH
+  full,  12 channels   projected 15 Class B    actual 15    MATCH
+                       1 ledger + 1 manifest + 1 labels + one GET per channel
+                       + 1 Class A each for the ledger write back
+```
+
+Every one of the twelve channels is unsharded, which the manifest says for free
+once it is fetched, so the second projection was arithmetic rather than a guess.
+39.13.4's smoke diverged by one because a fetch was left out of a projection;
+this one enumerated `len(catalog.channel(...).objects)` instead of assuming 1.
+
+**(!) THE HEALTHY WINDOW IS 7.7% OF THE ARCHIVE, AND THAT IS THE FINDING.** The
+grid is **14,728,316 timesteps x 12 channels**, fetched in 32.8 s. The longest
+contiguous anomaly-free run in it is **1,138,952 timesteps** -- `[2,936,149,
+4,075,101)`. A mission archive is not a training set, and what a toolkit actually
+gets to calibrate on is a small contiguous fraction of it. Every cost projection
+in 40.13's options table was made against the grid and was therefore wrong in the
+conservative direction.
+
+```
+  healthy window        1,138,952 timesteps     7.7% of the grid
+  trained on              569,476
+  scored                  569,476   ->  567,126 after the 2,350 warm-up
+  calibration half        283,563   held-out half  283,563
+```
+
+**Measured.**
+
+```
+  fetch, 12 objects        32.8 s
+  fit + calibrate          73.5 s
+  peak RSS                  2.97 GiB
+  cut                      11.875282   at q 0.999, span 2,100
+  calibration half            284 / 283,563  = 0.1002%
+  held-out half               230 / 283,563  = 0.0811%   <- the sanity rate
+  ratio                      0.81x
+  model.bin               285,136 B, loads OK, param_version 2
+```
+
+**T6 holds on real telemetry**, at 0.81x against its 2x band, which is the first
+evidence outside a generated fixture that the quantile 40.5 registered as *owed
+rather than settled* survives a split of a mission's own nominal data. **It is one
+mission and one split**, and 40.5 stays open on that basis.
+
+**The cut is 11.88 here and 5.08 on the fixture**, on the same rule at the same
+quantile. That is the whole reason a mission calibrates on its own data, and it is
+why a number from either is a fixture figure and never a flight constant -- the
+same sentence D68 consequence 5 attaches to tier `p1`.
+
+**(!) The labels were read, and they chose the window rather than the cut.** 1 of
+the 15 Class B is the annotation table. A deploying mission knows which of its own
+telemetry is healthy; this project does not know that about an archive, so the
+labels pick the contiguous span and nothing else. `fit_model` is handed an array
+and has no parameter for a label, which `tests/test_toolkit.py`'s T5 asserts
+against the parsed source rather than the prose. **The same relationship the
+generated fixture already has with its own truth**, and it is stated here because
+a reader is owed the distinction rather than left to infer it.
+
+**The compute gate is discharged.** 40.13 made a full fit conditional on a
+measured wall clock because none existed. It is **73.5 s at 2.97 GiB on one
+machine** -- no provisioning, no parallelism, and nothing to decide. The options
+table put to the owner estimated 4 to 7 minutes from a three-point scaling curve;
+the true figure is smaller because the healthy window is, and the estimate was
+brought as a bracket rather than a point for that reason. **More threads were
+measured slower** -- 10 against 4, 29.1 s against 24.0 s on the same fit -- so
+there was never anything for parallelism to buy on a single multivariate model.
+
+**(!) And the ledger is one Class A ahead of what the documents say.** It held
+**228 Class A** when this smoke opened, where `docs/STATUS.md` 4 and 39.13 both
+say **227**. Neither is wrong: an artifact records `class_a: 0` because the ledger
+`PutObject` is written **after** it (39.1 row 14), so any figure quoted from an
+artifact is one Class A behind the ledger's true state by construction. 39.13's
+227 is a record at its date and is not edited; `docs/STATUS.md`'s is live and is
+corrected to the ledger's own state. **After both runs here: 230 Class A and
+5,341 Class B of 50,000.**
 
 ### 40.15 Deferred, with the slot registered so the gap is visible
 
