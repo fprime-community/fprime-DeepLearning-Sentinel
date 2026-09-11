@@ -10987,8 +10987,8 @@ store 1,313 -> 1,313** (asserted). Artifact
 | **N2** | and it lands where the existing path landed, `<= 1e-6` | **5.072e-06** on `eps` | **NO VERDICT**, with the cause identified: the reference means and standard-deviates a **float32** array where the core accumulates in F64, and the gap scales with `z` -- 6.9e-07 at `z = 2.5`, 2.9e-06 at `z = 11.5`. **The core is the more accurate of the two** |
 | **N3** | `sizeof(Detector)` = 581,488 B +/- 64 | **603,024 B**, **+21,536 (+3.70%)** | **FAILED**, outside its own 1% band. Itemised at 39.13.2. The band is missed, not moved |
 | **N4** | determinism bit-identical, in-process and across processes | bit-identical both ways, with **2,170 samples of carried state per channel on two rings** | **HELD** |
-| **N5** | guard cells against segment-end agree within 1 event | -- | **NOT ADJUDICATED.** 39.13.3 |
-| **N6** | forward-only against `+/-99` costs 0 to 1 event | -- | **NOT ADJUDICATED.** 39.13.3 |
+| **N5** | guard cells against segment-end agree within 1 event | the cut pins at 1.0000 and the rate lands at **0.5848%, 14% below target** | **NOT ADJUDICATED** -- an arm that cannot be brought to the budget is unrun, not losing (38.15's rule for Arm 6). A dominance observation stands in its place: **16/38 at 0.5848% against 10/38 at 0.6820%** |
+| **N6** | forward-only against `+/-99` costs 0 to 1 event | **+13**, matched at 0.6820%: 23/38, EVAL 11/19, a strict superset | **FAILED, in the opposite direction to its intent.** The band asked what the departure would cost and measured a gain, so it was a one-sided worry written as a two-sided band. **And the +13 is confounded with the dial**, which moved 0.5506 -> 0.5009, both inside the sub-1.0 band 38.15 says re-admits pruned steps |
 | **N7** | the derivative costs one subtraction, one absolute value, two F64 accumulator updates and one divide, per channel per tick | exactly that. `DerivativeStream::step` walks the channels once and `z()` is O(1); there is no second sweep, pruning pass or dilation | **HELD** |
 | **N8** | the committed vectors leave tracked content under 6 MiB | **5.53 MiB** after all seven new tiers | **HELD** |
 
@@ -11073,3 +11073,114 @@ projection. Corrected, re-smoked at three channels: **projected 9, actual 9**. T
 full read then went **projected 165, actual 165**.
 
 Month after the read: **225 Class A and 5,147 Class B of 50,000**.
+
+#### Second read, 2026-09-11: the cut floats, and both departures gain rather than cost
+
+**One further 165 Class B and 1 Class A**, cached weights, **weight store 1,313 ->
+1,313**, 43.1 s, after a smoke at 9 Class B whose **projected cost matched actual
+exactly**. Artifact `runs/smap-msl/_forensics/2026-09-11T013152Z-departures2.json`.
+Both gates pass again: the frozen arm returns **0.6820% and 10 of 38**, and
+`flight_reference.ratios` with the departure off is `channel_ratios` **exactly** on
+all 77 channels.
+
+The repair is the one 39.13.3 named: the cut is solved against the pooled nominal
+quantile with **no floor**, which is the same dial at the same kind of operating
+point the frozen arm's own **0.5506** sits at.
+
+```
+  arm                          cut       rate       TUNE    EVAL    all 38
+  frozen (stage 4)          0.5506     0.6820%      6/19    4/19    10/38   matched
+  N6: forward-only          0.5009     0.6820%     12/19   11/19    23/38   MATCHED
+  N5: guard cells           1.0000     0.5848%     10/19    6/19    16/38   14% below
+```
+
+**Both are strict supersets of the frozen arm on EVAL.** Neither loses anything it
+caught.
+
+**(!) N6 FAILS ITS BAND IN THE OPPOSITE DIRECTION TO ITS INTENT, and the band was
+mis-specified.** It asked what dropping backward dilation would **cost** -- 0 to 1
+event HOLD, 4 or more FAIL, with FAIL re-opening 39.5's choice. The measurement is
+**+13**, so the band fires while the concern it was written to detect does not
+materialise. **A one-sided worry written as a two-sided band.** 39.5's choice was
+made because a warn-only component cannot emit retroactively, and nothing here
+gives a reason to re-open it.
+
+**The mechanism is the same shape as D65's P2.4.** Backward dilation spends 99
+steps of alarm budget **before** every crossing. Those steps precede the evidence,
+so they cannot buy a detection -- and they count against the nominal rate. Removing
+them frees budget, the rate-matched cut falls from 0.5506 to 0.5009, and more
+events clear it. **A stream, or a pad, that spends budget for less than it
+returns.**
+
+**(!) AND THE +13 IS NOT A CLEAN ADJUDICATION OF THE LEVER, BECAUSE THE DIAL MOVED
+AND 38.15 ALREADY SAID WHAT THAT DOES.** Arm 1's diagnosis applies here without
+change: *"a multiplier below 1.0 re-admits pruned steps, because `channel_ratios`
+maps a suppressed step to `raw/(1+raw)` and a cut under 1.0 crosses that band...
+the dial is not rate-matching here, it is changing the character of the decision,
+and 38.3's separation of lever from dial does not hold for this score shape."*
+The frozen arm sits at 0.5506 and N6 at 0.5009, **both inside that band**, so part
+of the +13 is the dilation lever and part is the lower dial, and **this read cannot
+say how it divides.** N6's number is reported as measured and **is not a clean
+measurement of what backward dilation costs**. What would separate them: scoring
+both dilations at **one fixed cut**, so the lever moves and the dial does not, with
+the two rates reported rather than matched. That is a third read and is not taken.
+
+**(!) N5 IS NOT ADJUDICATED: it does not reach the matched rate.** The solved cut
+pins at **1.0000** and the realised rate is **0.5848%, 14% below target**, so
+`report` stamps it unmatched and **no matched-rate number of N5's is reported**.
+This is the shape 38.15 records for Arm 6 -- an arm that cannot be brought to the
+budget is unrun, not losing.
+
+**What can be said about N5 without a matched rate, because it needs no matching.**
+At a cut of exactly 1.0 only surviving-sequence steps alarm -- **no pruned step is
+re-admitted**, which is the legal-dial regime 38.15 asked Arm 1 to be re-run in --
+and in that regime guard cells catch **16 of 38 at 0.5848%** against the frozen
+arm's **10 of 38 at 0.6820%**. **More events at a quieter rate is a dominance
+relation and does not require the rates to be equal.** It is the opposite of what
+10.7 measured on ESA-ADB's `m1-g8.9.10`, where guard cells cost 38/46 -> 34/46 --
+and 10.7 already recorded that the sign reverses between channel sets for reasons
+not established. **This is a third dataset doing it again, and the reason is still
+not established.**
+
+#### What the second read settles, and what it does not
+
+- **Neither departure costs recall on this data.** Both were chosen for
+  flight-legality and neither is paid for in events. **39.4 and 39.5 stand.**
+- **Nothing is adopted.** The port emits on D25's static quantile and D65 names no
+  flight configuration; these are measurements of departures, not a decision about
+  what flies.
+- **N6's band fails and its mis-specification is the finding**; its +13 is
+  confounded with the dial and is not a clean lever measurement.
+- **N5 remains unadjudicated at a matched rate**, with a dominance observation
+  standing in its place and the 10.7 sign-reversal now seen a third time.
+- **n = 19 per half. UNDERPOWERED (D3)**, and stamped so wherever these are quoted.
+
+Month after the second read: **227 Class A and 5,321 Class B of 50,000.**
+
+### 39.14 Deferred, with the slot registered so the gap is visible
+
+**A float64 Python reference for the threshold, so N2's contract can be judged.**
+N2 asked whether the new path lands where the existing one did -- 19.8 F5's
+1.788e-07 -- and got **NO VERDICT at 5.072e-06**. 39.13 identifies the cause:
+`telemanom.dynamic_threshold` takes `float(np.mean(e_s))` and `float(np.std(e_s))`
+of a **float32** array, while the core accumulates in F64, and the gap scales with
+`z` exactly as that predicts. **The core is the more accurate of the two, which is
+why the question N2 was asking cannot be answered against this reference at all**:
+the residual measures the reference's resolution, not the transcription's.
+
+What would settle it: a reference that computes the sweep's moments in float64 and
+is compared against the core, with `telemanom.py` left alone -- the same
+separation `baseline_reference.py` and `flight_reference.py` already make, and for
+the same reason. The published module's arithmetic is what every figure in this
+repository rests on and **is not changed to make a test tidier**.
+
+**Not built, and deliberately not.** It would be a second reference for one
+prediction on a path already held to 1e-5 on every output and exact on every flag,
+and 39's remaining debt is a measurement, not a tolerance. Registered here so the
+gap is visible rather than discovered, and taken up when something needs the
+tighter contract -- the F' Ref testbed being the first candidate, because a
+physics testbed is where a difference of 5e-06 in a threshold could first matter.
+
+**Nothing about it is implemented from this description.** If it is built, the
+float64 sweep is written against `telemanom.py` read at first hand, as everything
+else here was.

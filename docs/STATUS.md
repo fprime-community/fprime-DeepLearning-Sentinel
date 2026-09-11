@@ -150,7 +150,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 225 Class A and 5,147 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 227 Class A and 5,321 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -313,10 +313,17 @@ samples of carried state (N4 held). **`sizeof(Detector)` is 603,024 B against N3
 581,488 -- N3 FAILED at +3.70% and the account is itemised, not the band moved.**
 **Three decision layers run and one emits**: `crossing()` and `emitted()` are still D25's
 static quantile, because D65 names no flight configuration and promoting either new rule
-would make the port the adoption decision. **N5 and N6 are NOT ADJUDICATED**: both were
-scored with the cut floored at 1.0 while the frozen arm's own operating point sits at 0.5506,
-so neither reached the matched rate. **No number of theirs is reported**, and the repair needs
-a second read of 165 Class B.
+would make the port the adoption decision. **On the second read (2026-09-11), with the cut floating as the frozen arm's does: neither
+departure costs recall on this data.** **N6** -- forward-only dilation -- reaches **23 of 38
+at a matched 0.6820%, EVAL 11/19 against the frozen arm's 4**, a strict superset. Its band
+**FAILED in the opposite direction to its intent**, having asked what the departure would
+cost, **and the +13 is confounded with the dial**, which moved 0.5506 -> 0.5009 inside the
+band 38.15 says re-admits pruned steps -- so it is not a clean measurement of the lever.
+**N5** -- guard cells -- **remains NOT ADJUDICATED**: its cut pins at 1.0 and the rate lands
+14% below target, so no matched-rate number of it is reported; at that quieter rate it
+catches 16 of 38 against 10, which is dominance rather than a matched comparison.
+**Nothing is adopted**: the port emits on D25's static quantile and D65 names no flight
+configuration.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults

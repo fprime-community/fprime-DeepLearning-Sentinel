@@ -14,6 +14,65 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.36] - 2026-09-11 - The second read: neither departure costs recall, and N6's band was mis-specified
+
+**`docs/MODELS.md` 39.13 second read.** **One further 165 Class B and 1 Class A**, cached
+weights, **weight store 1,313 -> 1,313**, after a smoke at 9 Class B whose **projected cost
+matched actual exactly**. Artifact
+`runs/smap-msl/_forensics/2026-09-11T013152Z-departures2.json`. Month: **227 Class A and
+5,321 Class B of 50,000**. Both gates pass again.
+
+### Measured, with the cut floating as the frozen arm's own 0.5506 does
+```
+  arm                          cut       rate       TUNE    EVAL    all 38
+  frozen (stage 4)          0.5506     0.6820%      6/19    4/19    10/38   matched
+  N6: forward-only          0.5009     0.6820%     12/19   11/19    23/38   MATCHED
+  N5: guard cells           1.0000     0.5848%     10/19    6/19    16/38   14% below
+```
+**Both are strict supersets of the frozen arm on EVAL.** **n = 19 per half,
+UNDERPOWERED (D3).**
+
+### (!) N6 fails its band in the opposite direction to its intent
+The band asked what dropping backward dilation would **cost** -- 0 to 1 event HOLD, 4 or more
+FAIL, with FAIL re-opening 39.5's choice. The measurement is **+13**, so the band fires while
+the concern it was written to detect does not materialise. **A one-sided worry written as a
+two-sided band**, and the mis-specification is the finding. 39.5's choice was made because a
+warn-only component cannot emit retroactively, and nothing here re-opens it.
+
+The mechanism is D65's P2.4 in another guise: backward dilation spends 99 steps of alarm
+budget **before** every crossing, where the evidence has not happened yet, so it cannot buy a
+detection and does count against the rate. Remove it and the rate-matched cut falls from
+0.5506 to 0.5009.
+
+### (!) And the +13 is confounded with the dial, which 38.15 already diagnosed
+Arm 1's finding applies here unchanged: *a multiplier below 1.0 re-admits pruned steps,
+because `channel_ratios` maps a suppressed step to `raw/(1+raw)`... the dial is not
+rate-matching here, it is changing the character of the decision.* The frozen arm sits at
+**0.5506** and N6 at **0.5009**, both inside that band, so part of the +13 is the lever and
+part is the dial and **this read cannot say how it divides**. N6's number is reported as
+measured and **is not a clean measurement of what backward dilation costs**. Separating them
+needs both dilations scored at **one fixed cut** -- a third read, not taken.
+
+### (!) N5 remains NOT ADJUDICATED
+Its cut pins at **1.0000** and the rate lands at **0.5848%, 14% below target**, so no
+matched-rate number of it is reported -- 38.15's rule for Arm 6, an arm that cannot be
+brought to the budget is unrun rather than losing. What stands without matching: at a cut of
+exactly 1.0 **no pruned step is re-admitted**, which is the legal-dial regime 38.15 asked
+for, and there guard cells catch **16 of 38 at 0.5848% against 10 of 38 at 0.6820%** --
+**more events at a quieter rate, which is dominance and needs no matched rate.** It is the
+opposite of 10.7's ESA-ADB result, where guard cells cost 38/46 -> 34/46; **the sign has now
+reversed on a third dataset and the reason is still not established.**
+
+### Registered and not built
+- **39.14: a float64 Python reference for the threshold**, so N2's contract can be judged.
+  The residual measures the **reference's** float32 resolution, not the transcription's, so
+  the question N2 asked cannot be answered against the present reference at all. Deferred
+  deliberately; `telemanom.py`'s arithmetic is **not** changed to make a test tidier.
+
+### Unchanged
+**Nothing is adopted.** The port emits on D25's static quantile; D65 names no flight
+configuration; **N3's failure stands as recorded and its band is not moved.**
+
 ## [0.6.35] - 2026-09-11 - N5 and N6: one read spent, and neither departure got its price
 
 **`docs/MODELS.md` 39.13, the port's OBSERVED entry.** **One read of 165 Class B and 1 Class

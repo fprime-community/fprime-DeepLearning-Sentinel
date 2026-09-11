@@ -18,6 +18,18 @@ price would be measured rather than assumed:
        flight rule drops it. The band: 0-1 event HOLD, 2-3 NO VERDICT, 4 or more
        FAIL, in which case 39.5's choice is re-opened rather than defended.
 
+**(!) THE CUT FLOATS; IT IS NOT FLOORED AT 1.0, AND THE FIRST READ GOT THIS WRONG.**
+`docs/MODELS.md` 39.13.3 records it: the floor was inherited from Arm 1's repair,
+where the lever was pruning `p` and a dial below 1.0 re-admitted deleted steps, so
+flooring it was what separated lever from dial. **Here the levers are dilation and
+guard cells, and the frozen arm's own operating point sits at 0.5506** -- below
+1.0. Flooring the variants while the baseline runs at 0.5506 compares two kinds of
+operating point instead of matching a rate: at a cut of exactly 1.0 only
+surviving-sequence steps alarm, so the rate becomes whatever the alarm extent
+happens to be, and forward-only dilation has less extent by construction. The cut
+is now solved against the pooled nominal quantile with no floor, which is the same
+dial at the same kind of operating point the frozen arm uses.
+
 **Both ride one read.** They are two decision-layer variations over the same
 smoothed errors, so the 165 Class B that loads the arrays answers both. Stated
 because it is the reason this costs one read and not two.
@@ -162,7 +174,7 @@ def main(argv=None) -> int:
     # ---- N6: forward-only dilation ---------------------------------------
     for cid, d in per.items():
         d["S"]["fwd"] = np.asarray(ratios(d["e_s"], d["cfg"], forward_only=True), float)
-    thr, rate, masks = ARMS.solve_threshold(per, "fwd", target, floor=1.0)
+    thr, rate, masks = ARMS.solve_threshold(per, "fwd", target)
     rows.append(ARMS.report("N6: forward-only dilation", masks, per, targets,
                             f"cut {thr:.4f}"))
     detail["n6_eval"] = ARMS.caught(masks, targets, EVAL)
@@ -172,7 +184,7 @@ def main(argv=None) -> int:
         g = telemanom.Config(error_window=d["cfg"].error_window, stride=d["cfg"].stride,
                              guard_segment=True)
         d["S"]["guard"] = np.asarray(telemanom.channel_ratios(d["e_s"], g), float)
-    thr_g, rate_g, masks_g = ARMS.solve_threshold(per, "guard", target, floor=1.0)
+    thr_g, rate_g, masks_g = ARMS.solve_threshold(per, "guard", target)
     rows.append(ARMS.report("N5: guard cells", masks_g, per, targets, f"cut {thr_g:.4f}"))
     detail["n5_eval"] = ARMS.caught(masks_g, targets, EVAL)
 
