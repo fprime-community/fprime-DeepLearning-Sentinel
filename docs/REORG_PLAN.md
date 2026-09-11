@@ -360,6 +360,12 @@ session**. Data at Zenodo record `15237121`, DOI `10.5281/zenodo.15237121`, conc
 > `2026-08-24T21:31:02Z`. It is marked `verified: "repository-only"` and **must be
 > re-checked at the Zenodo record before publication.** The brief says CC-BY 4.0; the
 > repository says 3.0 IGO; neither is asserted beyond what was actually checked.
+>
+> **(!) SETTLED 2026-09-11. The record was opened and the Rights field reads
+> `CC BY 3.0 IGO`** -- record `15237121`, version v2, published 2025-04-17. **The
+> repository was right and the brief was wrong.** This paragraph is kept as the record of
+> what was and was not known on 2026-09-09; `docs/datasets/ESA_ADB.md` carries the
+> verification.
 
 **NASA SMAP/MSL.** Hundman et al., KDD 2018, `arXiv:1802.04431`; source at
 `github.com/khundman/telemanom`, vendored here at `2e6c5b6c`. **BSD 3-Clause, verified

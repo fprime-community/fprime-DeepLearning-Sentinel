@@ -14,6 +14,35 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.42] - 2026-09-11 - The ESA-ADB licence is verified at source, and both branches are pushed
+
+**The reorganisation is complete.** Zero bucket operations.
+
+### The licence, settled
+**CC BY 3.0 IGO, read at the Zenodo record on 2026-09-11** -- record `15237121`, **version
+v2, published 2025-04-17**, Rights field read directly. **The repository was right and the
+earlier brief's "CC-BY 4.0" is confirmed wrong.**
+
+**It was carried as `verified: "repository-only"` for two days across three failed attempts**
+-- `zenodo.org` unreachable with a TLS certificate error on the record URL, the DOI and the
+DOI's redirect target, while `arxiv.org` answered from the same environment. **Five internal
+copies agreeing with each other is not verification**, and the rule that an unverifiable
+licence is marked unverified rather than stated is what kept the claim honest until somebody
+could open the page.
+
+Updated where it was live: `docs/datasets/ESA_ADB.md`, `docs/datasets/REPRODUCING.md`,
+`docs/INDEX.md`. **Kept with riders rather than edited**: `docs/REORG_PLAN.md`'s dated
+paragraph and `CHANGELOG.md` 0.6.39, both of which record what was and was not known at the
+time.
+
+### Pushed
+**`master` and `dev` are pushed to `origin`.** No force-push, no history rewrite, and the
+nine tags stay where they are. The repository is **private**, so no `LICENSE` is required
+until public release.
+
+**The GitHub default branch stays on `main`.** **Licence selection is the one remaining item
+before it moves**, and it is a separate decision.
+
 ## [0.6.41] - 2026-09-11 - Reorganisation tranche 5: the public branch exists, locally
 
 **`docs/REORG_PLAN.md` tranche 5.** Zero bucket operations. **Nothing is pushed**, `master`

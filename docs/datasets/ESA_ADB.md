@@ -26,24 +26,31 @@ every figure derived from it is cited by artifact path.
 **The paper's metadata above was re-fetched and confirmed at `arxiv.org` on 2026-09-11**,
 field by field: title, the eleven authors in order, both dates, and the comments string.
 
-## (!) The licence is NOT verified at source, and that is stated rather than hidden
+## The licence, verified at source
 
-**This repository records the dataset licence as `CC BY 3.0 IGO`, with attribution to ESA
-required in anything published from it.** The string appears identically in five places --
-`README.md:226`, `Objective.md:672`, `docs/DATA.md`, `docs/REORG_PLAN.md`, and the stored
-manifest, the last of which was **written by the ingest itself at
-`2026-08-24T21:31:02Z`** and is therefore the closest thing here to a primary record.
+| | |
+|---|---|
+| Licence | **CC BY 3.0 IGO** -- attribution to ESA required in anything published from it |
+| Verified | **2026-09-11, at the Zenodo record**, Rights field read directly |
+| Record | `15237121`, **version v2**, published **2025-04-17** |
 
-**It has not been checked against the Zenodo record, and two attempts have now failed.**
-`zenodo.org` is unreachable from this environment -- TLS *"unable to get issuer
-certificate"* -- on the record URL, on the DOI redirect, and on the redirect's target, on
-**2026-09-09 and again on 2026-09-11**. `arxiv.org` answers from the same environment, so
-this is Zenodo-specific rather than a general lack of network.
+**Verified at the record, not inferred from this repository.** The string is also identical
+in five internal places -- `README.md`, `Objective.md`, `docs/DATA.md`, `docs/REORG_PLAN.md`
+and the stored manifest, the last written by the ingest itself at `2026-08-24T21:31:02Z` --
+and the record now confirms them.
 
-> **It is marked `verified: "repository-only"` and MUST be re-checked at the Zenodo record
-> before this repository is published.** An earlier brief said CC-BY **4.0**; this
-> repository says **3.0 IGO**. **Neither is asserted beyond what was actually checked**,
-> and a reader who needs the licence should read the record rather than this page.
+> **An earlier handover brief said CC-BY 4.0. That is confirmed wrong.** It is recorded here
+> because a wrong licence string that circulates is worth naming once, so it does not come
+> back.
+>
+> **How long this took is the point worth keeping.** It was carried as
+> `verified: "repository-only"` from 2026-09-09 to 2026-09-11 across **three** failed
+> attempts, because `zenodo.org` was unreachable from the authoring environment -- TLS
+> *"unable to get issuer certificate"* on the record URL, on the DOI, and on the DOI's
+> redirect target, while `arxiv.org` answered from the same environment. **Five internal
+> copies agreeing with each other is not verification**, and the rule that a licence which
+> cannot be checked is marked unverified rather than stated is what kept the claim honest
+> until somebody could open the page.
 >
 > The reference *code* published with the benchmark is MIT (Airbus, KP Labs, Wenig &
 > Schmidl) and is a **separate licence from the dataset's**. Nothing in this repository

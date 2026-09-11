@@ -399,8 +399,9 @@ seed.
   snapshot commit per approved checkpoint; neither branch is ever rewritten.
   **`master` exists locally as of 2026-09-11** (D67, D67.1): branched from `main`, carrying
   **96 of 270 tracked files, 2.96 MiB** -- the component and the evidence it works, with
-  every omission named in its own `README.md`. **It has never been pushed and has no remote
-  tracking branch**, and the GitHub default stays on `main` until the licence is selected.
+  every omission named in its own `README.md`. **Pushed to `origin` on 2026-09-11**; the
+  repository is private, so no `LICENSE` is required until public release. **The GitHub
+  default stays on `main`, and licence selection is the one remaining item before it moves.**
 
 ## 9. Verify
 
