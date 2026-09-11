@@ -14,6 +14,58 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.41] - 2026-09-11 - Reorganisation tranche 5: the public branch exists, locally
+
+**`docs/REORG_PLAN.md` tranche 5.** Zero bucket operations. **Nothing is pushed**, `master`
+has **no remote tracking branch**, and the GitHub default stays on `main` until a licence is
+selected.
+
+### The branch
+- **`git branch master main`**, so every existing link, Release and citation into `main`
+  keeps resolving. **`dev` is untouched**, the nine tags stay where they are, and **no
+  history is rewritten and nothing is force-pushed.**
+- **96 of 270 tracked files, 2.96 MiB**: `flight/` with its committed vectors, the Monitor
+  component and the SentinelRef deployment with the three build files they need, `README.md`,
+  `Objective.md`, `STATUS`, `RESULTS`, `DECISIONS`, `NARRATIVE`, `MODEL_FILE`, `FPRIME`,
+  `PI_ENVELOPE` and `docs/datasets/`. Plus **`.gitignore`**, which D67's lists name neither
+  way: it is infrastructure rather than content, and it is what keeps telemetry out of a
+  repository whose first permanent rule is that none is ever committed.
+- **The public `README.md`** carries the branch paragraph, the omissions table, the
+  dev-resolution convention pinned at `99348fa`, **BSD clause 3 verbatim**, the author-email
+  disclosure, and a repository map and run instructions rewritten to be true of that branch.
+
+### What the checklist found, and all three were real
+- **(!) Four dead links.** `README.md` linked `docs/PHASE2.md`, `docs/PHASE5.md`,
+  `docs/PHASE1_REPORT.md` and `docs/INDEX.md`, none on the branch, so a public reader
+  clicking any of them would have got a 404. Converted to named references. **Twelve
+  relative links on `master`, all resolving.**
+- **(!) The green build covered less than it looked like.** Cloned fresh and run with nothing
+  else, `master` runs **two of the seven** forward-pass golden tiers: `g3`'s and the four
+  `g4_*` weight files are **deliberately uncommitted anywhere** -- 285 KB that regenerates
+  from a seed, gitignored by policy with a test asserting it stays that way -- and the
+  generator is in `scripts/`, which is not on the branch. So `g3.vec` ships with no input and
+  **skips silently**. The policy is not overridden; the README states the gap, because a
+  reader should not read seven tiers where two ran.
+- **Everything the port and D68 added does run there**, at full width: the four baseline
+  tiers, three trailing, two threshold, two derivative, **and `p1`, the flight configuration
+  end to end** -- a real `param_version` 2 `model.bin` stepped 3,200 times, fused score to
+  **3.098e-06**, both flags exact. Plus 18 refusal cases, determinism twice in-process and
+  twice across processes, and the footprint against its prediction. `make -C flight lint`
+  clean at `-Werror`.
+
+### `must_never_reach_public`, all eight categories, against what `master` actually carries
+**Credentials**: none tracked, no pattern anywhere. **Host and pod addresses**: none; the two
+regex hits are `127.0.0.1` in `SentinelRef/README.md` -- the one recorded exception -- and a
+clang version string. **Telemetry in any form**: no parquet, pickle, archive, array or CSV
+tracked. **Non-redistributable material**: `third_party/` is not on the branch, so nothing is
+redistributed and BSD clauses 1 and 2 do not bind there. **Caltech/JPL endorsement**: the four
+matches are the obligation being *stated*, not claimed. **Assistant attribution**: none, in
+files or in commit messages. **Personal names, emails, meetings, reviewers**: none; every
+`master` commit is `GalacticDroid448` at the noreply address. **Retired claims restated as
+live**: five sites, and all five are exactly what `dev`'s own guard pins as records -- D9's
+measured lead table, D9's paragraph, a blockquote, `docs/NARRATIVE.md`'s narrative and
+`docs/RESULTS.md` section 1's table.
+
 ## [0.6.40] - 2026-09-11 - D67.1: the honesty record and the reserved envelope go on master
 
 **A rider, not an edit.** D67's two lists are unchanged; this adds to them. Zero bucket

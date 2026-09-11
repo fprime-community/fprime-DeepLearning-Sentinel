@@ -397,6 +397,10 @@ seed.
 - **Documents**: `docs/INDEX.md` is the map, one sentence each.
 - **History**: all work lands on `dev` (tags `wi1`-`wi9`); `main` advances only by one
   snapshot commit per approved checkpoint; neither branch is ever rewritten.
+  **`master` exists locally as of 2026-09-11** (D67, D67.1): branched from `main`, carrying
+  **96 of 270 tracked files, 2.96 MiB** -- the component and the evidence it works, with
+  every omission named in its own `README.md`. **It has never been pushed and has no remote
+  tracking branch**, and the GitHub default stays on `main` until the licence is selected.
 
 ## 9. Verify
 
