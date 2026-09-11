@@ -81,19 +81,22 @@ def test_master_mode_reports_off_branch_paths_rather_than_breaking(report) -> No
 
 
 def test_every_master_prefix_is_a_path_that_exists() -> None:
-    """D67's list must name things that are here, not things remembered.
+    """The list must name things that are here, not things remembered.
 
-    Two exceptions, both of which D67 states: `LICENSE` is added when a licence is
-    selected and it is still "not yet selected"; `docs/datasets/` is written by
-    REORG_PLAN tranche 4 and is carried in `PLANNED` until it is.
+    The exceptions are declared in `MASTER_ONLY_PREFIXES` and each is stated:
+    `LICENSE` is added when a licence is selected and it is still "not yet
+    selected"; `docs/DESIGN.md` and `docs/EVIDENCE.md` are D69's customer
+    documents and exist on `master` alone. That the list still describes the real
+    branch is a separate check, and it is the one nothing made until D69 --
+    `tests/test_master_documents_are_current.py` reads `git ls-tree master`.
     """
     planned_prefixes = {p.rsplit("/", 1)[0] + "/" for p in CR.PLANNED if "/" in p}
     missing = [p for p in CR.MASTER_PREFIXES
                if not (ROOT / p).exists()
-               and p != "LICENSE"
+               and p not in CR.MASTER_ONLY_PREFIXES
                and p not in planned_prefixes
                and p not in CR.PLANNED]
-    assert missing == [], f"D67 names paths that do not exist: {missing}"
+    assert missing == [], f"the curated list names paths that do not exist: {missing}"
 
 
 def test_the_three_taught_conventions_are_still_needed() -> None:

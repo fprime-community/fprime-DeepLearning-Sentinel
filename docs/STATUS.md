@@ -392,10 +392,19 @@ than `dev`'s own prose: `README.md` and `docs/STATUS.md` replaced, `Objective.md
 `docs/NARRATIVE.md` removed from the branch and kept whole on `dev`. **Nothing is deleted
 from `dev`.** The reason is measured rather than aesthetic: of four figures `master` states
 about `dev`, **two were stale** -- each correct on the day it was written -- and **a third
-went stale one commit later** when `docs/MODELS.md` 40 landed (D69.1). *Done when* the
-customer set exists and every figure on it is re-derived from `dev` by
-`tests/test_master_documents_are_current.py`. **The guard is built and the stale figures are
-left standing for it to catch**, which is what proves it. `main` is **costed and deleted
+went stale one commit later** when `docs/MODELS.md` 40 landed (D69.1). **DONE 2026-09-11.**
+`master` carries four customer documents -- `README.md`, a design document, an evidence
+document and a status document -- and `Objective.md`, `docs/DECISIONS.md`,
+`docs/NARRATIVE.md` and `docs/RESULTS.md` are off the branch and kept whole here. **96
+files to 94, 2.96 MiB to 2.41.** `flight/` and `fprime/` were refreshed in the same commit,
+because until then the public branch carried the lint target that could not fail.
+`tests/test_master_documents_are_current.py` re-derives every figure `master` states from
+the source that produces it -- the footprint from the assertion, the refusal count from the
+enum, the F' coverage from that test's own loop bound, the headline from D65's table -- and
+checks the citations in `master`'s documents, which **nothing had ever read**: `--master`
+mode resolves `dev`'s documents under the curated branch's rules and never opens the
+branch. **The debt register is empty**: all four stale figures died with the old
+`README.md`, and the guard is now proved by a probe rather than by a live defect. `main` is **costed and deleted
 nowhere**: no URL-shaped reference exists on either tree, all nine tags are on `dev`, and the
 order when it is taken is default to `master`, rewrite the nine prose sites, delete
 `origin/main`, then local `main`.
@@ -413,7 +422,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**688 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**690 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -430,14 +439,15 @@ seed.
   every omission named in its own `README.md`. **Pushed to `origin` on 2026-09-11**; the
   repository is private, so no `LICENSE` is required until public release. **The GitHub
   default stays on `main`, and licence selection is the one remaining item before it moves.**
-  **`master` becomes a customer branch by D69, 2026-09-11**, and `dev` gains a guard that
-  re-derives every figure `master` states about it -- the two branches **share no commit**,
-  so it compares trees rather than walking ancestry.
+  **`master` became a customer branch 2026-09-11 (D69)**: 94 files, 2.41 MiB, its own four
+  documents, and `flight/` and `fprime/` byte-identical to `dev`. `dev` carries the guard
+  that re-derives every figure it states -- the two branches **share no commit**, so it
+  compares trees rather than walking ancestry. **Not pushed.**
 
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 688 tests
+.venv/bin/python -m pytest -q                                    # 690 tests
 .venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch

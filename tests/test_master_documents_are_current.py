@@ -1,25 +1,24 @@
-"""Every figure `master` states about `dev` is re-derived from `dev` here (D69).
+"""Every figure `master` states is re-derived from `dev`, and every citation resolves (D69).
 
-`master` carries a curated set of documents and those documents quote `dev`:
-how many files it tracks, how many scripts it holds, how many tests it runs,
-which commit the snapshot was taken from. **Nothing checked any of them.** D69
-measured the result: of four such figures, two were stale -- each correct on the
-day it was written, each copied onto a branch that never re-derived it -- and a
-third went stale one commit later when `docs/MODELS.md` 40 landed. That is not a
+`master` carries four customer documents -- `README.md`, `docs/DESIGN.md`,
+`docs/EVIDENCE.md`, `docs/STATUS.md` -- and they quote this repository: how big
+the detector is, how many refusal codes exist, how many of them the F' component
+proves degrade safely, what the headline recall was. **Before D69 nothing checked
+any of it.** Of the four figures the previous public README stated about `dev`,
+two were stale, a third went stale one commit later, and a fourth when the guard
+itself added tests. Each had been correct on the day it was written. That is not a
 proofreading failure; it is the absence of a guard, and this is the guard.
 
 **It compares trees, never ancestry.** `dev` and `master` share no commit at all:
-different root commits, `git merge-base dev master` empty, `master..dev` the
-whole of `dev` (D69 EVIDENCE). So every check here reads `master` with
-`git show` / `git ls-tree` and derives the answer from `dev`'s own working tree.
+different root commits, `git merge-base dev master` empty, `master..dev` the whole
+of `dev`. So every check here reads `master` with `git show` / `git ls-tree` and
+derives the answer from `dev`'s own tree.
 
-**The stale figures are pinned, not fixed.** `BASELINE` is a debt register in the
-shape `tests/test_documents_are_current.py:97` uses: pinned by exact equality in
-*both* directions, so a new drift fails and a repair that leaves the register
-stale fails too. D69 consequence 10 keeps the known ones standing until the
-customer documents replace them, because a guard proved against a defect that has
-already been repaired is a guard proved against nothing --
-`test_the_check_actually_catches_things` is where that proof lives.
+**And every derivation is mechanical.** A figure is checked against the source that
+produces it -- `sizeof(Detector)` against the assertion in `flight/test/Footprint.cpp`,
+the refusal count against the enum in `Status.hpp`, the F' coverage against the loop
+bound in the component's own test, the headline against D65's table. Not against
+another document's prose, which is how a figure travels while staying wrong.
 """
 from __future__ import annotations
 
@@ -36,10 +35,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_references as C  # noqa: E402
-import make_tocs as T  # noqa: E402
 
-#: The public branch. A ref, not a checkout -- nothing here changes the worktree.
+#: The public branch. A ref, not a checkout -- nothing here touches the worktree.
 MASTER = "master"
+
+#: The four documents `master` writes for itself. Two share a name with a `dev`
+#: document and differ from it by design; two exist only on `master`.
+CUSTOMER_DOCS = ("README.md", "docs/DESIGN.md", "docs/EVIDENCE.md", "docs/STATUS.md")
+CURATED_ON_MASTER = {"README.md", "docs/STATUS.md"}
+MASTER_ONLY = {"docs/DESIGN.md", "docs/EVIDENCE.md"}
 
 
 def _git(*args: str) -> str:
@@ -53,7 +57,7 @@ def _ref_exists(ref: str) -> bool:
 
 
 #: A clone that fetched only `dev` has no `master`, and a suite that goes red for
-#: that reason is reporting on the clone rather than on the repository -- the same
+#: that reason reports on the clone rather than on the repository -- the same
 #: reason `tests/test_flight_build.py:24` skips without the C++ toolchain.
 needs_master = pytest.mark.skipif(not _ref_exists(MASTER),
                                   reason=f"no `{MASTER}` ref in this clone")
@@ -63,9 +67,9 @@ def _flattened(text: str) -> str:
     """One line, emphasis stripped, whitespace collapsed.
 
     Same treatment and same reason as `tests/test_documents_are_current.py:214`:
-    these figures sit in wrapped table cells, and a pattern anchored to one line
-    reads a wrapped claim as *no claim stated*, which is the one failure mode a
-    guard may not have.
+    these figures sit in wrapped prose and table cells, and a pattern anchored to
+    one line reads a wrapped claim as *no claim stated*, which is the one failure
+    mode a guard may not have.
     """
     return re.sub(r"\s+", " ", text.replace("*", "").replace("`", ""))
 
@@ -74,39 +78,84 @@ def _on_master(path: str) -> str:
     return _flattened(_git("show", f"{MASTER}:{path}"))
 
 
-# -- the derivations, each from `dev` --------------------------------------
-
-def _dev_tracked_files() -> int:
-    return len(_git("ls-files").split())
+def _dev(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
 
 
-def _master_tracked_files() -> int:
-    return len(_git("ls-tree", "-r", "--name-only", MASTER).split())
+# -- the derivations, each from the source that produces the figure ----------
+
+def _detector_bytes() -> int:
+    """The assertion, not another document. `flight/test/Footprint.cpp` pins it."""
+    text = _dev("flight/test/Footprint.cpp")
+    return int(re.search(r"checkEqualU32\(detector,\s*(\d+)U", text).group(1))
 
 
-def _dev_scripts_files() -> int:
-    """Every tracked file under `scripts/`, which is what the figure counted.
+def _n3_predicted_bytes() -> int:
+    text = _dev("flight/test/Footprint.cpp")
+    return int(re.search(r"N3\)\s+([\d,]+) B", text).group(1).replace(",", ""))
 
-    36 was right at `a0dfafb`, where `scripts/` held 36 files and no README. The
-    derivation is the one that produced the number, not a tidier one invented now.
+
+def _refusal_codes() -> int:
+    """`Status.hpp`'s enum, less `OK`. The C++ and Python values are the same set."""
+    text = _dev("flight/include/sentinel/Status.hpp")
+    names = re.findall(r"^\s+([A-Z_]+)\s*=\s*\d+U,", text, re.M)
+    return len([n for n in names if n != "OK"])
+
+
+def _load_cases() -> int:
+    """One `expect(` call site is one load case; `g_cases` counts them at runtime."""
+    return len(re.findall(r"^\s+expect\(", _dev("flight/test/RefusalTests.cpp"), re.M))
+
+
+def _fprime_covered_codes() -> int:
+    """(!) The loop bound in the component's own test, which is 11 and not 12.
+
+    `BAD_PARAM_VERSION` arrived with the version-2 rule and was never added to
+    this loop. The customer documents say 11 of 12 because of this number, and if
+    somebody closes that gap the documents must move with it.
     """
-    return len(_git("ls-files", "scripts").split())
+    text = _dev("fprime/Sentinel/Monitor/test/ut/MonitorTester.cpp")
+    return int(re.search(r"index\s*<\s*(\d+)U", text).group(1))
 
 
-def _collected_tests() -> int:
-    proc = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q",
-                           "-p", "no:cacheprovider"],
-                          cwd=ROOT, capture_output=True, text=True)
-    match = re.search(r"(\d+) tests? collected", proc.stdout)
-    assert match, f"could not read a collected count from pytest:\n{proc.stdout[-2000:]}"
-    return int(match.group(1))
+def _max_channels() -> int:
+    text = _dev("flight/include/sentinel/Config.hpp")
+    return int(re.search(r"constexpr\s+U32\s+MAX_CHANNELS\s*=\s*(\d+)U", text).group(1))
 
 
-def _models_index_entries() -> int:
-    text = (ROOT / "docs" / "MODELS.md").read_text(encoding="utf-8")
-    body, _notes = T.models_toc(text)
-    return len([ln for ln in body.splitlines() if ln.startswith("  - [")
-                or ln.startswith("- [")])
+def _warmup_steps() -> int:
+    """`docs/MODEL_FILE.md` is normative for the format, so it is the source here."""
+    text = _dev("docs/MODEL_FILE.md")
+    return int(re.search(r"warmup_steps\s+U32\s+(\d+)", text).group(1))
+
+
+def _d65_row(label: str) -> tuple[str, int, int, int, int, int, int]:
+    """One row of D65's arms table: rate, TUNE k/n, EVAL k/n, all k/n."""
+    text = _dev("docs/DECISIONS.md")
+    m = re.search(r"^\s*" + re.escape(label) +
+                  r"\s+([\d.]+)%\s+(\d+)/(\d+)\s+(\d+)/(\d+)\s+(\d+)/(\d+)", text, re.M)
+    assert m, f"D65's arms table no longer carries a row for {label!r}"
+    return (m.group(1),) + tuple(int(g) for g in m.groups()[1:])
+
+
+def _eval_caught() -> int:
+    return _d65_row("arm 2: residual + derivative")[3]
+
+
+def _eval_total() -> int:
+    return _d65_row("arm 2: residual + derivative")[4]
+
+
+def _frozen_eval() -> int:
+    return _d65_row("frozen (stage 4)")[3]
+
+
+def _population() -> int:
+    return _d65_row("arm 2: residual + derivative")[6]
+
+
+def _alarm_rate_x10000() -> int:
+    return int(round(float(_d65_row("frozen (stage 4)")[0]) * 10000))
 
 
 @dataclass(frozen=True)
@@ -114,91 +163,101 @@ class Figure:
     key: str
     document: str
     pattern: str
-    group: int
     derive: Callable[[], int]
     what: str
+    scale: int = 1
 
 
-#: What `master` says about `dev`, and how `dev` answers it. A figure absent from
-#: this tuple is a figure nothing checks, which is the condition D69 was written
-#: about -- so adding a number to a customer document means adding a row here.
+#: What the customer documents state, and what produces each answer. **A figure
+#: not in this tuple is a figure nothing checks**, which is the condition D69 was
+#: written about -- so adding a number to a customer document means adding a row.
 FIGURES = (
-    Figure("dev_tracked_files", "README.md",
-           r"repository's (\d[\d,]*) tracked files, (\d[\d,]*) are here", 1,
-           _dev_tracked_files, "files tracked on dev"),
-    Figure("master_tracked_files", "README.md",
-           r"repository's (\d[\d,]*) tracked files, (\d[\d,]*) are here", 2,
-           _master_tracked_files, "files tracked on master"),
-    Figure("scripts_files", "README.md",
-           r"\| scripts/ \| (\d[\d,]*) scripts", 1,
-           _dev_scripts_files, "files under scripts/ on dev"),
-    Figure("collected_tests", "README.md",
-           r"The (\d[\d,]*)-test suite", 1,
-           _collected_tests, "tests collected on dev"),
-    Figure("models_index_entries", "README.md",
-           r"outcome, (\d[\d,]*) sections", 1,
-           _models_index_entries, "generated index entries in docs/MODELS.md"),
+    Figure("detector_bytes/README", "README.md",
+           r"sizeof\(Detector\) asserted exactly, ([\d,]+) B",
+           _detector_bytes, "sizeof(Detector)"),
+    Figure("detector_bytes/DESIGN", "docs/DESIGN.md",
+           r"sizeof\(Detector\) is ([\d,]+) B",
+           _detector_bytes, "sizeof(Detector)"),
+    Figure("detector_bytes/EVIDENCE", "docs/EVIDENCE.md",
+           r"FAILED at ([\d,]+) B",
+           _detector_bytes, "sizeof(Detector)"),
+    Figure("n3_predicted/EVIDENCE", "docs/EVIDENCE.md",
+           r"= ([\d,]+) B \+/- 64",
+           _n3_predicted_bytes, "N3's predicted footprint"),
+    Figure("refusal_codes/README", "README.md",
+           r"exercising all (\d+) refusal codes",
+           _refusal_codes, "refusal codes in Status.hpp"),
+    Figure("refusal_codes/DESIGN", "docs/DESIGN.md",
+           r"OK plus (\d+) refusal codes",
+           _refusal_codes, "refusal codes in Status.hpp"),
+    Figure("load_cases/README", "README.md",
+           r"(\d+) load cases, exercising all",
+           _load_cases, "load cases in the refusal suite"),
+    Figure("load_cases/DESIGN", "docs/DESIGN.md",
+           r"(\d+) load cases, exercising all",
+           _load_cases, "load cases in the refusal suite"),
+    Figure("fprime_covered/DESIGN", "docs/DESIGN.md",
+           r"(\d+) of the 12 proven to degrade",
+           _fprime_covered_codes, "refusal codes the F' test covers"),
+    Figure("fprime_covered/STATUS", "docs/STATUS.md",
+           r"covering (\d+) of the 12 refusal codes",
+           _fprime_covered_codes, "refusal codes the F' test covers"),
+    Figure("max_channels/DESIGN", "docs/DESIGN.md",
+           r"Compile-time maxima: (\d+) channels",
+           _max_channels, "MAX_CHANNELS"),
+    Figure("warmup_steps/DESIGN", "docs/DESIGN.md",
+           r"warmup_steps is ([\d,]+) =",
+           _warmup_steps, "warmup_steps"),
+    Figure("eval_caught/EVIDENCE", "docs/EVIDENCE.md",
+           r"residual fused with the first derivative [\d.]+% \d+/\d+ (\d+)/\d+",
+           _eval_caught, "EVAL events the fused arm caught"),
+    Figure("eval_total/EVIDENCE", "docs/EVIDENCE.md",
+           r"residual fused with the first derivative [\d.]+% \d+/\d+ \d+/(\d+)",
+           _eval_total, "EVAL denominator"),
+    Figure("frozen_eval/EVIDENCE", "docs/EVIDENCE.md",
+           r"published rule \(frozen\) [\d.]+% \d+/\d+ (\d+)/\d+",
+           _frozen_eval, "EVAL events the frozen rule caught"),
+    Figure("alarm_rate/EVIDENCE", "docs/EVIDENCE.md",
+           r"published rule \(frozen\) ([\d.]+)%",
+           _alarm_rate_x10000, "the matched alarm rate", scale=10000),
+    Figure("population/EVIDENCE", "docs/EVIDENCE.md",
+           r"(\d+) labelled contextual anomalies across",
+           _population, "the scored population"),
 )
 
-#: (!) The debt register: `key -> what master states`, measured 2026-09-11.
-#: Pinned by exact equality in both directions -- a NEW stale figure fails, and a
-#: figure repaired without being removed from here fails too, because a debt list
-#: nobody prunes stops describing the debt.
+#: (!) The debt register, and it is EMPTY, which it has not been before.
 #:
-#: **(!) It pins master's side and NOT dev's, and the first draft got that wrong.**
-#: Pinning the derived half looked more exact and made the register a liability:
-#: `dev_tracked_files` moved 270 -> 271 the moment this file was committed, so
-#: every ordinary commit that adds or removes a file on `dev` would turn the suite
-#: red for a defect that had not changed. The debt is *master says 227 and 227 is
-#: wrong*; `dev` going to 271 is the same debt, not a new one. So the derived side
-#: is reported in the failure message and is free to move.
+#: It held four when the guard was written -- 227 tracked files, 36 scripts, 353
+#: index entries, 683 tests -- every one a figure the old public README stated
+#: about `dev` and nothing re-derived. **All four died with that README**, and the
+#: customer documents state figures that are checked instead of counted.
 #:
-#: **Four, and D69 measured two.** `models_index_entries` went stale when
-#: `docs/MODELS.md` 40 landed, which D69.1 records; `collected_tests` went stale
-#: when this guard added five tests. Neither needs a rider -- they are the same
-#: mechanism D69 was written about, and the register is where a drifting figure is
-#: supposed to end up.
-#:
-#: These stand by D69 consequence 10 until the customer documents replace them.
-BASELINE = {
-    "dev_tracked_files": 227,
-    "scripts_files": 36,
-    "collected_tests": 683,
-    "models_index_entries": 353,
-}
+#: It pins what `master` STATES and not what `dev` derives, and the first draft of
+#: this guard got that backwards. Pinning the derived half looked more exact and
+#: was a liability: it moved the moment any commit added a file, so ordinary work
+#: would turn the suite red for a defect that had not changed.
+BASELINE: dict[str, int] = {}
 
-#: Documents `master` holds its own version of, so a byte difference against any
-#: `dev` commit is the curation working rather than drift. These are exactly the
-#: two paths `git diff dev master` reports as modified rather than deleted.
-CURATED_ON_MASTER = {"README.md", "docs/STATUS.md"}
-
-#: (!) Of the paths `master` is supposed to carry unchanged, these do not match
-#: the `dev` commit its README names. `a3c2a4a` ported two dataset files from
-#: `46165a1` without moving the stated commit, so the branch is a mixture and the
-#: citation describes it only approximately. Measured 2026-09-11.
-BASELINE_SNAPSHOT_MISMATCH = {
-    "docs/datasets/ESA_ADB.md",
-    "docs/datasets/REPRODUCING.md",
-}
-
-#: On `master` and covered by no `MASTER_PREFIXES` entry, which is harmless
-#: because it carries no citations; and declared in `MASTER_PREFIXES` but not yet
-#: on the branch, because the licence is not selected (`docs/STATUS.md` 7 item H).
+#: On `master`, covered by no `MASTER_PREFIXES` entry, and harmless because it
+#: carries no citations; and declared there but not on the branch, because the
+#: licence is not selected (`docs/STATUS.md` 7 item H).
 PREFIX_ALLOWANCES = {"uncovered": {".gitignore"}, "unused": {"LICENSE"}}
 
 
-def survey(figures=FIGURES) -> dict[str, tuple[int, int]]:
+def survey(documents: dict[str, str] | None = None) -> dict[str, tuple[int, int]]:
     """`key -> (stated, derived)` for every figure whose two sides disagree."""
-    documents = {f.document: _on_master(f.document) for f in figures}
+    if documents is None:
+        documents = {d: _on_master(d) for d in {f.document for f in FIGURES}}
     stale = {}
-    for figure in figures:
+    for figure in FIGURES:
         match = re.search(figure.pattern, documents[figure.document])
         assert match, (
             f"{MASTER}:{figure.document} no longer states {figure.what!r} in the "
             f"form this guard reads ({figure.pattern!r}). Either the figure was "
             "removed -- then remove the row -- or the wording changed and this "
             "guard has gone blind, which is worse than a stale number.")
-        stated = int(match.group(figure.group).replace(",", ""))
+        raw = match.group(1).replace(",", "")
+        stated = int(round(float(raw) * figure.scale)) if figure.scale != 1 else int(raw)
         derived = figure.derive()
         if stated != derived:
             stale[figure.key] = (stated, derived)
@@ -206,7 +265,7 @@ def survey(figures=FIGURES) -> dict[str, tuple[int, int]]:
 
 
 @needs_master
-def test_every_figure_master_states_about_dev_is_current() -> None:
+def test_every_figure_master_states_is_current() -> None:
     found = survey()
     stated = {key: pair[0] for key, pair in found.items()}
     if stated == BASELINE:
@@ -219,11 +278,11 @@ def test_every_figure_master_states_about_dev_is_current() -> None:
 
     assert not new, (
         f"NEW drift on `{MASTER}`, and not permitted: {new} (stated, derived). "
-        "A figure a customer document states about `dev` must be re-derivable "
-        "from `dev` (D69).")
+        "A figure a customer document states must be re-derivable from the source "
+        "that produces it (D69).")
     assert not moved, (
-        f"`{MASTER}` now states something different: {moved} (was, now). The "
-        "branch moved under the register; re-measure and update it, with the date.")
+        f"`{MASTER}` now states something different: {moved} (was, now). "
+        "Re-measure and update the register, with the date.")
     assert not fixed, (
         f"FIXED, so remove them from BASELINE in the same commit: {sorted(fixed)}. "
         "A debt register that outlives its debt stops describing anything.")
@@ -231,35 +290,52 @@ def test_every_figure_master_states_about_dev_is_current() -> None:
 
 @needs_master
 def test_the_check_actually_catches_things() -> None:
-    """The proof. Run with the register ignored, the guard names the drift.
+    """The proof, and it needs a probe now that the register is empty.
 
-    D69 consequence 10 leaves the stale figures standing precisely so this can
-    exist: a check nobody has watched fail is not known to work
+    Every figure is corrupted in turn, in memory, and the guard must report that
+    one and only that one. A check nobody has watched fail is not known to work
     (`tests/test_no_list.py:18` is the same argument for the LIST guard).
     """
-    found = survey()
-    assert set(found) == set(BASELINE), (
-        f"the guard reports {sorted(found)}; the register pins {sorted(BASELINE)}")
-    for key, (stated, derived) in found.items():
-        assert stated != derived, f"{key} is not stale, so it proves nothing"
-    stated, derived = found["dev_tracked_files"]
-    assert derived == _dev_tracked_files()
-    assert stated < derived, (
-        "the tracked-file figure is pinned as understating dev; if that reversed, "
-        "the branch was recut and the register is describing the wrong defect")
+    clean = {d: _on_master(d) for d in {f.document for f in FIGURES}}
+    assert survey(clean) == {}, "master is not clean; fix that before trusting this"
+
+    for figure in FIGURES:
+        probe = dict(clean)
+        match = re.search(figure.pattern, probe[figure.document])
+        span = match.span(1)
+        text = probe[figure.document]
+        probe[figure.document] = text[:span[0]] + "99999" + text[span[1]:]
+        found = survey(probe)
+        assert set(found) == {figure.key}, (
+            f"corrupting {figure.key} was reported as {sorted(found)}")
+        assert found[figure.key][0] != found[figure.key][1]
 
 
 @needs_master
-def test_the_snapshot_commit_master_names_exists_and_is_named_accurately() -> None:
+def test_flight_and_fprime_are_byte_identical_to_dev() -> None:
+    """D69 consequence 1 carries both across unchanged, and unchanged is checkable.
+
+    It matters beyond tidiness: until 2026-09-11 `master` carried a lint target
+    that could not fail. A public branch whose build differs from the branch the
+    evidence was measured on is a public branch nobody can check.
+    """
+    for tree in ("flight", "fprime"):
+        assert _git("rev-parse", f"{MASTER}:{tree}").strip() \
+            == _git("rev-parse", f"dev:{tree}").strip(), (
+            f"`{tree}/` differs between `{MASTER}` and `dev`")
+
+
+@needs_master
+def test_the_snapshot_commit_master_names_exists_and_is_accurate() -> None:
     """`master` tells a reader which `dev` commit its citations resolve at.
 
-    D67 consequence 5 makes that convention load-bearing for about 380 citations,
-    so the commit it names has to be one a reader can check out, and the shared
-    files have to be the ones that commit holds -- bar the two `master` writes
-    for itself. `a3c2a4a` ported two dataset files from a later `dev` commit
-    without moving the stated one, which is what the pinned set records.
+    D67 consequence 5 makes that convention load-bearing for hundreds of
+    citations, so the commit it names has to be one a reader can check out, and
+    every file `master` is supposed to carry unchanged has to be the one that
+    commit holds. The previous public README named a commit two behind the branch,
+    because a later commit ported two dataset files without moving it.
     """
-    match = re.search(r"development branch at commit ([0-9a-f]{7,40})",
+    match = re.search(r"points into dev at commit ([0-9a-f]{7,40})",
                       _on_master("README.md"))
     assert match, "master:README.md no longer names the dev commit it resolves at"
     cited = match.group(1)
@@ -268,25 +344,57 @@ def test_the_snapshot_commit_master_names_exists_and_is_named_accurately() -> No
 
     on_master = set(_git("ls-tree", "-r", "--name-only", MASTER).split())
     at_cited = set(_git("ls-tree", "-r", "--name-only", cited).split())
-    differs = {
-        path for path in sorted((on_master & at_cited) - CURATED_ON_MASTER)
+    differs = sorted(
+        path for path in (on_master & at_cited) - CURATED_ON_MASTER
         if _git("rev-parse", f"{MASTER}:{path}") != _git("rev-parse", f"{cited}:{path}")
-    }
-    assert differs == BASELINE_SNAPSHOT_MISMATCH, (
+    )
+    assert not differs, (
         f"paths on `{MASTER}` that differ from the commit it names ({cited}): "
-        f"{sorted(differs)}; pinned: {sorted(BASELINE_SNAPSHOT_MISMATCH)}. "
-        "Either move the stated commit or update the register.")
+        f"{differs}. Either move the stated commit or curate them deliberately.")
+
+    for doc in CUSTOMER_DOCS:
+        assert cited in _on_master(doc), (
+            f"{MASTER}:{doc} does not name the snapshot commit its figures resolve at")
+
+
+@needs_master
+def test_every_citation_in_a_master_document_resolves() -> None:
+    """(!) `--master` mode never reads `master`, so nothing checked these.
+
+    `scripts/check_references.py:172-177` resolves against `dev`'s working tree and
+    classifies by `MASTER_PREFIXES`: it checks **`dev`'s** documents under the
+    curated branch's rules. The customer documents are not on `dev`, so no guard
+    had ever read a citation in them. This one does, with the same patterns.
+    """
+    on_master = set(_git("ls-tree", "-r", "--name-only", MASTER).split())
+    on_dev = set(_git("ls-files").split())
+    breaks = []
+    for doc in CUSTOMER_DOCS:
+        text = _git("show", f"{MASTER}:{doc}")
+        for m in C.REPO_PATH.finditer(text):
+            if m.group(1) not in on_master and m.group(1) not in on_dev:
+                breaks.append(f"{doc}: path `{m.group(1)}`")
+        for m in C.SECTION.finditer(text):
+            document, section = m.group(1), m.group(2)
+            if document not in on_dev:
+                breaks.append(f"{doc}: section in `{document}`, which is on neither branch")
+            elif section not in C.headings(ROOT / document):
+                breaks.append(f"{doc}: `{document}` {section} -- no such section")
+        for m in C.MD_LINK.finditer(text):
+            target = m.group(1)
+            resolved = str((Path(doc).parent / target)).replace("./", "")
+            if resolved not in on_master and target not in on_master:
+                breaks.append(f"{doc}: link {target} -- 404 for a reader on `{MASTER}`")
+    assert not breaks, "citations that do not resolve:\n  " + "\n  ".join(breaks)
 
 
 @needs_master
 def test_master_prefixes_still_describes_the_branch() -> None:
     """`--master` mode classifies by a hand-kept list and never reads the branch.
 
-    `scripts/check_references.py:172-177` resolves existence against `dev`'s
-    working tree and decides on-branch membership from `MASTER_PREFIXES`. So the
-    list can drift from `master` silently, and a citation would then be reported
-    as dev-resolving when it is on the branch, or the reverse. This is the
-    comparison that mode does not make (D69 consequence 4).
+    So the list can drift from `master` silently, and a citation would then be
+    reported as dev-resolving when it is on the branch, or the reverse. This is
+    the comparison that mode does not make (D69 consequence 4).
     """
     paths = _git("ls-tree", "-r", "--name-only", MASTER).split()
     covered = lambda p: any(p == x or p.startswith(x) for x in C.MASTER_PREFIXES)
@@ -302,11 +410,17 @@ def test_master_prefixes_still_describes_the_branch() -> None:
 
 
 @needs_master
-def test_master_is_a_subset_of_dev_and_adds_nothing() -> None:
-    """D67's curation is a subset, and a file appearing only on `master` would
-    be a file no guard on `dev` has ever seen -- unreviewed by construction."""
+def test_master_adds_only_its_own_customer_documents() -> None:
+    """D69 gives `master` four documents of its own and nothing else.
+
+    Anything else appearing only there would be a file no guard on `dev` has ever
+    seen -- unreviewed by construction, which is what the curation exists to
+    prevent.
+    """
     on_master = set(_git("ls-tree", "-r", "--name-only", MASTER).split())
     on_dev = set(_git("ls-files").split())
-    only_master = on_master - on_dev
-    assert not only_master, (
-        f"present on `{MASTER}` and not on `dev`: {sorted(only_master)}")
+    assert on_master - on_dev == MASTER_ONLY, (
+        f"present only on `{MASTER}`: {sorted(on_master - on_dev)}; "
+        f"declared: {sorted(MASTER_ONLY)}")
+    for doc in CUSTOMER_DOCS:
+        assert doc in on_master, f"{doc} is declared a customer document and is absent"

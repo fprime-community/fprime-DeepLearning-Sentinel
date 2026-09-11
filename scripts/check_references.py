@@ -43,17 +43,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: D67's two lists. Kept here because the guard is what enforces them.
+#: D69's list, superseding D67's. Kept here because the guard is what enforces it,
+#: and checked against the real branch by
+#: `tests/test_master_documents_are_current.py` -- this list decides on-branch
+#: membership and nothing compared it to `master` until 2026-09-11.
+#:
+#: D69 took the laboratory record off the branch: `Objective.md`,
+#: `docs/DECISIONS.md`, `docs/RESULTS.md` and `docs/NARRATIVE.md` are kept whole on
+#: `dev` and are no longer here, so a citation into them is now dev-resolving.
+#: `docs/DESIGN.md` and `docs/EVIDENCE.md` exist ONLY on `master`.
 MASTER_PREFIXES = (
     "flight/", "fprime/Sentinel/Monitor/", "fprime/SentinelRef/",
     "fprime/CMakeLists.txt", "fprime/library.cmake", "fprime/settings.ini",
-    "README.md", "Objective.md", "docs/STATUS.md", "docs/RESULTS.md",
-    "docs/DECISIONS.md", "docs/datasets/", "docs/MODEL_FILE.md",
-    "docs/FPRIME.md", "LICENSE",
-    # D67.1, 2026-09-11: the honesty record and the reserved envelope. A sceptical
-    # reader needs both before any surviving number.
-    "docs/NARRATIVE.md", "docs/PI_ENVELOPE.md",
+    "README.md", "docs/STATUS.md", "docs/datasets/", "docs/MODEL_FILE.md",
+    "docs/FPRIME.md", "docs/PI_ENVELOPE.md", "LICENSE",
+    # D69, 2026-09-11: the customer documents. Neither is on `dev`.
+    "docs/DESIGN.md", "docs/EVIDENCE.md",
 )
+
+#: Of `MASTER_PREFIXES`, the entries that do not exist on `dev` at all. `LICENSE`
+#: is unselected; the other two are `master`'s own documents.
+MASTER_ONLY_PREFIXES = ("LICENSE", "docs/DESIGN.md", "docs/EVIDENCE.md")
 
 #: Documents whose citations are checked. Source files cite too, and are included.
 def tracked() -> list[str]:
@@ -170,11 +180,19 @@ def check(master: bool = False) -> Report:
     heading_cache: dict[str, set[str]] = {}
 
     def resolves(path: str) -> tuple[bool, bool]:
-        """`(exists_somewhere, on_this_branch)`."""
+        """`(exists_somewhere, on_this_branch)`.
+
+        (!) A path can exist and not be on `dev`. D69 gave `master` two documents
+        of its own, `docs/DESIGN.md` and `docs/EVIDENCE.md`, and a `dev` document
+        that cites one is citing something real -- it is simply off this branch,
+        which is the same relationship every `runs/` artifact already has.
+        """
         here = path in on_disk or (ROOT / path).exists()
+        elsewhere = any(path == p or path.startswith(p) for p in MASTER_ONLY_PREFIXES)
         if not master:
-            return here, here
-        return here, any(path == p or path.startswith(p) for p in MASTER_PREFIXES)
+            return here or elsewhere, here
+        return here or elsewhere, any(path == p or path.startswith(p)
+                                      for p in MASTER_PREFIXES)
 
     for name in prose(files):
         text = (ROOT / name).read_text(encoding="utf-8", errors="replace")
