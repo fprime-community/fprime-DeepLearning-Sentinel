@@ -89,6 +89,9 @@ whose line numbers move is re-checked.**
 
 ## Where it is read
 
-`docs/MODELS.md` 26.31 records what was read, with file and line, against
-`src/sentinel_models/telemanom.py` line by line. `docs/RESEARCH.md`'s telemanom
+`docs/MODELS.md` 26.29 and 26.30 record what was read, with file and line,
+against `src/sentinel_models/telemanom.py` line by line. (Corrected 2026-09-11
+from `26.31`, which has never existed: the readings are 26.29.1 to 26.29.5 and
+26.30.1 to 26.30.4. Found by `scripts/check_references.py` on its first run --
+the one dangling section citation in the tree, and the reason the guard exists.) `docs/RESEARCH.md`'s telemanom
 entry records that the source is now pinned here rather than recalled.

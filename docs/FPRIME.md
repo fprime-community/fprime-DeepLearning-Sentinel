@@ -1,5 +1,11 @@
 # The F' toolchain, and how to rebuild it
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **F' is pinned at v4.3.0** (`docs/DECISIONS.md` D31), commit
 `7d8f579f159d2f7c2d4984d92828575e37f87fa6`, released 2026-08-20. This document
 records the toolchain work item 9 was built and verified against, and how to

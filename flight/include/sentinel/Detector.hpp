@@ -65,6 +65,20 @@ class Detector {
 
     // -- what the tick produced -------------------------------------------
     F32 score() const { return m_score; }
+
+    //! The channel that took the maximum, which is what the warning event names
+    //! (Objective.md 11 rule 4: "every warning explainable -- named channels").
+    //! Ties keep the lowest index, which is what a strict `>` scan gives and what
+    //! `Baseline::peakChannel` has always done.
+    //!
+    //! (!) ADDED 2026-09-11, AND IT WAS MISSING. `Baseline` -- the **degraded**
+    //! Level 1 path -- named a channel from the start, and the **primary** model
+    //! path did not: it computed `std::max` into a local and never an argmax,
+    //! while `baseline_reference.py:119` and `fprime/Sentinel/Monitor` both
+    //! describe an argmax the model path was not computing. The degraded path
+    //! explaining itself better than the healthy one is backwards.
+    U32 peakChannel() const { return m_peakChannel; }
+
     bool crossing() const { return m_crossing; }
     bool emitted() const { return m_emitted; }
     U64 steps() const { return m_steps; }
@@ -125,6 +139,7 @@ class Detector {
     F32 m_score;
     bool m_crossing;
     bool m_emitted;
+    U32 m_peakChannel;
     F64 m_fusedScore;
     U32 m_fusedChannel;
 };

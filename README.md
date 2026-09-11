@@ -1,5 +1,11 @@
 # fprime-DeepLearning-Sentinel
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **fprime-sentinel** is a reusable F' (F Prime) flight-software component that **warns before a
 limit trips**. A small neural forecaster, trained on a mission's own nominal telemetry, predicts
 the watched channels each cycle; sustained divergence between prediction and reality is raised as
@@ -172,7 +178,7 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 666 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 682 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |

@@ -1,5 +1,11 @@
 # Results
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 Every number the harness has produced, with the floor it had to clear and the
 corrections it has been through. Nothing is overwritten here: a figure that has
 been superseded stays, beside what replaced it and the reason.

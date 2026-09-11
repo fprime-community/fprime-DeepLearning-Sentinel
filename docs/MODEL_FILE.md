@@ -1,5 +1,11 @@
 # `model.bin` - the normative format specification
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **Frozen 2026-09-01 by `docs/DECISIONS.md` D30. Version 1.**
 
 This document defines the file. It is the contract between the Python training

@@ -8,7 +8,7 @@ instead of at the source.
 
 **Why an index and not an excerpt file.** A handover proposed replacing the
 vendored tree with a document containing the cited lines verbatim. That was
-withdrawn on the evidence: **75 distinct locations are cited across 12 files** (was 64 across 9, counted by hand), and
+withdrawn on the evidence: **78 distinct locations are cited across 13 files** (was 64 across 9, counted by hand), and
 the cited ranges of `errors.py` alone cover most of it, so an honest excerpt file
 would be the source with prose around it and a worse provenance. More
 importantly, `docs/MODELS.md` 26.29 opens *"Every line number below is a line in
@@ -137,6 +137,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:48-64` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-52` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:51-59` | `docs/MODELS.md` |
+| `telemanom/errors.py:58` | `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:62` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/REORG_PLAN.md` |
 | `telemanom/errors.py:62-64` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md` |
@@ -153,13 +154,13 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:159-166` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:165` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:165-166` | `docs/MODELS.md` |
-| `telemanom/errors.py:241` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:241` | `scripts/smap_rungs.py`, `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:249-250` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:252` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:252-253` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:262-267` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:269-322` | `scripts/smap_rungs.py` |
-| `telemanom/errors.py:285` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:285` | `docs/MODELS.md`, `scripts/smap_rungs.py`, `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:286` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:288` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:290` | `scripts/smap_rungs.py` |
@@ -177,6 +178,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:342-343` | `CHANGELOG.md`, `docs/MODELS.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:343` | `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:347` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
+| `telemanom/errors.py:347-352` | `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:347-353` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:355-359` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:359` | `scripts/smap_rungs.py` |
@@ -184,6 +186,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:365-371` | `docs/MODELS.md`, `docs/NARRATIVE.md` |
 | `telemanom/errors.py:367-369` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:374-375` | `scripts/smap_rungs.py` |
+| `telemanom/errors.py:386-418` | `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:386-435` | `CHANGELOG.md`, `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:403` | `docs/MODELS.md` |
 | `telemanom/errors.py:403-418` | `docs/MODELS.md` |

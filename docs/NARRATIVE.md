@@ -151,6 +151,8 @@ times wider. And `rstd` -- the floor the entire work item was measured against -
 came in at **-1,512**. The floor was never an early-warning detector, and that was
 unknowable before the metric existed.
 
+### 6.1 Two confident hypotheses about the threshold criterion, both wrong
+
 **A hypothesis stated confidently in the handover brief was wrong, and so was
 the one that replaced it.** The brief for the threshold investigation named a
 cause: the residual distribution had moved from heavy-tailed model bias to
@@ -200,6 +202,8 @@ they were data. They were not measured, they were placeholders showing a table's
 shape, and they were corrected in the open before anything was built on them.
 **An illustrative figure is still a figure**, which is exactly what the rule
 below says.
+
+### 6.2 The project's own preferred mechanism, refuted by its own scoreboard
 
 **The project's own preferred mechanism, refuted by its own scoreboard.** The
 decision layer was found to be channel-blind -- twelve univariate detectors and a
@@ -259,6 +263,8 @@ The pattern across all four is the one this section keeps recording. Each
 hypothesis was cheap to test, each would have been comfortable to assume, and the
 one that survived is the one nobody proposed.
 
+### 6.3 The early-warning claim, measured from a start it never reached
+
 **And measured properly, the claim does not survive.** The honest reading -- each
 alarm re-dated to the batch boundary where the detector could actually speak --
 puts the median lead at **-43.0** against the reported +26.0, with 22 of 23
@@ -290,6 +296,8 @@ A flight component emits when it detects, not retroactively, so nothing reaches
 an operator at the dilated start. The metric was crediting warning that was never
 given -- and the raw figure is *still* optimistic, because it ignores the fixed
 70-step batching latency the detector also carries.
+
+### 6.4 A gate metric compared across two different populations
 
 **It is a gate metric with a disqualifying rule, and it had been compared across
 detectors that do not all receive the dilation.** `lstm-quantile` and the trivial
@@ -324,6 +332,8 @@ correct result was destroyed by an unrelated network write on the way out, and
 the design made that possible. Worth asking of anything long-running: *if the
 last line fails, what have I lost?*
 
+### 6.5 A structural claim that was really a configuration
+
 **A structural claim that was really a configuration, quoted forward into two
 designs before anyone rechecked it.** `docs/DECISIONS.md` D13 closed the quantile
 branch on a generalisation rather than on its numbers: *a global threshold
@@ -348,6 +358,8 @@ late and therefore needed a local one beside it. **That design was solving a
 problem that may not exist.** A structural claim is exactly the kind that gets
 reused without rechecking, which is why one resting on a single detector's
 configuration is worse than no claim at all.
+
+### 6.6 A threshold calibrated on nominal data that was not nominal
 
 **A threshold calibrated on "nominal" data that was not nominal, and it
 contaminated two separate results before anything caught it.**
@@ -393,6 +405,8 @@ and the fitted thresholds were **25.7 to 36.3**. That arithmetic takes a minute
 and it is now an assertion in the code, so a broken whitening cannot score
 silently again.
 
+### 6.7 A falsification condition that would have passed the failure it was written to catch
+
 **A pre-registered falsification condition would have passed the failure it was
 written to catch, and that is the most transferable thing this run produced.**
 The two-term threshold design carried a condition with a number attached --
@@ -420,6 +434,8 @@ succeeds**: had the corrected calibration worked, the condition would have been
 cited as evidence it survived, and nobody would have gone back to ask what it
 measured. `docs/DECISIONS.md` D22.
 
+### 6.8 Correcting an arithmetic error made the detector worse
+
 **Then correcting an arithmetic error made the detector worse.** The two terms
 had been calibrated independently, each to admit the target rate, and combined
 with `max()` -- which admits far less than either, measured at 0.00066 of a
@@ -443,6 +459,8 @@ raised alarms 27% and *lost* recall, 38/46 to 34/46, with the control fold
 collapsing from 12/15 at +18 to 8/15 at +2. On six channels they *helped*. A
 change conditional on something not yet identified, stated as an open question
 rather than averaged into a mean.
+
+### 6.9 A figure from a planning mock-up, read back as data
 
 **And a figure written into a planning mock-up was read back as data.** Numbers
 put into an options preview to show a table's shape were taken for measurements.

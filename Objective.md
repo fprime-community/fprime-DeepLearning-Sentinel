@@ -1,5 +1,11 @@
 # fprime-sentinel - Project Objective
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **Status:** Phase 1 (Python, pre-flight-code)
 **Document type:** Living. Fix the objective here; other docs defer to this one.
 **Audience:** Anyone joining the project. No prior context assumed.

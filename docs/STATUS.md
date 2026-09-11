@@ -1,5 +1,11 @@
 # Project status and roadmap
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **2026-09-09. Phase 2 in progress. The objective is re-framed** (`docs/DECISIONS.md`
 D57): Sentinel warns before a limit trips using **every kind of context the telemetry
 carries**, and "cross-channel means sensor-to-sensor" is retired as the sole thesis.
@@ -379,7 +385,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**666 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**682 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -395,8 +401,10 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 666 tests
-.venv/bin/python scripts/check_no_list.py                        # 85 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 682 tests
+.venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
+.venv/bin/python scripts/check_references.py                     # every citation resolves
+.venv/bin/python scripts/check_references.py --master            # D67's curated branch
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
 make -C flight lint                                              # clang-tidy, three configs

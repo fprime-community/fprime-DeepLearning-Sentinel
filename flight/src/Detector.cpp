@@ -12,8 +12,8 @@ Detector::Detector()
     : m_model(), m_hidden(), m_ring(), m_ewma(), m_threshold(), m_derivative(),
       m_steps(0U), m_input(), m_projected(), m_recurrent(), m_head(),
       m_forecast(), m_residual(), m_smoothed(), m_score(0.0F),
-      m_crossing(false), m_emitted(false), m_fusedScore(0.0),
-      m_fusedChannel(0U) {}
+      m_crossing(false), m_emitted(false), m_peakChannel(0U),
+      m_fusedScore(0.0), m_fusedChannel(0U) {}
 
 LoadStatus Detector::load(const U8* data, U32 length) {
     const LoadStatus status = m_model.load(data, length);
@@ -98,6 +98,20 @@ void Detector::step(const F32* values, bool valid) {
 
     // -- the forecast: the mean of the up-to-l_p predictions made at t-1..t-l_p
     //
+    // Transcribed from `windows.aggregate_predictions`
+    // (`src/sentinel_models/windows.py:227-234`).
+    //
+    // (!) THE MEAN IS THIS PROJECT'S CHOICE, NOT PUBLISHED TELEMANOM'S, and the
+    // flight core inherits that choice rather than the published behaviour.
+    // `Model.aggregate_predictions` takes `method='first'` by default
+    // (`third_party/telemanom/telemanom/modeling.py:113`) and `batch_predict`
+    // calls it with no method at `:172`, so **published telemanom forecasts from
+    // the single one-step-ahead prediction**. `windows.py:227-234` exists to
+    // correct exactly that mis-citation -- the docstring said "telemanom averages
+    // them" until 2026-09-08 -- and `"mean"` stays the default because it is what
+    // every figure in this repository was measured under. It is the largest
+    // single training difference, `docs/MODELS.md` 28.1 T-a.
+    //
     // Summed with j ascending and accumulated in F64, because
     // `windows.aggregate_predictions` does both. A running accumulator would
     // receive the same terms in the opposite order and round differently, which
@@ -127,11 +141,19 @@ void Detector::step(const F32* values, bool valid) {
         // Nothing measured is never an alarm (`detectors.py:394-399`).
         m_score = -std::numeric_limits<F32>::infinity();
     } else {
+        // The argmax alongside the max, because a warning has to name a channel
+        // (Objective.md 11 rule 4). Strict `>`, so a tie keeps the lowest index,
+        // which is what `Baseline`'s scan does and what `numpy.argmax` does.
         F32 largest = m_smoothed[0];
+        U32 peak = 0U;
         for (U32 c = 1U; c < channels; ++c) {
-            largest = std::max(largest, m_smoothed[c]);
+            if (m_smoothed[c] > largest) {
+                largest = m_smoothed[c];
+                peak = c;
+            }
         }
         m_score = largest;
+        m_peakChannel = peak;
     }
 
     // -- the streams -------------------------------------------------------

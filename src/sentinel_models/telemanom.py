@@ -80,15 +80,20 @@ import numpy as np
 
 from .reference import ReferenceError
 
-#: telemanom `config.yaml`, transcribed.
+#: telemanom `config.yaml`, transcribed. Read at first hand from
+#: `third_party/telemanom/config.yaml`: `batch_size: 70` (:8),
+#: `window_size: 30` (:11), `smoothing_perc: 0.05` (:19),
+#: `error_buffer: 100` (:22), `p: 0.13` (:53). **`lstm_batch_size: 64` at :30
+#: is the trainer's and is NOT this batch size** -- two fields named alike.
 SMOOTHING_PERC = 0.05
 ERROR_WINDOW_BATCH = 70          # batch_size
 ERROR_WINDOW_COUNT = 30          # window_size
 ERROR_BUFFER = 100
 PRUNING_P = 0.13
 
-#: telemanom's published sweep: `np.arange(2.5, 12, 0.5)`. **A default, not a
-#: constant of the method.** z counts standard deviations of the smoothed error,
+#: telemanom's published sweep, `third_party/telemanom/telemanom/errors.py:285`:
+#: `for z in np.arange(2.5, self.sd_lim, 0.5)`, with `sd_lim = 12.0` set at
+#: `:241`. **A default, not a constant of the method.** z counts standard deviations of the smoothed error,
 #: so it is immune to rescaling -- and not immune to a change in the *shape* of
 #: the error distribution. Correcting a training defect improved the forecast
 #: about fortyfold and this same range then produced 3,548 alarm ranges where it
@@ -108,6 +113,11 @@ EWMA_SETTLE = 3
 #: Used when no z produces a defensible threshold -- telemanom's `sd_lim`, which
 #: is where its epsilon starts and stays if nothing improves on it. Tied to the
 #: sweep's ceiling so raising the range raises the silence fallback with it.
+#:
+#: (!) UNUSED, and marked rather than deleted (2026-09-11). Nothing in `src/`,
+#: `scripts/`, `tests/` or `flight/` references it: :func:`dynamic_threshold`
+#: reads ``config.z_ceiling`` directly. Kept because a reader comparing this
+#: module against `errors.py:241`'s `sd_lim` will look for exactly this symbol.
 Z_LIMIT = Z_CEILING
 
 
@@ -171,6 +181,11 @@ class EwmaState:
 def ewma(values: np.ndarray, span: int, state: EwmaState | None = None) -> np.ndarray:
     """``pandas.DataFrame.ewm(span=...).mean()``, blocked and vectorised.
 
+    `third_party/telemanom/telemanom/errors.py:58`:
+    ``pd.DataFrame(self.e).ewm(span=smoothing_window).mean()``, where the span is
+    ``int(batch_size * window_size * smoothing_perc)`` at `:51-52` -- 70 * 30 *
+    0.05 = 105.
+
     telemanom smooths its raw errors this way before thresholding anything, and
     the smoothing is doing real work: a single odd sample is not a fault, and a
     detector that reacts to one is the detector Objective.md 11 rule 2 warns
@@ -219,6 +234,14 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
 
 def _buffered(mask: np.ndarray, buffer: int) -> list[tuple[int, int]]:
     """Widen each exceedance by ``buffer - 1`` steps either side, then merge.
+
+    (!) TELEMANOM HAS TWO ASYMMETRIC INDEX-SET FORMS AND THIS TRANSCRIBES THE
+    FIRST. `third_party/telemanom/telemanom/errors.py:347-352` adds
+    ``np.arange(1, error_buffer + 1)`` on **both** sides of every anomalous index
+    and takes consecutive groups of the union -- that is this function. The one at
+    `:359` keeps only indices inside the newest ``batch_size`` and is the batch
+    clip 26.29.1 records; it is **not** a buffering step and is not implemented
+    here. Reading the two as one is how a reproduction goes wrong quietly.
 
     telemanom adds ``arange(1, error_buffer)`` to every anomalous index and takes
     consecutive groups of the union. Dilating the runs is the same set, computed
@@ -307,6 +330,13 @@ def prune(e_s: np.ndarray, sequences: list[tuple[int, int]], eps: float,
           p: float = PRUNING_P) -> list[bool]:
     """telemanom's false-positive step. True where a sequence survives.
 
+    `third_party/telemanom/telemanom/errors.py:386-418`, `Channel.prune_anoms`:
+    the peaks at `:403`, sorted descending at `:404`, the largest sub-threshold
+    error appended at `:405`, and the ladder walked at `:408-414`. Read line by
+    line at `docs/MODELS.md` 37.2 rather than recalled -- `docs/NARRATIVE.md` 11
+    records that five recalled readings of this file were later found wrong and
+    one cost four pre-registered rungs.
+
     Sort the sequence peaks descending, append the largest error that stayed
     *below* the threshold, and walk down the normalised step decreases. A drop of
     more than ``p`` says the sequences above it are genuinely separated from
@@ -340,7 +370,17 @@ def prune(e_s: np.ndarray, sequences: list[tuple[int, int]], eps: float,
 
 # -- putting a window's verdict back on the timeline -------------------------
 def window_ratios(e_s: np.ndarray, config: Config) -> np.ndarray:
-    """Score one window of one channel: ``e_s / eps``, pruned sequences suppressed.
+    """(!) UNUSED. Marked rather than deleted, 2026-09-11.
+
+    Nothing in `src/`, `scripts/`, `tests/` or `flight/` calls this. It is the
+    single-window form of :func:`channel_ratios`, kept because a reader comparing
+    this module against `errors.py` will look for exactly that shape -- the
+    published code scores one window at a time and the chunked driver is ours.
+    It is code rather than a documented figure, so the never-delete rule does not
+    bind; it is marked because a reader finding it should know nothing depends on
+    it.
+
+    Score one window of one channel: ``e_s / eps``, pruned sequences suppressed.
 
     A value at or above 1.0 is what telemanom would have reported as anomalous.
     Everything else keeps its raw ratio, so the ranking a threshold-free metric
