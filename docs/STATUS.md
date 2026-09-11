@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`c5bf853`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`9e066de`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -24,9 +24,17 @@ it no mission can use this.**
 
 ## 3. (!) What is not done, and it is the blocking one
 
-**The ground training toolkit does not exist.** It is **pre-registered and unwritten**
-(`docs/MODELS.md` 40, on `dev`, 2026-09-11). Until it ships, a mission holding this branch
-has a component that can run a `model.bin` and no way to produce one, except by implementing
+**The ground training toolkit is not released, and this branch does not carry it.**
+**Tiers 1 and 2 of its acceptance ladder are built on `dev`; tier 3 is gated**
+(`docs/MODELS.md` 40.14, on `dev`, 2026-09-11). It trains, calibrates label-free, writes a
+`param_version` 2 `model.bin` and reads it back, on a generated fixture and on a single
+channel. **Tier 3 is a real mission-scale fit and has not been run**: starting one is
+conditional on a measured wall clock and a costed decision, which is a gate rather than a
+task. Seven of its eight pre-registered predictions held; the accuracy prediction is
+**NOT ADJUDICATED** and is reported as unrun rather than as the half that passed.
+
+**None of that changes what you can do with this branch.** A mission holding it has a
+component that can run a `model.bin` and no way to produce one, except by implementing
 `docs/MODEL_FILE.md` independently -- which the document is complete enough to support and
 which is the honest answer available today.
 

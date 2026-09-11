@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`c5bf853`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`9e066de`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -25,12 +25,13 @@ caveats.
 
 ## (!) What this is not, and what you cannot do with it yet
 
-- **The ground training toolkit is unreleased, and a mission cannot deploy this without
+- **The ground training toolkit is not released, and a mission cannot deploy this without
   it.** The component *runs* a model; it does not *produce* one. Turning healthy telemetry
   into a `model.bin` is the toolkit's job, the toolkit is `src/`, and `src/` is not on this
-  branch and is not released. **What is here is the flight half of a two-half product.**
-  `docs/MODEL_FILE.md` specifies the file completely enough to write one independently,
-  which is the honest answer available today.
+  branch. **Tiers 1 and 2 of its acceptance ladder are built on `dev` and tier 3 is gated**
+  (`docs/STATUS.md`), so it exists and is not yours yet. **What is here is the flight half
+  of a two-half product.** `docs/MODEL_FILE.md` specifies the file completely enough to
+  write one independently, which is the honest answer available today.
 - **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any
   wall-clock figure. The one lead-time measurement this project has is **0 of 10 positive
   leads** (`docs/MODELS.md` 37.7a). Every figure here is recall at a matched alarm rate,
@@ -116,7 +117,7 @@ uncurated one, because a reader cannot tell what they are not seeing.
 
 | Absent | What it is | Why |
 |---|---|---|
-| `src/` | The ground toolkit: ingest, referee, models, the `model.bin` writer | **Unreleased.** See the warning above |
+| `src/` | The ground toolkit: ingest, referee, models, the `model.bin` writer, and the toolkit itself at tiers 1 and 2 | **Not released.** See the warning above |
 | `scripts/` | The guards, the vector generators, every study that produced a figure | Development apparatus, not product |
 | `tests/` | The Python suite, which runs against `src/` | Runs against `src/`, which is not here |
 | `docs/MODELS.md` | Every pre-registration beside its outcome | The research record. Cited from here, resolves on `dev` |
