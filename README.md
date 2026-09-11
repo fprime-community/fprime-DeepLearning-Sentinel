@@ -24,7 +24,7 @@ check, with minimal false alarms, is the claim.**
 
 **Phase 1 closed - 2026-08-29.** Architecture: **GRU** (`docs/DECISIONS.md` D28). Transfer
 validated on an independent spacecraft (D29). What Phase 2 inherits is in
-[docs/PHASE2.md](docs/PHASE2.md).
+`docs/PHASE2.md` (on `dev`).
 
 **Phase 2 under way.** The `model.bin` format is frozen at version 1 (D30,
 [docs/MODEL_FILE.md](docs/MODEL_FILE.md)) and the C++ inference core in `flight/` matches the
@@ -40,7 +40,7 @@ followed, and `docs/STATUS.md` section 7 is the ordered list of what remains.
 | 2 | C++ - the flight component | Tests green, flight-rule compliance clean | next |
 | 3 | C++ - integration and demo in the F' Ref deployment, **pulled forward** | Limit alarms silent while Sentinel warns, with time-to-limit **measured** | next, and the only venue for the sensor-to-sensor claim |
 | 4 | C++ - hardware envelope | Comfortable margins documented | - |
-| 5 | C++ - in-flight retraining of a **shadow** model under human approval | No heap after init, no exceptions, and the shadow measurably better before any swap is offered | scoped, [docs/PHASE5.md](docs/PHASE5.md) |
+| 5 | C++ - in-flight retraining of a **shadow** model under human approval | No heap after init, no exceptions, and the shadow measurably better before any swap is offered | scoped, `docs/PHASE5.md` (on `dev`) |
 
 The ten-minute overview - goal, results, learnings, roadmap - is [docs/STATUS.md](docs/STATUS.md).
 
@@ -167,8 +167,10 @@ does not do.
 | It builds in F' v4.3.0 | `docs/FPRIME.md` 4: F's own `Ref` built from this toolchain in 12.4 s | `Ref` moved at v4.3.0 and it is not in the breaking-change notes |
 | It warns early | -- | **No such claim is made.** `docs/MODELS.md` 37.7a measured **0 of 10 positive leads**; every figure here is recall at a matched alarm rate, in timesteps, never in hours |
 
-- [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
-  newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.
+- `docs/PHASE1_REPORT.md` is the self-contained account of Phase 1 for a newcomer and
+  `docs/INDEX.md` is one sentence per document. **Neither is on this branch** -- both are on
+  `dev`, and the table at the end of this file says what else is and why. They are named
+  rather than linked, because a link that 404s is worse than a name that resolves elsewhere.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
   `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
   linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
