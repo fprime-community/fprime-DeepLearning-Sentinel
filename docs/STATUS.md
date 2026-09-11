@@ -15,7 +15,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D68 (was D63) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D69 (was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -161,7 +161,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D68 (was D63),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D69 (was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -362,7 +362,17 @@ with a one-fold timing smoke first.
 *Done when* it runs on the synthetic fixture at zero cloud operations, is dimensionless
 throughout (D55), prints the pre-launch sanity report at the end of every calibration
 (**reported, never targeted**), offers the three tiers, and a newcomer with no ML background
-produces a `model.bin` in under an hour.
+produces a `model.bin` in under an hour. **(!) PRE-REGISTERED AND NOT YET WRITTEN,
+2026-09-11** (`docs/MODELS.md` 40). The cut is **derived** -- the `(1 - q)` quantile of the
+mission's own pooled nominal fused statistic -- and the rate curve is **reported** around it
+and selected at no value, because `docs/HARNESS.md` 1 struck the target-rate framing. Two
+silent defaults are registered as stop conditions: `param_version` defaults to **1**, so a
+fused z-score cut written without setting it is a version-1 file carrying a version-2
+statistic; and `Hyper.cell` defaults to `lstm` where the adopted forecaster is the GRU.
+**(!) The headline is univariate and the toolkit's default file is multivariate** (40.3): the
+17 of 19 was measured one model per channel on SMAP/MSL and is **never quoted beside a
+multivariate `model.bin`**. **No full-mission fit is started** until a single-channel wall
+clock is measured and the options are costed (40.13).
 
 **G. Work item 13, Phase 5**, scoped in `docs/PHASE5.md`. *Done when* the toolkit exists,
 Phase 3 has measured something, and the Armadillo static-allocation claim is discharged with
@@ -371,6 +381,20 @@ a citation - it is marked UNVERIFIED and stays marked until then.
 **H. Housekeeping.** Licence (still "not yet selected"), pre-publication sweep, public
 release. *Done before* the repository goes public. The BSD clause-3 obligation travels with
 it: no document may present this project as endorsed by Caltech or JPL.
+
+**I. The customer branch, D69, 2026-09-11.** `master` carries **customer documents** rather
+than `dev`'s own prose: `README.md` and `docs/STATUS.md` replaced, `Objective.md` and
+`docs/RESULTS.md` replaced by a design and an evidence document, `docs/DECISIONS.md` and
+`docs/NARRATIVE.md` removed from the branch and kept whole on `dev`. **Nothing is deleted
+from `dev`.** The reason is measured rather than aesthetic: of four figures `master` states
+about `dev`, **two were stale** -- each correct on the day it was written -- and **a third
+went stale one commit later** when `docs/MODELS.md` 40 landed (D69.1). *Done when* the
+customer set exists and every figure on it is re-derived from `dev` by
+`tests/test_master_documents_are_current.py`. **The guard is built and the stale figures are
+left standing for it to catch**, which is what proves it. `main` is **costed and deleted
+nowhere**: no URL-shaped reference exists on either tree, all nine tags are on `dev`, and the
+order when it is taken is default to `master`, rewrite the nine prose sites, delete
+`origin/main`, then local `main`.
 
 **Carried open.** D5, the tier ladder, is the only OPEN decision in the register. D14's
 weight-cache key is still positional. D21's `error_buffer` effect on alarm width is
@@ -385,7 +409,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**683 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**688 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -402,11 +426,14 @@ seed.
   every omission named in its own `README.md`. **Pushed to `origin` on 2026-09-11**; the
   repository is private, so no `LICENSE` is required until public release. **The GitHub
   default stays on `main`, and licence selection is the one remaining item before it moves.**
+  **`master` becomes a customer branch by D69, 2026-09-11**, and `dev` gains a guard that
+  re-derives every figure `master` states about it -- the two branches **share no commit**,
+  so it compares trees rather than walking ancestry.
 
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 683 tests
+.venv/bin/python -m pytest -q                                    # 688 tests
 .venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch

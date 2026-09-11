@@ -1,6 +1,6 @@
 """The tables of contents are generated, and they still match their documents.
 
-`docs/MODELS.md` carries 353 numbered headings and `docs/DECISIONS.md` 68 entries.
+`docs/MODELS.md` carries 369 numbered headings and `docs/DECISIONS.md` 69 entries.
 A hand-maintained index of that size drifts, and the drift is invisible until
 somebody follows a line that is wrong -- which is exactly how
 `docs/TELEMANOM_EXCERPTS.md` came to be missing fifteen locations while claiming

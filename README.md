@@ -144,7 +144,7 @@ does not do.
 | 4 | [docs/RESULTS.md](docs/RESULTS.md) | as needed | Every number, both channel sets, `k/n` throughout, both figures wherever a correction moved one |
 | 5 | [ESA_ADB.md](docs/datasets/ESA_ADB.md) and [SMAP_MSL.md](docs/datasets/SMAP_MSL.md) | 3 | What the data is, its licences, and the caveats that would corrupt a result |
 | 6 | [docs/NARRATIVE.md](docs/NARRATIVE.md) | as needed | What happened in order, mistakes included |
-| 7 | [docs/DECISIONS.md](docs/DECISIONS.md) | as needed | **D1 to D68** (was D63): why, what else was considered, what settled it; superseded entries marked, never deleted |
+| 7 | [docs/DECISIONS.md](docs/DECISIONS.md) | as needed | **D1 to D69** (was D63): why, what else was considered, what settled it; superseded entries marked, never deleted |
 | 8 | [Objective.md section 1.1](Objective.md) | 5 | **What is claimed and what is retired** |
 | 9 | [docs/PI_ENVELOPE.md](docs/PI_ENVELOPE.md) | 1 | Whether it runs on small hardware -- **reserved and deliberately empty** |
 
@@ -207,7 +207,7 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 683 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 688 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |
