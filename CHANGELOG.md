@@ -69,6 +69,13 @@ meets it and flags it as something **D67 may want to revisit**: step 6 is this p
 honesty record, and step 9 is the first question anyone asks about a neural forecaster on a
 spacecraft.
 
+### And the excerpts index moved, which is the guard working
+`docs/datasets/SMAP_MSL.md` cites into the vendored source -- `channel.py:69-82`,
+`errors.py:70`, `LICENSE.txt` -- so the citing-file count went **13 to 14** and
+`tests/test_telemanom_index.py` failed until the index was regenerated. **A new document
+that cites the published method should move that index, and a guard that did not notice
+would be the defect.**
+
 ### The debt list is empty
 `check_references.PLANNED` carried the five documents cited before they existed. **Tranche 4
 wrote all five**, so it is emptied and they are checked like everything else -- which is why

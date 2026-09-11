@@ -8,7 +8,7 @@ instead of at the source.
 
 **Why an index and not an excerpt file.** A handover proposed replacing the
 vendored tree with a document containing the cited lines verbatim. That was
-withdrawn on the evidence: **78 distinct locations are cited across 13 files** (was 64 across 9, counted by hand), and
+withdrawn on the evidence: **78 distinct locations are cited across 14 files** (was 64 across 9, counted by hand), and
 the cited ranges of `errors.py` alone cover most of it, so an honest excerpt file
 would be the source with prose around it and a worse provenance. More
 importantly, `docs/MODELS.md` 26.29 opens *"Every line number below is a line in
@@ -130,7 +130,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/channel.py:55-67` | `docs/MODELS.md` |
 | `telemanom/channel.py:62` | `docs/MODELS.md`, `src/sentinel_models/lstm.py` |
 | `telemanom/channel.py:63-67` | `docs/DECISIONS.md`, `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/channel.py:69-82` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `scripts/decision_layer_probe.py` |
+| `telemanom/channel.py:69-82` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/datasets/SMAP_MSL.md`, `scripts/decision_layer_probe.py` |
 | `telemanom/detector.py:117-136` | `docs/MODELS.md` |
 | `telemanom/errors.py:40-42` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:48-49` | `docs/MODELS.md` |
@@ -140,7 +140,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:58` | `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:62` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/REORG_PLAN.md` |
 | `telemanom/errors.py:62-64` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md` |
+| `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/datasets/SMAP_MSL.md` |
 | `telemanom/errors.py:84-93` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:111-168` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:123-130` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
