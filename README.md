@@ -226,6 +226,22 @@ each returning its own status code, determinism twice in-process and twice acros
 and the golden, baseline, trailing, threshold, derivative and flight-configuration vector
 tiers -- plus a byte-identical round trip of every committed `model.bin`.
 
+**(!) What that green output covers here, and what it does not.** Two of the seven
+forward-pass golden tiers run on this branch -- `g1` at 3 channels and `g2` at 7. The
+12-channel tier `g3` and the four production-shaped `g4_*` tiers **do not**: their weight
+files are **deliberately not committed anywhere** -- 285 KB that regenerates exactly from a
+seed, gitignored by policy with a test on `dev` asserting it stays that way -- and the
+generator that rebuilds them lives in `scripts/`, which is not on this branch. `g3.vec` is
+here and its input is not, so that tier **skips silently**, and you should know that rather
+than read seven where two ran.
+
+**Everything added by the C++ port and by D68 does run here**, at full width: the four Level
+1 baseline tiers, the three trailing-window tiers, the two dynamic-threshold tiers, the two
+derivative tiers, and **`p1`, the flight configuration end to end** -- a real `model.bin` at
+`param_version` 2, stepped 3,200 times, with the fused score matched to **3.098e-06** and
+both flags exact. Plus 18 load-refusal cases, determinism in-process and across processes,
+and the footprint against its pre-registered prediction.
+
 **To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` on `dev`
 rebuilds it from nothing with one command.
 
