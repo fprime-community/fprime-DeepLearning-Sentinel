@@ -86,6 +86,11 @@ class DynamicThreshold {
     //! The threshold last solved for a channel.
     F64 epsilon(U32 channel) const;
 
+    //! `z_residual`: the smoothed error standardised against its own trailing
+    //! 2,100 window, which is arm 2's first stream
+    //! (`scripts/decision_layer_arms.py:224`). Reported, never in the flag.
+    F64 zResidual(U32 channel) const;
+
     //! Solves completed since `reset`.
     U32 solves() const { return m_solves; }
 

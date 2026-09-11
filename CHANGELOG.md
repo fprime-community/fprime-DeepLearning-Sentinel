@@ -14,6 +14,72 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.34] - 2026-09-10 - Port stages 3 and 4: the derivative stream, wired and reported, and N3 missed
+
+**`docs/MODELS.md` 39 stages 3 and 4 of 4. The port is complete as registered.**
+Zero bucket operations, no fit, weight store **1,313 -> 1,313**. 654 tests, up from 649.
+Tracked content **5.53 MiB**, against N8's 6 MiB band and 7 MiB stop.
+
+### Built
+- **`Sentinel::DerivativeStream`** -- `dx[t] = |x[t] - x[t-1]|` with `x[-1] := x[0]`,
+  standardised against a trailing 2,100 window. D65's second stream, and the one that
+  carried the finding.
+- **Both streams wired into `Detector`**, with `dynamicEmitted()`, `fused()`,
+  `fusedScore()` and `fusedChannel()` beside the existing accessors. `fused` is
+  `max(z_residual, z_derivative)` -- **the ablation**, because P2.4 was refuted in the
+  informative direction and the horizon-disagreement stream spends more budget than it
+  returns.
+- **`Detector.hpp`'s file comment replaced** with what the unit now implements: four
+  numbered layers, and which one emits.
+
+### (!) Three decision layers run; one emits, and that is a decision
+`crossing()` and `emitted()` are **still D25's static quantile**. D62 required the port to
+carry the dynamic threshold and it now does -- it runs every tick, is held to the reference
+at 1e-5 and its emission flag is exact -- but **D65 re-opens the decision layer and names no
+flight configuration**, so promoting either new rule to the warning would make this port the
+adoption decision. It would also move every committed `.vec` vector, which 39.3 said would
+not happen. **The core computes all three; which one the F' component raises an event on is
+the component's to wire and the owner's to decide.** `flight/README.md` says so where a
+reader will meet it.
+
+### Measured
+```
+  f1    3 ch x 2300 steps   z_derivative max |diff| 2.720e-07
+  f2    6 ch x 2300 steps   z_derivative max |diff| 2.899e-07
+```
+**N1 holds** on the derivative as it did on the threshold. The existing `.vec` tiers still
+pass unchanged and all seven models still round-trip byte-identically, which is what says the
+forward path is bit-for-bit what it was.
+
+### (!) N3 is MISSED, and the account is itemised rather than the band moved
+`sizeof(Detector)` is **603,024 B (588.9 KiB)** against N3's **581,488 +/- 64** --
+**+21,536 B, +3.70%**, outside its own 1% band. Itemised the way 19.8 F1's 530 B was:
+
+```
+   +8,960   the rings are SOLVE_WINDOW deep, not ERROR_WINDOW: 2,170 is 2,100 of
+            history plus the 70 the threshold judges. 39.6 sized both at 2,100.
+  +12,168   the pruning ladder's scratch -- m_seq, m_kept, m_peaks, m_order at
+            MAX_SEQUENCES = 1,085, plus eps and the latest sample per channel.
+            39.6 did not itemise it at all. Shared across channels, so once.
+     +408   the second moment-accumulator set, so one ring serves the threshold's
+            2,170 contents and arm 2's 2,100 moments rather than two rings doing it.
+```
+
+**19's F1 is a record and is not edited.** It measured an object that no longer exists; the
+port's detector is **1.93x** it. Both `flight/test/Footprint.cpp` and
+`tests/test_flight_build.py` now print F1 as history and assert against the measurement, with
+the same 2% latitude F1 was given.
+
+### N4 holds, and it was the one that could not have a NO VERDICT
+Determinism is bit-identical in-process and across two process invocations **with 2,170
+samples of carried state per channel on two rings**. A detector that size which did not
+reproduce could not fly (Objective.md 11 rule 5).
+
+### Still owed, and named rather than left implicit
+**N5** (the guard-cell choice) and **N6** (the price of dropping backward dilation) are
+**unmeasured**. Both need the one approved read, which has not been taken. No figure for
+either exists and none should be quoted.
+
 ## [0.6.33] - 2026-09-10 - Port stage 2: the dynamic threshold, and a correction to 39.6's own arithmetic
 
 **`docs/MODELS.md` 39 stage 2 of 4.** Zero bucket operations, no fit, weight store

@@ -29,7 +29,8 @@ CXXFLAGS := $(STD) $(SAFETY) $(DETERM) $(WARN) $(OPT) -Iinclude
 BUILD    := build
 CORE_SRC := src/Crc32.cpp src/Status.cpp src/ModelFile.cpp src/Gru.cpp \
             src/Ewma.cpp src/Detector.cpp src/Baseline.cpp \
-            src/TrailingWindow.cpp src/DynamicThreshold.cpp
+            src/TrailingWindow.cpp src/DynamicThreshold.cpp \
+            src/DerivativeStream.cpp
 CORE_OBJ := $(patsubst src/%.cpp,$(BUILD)/%.o,$(CORE_SRC))
 
 TESTS    := GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint \

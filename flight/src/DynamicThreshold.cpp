@@ -35,7 +35,10 @@ DynamicThreshold::DynamicThreshold()
 
 void DynamicThreshold::configure(U32 nChannels) {
     m_channels = (nChannels <= Config::MAX_CHANNELS) ? nChannels : 0U;
-    m_window.configure(m_channels, Config::SOLVE_WINDOW);
+    // 2,170 of CONTENTS for the sweep, 2,100 of MOMENTS for z_residual: the
+    // threshold judges a window that includes the segment, arm 2 standardises
+    // over `span = error_window` (`scripts/decision_layer_arms.py:224`).
+    m_window.configure(m_channels, Config::SOLVE_WINDOW, Config::ERROR_WINDOW);
     reset();
 }
 
@@ -331,6 +334,13 @@ F64 DynamicThreshold::ratio(U32 channel) const {
         return 0.0;
     }
     return static_cast<F64>(m_latest[channel]) / m_eps[channel];
+}
+
+F64 DynamicThreshold::zResidual(U32 channel) const {
+    if (channel >= m_channels) {
+        return 0.0;
+    }
+    return m_window.z(channel, static_cast<F64>(m_latest[channel]));
 }
 
 F64 DynamicThreshold::epsilon(U32 channel) const {

@@ -14,6 +14,8 @@
 #include <cstring>
 
 #include "sentinel/Config.hpp"
+#include "sentinel/DerivativeStream.hpp"
+#include "sentinel/Detector.hpp"
 #include "sentinel/DynamicThreshold.hpp"
 #include "TestSupport.hpp"
 
@@ -130,6 +132,94 @@ F64 runTier(const char* tier, const char* path, U32& tiersRun) {
     return worst;
 }
 
+//! `DerivativeStream` against `scripts/decision_layer_arms.py:224`.
+F64 runDerivativeTier(const char* tier, const char* path, U32& tiersRun) {
+    std::FILE* handle = std::fopen(path, "rb");
+    if (handle == nullptr) {
+        std::printf("    %-4s SKIPPED -- %s absent\n", tier, path);
+        return 0.0;
+    }
+    U8 head[16];
+    if (std::fread(head, 1U, sizeof(head), handle) != sizeof(head)
+        || (std::memcmp(head, "SNTF", 4U) != 0)) {
+        (void)std::fclose(handle);
+        SentinelTest::check(false, "vector is not a SNTF v1 header");
+        return 0.0;
+    }
+    U16 channels = 0U;
+    U32 steps = 0U;
+    U32 span = 0U;
+    std::memcpy(&channels, head + 6, sizeof(channels));
+    std::memcpy(&steps, head + 8, sizeof(steps));
+    std::memcpy(&span, head + 12, sizeof(span));
+    SentinelTest::checkEqualU32(span, Config::ERROR_WINDOW,
+                                "the derivative standardises over ERROR_WINDOW");
+
+    DerivativeStream stream;
+    stream.configure(channels);
+
+    const U32 record = static_cast<U32>(channels) * 12U;
+    U8 row[Config::MAX_CHANNELS * 12U];
+    F32 values[Config::MAX_CHANNELS];
+    F64 worst = 0.0;
+    U32 worstStep = 0U;
+    U32 read = 0U;
+
+    for (U32 t = 0U; t < steps; ++t) {
+        if (std::fread(row, 1U, static_cast<size_t>(record), handle)
+                != static_cast<size_t>(record)) {
+            break;
+        }
+        ++read;
+        for (U32 c = 0U; c < channels; ++c) {
+            values[c] = readF32(row + (c * 4U));
+        }
+        stream.step(values);
+        const U8* zRow = row + (static_cast<U32>(channels) * 4U);
+        for (U32 c = 0U; c < channels; ++c) {
+            const F64 diff = std::fabs(stream.z(c) - readF64(zRow + (c * 8U)));
+            if (diff > worst) { worst = diff; worstStep = t; }
+        }
+    }
+    (void)std::fclose(handle);
+
+    SentinelTest::checkEqualU32(read, steps, "every step in the file was read");
+    std::printf("    %-4s %2u ch x %4u steps   z_d max |diff| %.3e (step %u)\n",
+                tier, static_cast<unsigned>(channels), static_cast<unsigned>(read),
+                worst, static_cast<unsigned>(worstStep));
+    SentinelTest::check(worst <= TOLERANCE, "z_derivative within 1e-5");
+    ++tiersRun;
+    return worst;
+}
+
+//! `dx[0]` is zero, not a step from nothing. `np.diff(x, prepend=x[0])`.
+void checkTheFirstDifferenceIsZero() {
+    DerivativeStream stream;
+    stream.configure(2U);
+    const F32 first[2] = {1000.0F, -7.5F};
+    stream.step(first);
+    SentinelTest::check(stream.delta(0U) == 0.0, "dx[0] is exactly zero");
+    SentinelTest::check(stream.delta(1U) == 0.0, "dx[0] is zero on every channel");
+    const F32 second[2] = {1002.0F, -7.5F};
+    stream.step(second);
+    SentinelTest::check(std::fabs(stream.delta(0U) - 2.0) < 1e-9,
+                        "dx is the absolute first difference");
+    SentinelTest::check(stream.delta(1U) == 0.0, "an unchanged channel has no derivative");
+}
+
+//! The fused statistic is the larger of the two streams, and never in the flag.
+void checkFusionAndThatItDoesNotEmit() {
+    SentinelTest::check(Config::ERROR_WINDOW < Config::SOLVE_WINDOW,
+                        "the moment window is shorter than the solve window");
+    Detector detector;
+    // Unloaded: inert by construction, which is the property that matters here.
+    SentinelTest::check(!detector.emitted(), "an unloaded detector never emits");
+    SentinelTest::check(!detector.dynamicEmitted(),
+                        "an unloaded detector's dynamic rule never emits either");
+    SentinelTest::check(detector.fusedScore() == 0.0,
+                        "the fused score starts at zero");
+}
+
 //! The rule stays silent when it cannot choose, rather than guessing.
 void checkSilence() {
     DynamicThreshold detector;
@@ -191,6 +281,21 @@ int main() {
     std::printf("    %u tier(s) run\n", static_cast<unsigned>(tiers));
     std::printf("    worst eps over all tiers: %.3e, tolerance %.0e\n", worst, TOLERANCE);
     SentinelTest::check(tiers == 2U, "every committed tier ran; none was skipped");
+
+    std::printf("== derivative stream ==\n");
+    U32 fTiers = 0U;
+    F64 fWorst = 0.0;
+    const char* fPaths[2] = {"test/vectors/f1.fvec", "test/vectors/f2.fvec"};
+    const char* fNames[2] = {"f1", "f2"};
+    for (U32 i = 0U; i < 2U; ++i) {
+        const F64 seen = runDerivativeTier(fNames[i], fPaths[i], fTiers);
+        if (seen > fWorst) { fWorst = seen; }
+    }
+    std::printf("    %u tier(s) run, worst %.3e, tolerance %.0e\n",
+                static_cast<unsigned>(fTiers), fWorst, TOLERANCE);
+    SentinelTest::check(fTiers == 2U, "every committed derivative tier ran");
+    checkTheFirstDifferenceIsZero();
+    checkFusionAndThatItDoesNotEmit();
 
     checkSilence();
     checkEmissionIsAnInstant();

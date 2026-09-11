@@ -61,7 +61,16 @@ class TrailingWindow {
     //! carrying the other's depth. A width past `Config::MAX_CHANNELS`, or a
     //! span past the ring, clamps to zero channels -- inert, rather than
     //! reading past an array.
-    void configure(U32 nChannels, U32 span = Config::ERROR_WINDOW);
+    //! `momentSpan` of 0 means "the same as `span`". They differ for exactly one
+    //! user and the reason is worth stating: the dynamic threshold needs
+    //! **2,170 samples of contents** (`Config::SOLVE_WINDOW`, history plus the
+    //! segment it judges) while arm 2's `z_residual` is standardised over
+    //! **2,100** (`scripts/decision_layer_arms.py:224`, `span = error_window`).
+    //! Same data, two window lengths. Carrying a second accumulator set over one
+    //! ring costs 384 bytes; a second ring would cost 138,880, and a single
+    //! compromise span would change a measured statistic.
+    void configure(U32 nChannels, U32 span = Config::ERROR_WINDOW,
+                   U32 momentSpan = 0U);
 
     //! Clear the ring, the accumulators and the step count.
     void reset();
@@ -99,8 +108,11 @@ class TrailingWindow {
     //! by `span` (`scripts/decision_layer_arms.py:56`).
     bool full() const { return m_filled >= m_span; }
 
-    //! The logical span the moments are taken over.
+    //! The ring's logical depth: what `filled()` counts and `at()` exposes.
     U32 span() const { return m_span; }
+
+    //! The window the moments are taken over, which may be shorter.
+    U32 momentSpan() const { return m_momentSpan; }
 
   private:
     //! Channel-major, unlike `Baseline`'s slot-major ring. The threshold walks
@@ -115,7 +127,9 @@ class TrailingWindow {
     U64 m_steps;
     U32 m_channels;
     U32 m_filled;
-    U32 m_span;      //!< logical window depth, <= Config::SOLVE_WINDOW
+    U32 m_span;        //!< logical ring depth, <= Config::SOLVE_WINDOW
+    U32 m_momentSpan;  //!< moment window, <= m_span
+    U32 m_momentCount[Config::MAX_CHANNELS];
     U32 m_head;      //!< ring slot the next sample goes into
 };
 

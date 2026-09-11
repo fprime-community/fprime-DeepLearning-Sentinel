@@ -134,3 +134,43 @@ def test_every_tier_actually_emits(tier) -> None:
     body = 24
     fired = sum(blob[body + t * record + record - 1] for t in range(steps))
     assert fired > 0, f"{tier} never emits"
+
+
+# -- the derivative stream ----------------------------------------------------
+
+@pytest.fixture(scope="module")
+def regenerated_fvec(tmp_path_factory) -> Path:
+    out = tmp_path_factory.mktemp("fvec")
+    proc = subprocess.run(
+        [sys.executable, "scripts/make_derivative_vectors.py", "--out", str(out)],
+        cwd=ROOT, capture_output=True, text=True,
+        env={"PYTHONPATH": "src", "PATH": "/usr/bin:/bin"})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    return out
+
+
+@pytest.mark.parametrize("tier", ["f1", "f2"])
+def test_the_derivative_vector_regenerates_byte_identically(tier, regenerated_fvec) -> None:
+    assert (VECTORS / f"{tier}.fvec").read_bytes() == (regenerated_fvec / f"{tier}.fvec").read_bytes()
+
+
+def test_the_first_difference_is_taken_against_the_first_sample() -> None:
+    """`np.diff(x, prepend=x[0])`, and getting it wrong costs a false excursion.
+
+    Differencing against nothing would make `dx[0]` the whole of `x[0]`, which on
+    a channel sitting at 1000 is a 1000-unit step at the one moment the detector
+    has no window to judge it against -- on every channel, at every reset.
+    """
+    x = np.array([1000.0, 1002.0, 999.0], dtype=np.float64)
+    dx = np.abs(np.diff(x, prepend=x[0]))
+    assert dx[0] == 0.0
+    assert dx[1] == 2.0 and dx[2] == 3.0
+
+
+def test_the_derivative_span_is_the_error_window_not_the_solve_window() -> None:
+    """2,100 and 2,170 are both real windows here and they are not interchangeable."""
+    blob = (VECTORS / "f1.fvec").read_bytes()
+    assert blob[:4] == b"SNTF"
+    span = struct.unpack_from("<I", blob, 12)[0]
+    assert span == Config().error_window == 2100
+    assert span != Config().error_window + Config().stride

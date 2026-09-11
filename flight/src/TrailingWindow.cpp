@@ -9,16 +9,20 @@ const F64 TrailingWindow::EPSILON = 1e-12;
 TrailingWindow::TrailingWindow()
     : m_ring{}, m_sum{}, m_sumSquares{}, m_count{},
       m_steps(0U), m_channels(0U), m_filled(0U),
-      m_span(Config::ERROR_WINDOW), m_head(0U) {}
+      m_span(Config::ERROR_WINDOW), m_momentSpan(Config::ERROR_WINDOW),
+      m_momentCount{}, m_head(0U) {}
 
-void TrailingWindow::configure(U32 nChannels, U32 span) {
+void TrailingWindow::configure(U32 nChannels, U32 span, U32 momentSpan) {
+    const U32 moments = (momentSpan == 0U) ? span : momentSpan;
     // Refuse by going inert, never by reading past an array. `ModelFile` has
     // already refused an oversized model with TOO_LARGE before this is reached;
     // this is the second line of the same defence.
     const bool ok = (nChannels <= Config::MAX_CHANNELS)
-                 && (span > 0U) && (span <= Config::SOLVE_WINDOW);
+                 && (span > 0U) && (span <= Config::SOLVE_WINDOW)
+                 && (moments > 0U) && (moments <= span);
     m_channels = ok ? nChannels : 0U;
     m_span = ok ? span : Config::ERROR_WINDOW;
+    m_momentSpan = ok ? moments : Config::ERROR_WINDOW;
     reset();
 }
 
@@ -27,6 +31,7 @@ void TrailingWindow::reset() {
         m_sum[c] = 0.0;
         m_sumSquares[c] = 0.0;
         m_count[c] = 0U;
+        m_momentCount[c] = 0U;
         for (U32 i = 0U; i < Config::SOLVE_WINDOW; ++i) {
             m_ring[c][i] = 0.0F;
         }
@@ -42,22 +47,21 @@ void TrailingWindow::push(const F32* values) {
     }
 
     const bool wrapped = (m_filled >= m_span);
+    // The moments run over their own window, which may be shorter than the ring's.
+    const bool momentsWrapped = (m_filled >= m_momentSpan);
 
     for (U32 c = 0U; c < m_channels; ++c) {
-        // Remove the sample this slot is about to overwrite. It leaves by the
-        // same subtraction that admitted it, which is why the mean's drift
-        // measured exactly zero over 1e6 ticks (see the header).
-        if (wrapped) {
-            // The sample leaving the LOGICAL span, which is `span` slots back
-            // from where this one lands -- not the slot being overwritten, which
-            // is only the same thing when the span fills the ring.
-            const U32 departing = (m_head + Config::SOLVE_WINDOW - m_span)
+        // Remove the sample leaving the MOMENT window. It leaves by the same
+        // subtraction that admitted it, which is why the mean's drift measured
+        // exactly zero over 1e6 ticks (see the header).
+        if (momentsWrapped) {
+            const U32 departing = (m_head + Config::SOLVE_WINDOW - m_momentSpan)
                                   % Config::SOLVE_WINDOW;
             const F64 leaving = static_cast<F64>(m_ring[c][departing]);
-            if (std::isfinite(leaving) && (m_count[c] > 0U)) {
+            if (std::isfinite(leaving) && (m_momentCount[c] > 0U)) {
                 m_sum[c] -= leaving;
                 m_sumSquares[c] -= leaving * leaving;
-                --m_count[c];
+                --m_momentCount[c];
             }
         }
 
@@ -69,7 +73,10 @@ void TrailingWindow::push(const F32* values) {
             const F64 promoted = static_cast<F64>(sample);
             m_sum[c] += promoted;
             m_sumSquares[c] += promoted * promoted;
-            ++m_count[c];
+            ++m_momentCount[c];
+            if (!wrapped) {
+                ++m_count[c];
+            }
         }
     }
 
@@ -81,17 +88,17 @@ void TrailingWindow::push(const F32* values) {
 }
 
 F64 TrailingWindow::mean(U32 channel) const {
-    if ((channel >= m_channels) || (m_count[channel] == 0U)) {
+    if ((channel >= m_channels) || (m_momentCount[channel] == 0U)) {
         return 0.0;
     }
-    return m_sum[channel] / static_cast<F64>(m_count[channel]);
+    return m_sum[channel] / static_cast<F64>(m_momentCount[channel]);
 }
 
 F64 TrailingWindow::sd(U32 channel) const {
-    if ((channel >= m_channels) || (m_count[channel] == 0U)) {
+    if ((channel >= m_channels) || (m_momentCount[channel] == 0U)) {
         return 0.0;
     }
-    const F64 n = static_cast<F64>(m_count[channel]);
+    const F64 n = static_cast<F64>(m_momentCount[channel]);
     const F64 mu = m_sum[channel] / n;
     const F64 second = m_sumSquares[channel] / n;
     // The variance floor, `scripts/decision_layer_arms.py:58`'s

@@ -40,6 +40,7 @@ set(SENTINEL_SOURCES
     src/Baseline.cpp
     src/TrailingWindow.cpp
     src/DynamicThreshold.cpp
+    src/DerivativeStream.cpp
 )
 
 add_library(sentinel_core STATIC ${SENTINEL_SOURCES})

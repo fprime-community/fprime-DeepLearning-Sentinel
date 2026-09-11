@@ -9,9 +9,11 @@
 namespace Sentinel {
 
 Detector::Detector()
-    : m_model(), m_hidden(), m_ring(), m_ewma(), m_steps(0U), m_input(),
-      m_projected(), m_recurrent(), m_head(), m_forecast(), m_residual(),
-      m_smoothed(), m_score(0.0F), m_crossing(false), m_emitted(false) {}
+    : m_model(), m_hidden(), m_ring(), m_ewma(), m_threshold(), m_derivative(),
+      m_steps(0U), m_input(), m_projected(), m_recurrent(), m_head(),
+      m_forecast(), m_residual(), m_smoothed(), m_score(0.0F),
+      m_crossing(false), m_emitted(false), m_fusedScore(0.0),
+      m_fusedChannel(0U) {}
 
 LoadStatus Detector::load(const U8* data, U32 length) {
     const LoadStatus status = m_model.load(data, length);
@@ -19,6 +21,8 @@ LoadStatus Detector::load(const U8* data, U32 length) {
         return status;
     }
     m_ewma.configure(m_model.ewmaSpan, m_model.nChannels);
+    m_threshold.configure(m_model.nChannels);
+    m_derivative.configure(m_model.nChannels);
     reset();
     return LoadStatus::OK;
 }
@@ -35,6 +39,10 @@ void Detector::reset() {
         }
     }
     m_ewma.reset();
+    m_threshold.reset();
+    m_derivative.reset();
+    m_fusedScore = 0.0;
+    m_fusedChannel = 0U;
     m_steps = 0U;
     m_score = 0.0F;
     m_crossing = false;
@@ -133,6 +141,26 @@ void Detector::step(const F32* values, bool valid) {
     const bool warmed = (m_steps >= static_cast<U64>(m_model.warmupSteps));
     m_emitted = m_crossing && warmed && (m_model.baselineOnly == 0U);
 
+    // -- the new streams, computed and reported (39.8) ----------------------
+    //
+    // Ordered after the static comparison on purpose: nothing above depends on
+    // anything below, so the existing path's arithmetic is bit-for-bit what it
+    // was and every committed `.vec` vector still pins it.
+    m_threshold.step(m_smoothed);
+    m_derivative.step(m_input);
+
+    F64 fusedBest = 0.0;
+    U32 fusedPeak = 0U;
+    for (U32 c = 0U; c < channels; ++c) {
+        const F64 value = fused(c);
+        if (value > fusedBest) {
+            fusedBest = value;
+            fusedPeak = c;
+        }
+    }
+    m_fusedScore = valid ? fusedBest : -std::numeric_limits<F64>::infinity();
+    m_fusedChannel = fusedPeak;
+
     // The head output made at t covers t+1 .. t+l_p, so it is written after the
     // forecast is read -- its slot is the one holding t-l_p, which has just been
     // consumed for the last time.
@@ -141,6 +169,16 @@ void Detector::step(const F32* values, bool valid) {
         m_ring[slot][i] = m_head[i];
     }
     ++m_steps;
+}
+
+F64 Detector::fused(U32 channel) const {
+    // `max(z_residual, z_derivative)` -- arm 2's ablation, which is the arm that
+    // reached EVAL 17 of 19 (D65). The horizon-disagreement stream is absent
+    // because P2.4 was refuted in the informative direction: dropping it is
+    // better, 30/38 against 25/38.
+    const F64 residual = m_threshold.zResidual(channel);
+    const F64 derivative = m_derivative.z(channel);
+    return (residual > derivative) ? residual : derivative;
 }
 
 }  // namespace Sentinel
