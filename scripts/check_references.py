@@ -95,27 +95,19 @@ UPSTREAM_DOC_PREFIXES = ("docs/user-manual/", "docs/how-to/", "docs/reference/",
 FPRIME_CHECKOUT_PATHS = {"fprime/requirements.txt"}
 
 #: (!) Cited today, written by a later tranche of `docs/REORG_PLAN.md`. The debt
-#: is listed rather than hidden, and it shrinks as the tranches land -- an empty
-#: dict is the goal, and a stale entry here fails the test that pins it.
-PLANNED = {
-    "docs/datasets/ESA_ADB.md": "REORG_PLAN tranche 4",
-    "docs/datasets/SMAP_MSL.md": "REORG_PLAN tranche 4",
-    "docs/datasets/OTHERS.md": "REORG_PLAN tranche 4",
-    "docs/datasets/REPRODUCING.md": "REORG_PLAN tranche 4",
-    "docs/PI_ENVELOPE.md": "REORG_PLAN tranche 4",
-}
+#: is listed rather than hidden, and it shrinks as the tranches land -- a stale
+#: entry here fails `tests/test_references_resolve.py`, which asserts that nothing
+#: listed exists yet.
+#:
+#: **Emptied 2026-09-11 by tranche 4**, which wrote all five: the four dataset
+#: documents and the reserved Pi envelope. They are checked like everything else
+#: now, which is the point of the list being empty rather than absent.
+PLANNED: dict[str, str] = {}
 
 #: Bare filenames that resolve into the vendored package rather than into this
-#: repository, at the sites that cite them.
+#: repository, at the sites that cite them. Convention 3 of the three above.
 VENDORED_FILENAMES = {"detector.py", "channel.py", "errors.py", "modeling.py",
                       "helpers.py"}
-
-#: (!) `docs/DECISIONS.md` IS EXCLUDED, AND NOT AS A CONVENIENCE. It has **zero**
-#: numbered headings -- every entry is `## D42.` -- so a bare number after its name
-#: is never a section citation. Prose that says "`docs/DECISIONS.md` 68 entries"
-#: was read as a citation to a section 68 that cannot exist, which is a false
-#: break, and a guard that cries wolf is one people switch off.
-NO_NUMBERED_SECTIONS = ("docs/DECISIONS.md",)
 
 SECTION = re.compile(
     r"`(docs/(?!DECISIONS\.md)[A-Za-z_]+\.md|Objective\.md|CHANGELOG\.md|README\.md)`\s+"

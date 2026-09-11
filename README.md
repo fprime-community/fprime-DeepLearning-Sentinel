@@ -132,11 +132,40 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
 
 ## How to review this repository
 
-Reading order: this README, then [Objective.md section 1.1](Objective.md), then
-[docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
-a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
-mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D68** (was D63): why, what else was
-considered, what settled it; superseded entries marked, never deleted).
+**Nine steps, about fifteen minutes to the point where you can decide whether to keep
+reading.** Every step answers one question, and the last two are the ones that say what this
+does not do.
+
+| | Read | Minutes | It answers |
+|---|---|---|---|
+| 1 | this README | 2 | What is it, what is measured, what is claimed |
+| 2 | [docs/STATUS.md](docs/STATUS.md) | 4 | Where it actually is, and what happens next |
+| 3 | [docs/datasets/REPRODUCING.md](docs/datasets/REPRODUCING.md) | 2 | **What you can check yourself, with no data and no account** |
+| 4 | [docs/RESULTS.md](docs/RESULTS.md) | as needed | Every number, both channel sets, `k/n` throughout, both figures wherever a correction moved one |
+| 5 | [ESA_ADB.md](docs/datasets/ESA_ADB.md) and [SMAP_MSL.md](docs/datasets/SMAP_MSL.md) | 3 | What the data is, its licences, and the caveats that would corrupt a result |
+| 6 | [docs/NARRATIVE.md](docs/NARRATIVE.md) | as needed | What happened in order, mistakes included |
+| 7 | [docs/DECISIONS.md](docs/DECISIONS.md) | as needed | **D1 to D68** (was D63): why, what else was considered, what settled it; superseded entries marked, never deleted |
+| 8 | [Objective.md section 1.1](Objective.md) | 5 | **What is claimed and what is retired** |
+| 9 | [docs/PI_ENVELOPE.md](docs/PI_ENVELOPE.md) | 1 | Whether it runs on small hardware -- **reserved and deliberately empty** |
+
+> **(!) Steps 6 and 9 are not on the public branch.** Under `docs/DECISIONS.md` D67,
+> `master` carries the component and the evidence it works and nothing else, and
+> `docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` are not in its list. They resolve on `dev`.
+> Stated here rather than left for a reader to discover as a broken link, and **flagged as
+> something D67 may want to revisit**: step 6 is this project's honesty record and step 9 is
+> the first question anyone asks about a neural forecaster on a spacecraft.
+
+### What the evidence is, claim by claim
+
+| Claim | Evidence | Caveat |
+|---|---|---|
+| It warns before a limit trips | D46: **39 of 43** contextual anomalies stay inside their channel's historical range. `docs/MODELS.md` 26.18: **10 of 38 at 0.6820%** | **26%, on one dataset, with no floor to compare against at that rate.** And D66: the in-range class is confounded with channel envelope width |
+| A better decision layer reaches more of them | D65: the residual fused with the first derivative reaches **EVAL 17 of 19** where the frozen arm reaches 4, at the same alarm rate, a strict superset, reproduced on two independent reads | **n = 19 per half. UNDERPOWERED (D3).** One arm, one dataset |
+| The shipped core runs that rule | D68: `emitted` is the fused statistic against one calibrated cut, on a `param_version` 2 PARAMS block. Held to the reference at **1e-5 with the emission flag exact**, end to end from a real `model.bin` | **Was D25's static quantile until 2026-09-11**, and a version-1 file still gets that rule. `docs/MODELS.md` 39.13 is the port's full account, N3 failed and recorded |
+| It is warn-only | `Monitor.fpp` declares **zero commands**; `cmdIn` exists only for F's autocoded `PARAM_SET`/`PARAM_SAVE`, said in situ | **None.** Warn-only by interface, not by convention |
+| It fails safe | 12 refusal codes in `Status.hpp`, each with its own case; all degrade to Level 1 and none fails the topology (D32-D37) | None |
+| It builds in F' v4.3.0 | `docs/FPRIME.md` 4: F's own `Ref` built from this toolchain in 12.4 s | `Ref` moved at v4.3.0 and it is not in the breaking-change notes |
+| It warns early | -- | **No such claim is made.** `docs/MODELS.md` 37.7a measured **0 of 10 positive leads**; every figure here is recall at a matched alarm rate, in timesteps, never in hours |
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
   newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.

@@ -14,6 +14,66 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.39] - 2026-09-11 - Reorganisation tranche 4: the datasets, made obtainable without the bucket
+
+**`docs/REORG_PLAN.md` tranche 4, complete.** Zero bucket operations, no fit, weight store
+**1,313 -> 1,313**. 683 tests. Tracked content **5.82 MiB**, against N8's 6 MiB band.
+
+### Written
+- **`docs/datasets/ESA_ADB.md`** -- the primary dataset for a reader who will never have the
+  bucket: the paper, the DOIs, the three missions and their channel counts, and the four
+  caveats that silently corrupt a result, including the one that is the reason **no figure
+  here is ever quoted in hours** (timestamps are anonymised mission time scaled by an
+  undisclosed factor).
+- **`docs/datasets/SMAP_MSL.md`** -- the legacy set that carries the headline number anyway,
+  with **D66 reproduced in full** as the entry itself asks. The `P-2` labelling defect (81
+  unique channels, not the 82 rows its label file implies), the test-split pre-scaling, and
+  **Wu and Keogh's objection accepted rather than argued with** -- with the narrow thing that
+  survives it stated narrowly.
+- **`docs/datasets/OTHERS.md`** -- twelve datasets examined and declined, one reason each,
+  the non-public routes named rather than pretended away, and the acceptance test any future
+  dataset must pass first.
+- **`docs/datasets/REPRODUCING.md`** -- what anyone can recompute with **no dataset, no
+  credential and no bucket**, and plainly what they cannot. **Every command in its first
+  table was run to produce the page**, including a complete scoring run on the generated
+  fixture at zero operations.
+- **`docs/PI_ENVELOPE.md`** -- reserved, the shape of a measurement fixed, **and no numbers**.
+  It says why it is empty and names the failure it is guarding against:
+  `docs/NARRATIVE.md` 6.9 records a figure written into a planning mock-up and later read
+  back as data.
+- **The public reading order** in `README.md`: nine steps, with a **claim-to-evidence table**
+  whose last row is *"It warns early -- no such claim is made"*.
+
+### (!) The ESA-ADB licence is still NOT verified, on a second attempt
+The plan requires a re-fetch at write time and it was attempted: **`zenodo.org` is
+unreachable from this environment** -- TLS *"unable to get issuer certificate"* -- on the
+record URL, the DOI, **and** the DOI's redirect target, on **2026-09-11** as on 2026-09-09.
+`arxiv.org` answers from the same environment, so this is Zenodo-specific rather than a
+missing network.
+
+**The licence stays marked `verified: "repository-only"` and the failure is stated on the
+page rather than hidden.** An earlier brief said CC-BY 4.0, this repository says CC BY 3.0
+IGO, and **neither is asserted beyond what was checked**. It must be re-checked at the record
+before publication.
+
+**What the attempt did verify**, at `arxiv.org` and field by field: the paper's title, its
+eleven authors in order, submitted 25 June 2024, revised 17 August 2025, *"87 pages, 24
+figures, 19 tables"*. And SMAP/MSL's **BSD 3-Clause was verified by reading
+`third_party/telemanom/LICENSE.txt` directly**, with clause 3 quoted verbatim from line 11
+because it binds this project and not only its code.
+
+### (!) Two steps of the planned reading order are not on the public branch
+`docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` are in the reading order and **not in D67's
+on-`master` list**. Rather than silently amend either, the README says so where a reader
+meets it and flags it as something **D67 may want to revisit**: step 6 is this project's
+honesty record, and step 9 is the first question anyone asks about a neural forecaster on a
+spacecraft.
+
+### The debt list is empty
+`check_references.PLANNED` carried the five documents cited before they existed. **Tranche 4
+wrote all five**, so it is emptied and they are checked like everything else -- which is why
+the list is empty rather than deleted.
+
 ## [0.6.38] - 2026-09-11 - Reorganisation tranche 3: the link-check guard, and one citation that never resolved
 
 **`docs/REORG_PLAN.md` tranche 3, complete.** Zero bucket operations, no fit, weight store
