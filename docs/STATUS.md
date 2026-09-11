@@ -1,5 +1,11 @@
 # Project status and roadmap
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **2026-09-09. Phase 2 in progress. The objective is re-framed** (`docs/DECISIONS.md`
 D57): Sentinel warns before a limit trips using **every kind of context the telemetry
 carries**, and "cross-channel means sensor-to-sensor" is retired as the sole thesis.
@@ -9,7 +15,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D57 with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D68 (was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -97,16 +103,27 @@ SMAP's.
 | `W` | 34.8's label-free forecaster winner, own cut | 3/36 | 56/104 (53.8%) | 56/61 (91.8%) | 5 | `runs/smap-msl/_forensics/2026-09-09T224554Z-wi910-port.json` |
 
 **(!) FROZEN 2026-09-09 (D62): the pipeline is stage 4's configuration.** Nine arms have now
-been measured against stage 4's **10/38 at 0.6838%** and none beats it. At or below that
+been measured against stage 4's **10/38 at 0.6820% (was 0.6838%)** and none beats it. At or below that
 rate: `WS`, the label-free forecaster winner, reaches **8/38**; `C1S` reaches 6/38; the
 3-seed ensemble and the isolation forest reach 0; and **four arms - a transition-aware
 floor, per-channel calibration, both together, and gradient-boosted trees - have no
-operating point at or below 0.6838% at all**, which is D48 arriving for the fifth through
+operating point at or below 0.6820% (was 0.6838%) at all**, which is D48 arriving for the fifth through
 eighth arms. The full ladder is `docs/MODELS.md` 35.7.
 | **paper** | Hundman et al., Table 2 | **25/36** | 84/105 (80.0%) | 84/96 (87.5%) | **12** | - |
 
+**(!) SUPERSEDED 2026-09-10 by D65. The paragraph above stands as the record of what nine
+arms measured; its freeze does not.** A tenth arm -- the smoothed residual fused with the
+**first derivative of the raw value**, both standardised against a trailing window only --
+reaches **EVAL 17 of 19 against the frozen arm's 4**, at the frozen arm's own **0.6820%**,
+on the channel-disjoint split committed before any sweep. It is a **strict superset**: it
+loses nothing the frozen arm caught. **n = 19, UNDERPOWERED (D3).** Reproduced identically
+on two independent reads (`docs/MODELS.md` 38.15). The all-38 figure of 30 is
+**CONTAMINATED** -- it includes the 19 TUNE events the cut was selected on -- and is never
+the headline. **D65 adopts nothing**: it re-opens the decision layer and does not name a
+flight configuration.
+
 **The headline number is stage 4's `10 of 38`**: in-range contextual sequences caught, at
-0.6838% of nominal steps, by `gru-telemanom` scored per channel, univariate, without
+0.6820% (was 0.6838%) of nominal steps, by `gru-telemanom` scored per channel, univariate, without
 commands (D46, D48, `docs/MODELS.md` 26.18). **It is 26%**, on one dataset, with no floor
 available to compare against at that alarm rate - `rstd` at 5,000x its calibrated
 threshold still alarms on 15.17% of nominal steps. **Seven model variants have since been
@@ -139,12 +156,12 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 212 Class A and 4,360 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 227 Class A and 5,321 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D57,
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D68 (was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -244,7 +261,7 @@ does not survive being brought near a flyable rate. **The grid refinement ran th
 day** (33.8): resolved at 0.01 across the crossing, 55 points, with the caught set retained
 at every one. **M1 and M2 are refuted robustly** - the best count at or under the target is
 **6 against stage 4's 10**, and even given a rate 10% **louder** than stage 4's, C1 reaches
-only 8. There is no operating point near 0.6838% where C1 competes. Also corrected
+only 8. There is no operating point near 0.6820% (was 0.6838%) where C1 competes. Also corrected
 here: C1 carried a second unintended lever (T-g, the published target length), **worth zero
 events** - both numbers kept.
 
@@ -259,10 +276,69 @@ P5 refuted**: more training makes held-out error consistently worse, because the
 per-channel calibration, both, a 3-seed ensemble, gradient-boosted trees and an
 isolation-forest control. **None beats stage 4. Four cannot reach its alarm rate at all.**
 
+**B4. Per-event forensics on all 38 - DONE 2026-09-09** (`docs/MODELS.md` 36), 55 Class B,
+weight store unmoved. **10 caught, 18 lost in the decision layer, 10 invisible in the
+residual.** Of the 28 misses, **15 die in pruning and 13 below threshold**; within the 18
+recoverable, **13 die in pruning**. An oracle per-channel threshold at the frozen arm's own
+quiet rate would reach **28 of 38**. And **all ten "invisible" events show z > 3 in the
+first derivative or in the disagreement across the ten predicted horizons**, neither of
+which reaches the decision layer today. **The next work is the alarm rule, not the
+network.** **Seven arms and a stride item are now registered and not run** (`docs/MODELS.md` 37 and 38):
+pruning demoted to a registered negative result, a causal normalisation, persistence by
+run length, CUSUM, an EVT peaks-over-threshold threshold (the priority arm), adaptive
+conformal inference, and the union of them -- on a channel-disjoint 19/19 split committed
+before any sweep, with the union budget **fitted jointly rather than allocated**.
+**D62's freeze stands until one of them beats stage 4 at a matched rate.**
+
 **THE PIPELINE IS FROZEN (D62)** on stage 4's configuration: `gru-telemanom`, per channel,
-univariate, no commands, published dynamic threshold swept to 0.6838%, **10 of 38**. **The
+univariate, no commands, published dynamic threshold swept to 0.6820% (was 0.6838%), **10 of 38**. **The
 C++ port must carry the dynamic threshold**, which `flight/` does not yet have - it
 transcribes D25's static quantile alone. S1 and S2 are not adopted.
+
+**(!) THE FREEZE IS SUPERSEDED 2026-09-10 (D65), and the sentence above is kept.** Arm 2 --
+residual plus first derivative, trailing-standardised -- reaches **EVAL 17/19 against 4** at
+the same 0.6820%. **Nothing is adopted and no flight configuration is named.** What the C++
+port must carry grows by one stream: the dynamic threshold **and** the first derivative with
+its trailing standardisation. Pruning (P1.1) and CUSUM (P4b.1) close as clean negatives;
+arms 4a, 6 and 7 and prediction P2.3 are **NOT ADJUDICATED** and no number of theirs is
+reported.
+
+**Roadmap item 1, the C++ port, is PRE-REGISTERED and not yet written**
+(`docs/MODELS.md` 39, 2026-09-10). `model.bin` stays at **`format_version` 1** -- the
+dynamic rule's constants become `constexpr` and the selectable mode remains a version-2
+decision after Phase 3. Three departures are registered with their costs: the window
+**already trails**, so what is at stake is emission timing and **guard cells are not a free
+way to remove it** (10.7 measured 38/46 -> 34/46 on `m1-g8.9.10` and the reverse on
+`m1-ss5`); **backward dilation cannot be emitted** and is dropped, its price registered as
+**N6 and unadjudicated**, because measuring it needs a read that has not been taken; and the
+footprint grows **312,112 -> 581,488 B**, which is a new numbered prediction beside 19.8's
+F1 rather than an edit to it. **(!) THE PORT IS WRITTEN AND GREEN, 2026-09-11** (`docs/MODELS.md` 39.13). `TrailingWindow`,
+`DynamicThreshold` and `DerivativeStream`, held to the reference at **1e-5 with the emission
+flag exact on every step** (N1 held); determinism bit-identical across processes with 2,170
+samples of carried state (N4 held). **`sizeof(Detector)` is 603,024 B against N3's predicted
+581,488 -- N3 FAILED at +3.70% and the account is itemised, not the band moved.**
+**Three decision layers run and one emits**: `crossing()` and `emitted()` are still D25's
+static quantile, because D65 names no flight configuration and promoting either new rule
+would make the port the adoption decision. **On the second read (2026-09-11), with the cut floating as the frozen arm's does: neither
+departure costs recall on this data.** **N6** -- forward-only dilation -- reaches **23 of 38
+at a matched 0.6820%, EVAL 11/19 against the frozen arm's 4**, a strict superset. Its band
+**FAILED in the opposite direction to its intent**, having asked what the departure would
+cost, **and the +13 is confounded with the dial**, which moved 0.5506 -> 0.5009 inside the
+band 38.15 says re-admits pruned steps -- so it is not a clean measurement of the lever.
+**N5** -- guard cells -- **remains NOT ADJUDICATED**: its cut pins at 1.0 and the rate lands
+14% below target, so no matched-rate number of it is reported; at that quieter rate it
+catches 16 of 38 against 10, which is dominance rather than a matched comparison.
+**(!) THE FLIGHT CONFIGURATION IS ADOPTED, 2026-09-11 (D68), and the sentence above is
+kept.** `emitted` now follows **`max(z_residual, z_derivative)` against one calibrated cut**
+-- exactly what D65 measured twice -- on a **`param_version` 2** PARAMS block. The byte
+layout does not change, so **`format_version` stays 1 and D30's freeze is untouched**; what
+changes is which statistic the threshold cuts, and **both readers now refuse a
+`param_version` they do not know** with `BAD_PARAM_VERSION`. Measured on tier `p1`: the same
+bytes with the same cut cross **339 times as version 2 and 0 as version 1**. A version-1 file
+still gets D25's rule, so every committed `.vec` vector still passes. The dynamic threshold
+is carried and reported and drives nothing. **One arm, one dataset, n = 19 per half,
+UNDERPOWERED, and no early-warning claim.** A third read -- both dilations at one fixed cut
+-- is **owed and not taken**; it refines N6 and blocks nothing.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
@@ -309,8 +385,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**605
-  tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**683 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -326,8 +401,10 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 605 tests
-.venv/bin/python scripts/check_no_list.py                        # 75 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 683 tests
+.venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
+.venv/bin/python scripts/check_references.py                     # every citation resolves
+.venv/bin/python scripts/check_references.py --master            # D67's curated branch
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
 make -C flight lint                                              # clang-tidy, three configs

@@ -1,0 +1,18 @@
+{
+  "f1": {
+    "n_channels": 3,
+    "provenance": "scripts/make_derivative_vectors.py, reference scripts/decision_layer_arms.py:224",
+    "seed": 31,
+    "span": 2100,
+    "steps": 2300,
+    "vector_bytes": 82816
+  },
+  "f2": {
+    "n_channels": 6,
+    "provenance": "scripts/make_derivative_vectors.py, reference scripts/decision_layer_arms.py:224",
+    "seed": 32,
+    "span": 2100,
+    "steps": 2300,
+    "vector_bytes": 165616
+  }
+}

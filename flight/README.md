@@ -32,10 +32,26 @@ a single warning fails it. `tests/test_flight_build.py` runs the same target fro
     ModelFile.hpp   the reader. docs/MODEL_FILE.md is normative
     Gru.hpp         the forward pass, transcribed from reference.gru_cell
     Ewma.hpp        span 105, bias-corrected, F64 in and F32 out
+    Baseline.hpp    Level 1, the statistical baseline the loader degrades to
+    TrailingWindow.hpp  a trailing window per channel with F64 moments, the
+                    primitive both new streams are built on (MODELS 39 stage 1)
+    DynamicThreshold.hpp  telemanom's nonparametric threshold, streamed and
+                    solved once per 70-tick segment (D62, MODELS 39 stage 2)
+    DerivativeStream.hpp  the first derivative, trailing-standardised. Fused
+                    with the residual it reached EVAL 17 of 19 where the frozen
+                    arm reached 4 (D65, MODELS 39 stage 3)
     Detector.hpp    the whole per-tick pipeline
   src/              one .cpp per header
-  test/             the five test binaries and the committed golden vectors
+  test/             the test binaries and the committed golden vectors
 ```
+
+**(!) Three decision layers run; one emits.** `Detector::crossing` and
+`Detector::emitted` are D25's static quantile and nothing else. The dynamic
+threshold and the derivative stream are computed every tick and reported through
+`dynamicEmitted()`, `fused()` and `fusedScore()` -- **D65 re-opens the decision
+layer and names no flight configuration**, so promoting either to the warning
+would make this port the adoption decision. Which one the F' component raises an
+event on is the component's to wire and the owner's to decide.
 
 ## The flight rules this obeys
 
@@ -48,6 +64,18 @@ The short version: no exceptions, no RTTI, no STL, no allocation anywhere, no
 recursion, every loop bounded by a header field the loader has already checked,
 `F32`/`F64`/`U32` rather than bare `float`/`double`/`int`, `memcpy` rather than
 `reinterpret_cast`, and every fallible return value checked.
+
+## What is not here, and where it went instead
+
+- **The measurement that would price one of the two departures.** Backward
+  dilation is dropped (`docs/MODELS.md` 39.5) because it would mark timesteps
+  already emitted, and what that costs on the 38 in-range contextual events is
+  registered as **N6 and is not yet measured** -- it needs one bucket read, which
+  has not been taken. No figure for it exists anywhere and none should be quoted.
+- **The guard-cell choice.** 39.4: the window includes the 70 steps it judges, so
+  a segment is decided at its end. Guard cells would remove that latency and
+  `docs/MODELS.md` 10.7 measured them costing recall 38/46 to 34/46 on one channel
+  set while *helping* on another. **Neither is adopted**; N5 measures it.
 
 ## The three things easiest to get wrong
 

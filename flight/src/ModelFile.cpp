@@ -223,6 +223,16 @@ LoadStatus Model::load(const U8* data, U32 length) {
     }
 
     paramVersion = static_cast<U32>(readU16(params + 0));
+    // (!) VALIDATED, NOT MERELY READ, and it was merely read until D68.
+    // A version-1 block's `threshold` cuts the EWMA of the absolute residual;
+    // a version-2 block's cuts the fused `max(z_residual, z_derivative)`.
+    // The layout is identical and the scales are not, so a reader that took
+    // any value would apply one cut to the other statistic and say nothing --
+    // exactly the silent drift `docs/MODEL_FILE.md` 1 forbids.
+    if ((paramVersion != Format::PARAM_VERSION)
+        && (paramVersion != Format::PARAM_VERSION_FUSED)) {
+        return LoadStatus::BAD_PARAM_VERSION;
+    }
     ewmaSpan = static_cast<U32>(readU16(params + 4));
     agreement = static_cast<U32>(readU16(params + 6));
     persistence = static_cast<U32>(readU16(params + 8));

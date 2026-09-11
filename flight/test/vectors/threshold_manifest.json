@@ -1,0 +1,26 @@
+{
+  "d1": {
+    "dilation": "forward only (docs/MODELS.md 39.5)",
+    "emissions": 17,
+    "n_channels": 3,
+    "provenance": "scripts/make_threshold_vectors.py, reference src/sentinel_models/flight_reference.py",
+    "seed": 21,
+    "solve_window": 2170,
+    "span": 2100,
+    "steps": 2800,
+    "stride": 70,
+    "vector_bytes": 103624
+  },
+  "d2": {
+    "dilation": "forward only (docs/MODELS.md 39.5)",
+    "emissions": 40,
+    "n_channels": 12,
+    "provenance": "scripts/make_threshold_vectors.py, reference src/sentinel_models/flight_reference.py",
+    "seed": 22,
+    "solve_window": 2170,
+    "span": 2100,
+    "steps": 2800,
+    "stride": 70,
+    "vector_bytes": 406024
+  }
+}

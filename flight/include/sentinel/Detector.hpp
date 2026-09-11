@@ -1,17 +1,43 @@
-// The whole per-tick pipeline: forecast, residual, EWMA, max, one compare.
+// The whole per-tick pipeline: forecast, residual, EWMA, and three decision
+// layers -- one that emits, and two that are computed and reported beside it.
 //
-// The decision layer is frozen (D25) and this is a transcription of it, not a
-// design: per channel the EWMA of |actual - forecast|, the maximum across
-// channels, and one global threshold calibrated as the 99.9th percentile of that
-// statistic over the mission's own anomaly-masked nominal window. No persistence
-// filter beyond N=1, no error_buffer dilation, no k-of-n.
+// WHAT THIS UNIT IMPLEMENTS, as of the port registered at `docs/MODELS.md` 39:
 //
-// **Warn-only.** The detector produces a score and a flag. It commands nothing,
+//   1. THE FORECAST. Per channel, the mean of the up-to-ten predictions made at
+//      t-1 .. t-10, the residual |actual - forecast|, and its EWMA at span 105.
+//      Unchanged, and every committed `.vec` vector still pins it at 1e-5.
+//
+//   2. D25's STATIC QUANTILE, WHICH IS WHAT STILL EMITS. The maximum smoothed
+//      residual across channels against one global threshold calibrated as the
+//      99.9th percentile over the mission's own anomaly-masked nominal window.
+//      No persistence filter beyond N=1, no error_buffer dilation, no k-of-n.
+//      `crossing()` and `emitted()` are this rule and nothing else.
+//
+//   3. telemanom's DYNAMIC THRESHOLD (`DynamicThreshold`), which D62 made
+//      mandatory for the port because it is the only rule measured to reach a
+//      flyable alarm rate on a non-stationary regime (D48). It solves once per
+//      70-tick segment over a trailing 2,170-sample window and reports through
+//      `dynamicEmitted()`.
+//
+//   4. THE FIRST DERIVATIVE (`DerivativeStream`), trailing-standardised, which
+//      fused with the residual reached **EVAL 17 of 19 where the frozen arm
+//      reached 4** at the same alarm rate (D65). `fused()` and `fusedScore()`.
+//
+// (!) 3 AND 4 DO NOT DRIVE THE WARNING, AND THAT IS A DECISION RATHER THAN AN
+// OVERSIGHT (39.8). **D65 re-opens the decision layer and names no flight
+// configuration.** Promoting either to the emission would make this port the
+// adoption decision, and it would move every committed golden vector, which 39.3
+// said would not happen. The core computes all three; which one the component
+// raises an event on is the component's to choose and the owner's to decide.
+//
+// **Warn-only.** The detector produces scores and flags. It commands nothing,
 // writes nothing, and has no side effects (Objective.md 11 rule 3).
 #ifndef SENTINEL_DETECTOR_HPP
 #define SENTINEL_DETECTOR_HPP
 
 #include "sentinel/Config.hpp"
+#include "sentinel/DerivativeStream.hpp"
+#include "sentinel/DynamicThreshold.hpp"
 #include "sentinel/Ewma.hpp"
 #include "sentinel/ModelFile.hpp"
 #include "sentinel/Status.hpp"
@@ -39,6 +65,20 @@ class Detector {
 
     // -- what the tick produced -------------------------------------------
     F32 score() const { return m_score; }
+
+    //! The channel that took the maximum, which is what the warning event names
+    //! (Objective.md 11 rule 4: "every warning explainable -- named channels").
+    //! Ties keep the lowest index, which is what a strict `>` scan gives and what
+    //! `Baseline::peakChannel` has always done.
+    //!
+    //! (!) ADDED 2026-09-11, AND IT WAS MISSING. `Baseline` -- the **degraded**
+    //! Level 1 path -- named a channel from the start, and the **primary** model
+    //! path did not: it computed `std::max` into a local and never an argmax,
+    //! while `baseline_reference.py:119` and `fprime/Sentinel/Monitor` both
+    //! describe an argmax the model path was not computing. The degraded path
+    //! explaining itself better than the healthy one is backwards.
+    U32 peakChannel() const { return m_peakChannel; }
+
     bool crossing() const { return m_crossing; }
     bool emitted() const { return m_emitted; }
     U64 steps() const { return m_steps; }
@@ -50,6 +90,31 @@ class Detector {
     const F32* smoothed() const { return m_smoothed; }
     const Model& model() const { return m_model; }
 
+    // -- the new streams: computed and reported, never in the flag (39.8) ---
+    //
+    // (!) `crossing()` and `emitted()` above are STILL D25's static quantile.
+    // D62 requires the port to carry the dynamic threshold and it now does --
+    // it runs every tick, is held to the reference at 1e-5 and its emission
+    // flag is exact -- but WHICH rule drives the component's warning event is
+    // an adoption decision, and D65 explicitly names no flight configuration.
+    // Promoting it here would also move every committed `.vec` vector, which
+    // `docs/MODELS.md` 39.3 said would not happen. The component chooses;
+    // the core computes both.
+    const DynamicThreshold& threshold() const { return m_threshold; }
+    const DerivativeStream& derivative() const { return m_derivative; }
+
+    //! True on the tick telemanom's rule decided a warning, at a segment's end.
+    bool dynamicEmitted() const { return m_threshold.emitted(); }
+
+    //! Arm 2's fused statistic for one channel, `max(z_residual, z_derivative)`
+    //! -- the ablation, which is the arm that reached EVAL 17 of 19 (D65).
+    F64 fused(U32 channel) const;
+
+    //! The largest `fused` across channels this tick, and the channel that took
+    //! it. A warning names a channel (Objective.md 11 rule 4).
+    F64 fusedScore() const { return m_fusedScore; }
+    U32 fusedChannel() const { return m_fusedChannel; }
+
   private:
     Model m_model;
 
@@ -57,6 +122,8 @@ class Detector {
     F32 m_hidden[Config::MAX_LAYERS][Config::MAX_HIDDEN];
     F32 m_ring[Config::MAX_PREDICTIONS][Config::MAX_OUTPUTS];
     Ewma m_ewma;
+    DynamicThreshold m_threshold;
+    DerivativeStream m_derivative;
     U64 m_steps;
 
     // -- per-tick scratch, reused every cycle -----------------------------
@@ -72,6 +139,9 @@ class Detector {
     F32 m_score;
     bool m_crossing;
     bool m_emitted;
+    U32 m_peakChannel;
+    F64 m_fusedScore;
+    U32 m_fusedChannel;
 };
 
 }  // namespace Sentinel

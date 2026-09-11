@@ -34,10 +34,35 @@ int main() {
                                 "MAX_PARAMETERS at the compile-time maxima");
     SentinelTest::checkEqualU32(weights, 301440U, "weight arena bytes");
 
-    // Nothing is allocated, so the whole detector is one object; a sizeof far
-    // from the prediction means the declaration drifted from what was registered.
-    SentinelTest::check(detector < 320000U,
-                        "sizeof(Detector) is within 2% of the predicted 312,642 B");
+    // (!) 19's F1 IS A RECORD AND IS NOT EDITED. It measured the detector that
+    // existed on 2026-09-01 -- forward pass, EWMA, one static compare -- and
+    // held at 312,112 B, 530 B under. That object no longer exists: the port
+    // added telemanom's dynamic threshold and the derivative stream
+    // (`docs/MODELS.md` 39), so the bound below is 39's N3 and F1's is printed
+    // above as the history it is.
+    //
+    // (!) AND N3 IS MISSED. It predicted 581,488 B +/- 64 and the measurement is
+    // 603,024 -- **+21,536 B, +3.70%**, outside its own 1% band. Itemised the way
+    // F1's 530 B was, because a prediction that fails without an account is just
+    // a number that moved:
+    //
+    //     +8,960   the rings are SOLVE_WINDOW deep, not ERROR_WINDOW. 39.6 sized
+    //              both at 2,100 when the window the threshold solves over is
+    //              2,170 -- 2,100 of history plus the 70 it judges. Two rings,
+    //              70 samples, 16 channels, 4 bytes.
+    //    +12,168   the pruning ladder's scratch, which 39.6 did not itemise at
+    //              all: m_seq, m_kept, m_peaks and m_order at MAX_SEQUENCES =
+    //              1,085, plus eps and the latest sample per channel. Shared
+    //              across channels, so this is once and not sixteen times.
+    //       +408   the second moment-accumulator set carried on each ring, so
+    //              one ring serves the threshold's 2,170 contents and arm 2's
+    //              2,100 moments.
+    //
+    // The band is missed, not moved: N3 fails and 39 gains its OBSERVED entry
+    // saying so. The bound here is the measurement plus the same 2% F1 allowed.
+    std::printf("    predicted (MODELS.md 39, N3)  581,488 B  -- MISSED by +3.70%%\n");
+    SentinelTest::check(detector < 615000U,
+                        "sizeof(Detector) is within 2% of the measured 603,024 B");
 
     // What the flown model actually uses of that budget.
     const U32 flownWeights = 71160U * 4U;

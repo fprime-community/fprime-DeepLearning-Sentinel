@@ -26,6 +26,15 @@
 // repair is `docs/MODELS.md` 21 and has not run yet, so the two are knowingly
 // different numbers today.
 //
+// (!) CORRECTED 2026-09-10: the repair HAS run. The sentence above is kept as
+// the state when this core was written. `baselines.py` now promotes to float64
+// before accumulating (`baselines.py:51`), pinned by
+// `tests/test_rolling_precision.py`; re-measured on N(1000, 3), float32,
+// T = 8,000, W = 120, it agrees with `numpy.nanstd` to 3.5e-07 with zero
+// spurious exact zeros. **This core is unchanged and needs no change**: it was
+// always transcribed from the rule rather than from that implementation, which
+// is why it was already right.
+//
 // Warn-only, like the rest of the core: a score and a flag, no side effects.
 #ifndef SENTINEL_BASELINE_HPP
 #define SENTINEL_BASELINE_HPP

@@ -13,6 +13,14 @@ namespace Format {
 constexpr U32 HEADER_BYTES = 64U;
 constexpr U32 HEADER_CRC_OFFSET = 60U;
 constexpr U32 FORMAT_VERSION = 1U;
+
+//! PARAMS block generations. The LAYOUT is identical across both -- no field is
+//! added, moved or resized, so `FORMAT_VERSION` stays 1 and D30's freeze holds --
+//! and what differs is which statistic `threshold` cuts. Version 1: the EWMA of
+//! the absolute residual (D25). Version 2: the fused `max(z_residual,
+//! z_derivative)` (D65, adopted by D68).
+constexpr U32 PARAM_VERSION = 1U;
+constexpr U32 PARAM_VERSION_FUSED = 2U;
 constexpr U32 ARCH_GRU = 1U;
 constexpr U32 GATE_ORDER_RESET_UPDATE_NEW = 1U;
 constexpr U32 NORM_IDENTITY = 0U;

@@ -1,0 +1,26 @@
+{
+  "t1": {
+    "n_channels": 3,
+    "provenance": "scripts/make_trailing_vectors.py, reference scripts/decision_layer_arms.py:53-58 trailing_stats",
+    "seed": 11,
+    "span": 2100,
+    "steps": 2300,
+    "vector_bytes": 138028
+  },
+  "t2": {
+    "n_channels": 6,
+    "provenance": "scripts/make_trailing_vectors.py, reference scripts/decision_layer_arms.py:53-58 trailing_stats",
+    "seed": 12,
+    "span": 2100,
+    "steps": 2300,
+    "vector_bytes": 276040
+  },
+  "t3": {
+    "n_channels": 12,
+    "provenance": "scripts/make_trailing_vectors.py, reference scripts/decision_layer_arms.py:53-58 trailing_stats",
+    "seed": 13,
+    "span": 2100,
+    "steps": 2300,
+    "vector_bytes": 552064
+  }
+}

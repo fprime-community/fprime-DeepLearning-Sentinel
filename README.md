@@ -1,5 +1,11 @@
 # fprime-DeepLearning-Sentinel
 
+> **Paths outside this branch resolve on `dev`.** `master` carries the component and the
+> evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
+> `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
+> development branch at the commit this snapshot was taken from.
+> `scripts/check_references.py --master` is what keeps that true rather than hoped.
+
 **fprime-sentinel** is a reusable F' (F Prime) flight-software component that **warns before a
 limit trips**. A small neural forecaster, trained on a mission's own nominal telemetry, predicts
 the watched channels each cycle; sustained divergence between prediction and reality is raised as
@@ -126,22 +132,53 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
 
 ## How to review this repository
 
-Reading order: this README, then [Objective.md section 1.1](Objective.md), then
-[docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
-a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
-mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D57**: why, what else was
-considered, what settled it; superseded entries marked, never deleted).
+**Nine steps, about fifteen minutes to the point where you can decide whether to keep
+reading.** Every step answers one question, and the last two are the ones that say what this
+does not do.
+
+| | Read | Minutes | It answers |
+|---|---|---|---|
+| 1 | this README | 2 | What is it, what is measured, what is claimed |
+| 2 | [docs/STATUS.md](docs/STATUS.md) | 4 | Where it actually is, and what happens next |
+| 3 | [docs/datasets/REPRODUCING.md](docs/datasets/REPRODUCING.md) | 2 | **What you can check yourself, with no data and no account** |
+| 4 | [docs/RESULTS.md](docs/RESULTS.md) | as needed | Every number, both channel sets, `k/n` throughout, both figures wherever a correction moved one |
+| 5 | [ESA_ADB.md](docs/datasets/ESA_ADB.md) and [SMAP_MSL.md](docs/datasets/SMAP_MSL.md) | 3 | What the data is, its licences, and the caveats that would corrupt a result |
+| 6 | [docs/NARRATIVE.md](docs/NARRATIVE.md) | as needed | What happened in order, mistakes included |
+| 7 | [docs/DECISIONS.md](docs/DECISIONS.md) | as needed | **D1 to D68** (was D63): why, what else was considered, what settled it; superseded entries marked, never deleted |
+| 8 | [Objective.md section 1.1](Objective.md) | 5 | **What is claimed and what is retired** |
+| 9 | [docs/PI_ENVELOPE.md](docs/PI_ENVELOPE.md) | 1 | Whether it runs on small hardware -- **reserved and deliberately empty** |
+
+> **Steps 6 and 9 were not on the public branch, and now they are.** `docs/NARRATIVE.md`
+> and `docs/PI_ENVELOPE.md` were outside `docs/DECISIONS.md` D67's list when this order was
+> written; the gap was flagged here rather than papered over, and **D67.1 added both**. The
+> reasoning is worth keeping: a sceptical reader is better served by the account of the
+> numbers this project retracted than by any of the ones that survived, and a public branch
+> that omits the Pi question looks like one that has not been asked.
+
+### What the evidence is, claim by claim
+
+| Claim | Evidence | Caveat |
+|---|---|---|
+| It warns before a limit trips | D46: **39 of 43** contextual anomalies stay inside their channel's historical range. `docs/MODELS.md` 26.18: **10 of 38 at 0.6820%** | **26%, on one dataset, with no floor to compare against at that rate.** And D66: the in-range class is confounded with channel envelope width |
+| A better decision layer reaches more of them | D65: the residual fused with the first derivative reaches **EVAL 17 of 19** where the frozen arm reaches 4, at the same alarm rate, a strict superset, reproduced on two independent reads | **n = 19 per half. UNDERPOWERED (D3).** One arm, one dataset |
+| The shipped core runs that rule | D68: `emitted` is the fused statistic against one calibrated cut, on a `param_version` 2 PARAMS block. Held to the reference at **1e-5 with the emission flag exact**, end to end from a real `model.bin` | **Was D25's static quantile until 2026-09-11**, and a version-1 file still gets that rule. `docs/MODELS.md` 39.13 is the port's full account, N3 failed and recorded |
+| It is warn-only | `Monitor.fpp` declares **zero commands**; `cmdIn` exists only for F's autocoded `PARAM_SET`/`PARAM_SAVE`, said in situ | **None.** Warn-only by interface, not by convention |
+| It fails safe | 12 refusal codes in `Status.hpp`, each with its own case; all degrade to Level 1 and none fails the topology (D32-D37) | None |
+| It builds in F' v4.3.0 | `docs/FPRIME.md` 4: F's own `Ref` built from this toolchain in 12.4 s | `Ref` moved at v4.3.0 and it is not in the breaking-change notes |
+| It warns early | -- | **No such claim is made.** `docs/MODELS.md` 37.7a measured **0 of 10 positive leads**; every figure here is recall at a matched alarm rate, in timesteps, never in hours |
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
   newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
-  `wi1` to `wi7` are the milestone tour, one per work item, each linking into the documents at
-  that tag. Work items 9.5 to 9.14 are untagged, and are recorded in `CHANGELOG.md` 0.6.1 to
-  0.6.14 with the artifact behind every figure.
-- **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
-  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
-  Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
-  approved checkpoint. Neither branch is ever rewritten.
+  `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
+  linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
+  in `CHANGELOG.md` 0.6.1 to 0.6.29 with the artifact behind every figure.
+- **Branches.** `master` is the public branch and the repository default -- one commit per
+  approved checkpoint, the component and the evidence it works. `main` is the earlier snapshot
+  branch and is kept as it stands so that every existing link, Release and citation continues to
+  resolve. `dev` carries the complete development history, decision by decision, with tags
+  `wi1`-`wi9` and their Releases; all work lands there and it is **never rewritten**. Neither
+  snapshot branch is ever rewritten and **nothing is ever force-pushed**.
 
 No number in any document was written without an artifact under `runs/` to read it from.
 
@@ -164,38 +201,38 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 
 ## Repository map
 
+**This branch.** The full map, including everything absent here, is the same section on `dev`.
+
 | Path | What it holds |
 |---|---|
-| `src/sentinel_data/` | ingest toolkit: Zenodo download, parquet transcode, R2 client with per-attempt operation accounting, manifest |
-| `src/sentinel_eval/` | the referee: catalog, streaming reads, labels, grid, splits, metrics, harness, scorecard, tasks, ops ledger, CLI. Never imports a model |
-| `src/sentinel_models/` | the players: baselines, the LSTM/GRU/TCN trainer, the NumPy reference, telemanom's detection stack, detectors, registry |
-| `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
-| `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
-| `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 605 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
-| `docs/` | the documents - see `docs/INDEX.md` |
-| `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
-| `runs/` | weights and scorecards, gitignored outputs; never data |
+| `flight/` | **The C++ inference core.** The GRU forward pass, telemanom's dynamic threshold, the first-derivative stream, the `model.bin` reader, and the committed golden vectors. No exceptions, no RTTI, no STL containers, **no allocation after init**, C++14, `-Werror` |
+| `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp` declares **zero commands** -- warn-only by interface, not by convention -- with its SDD and unit tests |
+| `fprime/SentinelRef/` | The reference deployment that instantiates it, and the topology |
+| `docs/` | `STATUS.md`, `RESULTS.md`, `DECISIONS.md`, `NARRATIVE.md`, `MODEL_FILE.md`, `FPRIME.md`, `PI_ENVELOPE.md`, and `datasets/` |
+| `Objective.md` | The living objective, including section 1.1: **what is claimed, and what is retired** |
 
 ## How to run
 
+**Everything here builds and verifies with a C++ toolchain and nothing else.** No Python, no
+credentials, no dataset, no network.
+
 ```bash
-python3.14 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env            # R2 credentials, only for tasks that read the bucket
-
-# the verification set, zero R2 operations
-.venv/bin/python -m pytest -q
-.venv/bin/python scripts/check_no_list.py
-PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest        # oracle 1.0, silent 0
-make -C flight test                                              # the C++ core
-
-# one scoring run on the offline fixture, zero R2 operations
-PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep
+make -C flight test      # the core against its committed golden vectors
+make -C flight lint      # clang-tidy, F's own configuration, at -Werror
 ```
 
-A Mission-1 task (`run m1-g8.9.10 ...`) costs 15 Class B and 1 Class A operations on the bucket
-and scores both paired channel sets from one load. Fitting the production configuration takes
-minutes on a GPU or an hour on a laptop; scoring runs on the laptop through the NumPy reference.
+That runs 16 checks: the footprint against a pre-registered prediction, 18 load-refusal cases
+each returning its own status code, determinism twice in-process and twice across processes,
+and the golden, baseline, trailing, threshold, derivative and flight-configuration vector
+tiers -- plus a byte-identical round trip of every committed `model.bin`.
+
+**To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` on `dev`
+rebuilds it from nothing with one command.
+
+**What you cannot run here:** the Python suite, the referee, the guards, and any scoring run.
+Those live in `src/`, `scripts/` and `tests/`, which are not on this branch --
+`docs/datasets/REPRODUCING.md` lists exactly what `dev` lets you recompute with no dataset and
+no credential, which is more than most repositories offer.
 
 ## Provenance rules
 
@@ -222,4 +259,56 @@ minutes on a GPU or an hour on a laptop; scoring runs on the laptop through the 
 
 ## Licence
 
-Not yet selected. Intended for community release to the F' ecosystem.
+**Not yet selected.** Intended for community release to the F' ecosystem.
+
+**(!) One obligation binds regardless of which licence is chosen.** The reference method is
+JPL's -- Hundman et al., KDD 2018 -- and its source is BSD 3-Clause (Caltech/JPL 2018), whose
+third clause reads, verbatim:
+
+> *"Neither the name of Caltech nor its operating division, the Jet Propulsion Laboratory,
+> nor the names of its contributors may be used to endorse or promote products derived from
+> this software without specific prior written permission."*
+
+**No document in this repository presents this project as endorsed by, affiliated with, or
+produced by Caltech or the Jet Propulsion Laboratory.** Naming telemanom's authorship and
+citing the paper is description, not endorsement. ESA-ADB carries a separate attribution
+requirement -- see `docs/datasets/ESA_ADB.md`, and note that its licence string is marked
+**`verified: repository-only`** there because the Zenodo record has been unreachable from the
+authoring environment on two attempts.
+
+## (!) What is not on this branch, and why
+
+**This branch carries the flight component and the evidence that it works, and nothing else**
+(`docs/DECISIONS.md` D67, amended by D67.1). Of the repository's 227 tracked files, 96 are
+here. **Every omission is named** -- a curated branch that quietly drops things is worse than
+an uncurated one, because a reader cannot tell what they are not seeing.
+
+| Absent | What it is | Why it is not here |
+|---|---|---|
+| `src/` | The ground toolkit: the ingest, the referee, the models, the `model.bin` writer | **Unreleased.** See the warning below |
+| `scripts/` | 36 scripts: the guards, the vector generators, every study that produced a figure | Development apparatus, not product |
+| `tests/` | The 683-test suite | Runs against `src/`, which is not here |
+| `docs/MODELS.md` | Every pre-registration beside its outcome, 353 sections | The research record. Cited from here, and it resolves on `dev` |
+| `docs/HARNESS.md`, `docs/DATA.md`, `docs/RESEARCH.md`, `docs/THRESHOLD.md`, `docs/PHASE2.md`, `docs/PHASE5.md`, `docs/PHASE1_REPORT.md`, `docs/TELEMANOM_EXCERPTS.md`, `docs/REORG_PLAN.md` | The internal documents | Same |
+| `docs/INDEX.md` | One sentence per document | Indexes documents that are not here. This README carries the orientation instead |
+| `CHANGELOG.md` | Version by version, work item by work item | Development history; `dev` has it |
+| `third_party/telemanom/` | The published source, vendored byte-identical at `2e6c5b6c` | Evidence for the research record. **This branch therefore does not redistribute it**, so BSD clauses 1 and 2 do not bind here -- clause 3 does, and is above |
+
+> **(!) THE GROUND TRAINING TOOLKIT IS UNRELEASED, AND A MISSION CANNOT DEPLOY THIS WITHOUT
+> IT.** The component runs a model; it does not produce one. Turning a mission's healthy
+> telemetry into a `model.bin` is the toolkit's job, the toolkit is `src/`, and `src/` is not
+> on this branch and is not released. **What is here is the flight half of a two-half
+> product.** `docs/MODEL_FILE.md` specifies the file completely enough to write one
+> independently, which is the honest answer available today.
+
+**Citations into what is absent resolve on `dev`.** Every path in these documents pointing
+into `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` refers to the
+development branch **at commit `99348fa`**, which is what this snapshot was taken from.
+`scripts/check_references.py --master` -- on `dev` -- is what keeps that true rather than
+hoped: it resolves every citation against both branches and reports the ones that live on
+`dev` instead of breaking on them.
+
+**Author email.** Some commits on `dev` carry a personal email address in their authorship.
+**No history is rewritten to remove it**, on this branch or any other: rewriting authorship
+would invalidate every existing tag, Release and commit citation for a cosmetic gain. It is
+disclosed here instead.

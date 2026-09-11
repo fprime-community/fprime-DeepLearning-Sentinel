@@ -24,6 +24,13 @@ enum class LoadStatus : U8 {
     TOO_LARGE = 9U,
     TRUNCATED = 10U,
     BAD_NORM_POLICY = 11U,
+    //! `param_version` names a PARAMS block this reader does not know how to
+    //! read. D68 made that a real distinction rather than a formality: a
+    //! version-1 block's `threshold` cuts the EWMA statistic, a version-2
+    //! block's cuts the fused `max(z_residual, z_derivative)`, and the two
+    //! are on different scales. Refusing is what stops the same bytes from
+    //! meaning two things.
+    BAD_PARAM_VERSION = 12U,
 };
 
 //! Human-readable name, for test output and for work item 9's event text.

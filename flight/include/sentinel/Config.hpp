@@ -53,6 +53,64 @@ constexpr U32 MAX_HEAD_W = MAX_OUTPUTS * MAX_HIDDEN;
 // 16-byte NUL-padded ASCII, as `docs/MODEL_FILE.md` 4 specifies.
 constexpr U32 CHANNEL_NAME_BYTES = 16U;
 
+// -- telemanom's dynamic threshold, and the derivative stream (docs/MODELS.md 39)
+//
+// (!) THESE ARE `constexpr` AND NOT `model.bin` FIELDS, BY DECISION. 39.3:
+// `docs/MODEL_FILE.md` 11 makes any new field a `format_version` bump and refuses
+// a non-zero reserved field, and a selectable rule stays a version-2 decision
+// taken after Phase 3 (D62 consequence 2). PARAMS already carries the two the
+// format did anticipate -- `ewma_span` 105 and `warmup_steps` 2,350 -- and those
+// are read from the file, not from here.
+//
+// Every value is transcribed from `src/sentinel_models/telemanom.py` at the line
+// beside it, read at first hand and never recalled.
+
+// `telemanom.py:84-85`. batch_size 70 x window_size 30. The error window the
+// threshold is measured over, and the span the derivative is standardised on
+// (`scripts/decision_layer_arms.py:224` uses `span = error_window`).
+constexpr U32 ERROR_WINDOW_BATCH = 70U;
+constexpr U32 ERROR_WINDOW_COUNT = 30U;
+constexpr U32 ERROR_WINDOW = ERROR_WINDOW_BATCH * ERROR_WINDOW_COUNT;   // 2100
+
+// `telemanom.py:374-450`, `channel_ratios`: the threshold is re-solved every
+// `stride` steps and applied to those steps. Equal to the batch, which is what
+// makes a window 2,170 samples and 39.4's guard-cell question a real one.
+constexpr U32 STRIDE = ERROR_WINDOW_BATCH;
+
+// `telemanom.py:100-102`. The published sweep, `np.arange(2.5, 12, 0.5)`: 19
+// candidates. A default of the method rather than a constant of it -- the
+// docstring there records why -- but it is what the reference sweeps and what
+// this transcribes.
+constexpr F32 Z_FLOOR = 2.5F;
+constexpr F32 Z_CEILING = 12.0F;
+constexpr F32 Z_STEP = 0.5F;
+constexpr U32 Z_CANDIDATES = 19U;   // floor + n*step < ceiling, n = 0..18
+
+// `telemanom.py:86`. Each exceedance run is widened by ERROR_BUFFER - 1 = 99.
+// (!) FORWARD ONLY IN FLIGHT (39.5): the backward half would mark timesteps
+// already emitted, and there is no un-emit. The price is registered as N6 and is
+// NOT YET MEASURED.
+constexpr U32 ERROR_BUFFER = 100U;
+
+// `telemanom.py:87`. The pruning ladder's relative-drop floor.
+constexpr F32 PRUNING_P = 0.13F;
+
+// (!) THE WINDOW THE THRESHOLD IS SOLVED OVER IS `ERROR_WINDOW + STRIDE`, NOT
+// `ERROR_WINDOW`, AND `docs/MODELS.md` 39.6 GOT THIS WRONG.
+// `telemanom.py:397-400`: the window is `e_s[seg_lo - error_window : seg_hi]`,
+// which is 2,100 of history plus the 70 being judged. The module docstring says
+// so in as many words -- "the window is 2,170 samples and includes the 70 being
+// judged" -- and 39.4's whole guard-cell question is about those 70. 39.6's
+// footprint arithmetic nonetheless sized both rings at 2,100, so its L1 figure
+// is 8,960 bytes light. Corrected here; N3's band is missed and the miss is
+// reported rather than the band being moved.
+constexpr U32 SOLVE_WINDOW = ERROR_WINDOW + STRIDE;   // 2170
+
+// The largest number of exceedance runs a single window can hold: a run needs at
+// least one sample above and one below to be distinguishable, so the bound is
+// half the window, and CPP-34 wants every loop bounded by a compile-time value.
+constexpr U32 MAX_SEQUENCES = SOLVE_WINDOW / 2U;
+
 // The Level 1 statistical baseline's trailing window, from `RollingStd`'s only
 // ever-used value -- `src/sentinel_models/baselines.py:91`, `window = 120`, which
 // the registry never overrides (`registry.py:38`). It is also the baseline's
