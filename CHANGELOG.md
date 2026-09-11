@@ -14,6 +14,25 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.40] - 2026-09-11 - D67.1: the honesty record and the reserved envelope go on master
+
+**A rider, not an edit.** D67's two lists are unchanged; this adds to them. Zero bucket
+operations.
+
+- **`docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` go on `master`.** Tranche 4's public
+  reading order put both in its nine steps while D67's list carried neither, so the order as
+  planned cited two documents the curated branch would not have had. **That was flagged at
+  `README.md` rather than papered over**, and this is the answer.
+- **Why both, and it is the same reason:** a sceptical reader needs them first. The
+  narrative is what happened in order, mistakes included -- section 6 alone carries nine
+  sub-sections of results this project retracted, two of them its own confident hypotheses --
+  and a reader deciding whether to trust a number is better served by that than by any
+  surviving one. The Pi envelope is the first question anyone asks about a neural forecaster
+  on a spacecraft, and **its answer today is "reserved, and deliberately empty"**: a public
+  branch that omits it looks like one that has not been asked.
+- **Nothing else changes.** `src/`, `scripts/`, `tests/`, `docs/MODELS.md`, the remaining
+  `docs/` internals, `docs/INDEX.md`, `CHANGELOG.md` and `third_party/` stay off `master`.
+
 ## [0.6.39] - 2026-09-11 - Reorganisation tranche 4: the datasets, made obtainable without the bucket
 
 **`docs/REORG_PLAN.md` tranche 4, complete.** Zero bucket operations, no fit, weight store

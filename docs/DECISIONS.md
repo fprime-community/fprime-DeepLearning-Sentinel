@@ -4722,6 +4722,33 @@ close call about any individual file.
     They are a dated research snapshot and record what was proposed on 2026-09-09; the
     prose gains a rider pointing here and is not otherwise edited.
 
+### D67.1 Rider, 2026-09-11: two documents added to `master`
+
+**The lists in consequence 1 are not edited. This adds to them.**
+
+`docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` **go on `master`.** Tranche 4's public
+reading order put both in its nine steps and D67's list carried neither, so the order
+as planned cited two documents the curated branch would not have had. That was caught
+at `README.md` and flagged rather than papered over, and this is the answer.
+
+**Why they belong there, and it is the same reason for both: a sceptical reader needs
+them first.**
+
+- **`docs/NARRATIVE.md` is the honesty record** -- what happened in order, mistakes
+  included, and the measurements that changed conclusions. A reader deciding whether to
+  trust a number is better served by the account of the numbers that were wrong than by
+  any of the ones that survived. Section 6 alone carries nine sub-sections of results
+  this project retracted, including two confident hypotheses of its own.
+- **`docs/PI_ENVELOPE.md` is the first question anyone asks** about a neural forecaster
+  on a spacecraft, and its answer today is **"reserved, and deliberately empty"**. A
+  public branch that omits it looks like a branch that has not been asked; a public
+  branch that carries it empty says plainly that the measurement has not been taken.
+
+**Nothing else about D67 changes.** `src/`, `scripts/`, `tests/`, `docs/MODELS.md`, the
+remaining `docs/` internals, `docs/INDEX.md`, `CHANGELOG.md` and `third_party/` stay off
+`master`; every omission is still stated in the public `README.md`; and the
+dev-resolution convention still covers every off-branch path.
+
 ---
 
 ## D68. The flight configuration is adopted: the fused statistic emits, on a version-2 PARAMS block

@@ -148,12 +148,12 @@ does not do.
 | 8 | [Objective.md section 1.1](Objective.md) | 5 | **What is claimed and what is retired** |
 | 9 | [docs/PI_ENVELOPE.md](docs/PI_ENVELOPE.md) | 1 | Whether it runs on small hardware -- **reserved and deliberately empty** |
 
-> **(!) Steps 6 and 9 are not on the public branch.** Under `docs/DECISIONS.md` D67,
-> `master` carries the component and the evidence it works and nothing else, and
-> `docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` are not in its list. They resolve on `dev`.
-> Stated here rather than left for a reader to discover as a broken link, and **flagged as
-> something D67 may want to revisit**: step 6 is this project's honesty record and step 9 is
-> the first question anyone asks about a neural forecaster on a spacecraft.
+> **Steps 6 and 9 were not on the public branch, and now they are.** `docs/NARRATIVE.md`
+> and `docs/PI_ENVELOPE.md` were outside `docs/DECISIONS.md` D67's list when this order was
+> written; the gap was flagged here rather than papered over, and **D67.1 added both**. The
+> reasoning is worth keeping: a sceptical reader is better served by the account of the
+> numbers this project retracted than by any of the ones that survived, and a public branch
+> that omits the Pi question looks like one that has not been asked.
 
 ### What the evidence is, claim by claim
 

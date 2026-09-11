@@ -407,6 +407,8 @@ budget, not a gate.
 > nothing else -- with every omission stated and off-branch paths resolving on `dev` at
 > a named commit. What survives here is the mechanics: branch from `main`, never rewrite
 > `dev`, never force-push, leave the tags and Releases where they are.
+> **D67.1 (2026-09-11) then added `docs/NARRATIVE.md` and `docs/PI_ENVELOPE.md` to the
+> curated set**, as a rider rather than an edit to D67's lists.
 
 **Current state, verified.** `dev` has 152 commits and the full history. `main` has 7,
 one per approved checkpoint, and its tree is byte-identical to `dev` commit `9b2fb1f`.

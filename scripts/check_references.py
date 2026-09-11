@@ -50,6 +50,9 @@ MASTER_PREFIXES = (
     "README.md", "Objective.md", "docs/STATUS.md", "docs/RESULTS.md",
     "docs/DECISIONS.md", "docs/datasets/", "docs/MODEL_FILE.md",
     "docs/FPRIME.md", "LICENSE",
+    # D67.1, 2026-09-11: the honesty record and the reserved envelope. A sceptical
+    # reader needs both before any surviving number.
+    "docs/NARRATIVE.md", "docs/PI_ENVELOPE.md",
 )
 
 #: Documents whose citations are checked. Source files cite too, and are included.
