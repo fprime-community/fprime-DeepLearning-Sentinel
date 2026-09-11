@@ -5096,3 +5096,20 @@ re-derive from `dev`'s.**
     subset -- `src/`, `scripts/`, `tests/`, `docs/MODELS.md`, the remaining `docs/`
     internals, `docs/INDEX.md`, `CHANGELOG.md` and `third_party/` stay off `master`
     exactly as D67 consequence 1 and D67.1 leave them.
+
+### D69.1 Rider, 2026-09-11: the third figure went stale one commit later, which is the entry's own thesis arriving on schedule
+
+**The evidence above is not edited.** It was measured at `1f03e43` and was right there.
+
+`docs/MODELS.md` 40 -- the toolkit pre-registration, written immediately after this
+entry -- adds **16** generated index entries, taking that file from **353** to **369**.
+So `master:README.md:310`'s "353 sections", recorded above as **CURRENT**, is stale the
+moment section 40 lands, and the count of stale figures on `master` goes from two to
+**three** within the hour.
+
+**Nothing about D69 changes.** The figure is left standing with the other two, for the
+reason consequence 10 gives: the guard is proved by being run before they are corrected.
+What this rider adds is the interval. The two figures in the evidence took one day and ten
+days to drift; this one took **one commit**, and it drifted because `dev` did ordinary
+work. That is the argument for a guard rather than a sweep, stated in a number rather
+than in a worry.

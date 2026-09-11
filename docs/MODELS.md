@@ -368,6 +368,22 @@ prediction that failed and why. This document follows the same discipline.
   - [39.12 Cost, and stop and report](#3912-cost-and-stop-and-report)
   - [39.13 OBSERVED -- the port, and two departures that did not get their price](#3913-observed----the-port-and-two-departures-that-did-not-get-their-price)
   - [39.14 Deferred, with the slot registered so the gap is visible](#3914-deferred-with-the-slot-registered-so-the-gap-is-visible)
+- [40 Pre-registration: the ground toolkit, one command and a label-free calibration (work item 12)](#40-pre-registration-the-ground-toolkit-one-command-and-a-label-free-calibration-work-item-12)
+  - [40.1 What the handover brief said, and where this repository disagrees](#401-what-the-handover-brief-said-and-where-this-repository-disagrees)
+  - [40.2 What is reused, and what the reference is](#402-what-is-reused-and-what-the-reference-is)
+  - [40.3 (!) Departure 1 -- the shape the toolkit produces is not the shape the headline was measured on, and that is stated on the front page rather than here](#403-departure-1----the-shape-the-toolkit-produces-is-not-the-shape-the-headline-was-measured-on-and-that-is-stated-on-the-front-page-rather-than-here)
+  - [40.4 (!) Decision 2 -- the cut is derived and the curve is reported, and the two are not the same act](#404-decision-2----the-cut-is-derived-and-the-curve-is-reported-and-the-two-are-not-the-same-act)
+  - [40.5 (!) Decision 3 -- `q` is the one constant that has to be defended, and it is D55's fourth instance](#405-decision-3----q-is-the-one-constant-that-has-to-be-defended-and-it-is-d55s-fourth-instance)
+  - [40.6 (!) Decision 4 -- two silent defaults, each of which would produce a plausible and wrong artifact](#406-decision-4----two-silent-defaults-each-of-which-would-produce-a-plausible-and-wrong-artifact)
+  - [40.7 What moves into `src/`, and why each is a move rather than a rewrite](#407-what-moves-into-src-and-why-each-is-a-move-rather-than-a-rewrite)
+  - [40.8 The refusals, and each names the mechanism it wraps rather than inventing one](#408-the-refusals-and-each-names-the-mechanism-it-wraps-rather-than-inventing-one)
+  - [40.9 The two ladders, named apart](#409-the-two-ladders-named-apart)
+  - [40.10 Predictions](#4010-predictions)
+  - [40.11 Falsification](#4011-falsification)
+  - [40.12 Reporting](#4012-reporting)
+  - [40.13 Cost, and stop and report](#4013-cost-and-stop-and-report)
+  - [40.14 OBSERVED -- not run](#4014-observed----not-run)
+  - [40.15 Deferred, with the slot registered so the gap is visible](#4015-deferred-with-the-slot-registered-so-the-gap-is-visible)
 
 <!-- /toc -->
 
@@ -11546,3 +11562,394 @@ physics testbed is where a difference of 5e-06 in a threshold could first matter
 **Nothing about it is implemented from this description.** If it is built, the
 float64 sweep is written against `telemanom.py` read at first hand, as everything
 else here was.
+
+---
+
+## 40. Pre-registration: the ground toolkit, one command and a label-free calibration (work item 12)
+
+**Written before any toolkit code exists.** `docs/STATUS.md` 7 item F and `Objective.md`
+13 item 12 have carried this item since the roadmap was written, and nothing under `src/`
+implements it: there is no packaging, no `console_scripts`, and the only `__main__.py` in
+the repository is `sentinel_eval`'s. Training is reachable today only through
+`scripts/fit_folds.py` and the harness; a `model.bin` is written only by two vector
+generators. This section registers what will be built, what it predicts, and what would
+falsify it. **No code is written until this is reviewed**, which is the form every section
+from 19 onward uses.
+
+**Nothing here is implemented from a description.** Every mechanism below was read at first
+hand while this was written and is cited by line. Four things the brief this section was
+written from had recorded loosely were found wrong in the reading and are corrected in 40.1;
+two silent defaults that would each produce a plausible and wrong artifact were found in the
+code and are registered in 40.6.
+
+### 40.1 What the handover brief said, and where this repository disagrees
+
+The third handover brief this project has taken, and **none of the three was ever
+committed.** Recorded the same way 39.1 records the second, so a later reader can tell which
+claims came from outside the repository and which from it. **The repository wins in every
+row.** Rows bearing on `master` rather than on the toolkit are in D69 and are not repeated.
+
+| # | The brief | This repository |
+|---|---|---|
+| 1 | "WORK ITEM 1 -- the ground toolkit" | **It is work item 12.** `Objective.md` 13 item 12 and `docs/STATUS.md` 7 item F. **Roadmap item 1 is the C++ port** -- it is this document's own 39 subtitle -- and it is finished (39.13) |
+| 2 | "Three tiers per the roadmap: minimal fixture -> single channel -> full mission" | **Those are not the three tiers.** The tier ladder is `Objective.md` 14.10 and D5 -- Level 1 statistical baseline, Level 2 pretrained and fine-tuned, Level 3 full mission training -- and it is a **field in the file format**, `tier` U8 at offset 17 (`docs/MODEL_FILE.md` 6). The brief's ladder is a useful **acceptance** ladder under a name already in use. Both are registered at 40.9, named apart |
+| 3 | "state the recommended operating point and its rate" | **`docs/HARNESS.md` 1 struck that framing**: "there is no alarm budget, the threshold is a noise floor, not a dial", and a threshold is "measured from nominal residuals and never chosen from results". `scripts/oscfar_curve.py:12-19` is the standing precedent: the rate is "swept, never chosen ... no operating point is recommended from it". The cut is **derived** and the curve is **reported** (40.4) |
+| 4 | scope: CLI, validation, held-out calibration, writer, round trip, three tiers, acceptance test | **Four requirements are missing.** `docs/STATUS.md` 7 item F and `Objective.md` 13 item 12 also require **dimensionless throughout (D55)**, the **pre-launch sanity report at the end of every calibration**, "the guards that exist", and a **no-ML quickstart** -- "a newcomer with no ML background produces a `model.bin` in under an hour" |
+| 5 | flight rules "`docs/MODELS.md`:2612-2620 (CPP-1, CPP-3)" | **Wrong range.** 2612-2620 is 17.6.4's expectation table. The CPP table is **2974-2982**; CPP-1 at 2974, CPP-3 at 2976. 39.1 row 12 carries the same stale numbers and is a dated record; the brief restates them as live |
+| 6 | "Month to date at last report: 227 A / 5,321 B; read the ledger to confirm" | **The figure is right and the instruction costs an operation.** `ops.load` fetches `_manifest/ops_ledger.json` before anything else -- **1 Class B**, which is exactly what 39.13.4's first smoke caught. `docs/STATUS.md` 4 already carries 227 and 5,321, read from the artifact. **No read is taken** |
+| 7 | "verify by round-trip through `flight/`'s loader (the RoundTripDump idiom)" | **Correct, and the citation is `tests/test_flight_build.py:95-111`**, which runs `RoundTripDump`, compares bytes, and re-reads the output through `read_model`. `flight/Makefile` drives the same tool over seven committed tiers |
+| 8 | "`Monitor.fpp` declares zero commands" | **Zero commands of its own**, which is `Objective.md` 11 rule 3 in machine-checkable form. It **does** declare `command recv`, `command reg` and `command resp` ports, because F' autocodes `PARAM_SET` and `PARAM_SAVE`; the file says so itself. The distinction survives a reviewer opening the file; the flat claim does not |
+| 9 | "do not write a new trainer; reuse and cite" | **Correct**, and the trainer is `src/sentinel_models/lstm.py:548` **despite the module name** -- one class builds both cells and `Hyper.cell` selects (40.6 row 2) |
+| 10 | "Tracked size 5.82 MiB of 8 MiB cap" | **5.83** at the time of reading, 6,116,968 B. And the gate command the brief gives, `git ls-files -z \| xargs -0 wc -c \| tail -1`, reports only the **last `xargs` batch**; it is one batch at this size and the command is wrong rather than the number |
+| 11 | "`must_never_reach_public` re-run on the result" | **It is a checklist, not a test.** `docs/reorg_plan.json` `branch_proposal.must_never_reach_public`, eight categories, summarised at `docs/REORG_PLAN.md` 7 and hand-run once into `CHANGELOG.md`. Only two of the eight have automation, and both live in `tests/`, which is not on `master` |
+
+### 40.2 What is reused, and what the reference is
+
+**Nothing is reimplemented.** The toolkit is a composition root over code that exists and is
+already held to a reference by committed vectors.
+
+```
+  training                 src/sentinel_models/lstm.py:548   train(values, usable, hyper,
+                             fold=, impulses=) -> (Weights, TrainingReport). The GRU
+                             trainer too; the module name is historical
+    with the weight cache  src/sentinel_models/detectors.py:299   ForecastDetector.fit,
+                             and :886 GRUForecastDetector, name `gru-telemanom`
+    device and threads     scripts/fit_folds.py:118-119   rebind lstm.DEVICE/THREADS
+                             before the call; they are read at fit time, not import time
+    determinism            src/sentinel_models/lstm.py:541-545   configure_determinism
+
+  the file                 src/sentinel_export/writer.py:124   write_model(spec) -> bytes
+    the spec bridge        scripts/make_golden_vectors.py:288   to_spec(weights, threshold,
+                             warmup, provenance, names); `sentinel_export` imports nothing
+                             from this repository, which is why the bridge sits outside it
+    version 2              scripts/make_fused_vectors.py:114   the one existing call site
+                             that sets param_version
+    read back, Python      src/sentinel_export/reader.py:22   read_model(data, limits)
+    read back, C++         tests/test_flight_build.py:95-111   RoundTripDump, byte compare,
+                             then read_model over the re-emitted file
+
+  the statistic            scripts/decision_layer_arms.py:233-235   max(z_residual,
+                             z_derivative) -- D68's adopted rule, the ablation that won
+    the derivative         scripts/decision_layer_arms.py:224   |x[t]-x[t-1]|, x[-1]:=x[0],
+                             standardised over span = error_window = 2,100
+    the standardisation    scripts/decision_layer_arms.py:53-62   trailing_stats, zstat
+
+  the cut                  scripts/decision_layer_arms.py:116-149   solve_threshold, the
+                             (1-target) quantile of the POOLED NOMINAL scores, exact by
+                             construction rather than bisected
+    the rate               scripts/decision_layer_arms.py:111-114   pooled_rate
+    the label-free form    src/sentinel_eval/detector.py:127-132   threshold_from, and
+                             :36 DEFAULT_THRESHOLD_QUANTILE -- see 40.5
+
+  the curve                scripts/oscfar_curve.py:45   three decades, and :12-19 the
+                             policy the toolkit's report inherits verbatim in substance
+
+  the CLI                  src/sentinel_eval/cli.py:249-296   top-level flags, subparsers
+                             with dest="command" required, dict dispatch, cmd_x(args)->int
+    refusals               src/sentinel_eval/cli.py:288-292   one except around dispatch,
+                             "REFUSED: {exc}" to stderr, exit 2; the class is HarnessError
+                             in src/sentinel_eval/errors.py
+    the self-test shape    src/sentinel_eval/cli.py:189-230   tabular PASS/FAIL, k/n, zero
+                             R2 operations, exit 1 on any failure
+    the fixture            src/sentinel_eval/synthetic.py   build(seed, n) -- eight channels
+                             over three groups, one of them categorical
+```
+
+### 40.3 (!) Departure 1 -- the shape the toolkit produces is not the shape the headline was measured on, and that is stated on the front page rather than here
+
+**This was found in the reading and no document states it plainly today.** The headline
+result -- D65 and D68's **EVAL 17 of 19 at 0.6820%** -- was measured on SMAP/MSL with **one
+univariate model per channel**: `scripts/decision_layer_arms.py:219` reads `v_te[:, 0]`, and
+D62's frozen pipeline is "per channel, univariate, no commands". The **file format and the
+flight component are multivariate**: one GRU over up to `MAX_CHANNELS` = 16 channels
+(`flight/include/sentinel/Config.hpp:23`), and the committed vectors are 3, 7 and 12
+channels wide (39.6).
+
+Both shapes are legal, and the univariate case is the multivariate one at `n_channels` 1. So
+this is not a defect and nothing needs repairing. **What it forbids is a sentence.** A
+toolkit that trains one multivariate model over a mission's channels and reports the
+headline recall beside it would be attaching a number measured on a different shape. **The
+toolkit's default is one model over the mission's channels**, because that is what one
+`model.bin` expresses and what `flight/` runs; and the report says, at the point the figure
+would otherwise be quoted, that **the 17 of 19 was measured univariate on SMAP/MSL and is
+not a prediction about this mission's model**.
+
+**Registered, and measured rather than assumed:** T1 holds the toolkit's own output to the
+reference on the fixture at both shapes, and the comparison is to the reference, never to
+the headline.
+
+### 40.4 (!) Decision 2 -- the cut is derived and the curve is reported, and the two are not the same act
+
+`docs/HARNESS.md` 1 is a standing principle and it strikes the brief's wording:
+
+> **"The detector fires when the relationship breaks and is silent otherwise. Zero alarms
+> one month and five the next are both correct. The count is reality's, not ours."**
+> (`docs/HARNESS.md:119-121`)
+
+and
+
+```
+  calibration   what does this spacecraft's normal noise look like     DO THIS
+  fitting       what threshold makes my numbers look good              NEVER
+```
+
+(`docs/HARNESS.md:134-137`)
+
+**So the toolkit accepts no target rate as an input, and no operating point is selected off
+a curve.** What it does instead, and each half has a precedent:
+
+1. **The cut is the `(1 - q)` quantile of the mission's own pooled nominal fused
+   statistic**, computed by the rule at `scripts/decision_layer_arms.py:116-149` -- pooled
+   across channels, exact by construction, and **not bisected**, for the reason stated
+   there: `channel_ratios`-shaped scores are step-shaped and a bisection lands on the
+   discontinuity. This is a noise-floor determination on the mission's own data, which is
+   the only legitimate meaning `docs/HARNESS.md` 1 allows a threshold.
+2. **The pre-launch sanity report states the rate that cut produces on held-out healthy
+   data** -- `docs/HARNESS.md` 1 and 37.6: "how often the detector fired on held-out healthy
+   data, a rate, on their data, with no label anywhere in it". **Reported and never
+   targeted.** An absurd value means the calibration is broken and is investigated, not
+   turned down.
+3. **The rate-against-threshold curve is reported around the cut** as a measurement of
+   sensitivity. `docs/HARNESS.md` 1 permits exactly this -- "a swept parameter reported at
+   every value and selected at none is a measurement of sensitivity" -- and
+   `scripts/oscfar_curve.py:12-19` is the house form for saying so. The curve carries that
+   disclosure in the report itself, not only here.
+
+**What would make this dishonest, stated so it can be checked:** shipping the curve and the
+cut together invites a reader to move the cut along the curve. The report therefore states
+the cut **first**, with its provenance, and the curve **second**, labelled as sensitivity;
+and the toolkit exposes no flag that takes a rate.
+
+### 40.5 (!) Decision 3 -- `q` is the one constant that has to be defended, and it is D55's fourth instance
+
+The repository already holds a label-free operating point:
+`DEFAULT_THRESHOLD_QUANTILE = 0.999` (`src/sentinel_eval/detector.py:36`), applied at
+`:127-132`. **It does not transfer to the fused rule, and the reason is in the format's own
+normative text.** `docs/MODEL_FILE.md` 6.2: a version-1 cut "is a 99.9th percentile of a
+smoothed error in data units", a version-2 cut "is a z-score". A quantile of one
+distribution is not a quantile of the other, and reusing the number because it is to hand is
+**exactly the failure D55 names**: "a constant expressed in the units of the data or the
+loss is a property of the dataset it was fitted on".
+
+**This is registered as a D55 instance, not resolved by assertion.** D55 lists three
+measured instances and one refuted hypothesis; this is the fourth instance and the first on
+the toolkit's own surface. A quantile **is** one of the dimensionless forms D55 consequence
+1 permits -- "a fraction, a quantile, or a multiple of the series' own dispersion" -- so the
+form is right and the **value** is what is owed. T6 measures whether the value chosen on the
+fit half survives on the held-out half, which is the only evidence available without labels.
+
+**And the absolute constants inherited from telemanom are each answered rather than carried
+silently.** D55 names three: `min_delta = 0.0003`, `max(e_s) > 0.05`, and
+`e_s > 0.05 * inter_range`. `docs/MODELS.md` 30 tested one implementation of the
+dimensionless replacement and **G4 was refuted at 79/81 with its stop fired**, so the
+replacement is not adopted and the multiplier stays unswept. The toolkit therefore ships the
+published absolute forms **as per-mission overrides with their provenance attached**, which
+is D55 consequence 1's own escape clause, and says in the report which values were used and
+that they were fitted on someone else's data.
+
+### 40.6 (!) Decision 4 -- two silent defaults, each of which would produce a plausible and wrong artifact
+
+Found by reading the writer and the trainer rather than by testing them.
+
+```
+  1. param_version defaults to 1
+     src/sentinel_export/writer.py:55   int(params.get("param_version", fmt.PARAM_VERSION))
+     src/sentinel_export/format.py:23   PARAM_VERSION = 1
+     src/sentinel_export/format.py:36   PARAM_VERSION_FUSED = 2
+
+     A toolkit that writes a fused z-score cut without setting the field produces a
+     VERSION-1 FILE CARRYING A VERSION-2 STATISTIC. Both readers accept it, because 1 is
+     a known generation; `Detector::crossing` and `Detector::emitted` then apply D25's
+     rule to a z-score. This is the silent drift docs/MODEL_FILE.md 1 forbids and D68
+     measured: the same bytes with the same cut cross 339 times as version 2 and 0 times
+     as version 1, over 3,200 steps. The one existing call site that sets the field is
+     scripts/make_fused_vectors.py:114.
+
+  2. Hyper.cell defaults to "lstm"
+     src/sentinel_models/lstm.py:196   cell: str = "lstm"
+
+     The adopted forecaster is the GRU (D61 / 34.8: the published configuration with the
+     cell swapped -- gru, l_s 250, hidden 80, epochs 35). A toolkit that builds a Hyper
+     without naming the cell trains an LSTM, writes it through a writer whose only
+     accepted arch is "gru" (writer.py:131-135), and is refused -- so this one fails
+     loudly rather than silently, which is why it is a trap and not a defect. It is
+     registered because the failure would arrive after the training cost, not before it.
+```
+
+**Both are pre-registered stop conditions and both get a test that has been seen to fail**,
+in the shape `tests/test_no_list.py:18` uses for the LIST guard: a check nobody has watched
+fail is not known to work.
+
+### 40.7 What moves into `src/`, and why each is a move rather than a rewrite
+
+A shipped entry point under `src/` cannot import from `scripts/` except through
+`importlib.util.spec_from_file_location`, which is what the scripts already do to each
+other. Three things therefore move, and **each moves unchanged, with its origin cited in
+the docstring**, because a rewrite would silently re-derive a figure that committed vectors
+and artifacts already pin.
+
+```
+  to_spec                  from scripts/make_golden_vectors.py:288
+                           Weights -> the writer's dict. It hardcodes tier: 3 and
+                           baseline_only: False; the toolkit must SET both (40.9)
+  solve_threshold          from scripts/decision_layer_arms.py:116-149
+  pooled_rate              from scripts/decision_layer_arms.py:111-114
+  FLIGHT_LIMITS            from tests/test_model_file.py:20-21, which mirrors
+                           flight/include/sentinel/Config.hpp:23-43. It exists only in a
+                           test today; the toolkit must not be its third copy
+```
+
+**The scripts keep working by importing the moved definition**, so every committed artifact
+stays reproducible from the same code and no figure is recomputed by a second
+implementation. `src/sentinel_export` is untouched: it "depends on nothing else in this
+repository" by design, and that constraint is why `to_spec` lives outside it and continues
+to.
+
+### 40.8 The refusals, and each names the mechanism it wraps rather than inventing one
+
+Every refusal below already exists somewhere as an exception; the toolkit's work is to catch
+it at the boundary, name the reason, and exit non-zero, in the `REFUSED:` idiom at
+`src/sentinel_eval/cli.py:288-292`.
+
+| Refusal | The existing mechanism | Fixture case |
+|---|---|---|
+| History too short | `src/sentinel_models/lstm.py:564-568` -- "no usable run reaches `window + n_predictions` steps"; `src/sentinel_models/windows.py:170-175` for a fragmented window | fixture truncated below 260 steps |
+| Non-finite values | `src/sentinel_models/detectors.py:317` intersects the usable mask with `isfinite`; `src/sentinel_models/windows.py:210-214` raises when a sampled sequence still carries one | NaN injected into a target channel |
+| Channel count over the maximum | `src/sentinel_export/reader.py:67-71` returns `TOO_LARGE` against `MAX_CHANNELS` = 16 | 17 synthetic channels |
+| A channel arithmetic must refuse | the fixture already carries a categorical (string) channel, by design | `channel_8` passed as a target |
+| Calibration window too short for the estimator | `warmup_steps` is 2,350 = window 250 + `error_window` 2,100 (`docs/MODEL_FILE.md` 6); a trailing standardisation over 2,100 samples cannot be estimated from fewer | held-out half below 2,100 usable steps |
+
+**The fifth is the one with no precedent in the code**, and it is the one that matters most
+to the report: a sanity rate computed over a held-out window shorter than the statistic's own
+trailing window is not a measurement of anything. `docs/PHASE2.md` 5b makes the same argument
+for a recalibration -- a 0.1%-tail quantile needs about 1,000 samples to be an interior
+point, which `scripts/decision_layer_arms.py:349` cites in its own comment.
+
+### 40.9 The two ladders, named apart
+
+**The tier ladder** is `Objective.md` 14.10 and D5, and it is a byte in the file:
+
+```
+  Level 1   statistical cross-channel baseline, zero mission data
+            The toolkit writes NO FILE for it. Level 1 is the loader's safe failure
+            mode, and D34 put the baseline's constants in PrmDb-style parameters
+            precisely so they are readable when the model file is not. The toolkit's
+            job here is to SAY SO, not to emit something
+  Level 2   small pretrained model, fine-tuned on limited data
+            DOES NOT EXIST. Objective.md 14.10: it cannot be built before the Phase 1
+            architecture gate, "you cannot pretrain without knowing which architecture
+            to pretrain". The toolkit names it as unavailable rather than omitting it
+  Level 3   full mission-specific training
+            What the toolkit produces. tier = 3, baseline_only = 0, set explicitly
+            rather than inherited from to_spec's defaults
+```
+
+**The acceptance ladder** is the brief's, renamed, and it is how the toolkit is proved:
+
+```
+  minimal fixture   src/sentinel_eval/synthetic.py, nominal span only, seconds, 0 ops
+  single channel    one channel from the fixture at n_channels = 1, the univariate shape
+                    40.3 names, against cached weights
+  full mission      a real fit. ITS WALL CLOCK IS MEASURED ON ONE CHANNEL FIRST and
+                    brought to the owner before anything long runs (40.12)
+```
+
+### 40.10 Predictions
+
+Numbered, with bands, written before the code. **Reported beside their outcomes, whatever
+those are.**
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **T1** | **The toolkit's own file drives the flight component to the reference.** A `model.bin` the toolkit wrote, loaded by `flight/` and stepped over the fixture, matches the NumPy reference on the fused score and **exactly** on `emitted`, at both `n_channels` 1 and the fixture's full width | worst `<= 1e-5`, flags exact | worst in `(1e-5, 1e-4]` with flags exact | worst `> 1e-4`, **or any flag differing on any step**. The same contract 39.9 N1 held to, and a failure here is a defect in the toolkit, not in the port |
+| **T2** | **The file is version 2 and round-trips.** `read_model` returns `OK` with `param_version` 2; `RoundTripDump` re-emits it byte-identically | both | -- | either. **A stop** -- 40.6 row 1 is the failure this is written to catch |
+| **T3** | **Every refusal fires, and none fires on the valid fixture.** The five cases at 40.8, each exiting non-zero with its reason named | 5 of 5 fire, 0 false positives | one case needs a second condition to fire | any refusal that does not fire, **or any that fires on the valid fixture** -- a toolkit that refuses good data is worse than one that accepts bad |
+| **T4** | **The toolkit is reproducible.** Two runs on one input, in one process and in two, produce a **byte-identical** `model.bin` | bit-identical, both | -- | any difference at all. **A stop.** Not `Objective.md` 11 rule 5, which governs flown code -- this is the evidence chain: a calibration that cannot be repeated cannot be cited |
+| **T5** | **The calibration is label-free, and that is measured rather than asserted.** The cut computed with the fixture's label table present is **identical** to the cut computed with it withheld | identical to the last bit | -- | any difference -- a label reached the calibration, and **the report's central claim is false**. A stop |
+| **T6** | **The cut generalises on the mission's own data.** The sanity rate on the held-out half against the rate on the fit half. The band is 37.6 R2.5's, on the same reasoning | within **2x** | 2x to 5x | above 5x -- `q` chosen on the fit half does not survive one split of one mission's nominal data, and 40.5's constant is **not defensible at that value**. Reported, not tuned away |
+| **T7** | **Zero bucket operations** for the fixture and single-channel tiers | 0 Class A, 0 Class B | -- | any operation at all. **A stop** |
+| **T8** | **`provenance` is written and is not decoration.** The 64-byte field names the fitting window and the procedure, and differs between two calibrations on different windows | non-empty, and differs | -- | empty, or identical across different windows -- D29's requirement is then unmet and `docs/MODEL_FILE.md` 6's "not decoration" is false of our own writer |
+
+### 40.11 Falsification
+
+**If T5 fails, the section is a negative result and the product claim goes with it.** The
+deliverable is a report an operator with **no labelled anomalies** can read; if a label
+reaches the calibration on the one dataset where we can check, then the toolkit measures
+something a mission cannot reproduce, and the honest statement is that the label-free
+calibration has not been demonstrated. It is published as one.
+
+**If T1 fails, the ground and flight halves do not agree**, and "one command, mission
+telemetry in, `model.bin` out" is not available at any tier: the file would load and the
+component would compute something else. The port is already held to the reference at 1e-5
+(39.13 N1 held), so a failure localises to the toolkit's own path and is found before
+anything else is believed.
+
+**If T6 fails**, `q` is not defensible at the value chosen and 40.5's D55 instance is
+unresolved. The toolkit still ships -- the curve and the sanity rate are still measurements
+-- but **it ships without a recommended cut**, and that is stated on the front page rather
+than buried, because a calibration whose operating point does not survive one split is not
+one an operator should inherit.
+
+### 40.12 Reporting
+
+The sanity rate as **k/n**, never a bare rate, with the **UNDERPOWERED** stamp wherever
+`n < 20` (D3). The curve at **every** swept value, with `docs/HARNESS.md` 1's disclosure
+that it is selected at none. Lead time, if it is reported at all, **in timesteps** and never
+in hours. **No early-warning claim is made or implied** -- 37.7a measured 0 of 10 positive
+leads. **Point-adjusted F1 is never reported** (Kim et al., AAAI 2022). Range-based figures,
+if any, carry `docs/HARNESS.md` 1's gameability disclosure.
+
+**And the headline is not attached to the toolkit's output** (40.3): where a reader would
+expect the 17 of 19, the report states that the figure was measured **univariate on
+SMAP/MSL at n = 19 per half, UNDERPOWERED**, and is not a prediction about this mission's
+model. D68 consequence 5 already says the number in tier `p1` "is a test fixture and is not
+a flight constant"; this extends the same sentence to the toolkit's own calibration.
+
+### 40.13 Cost, and stop and report
+
+**The fixture and single-channel tiers cost zero bucket operations**, for 39.12's reason:
+the fixture is generated and the weights are cached. `src/sentinel_eval/synthetic.py` builds
+a fake bucket rather than a fake bundle, so the genuine code paths run without R2.
+
+**(!) The full-mission tier is a real fit and its cost is not yet known.** No wall clock for
+a from-cold GRU fit at the flown shape is measured anywhere this section could cite. So it
+is **measured on one channel first**, and the serial, parallel-local and remote options are
+put to the owner with wall clock, memory and operations before anything long is started.
+**No long local run is begun inside this work item.**
+
+Stop and report, carrying 39.12's list forward where it still applies and adding five:
+
+1. **T2 fires** -- a version-1 file carrying a version-2 statistic reaches disk.
+2. **T4 fires** -- the toolkit is not reproducible.
+3. **T5 fires** -- a label reached the calibration.
+4. **T7 fires** -- any bucket operation at all.
+5. **The toolkit would need a field the format does not have.** `docs/MODEL_FILE.md` 11's
+   trigger stays armed; 39.3 discharged the instance in hand and did not disarm it.
+6. Anything would touch `main`, `master`, the frozen decision layer, the spent held-back
+   sets, or a committed vector.
+7. The full-mission tier's measured single-channel wall clock implies a run longer than the
+   owner has approved.
+
+### 40.14 OBSERVED -- not run
+
+**Registered and not yet executed.** No code is written, no prediction is adjudicated, and
+no figure from this section exists. This heading is here so that the section's shape is the
+same before and after, and so a reader can see at a glance that the outcomes are owed.
+
+### 40.15 Deferred, with the slot registered so the gap is visible
+
+**The data-sufficiency grader.** `docs/HARNESS.md` 6b requires it in as many words -- "the
+training toolkit grades pre-launch data and disables subsystems it cannot cover" -- and
+**nothing in `src/` does it**. The refusals at 40.8 are a floor, not a grader: they answer
+"can this be trained at all", and a grader answers "which channels is the result
+trustworthy on". It is out of scope here, named rather than left implicit, and it is a
+condition on the toolkit being finished rather than on it being useful.
+
+**Level 2 of the tier ladder**, for `Objective.md` 14.10's reason, which is a gate and not a
+schedule.
+
+**The no-ML quickstart's own acceptance test.** `docs/STATUS.md` 7 item F sets "a newcomer
+with no ML background produces a `model.bin` in under an hour". That is a claim about a
+person, and this section registers no prediction it could honestly adjudicate. It is
+deferred to a walkthrough with a reader who has not seen the code, and the bar is recorded
+here so it is not quietly dropped.
