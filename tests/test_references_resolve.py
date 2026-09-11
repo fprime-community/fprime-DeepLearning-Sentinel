@@ -102,6 +102,27 @@ def test_the_three_taught_conventions_are_still_needed() -> None:
     assert "14.N" in objective, "the table-row convention no longer applies; remove it"
     assert CR.UPSTREAM_DOC_PREFIXES, "the upstream-docs convention was emptied"
     assert "detector.py" in CR.VENDORED_FILENAMES
+    # A fourth, found by the guard flagging this very test file: `docs/DECISIONS.md`
+    # has zero numbered headings -- every entry is `## D42.` -- so a bare number
+    # after its name is prose, not a citation.
+    decisions = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    numbered = [l for l in decisions.splitlines()
+                if l.startswith("## ") and l[3:4].isdigit()]
+    assert numbered == [], (
+        "docs/DECISIONS.md now has numbered sections; the exclusion in "
+        "check_references.NO_NUMBERED_SECTIONS is no longer correct")
+
+
+def test_the_guard_does_not_check_itself() -> None:
+    """It quotes citation forms to explain them, so checking them reports itself.
+
+    Found by the guard flagging its own docstring's `tests/test_x.py::test_y`
+    example, and this test's quotation of the one dangling citation it caught.
+    """
+    assert "scripts/check_references.py" in CR.SELF_REFERENTIAL
+    assert "tests/test_references_resolve.py" in CR.SELF_REFERENTIAL
+    for name in CR.SELF_REFERENTIAL:
+        assert (ROOT / name).exists(), f"{name} is exempted and does not exist"
 
 
 def test_the_checker_runs_clean_from_the_command_line() -> None:

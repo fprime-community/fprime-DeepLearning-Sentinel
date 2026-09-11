@@ -178,7 +178,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:342-343` | `CHANGELOG.md`, `docs/MODELS.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:343` | `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:347` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/errors.py:347-352` | `src/sentinel_models/telemanom.py` |
+| `telemanom/errors.py:347-352` | `CHANGELOG.md`, `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:347-353` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:355-359` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/NARRATIVE.md`, `scripts/smap_rungs.py`, `tests/test_smap_rungs_port.py` |
 | `telemanom/errors.py:359` | `scripts/smap_rungs.py` |

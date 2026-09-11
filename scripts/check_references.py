@@ -59,10 +59,21 @@ def tracked() -> list[str]:
     return out
 
 
+#: Files that quote citation forms in order to TALK about them rather than to
+#: cite: this module's own docstring shows `tests/test_x.py::test_y` and
+#: `docs/datasets/NAME.md` as examples, and its test quotes the one dangling
+#: citation it found (`docs/MODELS.md` 26.31) as the thing it found. Checking them
+#: makes the guard report itself. The same exemption, for the same reason,
+#: `scripts/telemanom_citations.py` takes and `tests/test_documents_are_current.py`
+#: takes when it skips itself for quoting every pattern it bans.
+SELF_REFERENTIAL = ("scripts/check_references.py", "tests/test_references_resolve.py")
+
+
 def prose(files: list[str]) -> list[str]:
     return [f for f in files
-            if f.endswith(".md")
-            or (f.endswith(".py") and f.startswith(("src/", "scripts/", "tests/")))]
+            if f not in SELF_REFERENTIAL
+            and (f.endswith(".md")
+                 or (f.endswith(".py") and f.startswith(("src/", "scripts/", "tests/"))))]
 
 
 # -- the three taught conventions ---------------------------------------------
@@ -99,8 +110,15 @@ PLANNED = {
 VENDORED_FILENAMES = {"detector.py", "channel.py", "errors.py", "modeling.py",
                       "helpers.py"}
 
+#: (!) `docs/DECISIONS.md` IS EXCLUDED, AND NOT AS A CONVENIENCE. It has **zero**
+#: numbered headings -- every entry is `## D42.` -- so a bare number after its name
+#: is never a section citation. Prose that says "`docs/DECISIONS.md` 68 entries"
+#: was read as a citation to a section 68 that cannot exist, which is a false
+#: break, and a guard that cries wolf is one people switch off.
+NO_NUMBERED_SECTIONS = ("docs/DECISIONS.md",)
+
 SECTION = re.compile(
-    r"`(docs/[A-Za-z_]+\.md|Objective\.md|CHANGELOG\.md|README\.md)`\s+"
+    r"`(docs/(?!DECISIONS\.md)[A-Za-z_]+\.md|Objective\.md|CHANGELOG\.md|README\.md)`\s+"
     r"(\d+(?:\.\d+)*[a-z]?)\b")
 #: A real extension, not any dotted suffix: `flight_reference.ratios` is a
 #: module attribute and was flagged as a missing file until this said so.

@@ -17,20 +17,20 @@ tracks documentation and Phase 1 research milestones rather than a released flig
 ## [0.6.38] - 2026-09-11 - Reorganisation tranche 3: the link-check guard, and one citation that never resolved
 
 **`docs/REORG_PLAN.md` tranche 3, complete.** Zero bucket operations, no fit, weight store
-**1,313 -> 1,313**. 682 tests, up from 666. Tracked content **5.78 MiB**, against N8's 6 MiB
+**1,313 -> 1,313**. 683 tests, up from 666. Tracked content **5.78 MiB**, against N8's 6 MiB
 band.
 
 ### The guard, and what it found
 - **`scripts/check_references.py`** with **`tests/test_references_resolve.py`** beside it, the
-  shape `check_no_list.py` already uses. It checks five kinds of reference -- **450 section
-  citations, 458 repository paths, 310 `file:line` ranges, 30 relative links, 4 pytest node
+  shape `check_no_list.py` already uses. It checks five kinds of reference -- **458 section
+  citations, 481 repository paths, 319 `file:line` ranges, 30 relative links, 4 pytest node
   ids** -- and it exists to **hold** the clean result `docs/REORG_PLAN.md` 3 audited by hand,
   not to discover one.
 - **It found one thing the hand audit had not.** `third_party/telemanom/PROVENANCE.md:92`
   cited `docs/MODELS.md` **26.31**, which has never existed -- the readings are 26.29.1 to
   26.29.5 and 26.30.1 to 26.30.4. Corrected in the same commit, in a file this project wrote.
 - **And D67's `--master` mode**, which the branch work needs: `master` carries the component
-  and the evidence and nothing else, so **348 citations resolve on `dev` rather than on
+  and the evidence and nothing else, so **367 citations resolve on `dev` rather than on
   `master`** -- reported as dev-resolving, and a break only if absent from **both**. The
   dev-resolution note is now at the top of all seven on-`master` documents.
 - **Three conventions it had to be taught**, each measured before it was granted: `Objective.md`
@@ -53,6 +53,19 @@ band.
   already was. It read as a top-level section in any generated index.
 - **`docs/NARRATIVE.md` section 6 gains nine sub-headings** over its 365 unbroken lines.
   **No sentence is reworded.**
+
+### Two false positives the guard found in itself, and both are recorded
+- **It read its own test's prose as a citation.** `tests/test_tocs_are_current.py` says
+  "`docs/DECISIONS.md` 68 entries", which the section pattern took as a citation to a section
+  68. `docs/DECISIONS.md` has **zero** numbered headings -- every entry is `## D42.` -- so a
+  bare number after its name can never be a section citation there, and the checker now says
+  so. **A guard that cries wolf is one people switch off.**
+- **And it checked itself.** Its own docstring shows `tests/test_x.py::test_y` and
+  `docs/datasets/NAME.md` as examples of the forms it matches, and its test quotes the one
+  dangling citation it caught. Both are now named as self-referential -- the same exemption,
+  for the same reason, that `scripts/telemanom_citations.py` takes and that
+  `tests/test_documents_are_current.py` has always taken when it skips itself for quoting
+  every pattern it bans.
 
 ### The comment sweep, largest-risk first
 - **(!) The model path computed a maximum and never an argmax**, so it named no channel --
