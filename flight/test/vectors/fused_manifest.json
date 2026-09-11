@@ -1,0 +1,16 @@
+{
+  "p1": {
+    "crossings": 339,
+    "emitted": 85,
+    "model_bytes": 1396,
+    "n_channels": 3,
+    "param_version": 2,
+    "provenance": "scripts/make_fused_vectors.py; D68's flight configuration",
+    "seed": 68,
+    "span": 2100,
+    "steps": 3200,
+    "threshold": 1.9245322067878337,
+    "vector_bytes": 70420,
+    "warmup_steps": 2350
+  }
+}

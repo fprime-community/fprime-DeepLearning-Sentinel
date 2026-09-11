@@ -129,7 +129,7 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
 Reading order: this README, then [Objective.md section 1.1](Objective.md), then
 [docs/RESULTS.md](docs/RESULTS.md) (every number, both channel sets, `k/n`, both figures wherever
 a correction moved one), then [docs/NARRATIVE.md](docs/NARRATIVE.md) (what happened in order,
-mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D67** (was D63): why, what else was
+mistakes included), then [docs/DECISIONS.md](docs/DECISIONS.md) (**D1 to D68** (was D63): why, what else was
 considered, what settled it; superseded entries marked, never deleted).
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
@@ -172,7 +172,7 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 655 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 666 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |

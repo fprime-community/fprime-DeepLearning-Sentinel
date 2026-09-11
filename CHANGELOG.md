@@ -14,6 +14,66 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.37] - 2026-09-11 - D68: the flight configuration is adopted, on a version-2 PARAMS block
+
+**The first entry since D62 to name a flight configuration.** Zero bucket operations -- it
+rests on D65's two reads and the port's own vectors, and spends nothing new. 666 tests, up
+from 655.
+
+### Adopted
+- **`emitted` is `max(z_residual, z_derivative) >= threshold`** -- exactly what D65 measured
+  twice at **EVAL 17 of 19 against the frozen arm's 4**, a strict superset, with the
+  horizon-disagreement stream dropped because P2.4 was refuted in the informative direction.
+- **Forward-only dilation**, on 39.5's reason -- backward dilation marks timesteps already
+  emitted and there is no un-emit -- and **not** on N6's number, which 39.13 records as
+  confounded with the dial.
+- **The dynamic threshold is carried and reported and drives nothing**, which meets D62's
+  requirement: `flight/` no longer transcribes D25's static quantile alone.
+- **The static quantile still drives `baseline_only`**, D5's Level 1 path, unchanged.
+
+### (!) The format question, answered without touching D30's freeze
+The fused threshold is a **different statistic on a different scale**: a version-1 cut is a
+99.9th percentile of a smoothed error in data units, a version-2 cut is a z-score. **The byte
+layout does not change** -- no field added, moved or resized -- so `format_version` stays
+**1** and `docs/MODEL_FILE.md` 11's "adding a field is a `format_version` bump" is not
+engaged. What moves is **`param_version`, 1 -> 2**, which is exactly the independence 11
+already defines. **D68 is the first use of it and is the reason it exists.**
+
+**And the field is now checked, which it was not.** It was read and never validated on either
+side, so a reader would have applied one generation's cut to the other's statistic in
+silence. Both readers now refuse an unknown generation with **`BAD_PARAM_VERSION`**, a new
+status mirrored by value in C++ and Python, covered by `RefusalTests` on both the refusal and
+the acceptance and by `tests/test_param_version.py` on both implementations.
+
+### Measured
+- Tier **`p1`**, the end-to-end evidence: a real `model.bin` at `param_version` 2 loaded into
+  a `Detector` and stepped 3,200 times. **85 emissions matched exactly**, fused score within
+  **3.098e-06**.
+- **The version is load-bearing, not decoration**: the same bytes with the same cut value
+  **cross 339 times as version 2 and 0 times as version 1**.
+- **Every committed `.vec` vector still passes** and all seven models round-trip
+  byte-identically, because a version-1 file still gets D25's rule.
+
+### A defect the end-to-end tier caught, which nothing watching flags could
+`Detector`'s fused-maximum scan started at **0.0**, so a statistic that is a **z-score** --
+negative whenever a channel is quieter than its own trailing window, which is most of the
+time -- was clamped to zero over every quiet stretch, and channel 0 was named as the peak
+when nothing was peaking. **It never moved a flag**, because the cut sits far above zero, so
+no test that only compared flags could see it. The scan now seeds from channel 0 as
+`Detector::step`'s own `largest = m_smoothed[0]` always has. `DynamicThreshold` got the same
+treatment pre-emptively.
+
+### Registered as owed, not taken
+- **D68.1, the third read**: both dilations at **one fixed cut**, so the lever moves and the
+  dial does not. It refines N6 and **blocks nothing** -- D68 does not rest on N6's number.
+  165 Class B and 1 Class A, after a smoke.
+
+### What this does not establish
+One arm, **one dataset**, **n = 19 per half, UNDERPOWERED (D3)**, no floor to compare against
+at that alarm rate, and **no early-warning claim**: 37.7a measured 0 of 10 positive leads.
+The cut in tier `p1` is a **test fixture and not a flight constant**; a mission calibrates its
+own on its own nominal data.
+
 ## [0.6.36] - 2026-09-11 - The second read: neither departure costs recall, and N6's band was mis-specified
 
 **`docs/MODELS.md` 39.13 second read.** **One further 165 Class B and 1 Class A**, cached

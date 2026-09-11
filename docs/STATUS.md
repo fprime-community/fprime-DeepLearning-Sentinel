@@ -9,7 +9,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D67 (was D63) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D68 (was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -155,7 +155,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D67 (was D63),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D68 (was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -322,8 +322,17 @@ band 38.15 says re-admits pruned steps -- so it is not a clean measurement of th
 **N5** -- guard cells -- **remains NOT ADJUDICATED**: its cut pins at 1.0 and the rate lands
 14% below target, so no matched-rate number of it is reported; at that quieter rate it
 catches 16 of 38 against 10, which is dominance rather than a matched comparison.
-**Nothing is adopted**: the port emits on D25's static quantile and D65 names no flight
-configuration.
+**(!) THE FLIGHT CONFIGURATION IS ADOPTED, 2026-09-11 (D68), and the sentence above is
+kept.** `emitted` now follows **`max(z_residual, z_derivative)` against one calibrated cut**
+-- exactly what D65 measured twice -- on a **`param_version` 2** PARAMS block. The byte
+layout does not change, so **`format_version` stays 1 and D30's freeze is untouched**; what
+changes is which statistic the threshold cuts, and **both readers now refuse a
+`param_version` they do not know** with `BAD_PARAM_VERSION`. Measured on tier `p1`: the same
+bytes with the same cut cross **339 times as version 2 and 0 as version 1**. A version-1 file
+still gets D25's rule, so every committed `.vec` vector still passes. The dynamic threshold
+is carried and reported and drives nothing. **One arm, one dataset, n = 19 per half,
+UNDERPOWERED, and no early-warning claim.** A third read -- both dilations at one fixed cut
+-- is **owed and not taken**; it refines N6 and blocks nothing.
 
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
@@ -370,7 +379,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**655 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**666 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -386,8 +395,8 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 655 tests
-.venv/bin/python scripts/check_no_list.py                        # 84 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 666 tests
+.venv/bin/python scripts/check_no_list.py                        # 85 files, no LIST, no glob
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
 make -C flight test                                              # the C++ core and Level 1
 make -C flight lint                                              # clang-tidy, three configs

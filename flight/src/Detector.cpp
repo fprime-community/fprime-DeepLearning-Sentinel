@@ -134,24 +134,27 @@ void Detector::step(const F32* values, bool valid) {
         m_score = largest;
     }
 
-    // `harness.py:169-172` compares in float64, and with `>=` rather than `>`.
-    m_crossing = (static_cast<F64>(m_score) >= m_model.threshold);
-
-    // Silent until validated (Objective.md 11 rule 2). A reset restarts this.
-    const bool warmed = (m_steps >= static_cast<U64>(m_model.warmupSteps));
-    m_emitted = m_crossing && warmed && (m_model.baselineOnly == 0U);
-
-    // -- the new streams, computed and reported (39.8) ----------------------
+    // -- the streams -------------------------------------------------------
     //
-    // Ordered after the static comparison on purpose: nothing above depends on
-    // anything below, so the existing path's arithmetic is bit-for-bit what it
-    // was and every committed `.vec` vector still pins it.
+    // Advanced before the comparison because D68's rule needs them, and nothing
+    // above depends on anything here: `m_score` and `m_smoothed` are already
+    // final, so the version-1 path's arithmetic is bit-for-bit what it was and
+    // every committed `.vec` vector still pins it.
     m_threshold.step(m_smoothed);
     m_derivative.step(m_input);
 
-    F64 fusedBest = 0.0;
+    // (!) SEEDED FROM CHANNEL 0, NOT FROM ZERO, AND THAT IS NOT A STYLE CHOICE.
+    // The fused statistic is a **z-score**: it is negative whenever a channel is
+    // quieter than its own trailing window, which is most of the time on most
+    // channels. Starting the scan at 0.0 clamps the reported score to zero over
+    // every quiet stretch and names channel 0 as the peak when nothing is
+    // peaking. It never moved a flag -- the cut sits far above zero -- so no
+    // test that only watched flags could see it, and the end-to-end tier that
+    // compares the score itself is what caught it. `Detector::step`'s own
+    // `largest = m_smoothed[0]` scan has always done it this way.
+    F64 fusedBest = fused(0U);
     U32 fusedPeak = 0U;
-    for (U32 c = 0U; c < channels; ++c) {
+    for (U32 c = 1U; c < channels; ++c) {
         const F64 value = fused(c);
         if (value > fusedBest) {
             fusedBest = value;
@@ -160,6 +163,29 @@ void Detector::step(const F32* values, bool valid) {
     }
     m_fusedScore = valid ? fusedBest : -std::numeric_limits<F64>::infinity();
     m_fusedChannel = fusedPeak;
+
+    // -- the comparison, and WHICH statistic it cuts comes from the file -----
+    //
+    // D68 adopted the flight configuration: the fused `max(z_residual,
+    // z_derivative)` against one calibrated cut -- D65's arm 2, the one that
+    // reached EVAL 17 of 19 where the frozen arm reached 4, reproduced on two
+    // independent reads. `param_version` says which statistic `threshold`
+    // belongs to, and the loader has already refused any value but these two,
+    // so a cut fitted for one scale can never be applied to the other.
+    //
+    // `>=` and F64 on both paths, `harness.py:169-172`.
+    if (m_model.paramVersion == Format::PARAM_VERSION_FUSED) {
+        m_crossing = (m_fusedScore >= m_model.threshold);
+    } else {
+        m_crossing = (static_cast<F64>(m_score) >= m_model.threshold);
+    }
+
+    // Silent until validated (Objective.md 11 rule 2). A reset restarts this.
+    // `warmup_steps` is 2,350 = window 250 + error_window 2,100, so it already
+    // outlasts the 2,100 the fused statistic's own windows need. The format
+    // anticipated this before there was anything to anticipate it for.
+    const bool warmed = (m_steps >= static_cast<U64>(m_model.warmupSteps));
+    m_emitted = m_crossing && warmed && (m_model.baselineOnly == 0U);
 
     // The head output made at t covers t+1 .. t+l_p, so it is written after the
     // forecast is read -- its slot is the one holding t-l_p, which has just been

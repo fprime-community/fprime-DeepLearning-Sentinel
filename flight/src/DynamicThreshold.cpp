@@ -266,9 +266,13 @@ void DynamicThreshold::step(const F32* smoothed) {
     m_window.push(smoothed);
 
     // The reported score uses the eps held from the last solve; see the header.
-    F64 best = 0.0;
+    // Seeded from channel 0 for the same reason `Detector` does: a scan that
+    // starts at zero cannot report a maximum below zero. `ratio` is
+    // non-negative today, so this changes nothing now -- it stops the next
+    // statistic that can go negative from inheriting the defect.
+    F64 best = ratio(0U);
     U32 peak = 0U;
-    for (U32 c = 0U; c < m_channels; ++c) {
+    for (U32 c = 1U; c < m_channels; ++c) {
         const F64 r = ratio(c);
         if (r > best) {
             best = r;

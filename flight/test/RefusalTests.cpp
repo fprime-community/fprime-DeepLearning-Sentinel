@@ -158,6 +158,36 @@ int main() {
         expect(LoadStatus::BAD_NORM_POLICY, "a non-identity normalisation policy");
     }
 
+    restore();
+    {
+        // (!) D68 made `param_version` load-bearing, and until then it was read
+        // and never checked. A version-1 block's `threshold` cuts the EWMA of
+        // the absolute residual; a version-2 block's cuts the fused
+        // `max(z_residual, z_derivative)`. The layout is identical and the
+        // scales are not, so a reader that took any value would apply one cut to
+        // the other statistic in silence. Measured on the committed tier: the
+        // same bytes with the same cut cross 339 times as version 2 and 0 times
+        // as version 1.
+        const U32 paramLo = g_length - (Format::PARAM_FIXED_BYTES + (8U * 3U));
+        writeU16(g_working + paramLo, 3U);           // a generation no reader knows
+        writeU32(g_working + 48,
+                 crc32(g_working + paramLo, g_length - paramLo));
+        resign();
+        expect(LoadStatus::BAD_PARAM_VERSION, "a param_version this reader does not know");
+    }
+
+    restore();
+    {
+        // And the one that is known is accepted, so the refusal is a check and
+        // not a blanket.
+        const U32 paramLo = g_length - (Format::PARAM_FIXED_BYTES + (8U * 3U));
+        writeU16(g_working + paramLo, Format::PARAM_VERSION_FUSED);
+        writeU32(g_working + 48,
+                 crc32(g_working + paramLo, g_length - paramLo));
+        resign();
+        expect(LoadStatus::OK, "param_version 2 is accepted");
+    }
+
     {
         const U32 trueLength = g_length;
         restore();

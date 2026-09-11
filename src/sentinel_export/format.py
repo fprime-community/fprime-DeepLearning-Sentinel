@@ -22,6 +22,22 @@ FORMAT_VERSION = 1
 #: from the model it belongs to (D29).
 PARAM_VERSION = 1
 
+#: D68's flight configuration. A version-2 PARAMS block is byte-identical in
+#: LAYOUT to a version-1 one -- no field is added, moved or resized, so
+#: `FORMAT_VERSION` stays 1 and D30's freeze is untouched -- but its `threshold`
+#: cuts a different statistic: the fused `max(z_residual, z_derivative)` of
+#: `docs/DECISIONS.md` D65, not the EWMA of the absolute residual.
+#:
+#: (!) THIS IS WHY THE FIELD IS VALIDATED RATHER THAN READ. The two thresholds
+#: are on different scales, and a reader that accepted either would apply a
+#: 99.9th-percentile EWMA cut to a z-score stream and never say a word. That is
+#: the silent drift `docs/MODEL_FILE.md` 1 exists to forbid, so a reader refuses
+#: a `param_version` it does not know with `Status.BAD_PARAM_VERSION`.
+PARAM_VERSION_FUSED = 2
+
+#: What a reader of this generation accepts.
+SUPPORTED_PARAM_VERSIONS = (PARAM_VERSION, PARAM_VERSION_FUSED)
+
 MAGIC = b"SNTL"
 
 #: Architectures. Only the GRU flies (D28); the other two are reserved so that a
@@ -83,6 +99,11 @@ class Status(IntEnum):
     TOO_LARGE = 9
     TRUNCATED = 10
     BAD_NORM_POLICY = 11
+    #: `param_version` names a PARAMS block this reader cannot read. D68: a
+    #: version-1 threshold cuts the EWMA statistic, a version-2 one cuts the
+    #: fused `max(z_residual, z_derivative)`, and they are different scales.
+    BAD_PARAM_VERSION = 12
+
 
 
 def array_names(n_layers: int) -> list[str]:

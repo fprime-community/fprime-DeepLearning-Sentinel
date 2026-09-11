@@ -4640,3 +4640,124 @@ close call about any individual file.
 10. **`docs/REORG_PLAN.md` 7 and the JSON's `branch_proposal` are superseded and kept.**
     They are a dated research snapshot and record what was proposed on 2026-09-09; the
     prose gains a rider pointing here and is not otherwise edited.
+
+---
+
+## D68. The flight configuration is adopted: the fused statistic emits, on a version-2 PARAMS block
+
+**DATE** 2026-09-11 | **STATUS** resolved as an adoption. **It is the first entry
+since D62 to name a flight configuration, and it names one because the evidence
+now exists rather than because the port needed a default.**
+
+**CONTEXT.** D62 froze the pipeline on stage 4 and required the C++ port to carry
+telemanom's dynamic threshold. D65 superseded that freeze -- the smoothed residual
+fused with the first derivative of the raw value reaches **EVAL 17 of 19 where the
+frozen arm reaches 4**, at the frozen arm's own 0.6820%, a strict superset,
+reproduced identically on two independent reads -- and **adopted nothing**, because
+one arm on one dataset with n = 19 per half is not a flight decision. `docs/MODELS.md`
+39 then built the port and deliberately left `emitted` on D25's static quantile,
+saying in as many words that promoting a rule would make the port the adoption
+decision. This entry takes that decision, separately and on the record.
+
+**THE CONFIGURATION.**
+
+```
+  emitted    max(z_residual, z_derivative) >= threshold
+             z_residual   the EWMA'd absolute residual, standardised against its
+                          own trailing 2,100 window
+             z_derivative |x[t] - x[t-1]| with x[-1] := x[0], standardised the same
+             threshold    one calibrated cut, from the PARAMS block
+
+  carried and reported, driving nothing
+             telemanom's dynamic threshold, solved once per 70-tick segment over
+             the trailing 2,170 window, with FORWARD-ONLY dilation
+
+  unchanged
+             the static quantile, which still drives `baseline_only` (D5's Level 1)
+```
+
+**ALTERNATIVES, and the one adopted is the one that was measured.**
+
+1. **The dynamic threshold run on the fused stream.** The literal composition of
+   the three ingredients: telemanom's machinery -- adaptive `eps`, sequences,
+   pruning, forward dilation, segment-end emission -- over the fused statistic.
+   Refused: it needs a third 2,170-sample ring per channel, taking
+   `sizeof(Detector)` from 603,024 to **742,320 B**, and **no read has ever scored
+   that composition**. Adopting an unmeasured rule for flight is the thing this
+   register exists to prevent.
+2. **The forward-only dynamic threshold emits, the derivative only reports.**
+   Refused as the least of what the evidence supports: N6 scored it at 23/38, but
+   `docs/MODELS.md` 39.13's second read shows that number is **confounded with the
+   dial** and is not a clean measurement of its own lever.
+3. **The fused statistic emits; the dynamic threshold is carried and reported.**
+   Adopted. It is **exactly what D65 measured**, twice, with the horizon-
+   disagreement stream dropped because P2.4 was refuted in the informative
+   direction -- 30/38 against 25/38 -- and it costs no memory the port does not
+   already carry.
+
+**EVIDENCE.** D65's two reads, and nothing new: **no bucket operation was spent on
+this entry.** The port's own vectors are what show the transcription is faithful --
+`docs/MODELS.md` 39.13's N1 held at 1e-5 across every stream with the emission
+flag exact -- and tier `p1` is the end-to-end evidence, a real `model.bin` at
+`param_version` 2 loaded into a `Detector` and stepped 3,200 times, **85 emissions
+matched exactly** and the fused score within **3.098e-06**.
+
+**(!) THE FORMAT QUESTION, AND IT IS ANSWERED WITHOUT TOUCHING D30's FREEZE.** The
+fused threshold is a **different statistic on a different scale** from D25's: a
+version-1 cut is a 99.9th percentile of a smoothed error in data units, a version-2
+cut is a z-score. The byte layout does not change -- no field is added, moved or
+resized -- so `format_version` stays **1** and `docs/MODEL_FILE.md` 11's "adding a
+field is a `format_version` bump" is not engaged. What changes is
+**`param_version`, from 1 to 2**, which is precisely the independence 11 already
+defines: *"a recalibration that changes only the PARAMS block bumps it and leaves
+`format_version` alone"*. **D68 is the first use of that independence and is the
+reason it exists.**
+
+**And the field is now checked, which it was not.** `param_version` was read and
+never validated on either side, so a reader would have applied one generation's cut
+to the other's statistic in silence -- the drift `docs/MODEL_FILE.md` 1 forbids.
+Both readers now refuse an unknown generation with **`BAD_PARAM_VERSION`**, a new
+status mirrored by value in C++ and Python. Measured on tier `p1`: **the same bytes
+with the same cut value cross 339 times as version 2 and 0 times as version 1**,
+over 3,200 steps. The version is load-bearing, not decoration.
+
+**CONSEQUENCE.**
+
+1. **`Detector::crossing` and `Detector::emitted` follow `param_version`.** A
+   version-1 file gets D25's rule unchanged, so **every committed `.vec` vector
+   still passes and the forward path is bit-for-bit what it was**. A version-2 file
+   gets the fused rule. Nothing else in the core changed.
+2. **`warmup_steps` already covers it.** 2,350 = window 250 + `error_window` 2,100,
+   so the format's warm-up outlasts the 2,100 the fused statistic's own windows
+   need. It was written before there was anything to anticipate.
+3. **Forward-only dilation is adopted with the configuration**, on the reason 39.5
+   gives -- backward dilation marks timesteps already emitted and there is no
+   un-emit -- and **not** on N6's number, which 39.13 records as confounded.
+4. **The dynamic threshold is carried and reported and drives nothing.** D62's
+   requirement is met: `flight/` no longer transcribes D25's static quantile alone.
+5. **(!) What this does NOT establish.** The fused rule is one arm, on **one
+   dataset**, at **n = 19 per half, UNDERPOWERED (D3)**, with **no floor to compare
+   against at that alarm rate** and **no early-warning claim** -- 37.7a measured 0
+   of 10 positive leads and this entry measures recall at a matched rate, not lead
+   time. A mission calibrates the cut on its own nominal data; **the number in tier
+   `p1` is a test fixture and is not a flight constant.**
+6. **What is owed, and named rather than left implicit.** The third read below;
+   arms 4a, 6 and 7; prediction P2.3; the affiliation metric, which is authorised
+   and **not yet built**; and the F' component wiring, which raises the event this
+   core now decides.
+
+### D68.1 The third read, registered as owed and not taken
+
+**Both dilations at one fixed cut**, so the lever moves and the dial does not.
+`docs/MODELS.md` 39.13's second read measured forward-only at **23 of 38, matched**
+-- but the cut moved from the frozen arm's **0.5506** to **0.5009**, and 38.15
+established that for `channel_ratios`-shaped scores a sub-1.0 dial re-admits pruned
+steps and **changes the character of the decision** rather than matching a rate. So
+part of that +13 is the lever and part is the dial, and no read so far can divide
+them.
+
+**It refines N6; it blocks nothing.** D68 does not rest on N6's number -- forward
+dilation is adopted on the un-emittable-retroactively argument, which no
+measurement can overturn -- so the third read is owed as an accounting of what the
+departure costs, not as a condition on the configuration. **165 Class B and 1 Class
+A, after a smoke. Not taken.**

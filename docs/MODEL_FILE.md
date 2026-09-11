@@ -175,7 +175,7 @@ no state shape.**
 ```
   off  size  field           type       value / meaning
   ---  ----  --------------  ---------  ------------------------------------
-    0     2  param_version   U16        1
+    0     2  param_version   U16        1 or 2. See 6.2
     2     2  norm_policy     U16        0 = identity (D2). No other value is
                                         accepted by a version-1 reader
     4     2  ewma_span       U16        105
@@ -232,6 +232,37 @@ WI10 owns the uplink path and the human approval around it (Objective.md 4.3 ste
 This section owns only the guarantee that the format permits it.
 
 ---
+
+### 6.2 `param_version`, and why it is checked rather than read
+
+**Two generations of PARAMS exist and their LAYOUT is identical.** No field is
+added, moved or resized between them, so `format_version` stays **1** and D30's
+freeze is untouched -- 11's "adding a field is a `format_version` bump" is not
+engaged, because nothing is added.
+
+```
+  param_version   what `threshold` cuts
+  1               the EWMA of the absolute residual, max across channels (D25)
+  2               the fused max(z_residual, z_derivative), max across channels
+                  (D65's arm 2, adopted for flight by D68)
+```
+
+**(!) The two thresholds are on different scales, and a reader that accepted any
+value would apply one to the other and never say a word.** A version-1 cut is a
+99.9th percentile of a smoothed error in data units; a version-2 cut is a
+z-score. Measured on the committed tier `p1`: **the same bytes with the same cut
+value cross 339 times as version 2 and 0 times as version 1**, on 3,200 steps.
+That is the silent drift section 1 forbids, so:
+
+**A reader refuses a `param_version` it does not know, with `BAD_PARAM_VERSION`.**
+This is normative. It was not enforced before 2026-09-11 -- the field was read and
+never checked -- and `flight/test/RefusalTests.cpp` now covers both the refusal
+and the acceptance, so the check cannot quietly become a blanket.
+
+**`provenance` still records how the number was fitted** and is not a substitute
+for this: it is 64 bytes of NUL-padded ASCII that no loader parses, so it tells a
+human what happened and tells the reader nothing.
+
 
 ## 7. CRC
 
@@ -412,6 +443,12 @@ the layer the array belongs to; the head uses `H_last`.
 refuses anything else. `param_version` is independent: a recalibration that changes
 only the PARAMS block bumps it and leaves `format_version` alone, which is what lets a
 threshold have a provenance separate from the model it belongs to (D29).
+
+**(!) D68 used that independence for the first time, and it is the reason it exists.**
+The flight configuration's threshold cuts a different statistic from D25's, with no
+change to the byte layout at all -- so `param_version` goes to **2**, `format_version`
+stays **1**, and a reader refuses any generation it does not know rather than applying
+one scale's cut to another's statistic. 6.2 is normative on it.
 
 Adding a field is a `format_version` bump. Reserved fields are not a growth mechanism
 - a version-1 reader refuses a non-zero reserved field - they are alignment padding

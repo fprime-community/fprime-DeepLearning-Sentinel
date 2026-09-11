@@ -118,6 +118,13 @@ def read_model(data: bytes, limits: dict | None = None) -> tuple[Status, dict | 
 
     if p_res0 != 0 or p_res1 != 0 or p_res2 != 0:
         return Status.BAD_SHAPE, None
+
+    # (!) VALIDATED, NOT MERELY READ. A version-1 block's `threshold` cuts the
+    # EWMA of the absolute residual; a version-2 block's cuts D65's fused
+    # `max(z_residual, z_derivative)`. Different scales, identical bytes. A
+    # reader that accepted any value would apply one to the other in silence.
+    if int(param_version) not in fmt.SUPPORTED_PARAM_VERSIONS:
+        return Status.BAD_PARAM_VERSION, None
     if norm_policy != fmt.NORM_IDENTITY:
         return Status.BAD_NORM_POLICY, None
     if baseline_only > 1 or not 1 <= tier <= 3:

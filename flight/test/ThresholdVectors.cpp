@@ -16,6 +16,7 @@
 #include "sentinel/Config.hpp"
 #include "sentinel/DerivativeStream.hpp"
 #include "sentinel/Detector.hpp"
+#include "sentinel/Crc32.hpp"
 #include "sentinel/DynamicThreshold.hpp"
 #include "TestSupport.hpp"
 
@@ -28,6 +29,8 @@ using namespace Sentinel;
 namespace {
 
 constexpr F64 TOLERANCE = 1e-5;
+
+void writeU32(U8* p, U32 v) { std::memcpy(p, &v, sizeof(v)); }
 
 F32 readF32(const U8* p) { F32 v = 0.0F; std::memcpy(&v, p, sizeof(v)); return v; }
 F64 readF64(const U8* p) { F64 v = 0.0; std::memcpy(&v, p, sizeof(v)); return v; }
@@ -220,6 +223,170 @@ void checkFusionAndThatItDoesNotEmit() {
                         "the fused score starts at zero");
 }
 
+//! D68's flight configuration, end to end: bytes on disk -> a flag.
+//!
+//! Not the streams in isolation -- `t*.tvec`, `d*.dvec` and `f*.fvec` already
+//! cover those -- but a real `model.bin` at `param_version` 2 loaded into a
+//! `Detector`, stepped, and checked step by step.
+F64 runFusedTier(const char* path, const char* modelPath, U32& tiersRun) {
+    std::FILE* handle = std::fopen(path, "rb");
+    if (handle == nullptr) {
+        std::printf("    p1   SKIPPED -- %s absent\n", path);
+        return 0.0;
+    }
+    U8 head[20];
+    if (std::fread(head, 1U, sizeof(head), handle) != sizeof(head)
+        || (std::memcmp(head, "SNTP", 4U) != 0)) {
+        (void)std::fclose(handle);
+        SentinelTest::check(false, "vector is not a SNTP v1 header");
+        return 0.0;
+    }
+    U16 channels = 0U;
+    U32 steps = 0U;
+    F64 threshold = 0.0;
+    std::memcpy(&channels, head + 6, sizeof(channels));
+    std::memcpy(&steps, head + 8, sizeof(steps));
+    std::memcpy(&threshold, head + 12, sizeof(threshold));
+
+    static U8 model[SentinelTest::MAX_FILE_BYTES];
+    const U32 modelBytes = SentinelTest::readFile(modelPath, model, sizeof(model));
+    SentinelTest::check(modelBytes > 0U, "the paired model.bin was read");
+
+    Detector detector;
+    const LoadStatus status = detector.load(model, modelBytes);
+    SentinelTest::check(status == LoadStatus::OK, "a param_version 2 file loads");
+    SentinelTest::checkEqualU32(detector.model().paramVersion,
+                                Format::PARAM_VERSION_FUSED,
+                                "and it reports the version it carries");
+    SentinelTest::check(detector.model().threshold == threshold,
+                        "the cut in the file is the cut the vector expects");
+
+    const U32 record = (static_cast<U32>(channels) * 4U) + 10U;
+    U8 row[(Config::MAX_CHANNELS * 4U) + 10U];
+    F32 values[Config::MAX_CHANNELS];
+    F64 worst = 0.0;
+    U32 worstStep = 0U;
+    U32 flagDiffs = 0U;
+    U32 emitted = 0U;
+    U32 expectedEmitted = 0U;
+    U32 read = 0U;
+
+    for (U32 t = 0U; t < steps; ++t) {
+        if (std::fread(row, 1U, static_cast<size_t>(record), handle)
+                != static_cast<size_t>(record)) {
+            break;
+        }
+        ++read;
+        for (U32 c = 0U; c < channels; ++c) {
+            values[c] = readF32(row + (c * 4U));
+        }
+        detector.step(values, true);
+
+        const F64 expectedScore = readF64(row + (static_cast<U32>(channels) * 4U));
+        const bool expectedCrossing = (row[record - 2U] != 0U);
+        const bool expectedEmit = (row[record - 1U] != 0U);
+
+        const F64 diff = std::fabs(detector.fusedScore() - expectedScore);
+        if (diff > worst) { worst = diff; worstStep = t; }
+        if (detector.crossing() != expectedCrossing) { ++flagDiffs; }
+        if (detector.emitted() != expectedEmit) { ++flagDiffs; }
+        if (detector.emitted()) { ++emitted; }
+        if (expectedEmit) { ++expectedEmitted; }
+    }
+    (void)std::fclose(handle);
+
+    SentinelTest::checkEqualU32(read, steps, "every step in the file was read");
+    std::printf("    p1   %2u ch x %4u steps   fused max |diff| %.3e (step %u)   "
+                "emitted %u of %u\n",
+                static_cast<unsigned>(channels), static_cast<unsigned>(read),
+                worst, static_cast<unsigned>(worstStep),
+                static_cast<unsigned>(emitted),
+                static_cast<unsigned>(expectedEmitted));
+    SentinelTest::check(worst <= TOLERANCE, "the fused score is within 1e-5");
+    SentinelTest::checkEqualU32(flagDiffs, 0U, "crossing and emitted are exact");
+    SentinelTest::check(expectedEmitted > 20U,
+                        "the tier emits often enough for the flag to mean something");
+    ++tiersRun;
+    return worst;
+}
+
+//! (!) The version is not decoration: the same threshold cuts a different
+//! statistic, so the two PARAMS generations must disagree on the flags.
+//!
+//! Patched in place rather than generated as a second file, so the ONLY
+//! difference between the two runs is the two bytes naming the version.
+void checkTheVersionChangesTheDecision() {
+    static U8 model[SentinelTest::MAX_FILE_BYTES];
+    const U32 bytes = SentinelTest::readFile("test/vectors/p1.bin", model, sizeof(model));
+    if (bytes == 0U) {
+        return;
+    }
+    Detector fusedDetector;
+    SentinelTest::check(fusedDetector.load(model, bytes) == LoadStatus::OK,
+                        "the version-2 file loads");
+    const U32 channels = fusedDetector.model().nChannels;
+    const U32 paramLo = bytes - (Format::PARAM_FIXED_BYTES + (8U * channels));
+
+    static U8 patched[SentinelTest::MAX_FILE_BYTES];
+    for (U32 i = 0U; i < bytes; ++i) { patched[i] = model[i]; }
+    patched[paramLo] = 1U;                      // param_version 2 -> 1
+    patched[paramLo + 1U] = 0U;
+    writeU32(patched + 48, crc32(patched + paramLo, bytes - paramLo));
+    writeU32(patched + Format::HEADER_CRC_OFFSET,
+             crc32(patched, Format::HEADER_CRC_OFFSET));
+
+    Detector staticDetector;
+    SentinelTest::check(staticDetector.load(patched, bytes) == LoadStatus::OK,
+                        "the patched version-1 file loads too");
+
+    // Driven over the tier's own inputs, not a short synthetic run: 600 steps of
+    // a sine cross neither rule, so a comparison there would have proved only
+    // that both stayed silent.
+    std::FILE* vec = std::fopen("test/vectors/p1.pvec", "rb");
+    if (vec == nullptr) {
+        return;
+    }
+    U8 vhead[20];
+    if (std::fread(vhead, 1U, sizeof(vhead), vec) != sizeof(vhead)) {
+        (void)std::fclose(vec);
+        return;
+    }
+    U32 steps = 0U;
+    std::memcpy(&steps, vhead + 8, sizeof(steps));
+    const U32 record = (static_cast<U32>(channels) * 4U) + 10U;
+
+    U32 disagreements = 0U;
+    U32 fusedCrossings = 0U;
+    U32 staticCrossings = 0U;
+    U8 row[(Config::MAX_CHANNELS * 4U) + 10U];
+    F32 values[Config::MAX_CHANNELS];
+    for (U32 t = 0U; t < steps; ++t) {
+        if (std::fread(row, 1U, static_cast<size_t>(record), vec)
+                != static_cast<size_t>(record)) {
+            break;
+        }
+        for (U32 c = 0U; c < channels; ++c) {
+            values[c] = readF32(row + (c * 4U));
+        }
+        fusedDetector.step(values, true);
+        staticDetector.step(values, true);
+        if (fusedDetector.crossing()) { ++fusedCrossings; }
+        if (staticDetector.crossing()) { ++staticCrossings; }
+        if (fusedDetector.crossing() != staticDetector.crossing()) {
+            ++disagreements;
+        }
+    }
+    (void)std::fclose(vec);
+
+    std::printf("    same bytes, same cut: version 2 crosses %u, version 1 crosses %u, "
+                "they differ on %u of %u steps\n",
+                static_cast<unsigned>(fusedCrossings),
+                static_cast<unsigned>(staticCrossings),
+                static_cast<unsigned>(disagreements), static_cast<unsigned>(steps));
+    SentinelTest::check(disagreements > 0U,
+                        "the two PARAMS versions decide differently on the same bytes");
+}
+
 //! The rule stays silent when it cannot choose, rather than guessing.
 void checkSilence() {
     DynamicThreshold detector;
@@ -296,6 +463,12 @@ int main() {
     SentinelTest::check(fTiers == 2U, "every committed derivative tier ran");
     checkTheFirstDifferenceIsZero();
     checkFusionAndThatItDoesNotEmit();
+
+    std::printf("== D68 flight configuration ==\n");
+    U32 pTiers = 0U;
+    (void)runFusedTier("test/vectors/p1.pvec", "test/vectors/p1.bin", pTiers);
+    SentinelTest::check(pTiers == 1U, "the D68 tier ran; it was not skipped");
+    checkTheVersionChangesTheDecision();
 
     checkSilence();
     checkEmissionIsAnInstant();

@@ -16,6 +16,7 @@ const char* statusName(LoadStatus status) {
         case LoadStatus::TOO_LARGE:       return "TOO_LARGE";
         case LoadStatus::TRUNCATED:       return "TRUNCATED";
         case LoadStatus::BAD_NORM_POLICY: return "BAD_NORM_POLICY";
+        case LoadStatus::BAD_PARAM_VERSION: return "BAD_PARAM_VERSION";
         default:                          return "UNKNOWN";
     }
 }
