@@ -290,9 +290,10 @@ third clause reads, verbatim:
 **No document in this repository presents this project as endorsed by, affiliated with, or
 produced by Caltech or the Jet Propulsion Laboratory.** Naming telemanom's authorship and
 citing the paper is description, not endorsement. ESA-ADB carries a separate attribution
-requirement -- see `docs/datasets/ESA_ADB.md`, and note that its licence string is marked
-**`verified: repository-only`** there because the Zenodo record has been unreachable from the
-authoring environment on two attempts.
+requirement -- **CC BY 3.0 IGO, verified at the Zenodo record on 2026-09-11** (record
+`15237121`, version v2, published 2025-04-17). `docs/datasets/ESA_ADB.md` carries it, and
+records that it was marked unverified for two days first, because three attempts to reach the
+record failed and five internal copies agreeing with each other is not verification.
 
 ## (!) What is not on this branch, and why
 

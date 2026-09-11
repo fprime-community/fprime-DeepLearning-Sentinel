@@ -69,10 +69,11 @@ What stands in its place:
 ## Getting the data yourself
 
 `ESA_ADB.md` and `SMAP_MSL.md` carry the DOIs, the record identifiers, the licences and
-the caveats. **Read the licences at their sources** -- ESA-ADB's is recorded here as
-`CC BY 3.0 IGO` but is marked `verified: repository-only` because Zenodo has been
-unreachable from this environment on two separate attempts, and SMAP/MSL's BSD 3-Clause
-carries a **clause 3 obligation** that binds anything published from it.
+the caveats. **Both licences are now verified at their sources**: ESA-ADB's **CC BY 3.0
+IGO** was read at the Zenodo record on 2026-09-11 (record `15237121`, version v2, published
+2025-04-17), and SMAP/MSL's **BSD 3-Clause** by reading `third_party/telemanom/LICENSE.txt`
+directly. SMAP/MSL's **clause 3 obligation** binds anything published from it and is quoted
+verbatim in `SMAP_MSL.md`.
 
 `scripts/ingest_smap_msl.py` is the ingest that produced this project's copy, and it
 verifies every array against the canonical labels before uploading a byte -- **82 of 82 rows
