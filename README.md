@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`9e066de`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`c410a91`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -28,8 +28,8 @@ caveats.
 - **The ground training toolkit is not released, and a mission cannot deploy this without
   it.** The component *runs* a model; it does not *produce* one. Turning healthy telemetry
   into a `model.bin` is the toolkit's job, the toolkit is `src/`, and `src/` is not on this
-  branch. **Tiers 1 and 2 of its acceptance ladder are built on `dev` and tier 3 is gated**
-  (`docs/STATUS.md`), so it exists and is not yours yet. **What is here is the flight half
+  branch. **3 of its 3 acceptance-ladder rungs have run on `dev`**, the last of them on a real
+  mission (`docs/STATUS.md`), so it exists and is not yours yet. **What is here is the flight half
   of a two-half product.** `docs/MODEL_FILE.md` specifies the file completely enough to
   write one independently, which is the honest answer available today.
 - **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any

@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`9e066de`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`c410a91`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -25,13 +25,23 @@ it no mission can use this.**
 ## 3. (!) What is not done, and it is the blocking one
 
 **The ground training toolkit is not released, and this branch does not carry it.**
-**Tiers 1 and 2 of its acceptance ladder are built on `dev`; tier 3 is gated**
-(`docs/MODELS.md` 40.14, on `dev`, 2026-09-11). It trains, calibrates label-free, writes a
-`param_version` 2 `model.bin` and reads it back, on a generated fixture and on a single
-channel. **Tier 3 is a real mission-scale fit and has not been run**: starting one is
-conditional on a measured wall clock and a costed decision, which is a gate rather than a
-task. Seven of its eight pre-registered predictions held; the accuracy prediction is
-**NOT ADJUDICATED** and is reported as unrun rather than as the half that passed.
+**3 of its 3 acceptance-ladder rungs have run on `dev`** (`docs/MODELS.md` 40.14, on `dev`,
+2026-09-11): a generated fixture, a single channel, and **a real twelve-channel mission**.
+It trains, calibrates label-free, writes a `param_version` 2 `model.bin` and reads it back
+through the same loader this branch ships.
+
+On the real mission it took **73.5 s and 2.97 GiB** -- so the compute gate it was held
+behind is discharged on measurement rather than waived -- and its held-out alarm rate came
+out at **0.0811% against a calibration half of 0.1002%, a ratio of 0.81x**, which is the
+first evidence outside a fixture that its operating point survives a split of a mission's
+own healthy data. **One mission and one split.** Seven of its eight pre-registered
+predictions held; the accuracy prediction is **NOT ADJUDICATED** and is reported as unrun
+rather than as the half that passed.
+
+**(!) One number from that run is worth carrying off this page.** The mission archive is
+14,728,316 timesteps and the longest contiguous healthy run in it is **1,138,952 -- 7.7%**.
+An archive is not a training set, and a mission planning to use this should size its
+expectations against the healthy fraction rather than the total.
 
 **None of that changes what you can do with this branch.** A mission holding it has a
 component that can run a `model.bin` and no way to produce one, except by implementing
