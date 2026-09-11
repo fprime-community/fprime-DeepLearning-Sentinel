@@ -140,7 +140,7 @@ that one. Cite the vendored file as `telemanom/detector.py:NNN` if you mean it.
 | `telemanom/errors.py:58` | `src/sentinel_models/telemanom.py` |
 | `telemanom/errors.py:62` | `CHANGELOG.md`, `docs/MODELS.md`, `docs/REORG_PLAN.md` |
 | `telemanom/errors.py:62-64` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
-| `telemanom/errors.py:70` | `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/datasets/SMAP_MSL.md` |
+| `telemanom/errors.py:70` | `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/MODELS.md`, `docs/datasets/SMAP_MSL.md` |
 | `telemanom/errors.py:84-93` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
 | `telemanom/errors.py:111-168` | `scripts/smap_rungs.py` |
 | `telemanom/errors.py:123-130` | `docs/MODELS.md`, `scripts/smap_rungs.py` |
