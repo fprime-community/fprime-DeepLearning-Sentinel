@@ -94,6 +94,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D66 The in-range contextual class is confounded with channel envelope width, and the scaling is not the cause](#d66-the-in-range-contextual-class-is-confounded-with-channel-envelope-width-and-the-scaling-is-not-the-cause)
 - [D67 `master` is curated: it carries the component and the evidence it works, and nothing else. Supersedes the branch proposal in `docs/REORG_PLAN.md` 7](#d67-master-is-curated-it-carries-the-component-and-the-evidence-it-works-and-nothing-else-supersedes-the-branch-proposal-in-docsreorg-planmd-7)
 - [D68 The flight configuration is adopted: the fused statistic emits, on a version-2 PARAMS block](#d68-the-flight-configuration-is-adopted-the-fused-statistic-emits-on-a-version-2-params-block)
+- [D69 The public branch carries customer documents; the laboratory record stays on `dev`. Supersedes D67 consequences 1 and 9](#d69-the-public-branch-carries-customer-documents-the-laboratory-record-stays-on-dev-supersedes-d67-consequences-1-and-9)
 
 <!-- /toc -->
 
@@ -4869,3 +4870,229 @@ dilation is adopted on the un-emittable-retroactively argument, which no
 measurement can overturn -- so the third read is owed as an accounting of what the
 departure costs, not as a condition on the configuration. **165 Class B and 1 Class
 A, after a smoke. Not taken.**
+
+---
+
+## D69. The public branch carries customer documents; the laboratory record stays on `dev`. Supersedes D67 consequences 1 and 9
+
+**DATE** 2026-09-11 | **STATUS** resolved as a release-policy decision, recorded **before
+any file on `master` is touched**. **No file is removed here, no customer document is
+written here, and nothing is pushed.**
+
+**CONTEXT.** D67 answered *which files a customer may see*, and answered it by subsetting:
+`master` carries **96 of `dev`'s 270** tracked files, and the prose that crossed over was
+the development branch's own, unedited. D67 said so in as many words and gave its reason:
+
+> **"`docs/STATUS.md`, `docs/RESULTS.md` and `docs/DECISIONS.md` become public material.
+> They are not rewritten for it -- house form forbids it and the reasoning is the point of
+> keeping them. The pre-publication sweep over them is a read for disclosure, not for
+> editing."** (`docs/DECISIONS.md:4715-4720`)
+
+**That text is kept and it is superseded here.** The question has moved again -- from *what
+may a customer see* to *what does a customer read* -- and those are not the same question.
+A branch whose front matter is a laboratory notebook asks a customer to reconstruct the
+current state of a component from 4,871 lines of decision reasoning, 1,826 lines of every
+figure this project ever measured including the withdrawn ones, and a status document
+whose section 7 is a chronology. **House form is right about `dev` and is the wrong
+instrument for a delivery.** Nothing is deleted from `dev`; `dev` remains the complete
+record and the source of truth, and every customer figure resolves back into it.
+
+**ALTERNATIVES.**
+
+1. **Leave D67 as it stands.** Refused, and not on taste: the drift is already measured
+   below. A copied figure that nothing re-derives goes stale silently, and two of the
+   four figures `master` states about `dev` are stale today.
+2. **Rewrite `dev`'s documents in place on `master`.** Refused as the trap this entry
+   exists to avoid. Two copies of one document, edited on two branches, diverge -- and the
+   divergence is invisible because no guard reads across branches.
+3. **Generate the customer documents from `dev` mechanically.** Refused: drift becomes
+   impossible, but the customer documents stop being prose anyone reviewed and the
+   generator becomes the thing a reader has to trust. A delivery document is written, not
+   rendered.
+4. **A small, separate set of customer documents, each figure citing `dev` by commit and
+   path, with a guard on `dev` that re-derives every figure `master` states.** Adopted.
+
+**EVIDENCE, and the first part is arithmetic rather than judgement.** Of `master`'s
+**3,102,091 bytes**, **2,147,744** -- **69.2%** -- is `flight/test/vectors/`, and a further
+**278,077** is the `flight/` and `fprime/` source. **674,961 bytes are prose**, and
+**611,869 of those -- 90.7% -- are the laboratory record.** Byte figures from
+`git ls-tree -r -l master` at `a3c2a4a`:
+
+```
+  removed          DECISIONS.md      295,638      NARRATIVE.md       72,532
+  replaced         RESULTS.md        109,154      Objective.md       79,106
+                   STATUS.md          29,508      README.md          25,931
+                                                             subtotal  611,869
+
+  untouched        MODEL_FILE.md      23,023      datasets/          30,873
+                   FPRIME.md           5,540      PI_ENVELOPE.md      3,656
+                                                             subtotal   63,092
+```
+
+The split does not require a close call about any individual file.
+
+**And the second part is measured drift, which is what removes alternative 1 from the
+table.** `master`'s own `README.md` states four figures about `dev`. **Two of them were
+true when they were written and are false now**, and the interval is one day and ten days
+respectively:
+
+```
+  master:README.md:301   "Of the repository's 227 tracked files, 96 are here"
+                         227 was dev's tracked count at a65f9db, 2026-09-10 -- D67's
+                         own commit, and D67's EVIDENCE paragraph uses the same
+                         figure. dev tracks 270 today. Drift: 43 files in one day
+  master:README.md:308   "36 scripts"
+                         36 was the file count under scripts/ at a0dfafb, 2026-09-11,
+                         the D68 commit. It is 39 today -- 35 .py, 3 .sh and a
+                         README. Drift: 3 files
+  master:README.md:309   "The 683-test suite"        CURRENT
+  master:README.md:310   docs/MODELS.md, "353 sections"
+                         CURRENT -- 353 is the generated index entry count that
+                         `scripts/make_tocs.py` reports for that file
+```
+
+**Neither stale figure was ever wrong.** Each was measured, correct at its date, and
+copied onto a branch that nothing re-derives it on -- which is the whole mechanism, and
+why the remedy is a guard rather than a correction. And **dev already disagrees with
+master about dev**: `docs/STATUS.md:401` says "96 of 270 tracked files" and is right. The
+two figures that are still current are current by luck, because **nothing checks any of
+the four**.
+
+**And the third part is structural, and it decides the guard's shape.** `dev` and `master`
+**share no commit at all**. Their root commits differ -- `dev` at `bf88f3c`,
+`master` and `main` at `acd0864` -- `git merge-base dev master` prints nothing and exits 1,
+and `git rev-list --count master..dev` is **184**, which is the whole of `dev`. The public
+lineage is `origin/main` (5 commits) inside `main` (7) inside `master` (11), disjoint from
+`dev`'s 184. D67 consequence 7's `git branch master main` is why. **So a guard cannot ask
+whether a figure is current by walking ancestry; it must read `master`'s trees and
+re-derive from `dev`'s.**
+
+**CONSEQUENCE.**
+
+1. **`master` carries a customer set, and the disposition is stated file by file.** Counts
+   and byte figures are from `git ls-tree -r -l master` at `a3c2a4a`.
+
+```
+  KEEP, unchanged
+    flight/            35 files      187,616 B   code and tests; tree identical to dev
+    flight/test/vectors/  24 files  2,147,744 B   the golden vectors
+    fprime/            23 files       90,461 B   Monitor, SentinelRef, 3 build files;
+                                                 tree identical to dev
+    .gitignore
+    docs/MODEL_FILE.md                23,023 B   normative for the loader
+    docs/FPRIME.md                     5,540 B   pins the v4.3.0 toolchain
+    docs/PI_ENVELOPE.md                3,656 B   reserved, and deliberately empty
+
+  KEEP, riders stripped to current state
+    docs/datasets/      4 files       30,873 B
+
+  REPLACE with a customer document
+    README.md                         25,931 B   the front page: what it is, what it
+                                                 catches, how to build, how to run the
+                                                 vectors, what is not yet available
+    Objective.md                      79,106 B   -> a new `DESIGN.md`: what the component
+                                                 does and the five safety rules, current
+                                                 state only
+    docs/STATUS.md                    29,508 B   current state and roadmap, no chronology
+    docs/RESULTS.md                  109,154 B   -> a new `EVIDENCE.md`: the headline
+                                                 result, the split, the alarm rate, the
+                                                 reproduction, the caveats
+
+  REMOVE from master, kept in full on dev
+    docs/DECISIONS.md                295,638 B   EVIDENCE cites the active entries by
+                                                 number and by dev commit
+    docs/NARRATIVE.md                 72,532 B
+```
+
+2. **(!) D67.1 is answered rather than halved.** D67.1 put `docs/NARRATIVE.md` and
+   `docs/PI_ENVELOPE.md` on `master` together, on one argument -- *"a sceptical reader
+   needs them first"* (`docs/DECISIONS.md:4735-4745`). This entry keeps `PI_ENVELOPE.md`
+   and removes `NARRATIVE.md`, and owes the distinction: **`PI_ENVELOPE.md` is a statement
+   about the product** -- the radiation-envelope measurement has not been taken, and a
+   customer must be told that before deciding anything. **`NARRATIVE.md` is a statement
+   about the project.** Its value to a sceptical reader is real and is not withdrawn; it is
+   relocated. The replacement `EVIDENCE.md` carries the retractions that bear on the
+   headline result, named and dated, and points at `docs/NARRATIVE.md` on `dev` for the
+   rest. **A reader who wants the account of the numbers that were wrong is still given
+   one; they are not given nine sub-sections of it on the front page of a delivery.**
+
+3. **Every figure on `master` cites `dev` by commit and by path, and a guard on `dev`
+   re-derives it.** A new test under `tests/`, `test_master_documents_are_current`, reads
+   each customer document with `git show master:<path>` and re-derives every figure it
+   states from `dev`'s current tree: tracked-file counts, branch byte totals, the collected
+   test count, section counts, and the headline result and its alarm rate. It compares
+   trees, not ancestry, which is what the disjoint histories require. **Its first duty is
+   to fail against the two stale figures in the evidence above**, and it is proved by being run
+   before they are corrected, in the shape `tests/test_no_list.py:18` uses -- a check that
+   has never been seen to fail is not known to work. It skips cleanly when the `master` ref
+   is absent, the way `tests/test_flight_build.py:24-26` skips without the C++ toolchain.
+
+4. **And `--master` mode's blind spot is closed in the same commit.**
+   `scripts/check_references.py:240-241` gives the reference guard a `master` mode, but
+   `scripts/check_references.py:172-177` resolves against the **`dev` working tree** and
+   classifies by a hand-kept prefix list at `scripts/check_references.py:47-56`. **It never
+   reads the `master` ref**, so a disposition change silently desynchronises it. The new
+   guard asserts `MASTER_PREFIXES` against `git ls-tree master`. This is the same defect
+   class as the figures: a list that describes a branch nothing compares it to.
+
+5. **The rules the customer documents are held to.** Current figures only, and a superseded
+   figure is absent rather than quoted. Every number cites `dev` by commit and path. The
+   **UNDERPOWERED** stamp travels with every figure D3 requires it on -- one arm, one
+   dataset, n = 19 per half. The statement that **the ground toolkit is unreleased, so a
+   mission cannot deploy this without it**, stays. BSD clause 3's non-endorsement text
+   stays (D67 consequence 6). The author-email disclosure stays. **No early-warning claim,
+   and never a point-adjusted figure.** The `must_never_reach_public` checklist
+   (`docs/reorg_plan.json:5068`) is re-run by hand over the result and its outcome recorded
+   in `CHANGELOG.md`, as `CHANGELOG.md:85-96` records the first pass -- **it is a
+   checklist, not a test**, and its own item 3 still says the tracked-content cap is 4 MiB
+   where D64 set 8; that line is a record of its date and is not edited.
+
+6. **(!) The banner every `master` document carries names a guard that is not on `master`.**
+   Each one tells the reader that `scripts/check_references.py --master` *"is what keeps
+   that true rather than hoped"*, and `scripts/` is off the branch by D67 consequence 1.
+   The customer documents get a banner a reader on `master` can act on: it states the
+   dev-resolution convention, names the `dev` commit, and says where the guard runs rather
+   than implying the reader can run it.
+
+7. **(!) The rider D67 consequence 8 is owed, recorded here rather than left implicit.**
+   D67 said: **"Nothing is pushed until the licence is selected and the owner says so, so
+   tranche 5 ends at a local branch"** (`docs/DECISIONS.md:4712-4714`). The licence is
+   still not selected (`docs/STATUS.md` 7 item H), and **`master` and `dev` are both on
+   `origin`** -- `git ls-remote origin` returns `refs/heads/master` at `a3c2a4a` and
+   `refs/heads/dev` at `46165a1`. The reason is sound and is recorded at
+   `docs/STATUS.md:400-404`: **the repository is private, so a push is not a publication**.
+   The departure from c.8's wording is recorded here because a precondition that is met by
+   a different argument than the one written is exactly what house form asks to be kept in
+   quotation rather than quietly satisfied. **The GitHub default is still `main`, and
+   licence selection is still the one item before it moves.**
+
+8. **`main` is costed here and deleted nowhere.** Measured across both trees:
+   **zero** URL-shaped references -- no `/blob/main/`, `/tree/main/`, `/raw/main/`, and no
+   `github.com` link naming it. Every hit is prose asserting that the branch exists:
+   `master:README.md:179`, `master:docs/STATUS.md:398`, `dev:README.md:176-178`,
+   `docs/INDEX.md:34`, `docs/STATUS.md:398-404`, `CHANGELOG.md:43`, `:49`, `:53`, and
+   `docs/reorg_plan.json:5010`. D67's own `docs/DECISIONS.md:4625` and
+   `docs/DECISIONS.md:4707` are decision records and are never edited. **All nine tags
+   `wi1`-`wi9` are on `dev` alone**, so no Release can be orphaned, and every commit
+   reachable from `main` is reachable from `master` -- `git rev-list --count master..main`
+   is 0 -- so deleting the branch loses no object. **The order, when it is taken:** move
+   the GitHub default to `master` (GitHub refuses to delete a default branch), rewrite the
+   nine prose sites, delete `origin/main`, delete local `main`. **Local `main` is two
+   commits ahead of `origin/main`** -- `439f400` and `f33e1b4`, both already in `master`'s
+   ancestry -- so the two deletions are separate acts and neither is safe to infer from the
+   other. **Links outside this repository cannot be grepped**, so the residual risk is
+   stated and not dismissed. **Nothing is deleted by this entry.**
+
+9. **Removing files from `master` is an ordinary commit.** No orphan branch, no rebase, no
+   force-push, ever. `dev` is untouched, keeps every document in full, and remains the
+   source of truth for every figure the customer set states.
+
+10. **(!) What this entry does NOT do.** It writes no customer document -- the disposition
+    table is brought to the owner before any file is touched. It does not change what
+    `dev` says about anything, and **it corrects no stale figure on `master`**: the two
+    in the evidence above are left standing until the guard exists to catch them, because
+    a guard proved against a defect that has already been repaired is a guard proved
+    against nothing. It settles no licence question. And it does not reopen D67's file
+    subset -- `src/`, `scripts/`, `tests/`, `docs/MODELS.md`, the remaining `docs/`
+    internals, `docs/INDEX.md`, `CHANGELOG.md` and `third_party/` stay off `master`
+    exactly as D67 consequence 1 and D67.1 leave them.
