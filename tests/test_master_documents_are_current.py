@@ -129,6 +129,20 @@ def _warmup_steps() -> int:
     return int(re.search(r"warmup_steps\s+U32\s+(\d+)", text).group(1))
 
 
+def _toolkit_rungs_built() -> int:
+    """How many rungs of the acceptance ladder actually run.
+
+    Declared once in `src/sentinel_toolkit/selftest.py` rather than asserted in
+    prose on two branches. The third rung is a **compute gate** -- a real
+    mission-scale fit, conditional on a measured wall clock -- so it is `False`
+    there until one is run, and the public branch's claim follows this number
+    rather than somebody's memory of it.
+    """
+    text = _dev("src/sentinel_toolkit/selftest.py")
+    tuple_body = text[text.index("LADDER = ("):text.index("RUNGS_BUILT")]
+    return tuple_body.count("True")
+
+
 def _d65_row(label: str) -> tuple[str, int, int, int, int, int, int]:
     """One row of D65's arms table: rate, TUNE k/n, EVAL k/n, all k/n."""
     text = _dev("docs/DECISIONS.md")
@@ -223,6 +237,12 @@ FIGURES = (
     Figure("population/EVIDENCE", "docs/EVIDENCE.md",
            r"(\d+) labelled contextual anomalies across",
            _population, "the scored population"),
+    Figure("toolkit_rungs/README", "README.md",
+           r"[Tt]iers 1 and (\d+) of its acceptance ladder are built",
+           _toolkit_rungs_built, "acceptance-ladder rungs that run"),
+    Figure("toolkit_rungs/STATUS", "docs/STATUS.md",
+           r"[Tt]iers 1 and (\d+) of its acceptance ladder are built",
+           _toolkit_rungs_built, "acceptance-ladder rungs that run"),
 )
 
 #: (!) The debt register, and it is EMPTY, which it has not been before.

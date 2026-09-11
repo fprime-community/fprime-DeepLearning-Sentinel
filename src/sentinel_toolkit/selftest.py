@@ -13,6 +13,21 @@ from .errors import ToolkitError
 from .fit import fit_model
 from .limits import FLIGHT_LIMITS
 
+#: The acceptance ladder, declared here so it has one source rather than a
+#: sentence in four documents. `docs/MODELS.md` 40.9 registers the three rungs;
+#: the third is a real fit and is a **compute gate**, not a test -- 40.13 makes
+#: starting one conditional on a measured wall clock and a costed decision.
+#: `tests/test_master_documents_are_current.py` derives the public branch's claim
+#: about the toolkit from this tuple.
+LADDER = (
+    ("minimal fixture", True),
+    ("single channel", True),
+    ("full mission", False),
+)
+
+#: How many rungs actually run today.
+RUNGS_BUILT = sum(1 for _name, built in LADDER if built)
+
 #: Small deliberately. The window, hidden width and horizon are model-file
 #: fields, so the flight component honours whatever is written; only the
 #: trailing span is fixed in the component, and that is not negotiable here.
