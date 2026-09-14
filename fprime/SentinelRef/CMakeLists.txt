@@ -13,8 +13,12 @@
 
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Top/")
 
-# Add custom components to this specific deployment here
-# add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MyComponent/")
+# Add custom components to this specific deployment here.
+#
+# The physics testbed (docs/MODELS.md 42). It is registered HERE and not in
+# fprime/library.cmake: that file exports what a mission adopting Sentinel
+# consumes, and a simulated battery is not that.
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PowerSim/")
 
 register_fprime_deployment(
     SOURCES

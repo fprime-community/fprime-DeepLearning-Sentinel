@@ -33,6 +33,7 @@ module SentinelRef {
     instance comDriver
     instance cmdSeq
     instance sentinelMonitor
+    instance powerSim
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -110,13 +111,23 @@ module SentinelRef {
       rateGroup_1Hz.RateGroupMemberOut[4] -> ComCcsds.aggregator.timeout
       rateGroup_1Hz.RateGroupMemberOut[5] -> CdhCore.cmdDisp.run
 
-      # Sentinel steps once per tick. Its channelsIn port is deliberately
-      # unconnected here: this deployment proves the component builds and runs
-      # in a topology, and the mission-side adapter that supplies the channel
-      # vector (D33) is Phase 3's integration work. Unconnected, every tick
-      # runs with valid = false, which scores negative infinity and cannot
-      # alarm -- so an unwired Sentinel is silent rather than wrong.
-      rateGroup_1Hz.RateGroupMemberOut[6] -> sentinelMonitor.schedIn
+      # (!) CONNECTED 2026-09-14, AND THIS IS WHAT WORK ITEM 11 IS.
+      # `channelsIn` was deliberately unconnected until now: the deployment
+      # proved the component builds and runs in a topology, and every tick ran
+      # with valid = false, which scores negative infinity and cannot alarm --
+      # so an unwired Sentinel was silent rather than wrong. `docs/MODELS.md`
+      # 42.2 named this port as the whole gap.
+      #
+      # ORDER MATTERS AND IS NOT INCIDENTAL. The plant steps at member 6 and the
+      # detector at member 7, so within one tick the detector sees the value the
+      # plant produced on THAT tick and not the previous one. Both are passive,
+      # so both run in the rate group's thread in this order, deterministically.
+      rateGroup_1Hz.RateGroupMemberOut[6] -> powerSim.schedIn
+      rateGroup_1Hz.RateGroupMemberOut[7] -> sentinelMonitor.schedIn
+
+      # The watched vector, plant to detector. D33's direct port wiring, which
+      # is the mission-side adapter pattern a real deployment would supply.
+      powerSim.channelOut -> sentinelMonitor.channelsIn
 
       # 0.5Hz rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup_0_5Hz] -> rateGroup_0_5Hz.CycleIn

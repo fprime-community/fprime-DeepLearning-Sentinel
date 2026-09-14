@@ -75,4 +75,10 @@ module SentinelRef {
   @ given room above the system services rather than squeezed among them.
   instance sentinelMonitor: Sentinel.Monitor base id 0x20000000
 
+  @ The physics testbed's subsystem simulation (docs/MODELS.md 42). Passive, so
+  @ its tick runs in the rate group's thread and the plant advances in lockstep
+  @ with the detector watching it -- which is what lets a warning instant and a
+  @ limit instant be compared at all.
+  instance powerSim: Testbed.PowerSim base id 0x21000000
+
 }

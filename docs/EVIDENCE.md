@@ -1,6 +1,6 @@
 # Evidence
 
-> **Paths outside this branch resolve on `dev`** at commit **`eab3933`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`f2e3f03`** (`docs/DECISIONS.md`
 > D69, on `dev`). Every figure below names the `dev` decision or section it comes from and
 > the run artifact it was read from. **Artifacts under `runs/` are cited by path and are not
 > in git on any branch** -- the path is the identifier.
@@ -233,7 +233,7 @@ and no credential.
 
 ## 10. Sources
 
-Every decision cited above is on `dev` at `eab3933` in `docs/DECISIONS.md`: **D46** the
+Every decision cited above is on `dev` at `f2e3f03` in `docs/DECISIONS.md`: **D46** the
 in-range population, **D65** the decision-layer finding, **D66** the envelope confound,
 **D68** the flight configuration, **D69** this branch's curation. The pre-registrations and
 their outcomes are `docs/MODELS.md` 26.18, 36, 37, 38 and 39.

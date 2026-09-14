@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`eab3933`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`f2e3f03`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -99,7 +99,7 @@ rebuilds it from nothing with one command.
 |---|---|
 | `flight/` | **The C++ inference core.** GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader, and the committed vectors. C++14, no exceptions, no RTTI, no STL containers, **no allocation after init**, `-Werror` |
 | `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp`, its SDD and its unit tests |
-| `fprime/SentinelRef/` | The reference deployment that instantiates it, and the topology |
+| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this |
 | `docs/DESIGN.md` | What the component does, the rule it flies, and the five permanent safety rules |
 | `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, and the caveats |
 | `docs/STATUS.md` | Where it is and what is next |
