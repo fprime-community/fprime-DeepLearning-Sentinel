@@ -1,6 +1,6 @@
 # Evidence
 
-> **Paths outside this branch resolve on `dev`** at commit **`424da07`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`28f7d27`** (`docs/DECISIONS.md`
 > D69, on `dev`). Every figure below names the `dev` decision or section it comes from and
 > the run artifact it was read from. **Artifacts under `runs/` are cited by path and are not
 > in git on any branch** -- the path is the identifier.
@@ -53,17 +53,42 @@ all. It is never the headline.
 ## 2. What the 38 are, and why that number
 
 The population is **38 labelled contextual anomalies across 25 channels** of SMAP/MSL that
-stay **entirely inside** their channel's training minimum and maximum -- anomalies a limit
-check cannot see by construction.
+stay **at or within** their channel's training minimum and maximum.
 
 ```
   43   labelled contextual anomalies in the dataset
-  39   of them stay inside the channel's training envelope   (docs/DECISIONS.md D46,
+  39   of them stay at or within the channel's training envelope
+                                                  (docs/DECISIONS.md D46, D46.1,
        artifact runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json)
    1   G-1[4770-4890] excluded: its channel is one of four the frozen arm's own
        artifact lists as excluded, on a training stall
   38   scored
 ```
+
+**(!) "At or within", and the difference is 23 of the 39.** The in-range test is
+**inclusive**: touching a channel's historical extreme does not count as leaving it.
+Measured 2026-09-14 (D46.1): **23 of the 39 touch a rail exactly** -- margin `0.0`, not
+floating-point noise -- and only **16 sit strictly inside**. **18 of those 23 sit in an
+envelope of exactly `[-1, +1]`**, which is the test-split pre-scaling of section 3 showing
+through: a map fitted on the test split pins that split's extremes at the rails by
+construction.
+
+**It moves no figure** -- 39, 38 and every recall number are unchanged -- and the claim
+that a limit check cannot see these still holds, **on the premise that a real RED or YELLOW
+limit sits outside a channel's historical operating range** (D43). That premise is
+load-bearing rather than incidental: on the arithmetic alone, an inclusive limit placed
+**at** the historical extreme would fire on 23 of these 39.
+
+**Four sequences fail the test, and one is not a failure.** All four are MSL; all 26 SMAP
+contextual sequences are in range. **`C-2[1540-1575]`'s training split is constant at
+`-1.0`** -- a **zero-width envelope** -- so every test value above `-1.0` counts as outside
+by construction and 33 of its 36 steps do. That is a degenerate channel rather than an
+anomaly leaving its range. The other three: `M-2[1110-2250]` 622/1141 steps outside,
+`M-5[1250-1550]` 35/301, `M-1[1110-2250]` 27/1141.
+
+**And the point/contextual split is telemanom's own field, not derived here.**
+`labeled_anomalies.csv` ships a `class` column (upstream `README.md` 104-109); this project
+fetches it verbatim and checksums it, and never recomputes it.
 
 For contrast, **11 of 61** point anomalies stay in range. That gap is the reason this
 population is the one the claim rests on.
@@ -195,7 +220,7 @@ and no credential.
 
 ## 10. Sources
 
-Every decision cited above is on `dev` at `424da07` in `docs/DECISIONS.md`: **D46** the
+Every decision cited above is on `dev` at `28f7d27` in `docs/DECISIONS.md`: **D46** the
 in-range population, **D65** the decision-layer finding, **D66** the envelope confound,
 **D68** the flight configuration, **D69** this branch's curation. The pre-registrations and
 their outcomes are `docs/MODELS.md` 26.18, 36, 37, 38 and 39.

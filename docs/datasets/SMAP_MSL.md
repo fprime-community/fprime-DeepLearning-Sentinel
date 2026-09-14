@@ -109,11 +109,33 @@ one axis that matters for flight.
 
 ## The scored population: 38, and how it got there
 
-D46 measured **39 of 43** labelled contextual anomalies staying entirely inside their
+D46 measured **39 of 43** labelled contextual anomalies staying **at or within** their
 channel's training min/max, against **11 of 61** point anomalies. Every figure since stage 4
 is out of **38 across 25 channels**: the difference is **`G-1[4770-4890]`**, whose channel
 would not train -- its stopping rule kept the first epoch after running eleven, which is
 D17's stall signature.
+
+> **(!) "AT OR WITHIN", NOT "INSIDE", AND THE DIFFERENCE IS 23 OF THE 39** (D46.1,
+> 2026-09-14). The in-range test is **inclusive** -- `scripts/smap_visibility.py:74`
+> compares `<` and `>`, on the rule that touching a channel's historical extreme is not
+> leaving it. Measured since: **23 of the 39 touch a rail exactly**, margin `0.0`, not
+> float noise; only **16 sit strictly inside**. **18 of those 23 sit in an envelope of
+> exactly `[-1, +1]`** -- the pre-scaling of caveat 3 showing through, since a map fitted
+> on the test split pins that split's extremes at the rails by construction.
+>
+> **It moves no figure**: 39, 38 and every recall number are unchanged, and the claim
+> still holds on D43's premise that a real RED or YELLOW limit sits **outside** a
+> channel's historical operating range. What it removes is the word *inside*. On the
+> arithmetic alone, an inclusive limit placed **at** the historical extreme would fire on
+> 23 of these 39.
+>
+> **And one of the four that fail is not a failure.** All four are MSL -- all 26 SMAP
+> contextual sequences are in range. **`C-2[1540-1575]`'s training split is constant at
+> `-1.0`**, a **zero-width envelope**, so every test value above `-1.0` counts as outside
+> by construction and 33 of its 36 steps do. That is a degenerate channel rather than an
+> anomaly leaving its range, and it should be said wherever the four are quoted. The other
+> three: `M-2[1110-2250]` 622/1141 steps outside, `M-5[1250-1550]` 35/301,
+> `M-1[1110-2250]` 27/1141.
 
 The 38 are split **channel-disjoint 19/19**, committed at `docs/MODELS.md` 37.8 **before any
 sweep**. **Both halves are n = 19 and are stamped UNDERPOWERED (D3)** wherever they are
