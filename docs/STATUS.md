@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`c410a91`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`3d423cf`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -94,9 +94,11 @@ What the pre-registration commits to, so it can be held to it:
 **The licence is not yet selected** and the repository is private until it is. Intended for
 community release to the F' ecosystem.
 
-**The GitHub default branch is still `main`**, an earlier snapshot branch kept so that
-existing links, Releases and citations keep resolving. Moving the default to this branch is
-a decision that has not been taken.
+**This branch is the GitHub default**, as of 2026-09-14. The earlier snapshot branch
+`main` was retired the same day: every commit it held is reachable from here and all nine
+tags are on `dev`, so nothing was lost, but **a `/blob/main/...` link held outside this
+repository will now 404**. No such link exists inside it, and one held elsewhere cannot be
+searched for, so that is stated rather than dismissed.
 
 One obligation binds whichever licence is chosen: **no document may present this project as
 endorsed by, affiliated with or produced by Caltech or the Jet Propulsion Laboratory.** The
