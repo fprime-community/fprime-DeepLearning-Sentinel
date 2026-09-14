@@ -13,7 +13,7 @@ prediction that failed and why. This document follows the same discipline.
 
 ## Contents
 
-> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 43.8 follows 44.7; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
+> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 43.8 follows 44.7; 42.8 follows 46.4; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
 
 - [1 What work item 4 built, and what it did not](#1-what-work-item-4-built-and-what-it-did-not)
   - [1.1 One deviation was withdrawn, and it would have been fatal](#11-one-deviation-was-withdrawn-and-it-would-have-been-fatal)
@@ -430,6 +430,7 @@ prediction that failed and why. This document follows the same discipline.
   - [46.2 Predictions](#462-predictions)
   - [46.3 (!) What MN2 firing would and would not mean](#463-what-mn2-firing-would-and-would-not-mean)
   - [46.4 Cost, and stop and report](#464-cost-and-stop-and-report)
+  - [42.8 (!) Rider, 2026-09-14: the testbed is built and wired, and building it moved the bar](#428-rider-2026-09-14-the-testbed-is-built-and-wired-and-building-it-moved-the-bar)
 
 <!-- /toc -->
 
@@ -13301,3 +13302,86 @@ forward and adding two:
 1. **MN3 fires** -- a decoy draw is repeated after its outcome is known.
 2. **Any figure of this section is quoted as a lead, or as early warning.** It is a null, and a
    null's only job is to say what a number has to beat.
+
+### 42.8 (!) Rider, 2026-09-14: the testbed is built and wired, and building it moved the bar
+
+**42.1 to 42.7 are not edited.** The port is connected, the plant runs, the deployment builds
+and links clean at F's own `-Wshadow -Wconversion -Wold-style-cast -Werror`. **No prediction is
+adjudicated**: T1 to T7 need a model and a run, and neither exists yet. What follows is what
+building the apparatus established, and one of it changes what T3 has to beat.
+
+**What exists.** `fprime/SentinelRef/PowerSim/` -- a passive component publishing **8**
+coupled channels with declared limits, and `PowerPlant.{hpp,cpp}`, the physics, carrying **no
+F' header at all** so its constants could be tuned on a host. `topology.fpp` now reads
+
+```
+  rateGroup_1Hz.RateGroupMemberOut[6] -> powerSim.schedIn
+  rateGroup_1Hz.RateGroupMemberOut[7] -> sentinelMonitor.schedIn
+  powerSim.channelOut                 -> sentinelMonitor.channelsIn
+```
+
+**Order is load-bearing**: both are passive, so both run in the rate group's thread in that
+order, and the detector sees the value the plant produced on **that** tick.
+
+#### 42.8.1 (!) T3 and T4 must beat the YELLOW crossing, not the red one
+
+**Measured on the seeded run**, fault from tick 8,000 at 2.0e-4 per tick:
+
+```
+  channel     first YELLOW    first RED
+  CellTemp          19,225       20,140
+  BusVoltage        20,700       21,757
+  everything else    never        never
+```
+
+**A limit check with yellow alarms sees this fault 915 ticks before the red trip.** 42.4's T3
+asks for a warning "before the first red crossing", and against a yellow-alarming ground system
+that is **the wrong bar** -- it would credit Sentinel for beating a limit check it had not
+beaten. **T3 and T4 are measured against the first crossing of ANY colour**, and the red trip is
+reported beside it rather than instead of it. The band is not moved; the quantity it applies to
+is corrected, before any run has been scored against it.
+
+#### 42.8.2 The contextual window is real and it is large
+
+**Healthy: 20,000 ticks, zero crossings of any colour on any channel** -- three times the
+6,550-tick data floor 42.3 departure 2 sets, so a training run and a held-out half both fit
+inside one healthy run. **Seeded: 11,225 ticks fully in limits** between the fault's injection
+and the first yellow. **T2's population exists by construction**, which is what the testbed was
+built to provide.
+
+**And the fault touches one scalar.** `PowerPlant::step` ramps the cell's internal resistance
+and nothing else; every other channel moves because the physics couples it. That is 42's
+*"faults seeded IN THE PHYSICS"* read literally, and it is why the anomaly is contextual rather
+than injected into a channel.
+
+#### 42.8.3 (!) The solar array's low limits sit below zero, and that is the project's own thesis arriving in its own testbed
+
+A 5 W yellow low on `SolarInput` **fired on tick 0 of every run, healthy ones included**: the
+array reads 0 W through eclipse, which is 35% of every orbit. **Low solar is not a fault -- it
+is night.** Whether it is anomalous depends on the relationship between that channel and the
+orbit phase, which is exactly the class of thing `Objective.md` 2 says no limit can hold. The
+limits are now set where a sensor bias would be. **The first channel this testbed tried to
+limit-check was one that cannot be limit-checked**, and it took a run to see it.
+
+#### 42.8.4 Two mechanisms the pre-registration assumed and the build had to supply
+
+**F' exposes no limit constant to C++**, verified by reading the autocoded
+`PowerSimComponentAc.hpp`. 42.3 departure 1 needs the limits **onboard**, so `PowerPlant.hpp`
+carries a second copy and **`tests/test_powersim_limits.py` re-derives it from the FPP on every
+run** -- an unchecked second copy is what that departure forbids, and a checked one is the only
+shape available. The guard fails in both directions and names the channel and both values;
+proved by a probe.
+
+**A component may not live in the deployment's own namespace.** Declared in `module SentinelRef`,
+its autocoded `cmdResponseOut_out(..., U32 cmdSeq, ...)` shadows the `cmdSeq` **instance** of
+`Svc.CmdSequencer`, and F' builds at `-Wshadow -Werror`. It is `module Testbed` now.
+`Sentinel.Monitor` never hit this because it has its own module. **Apparatus gets its own
+namespace for the same reason product does**, and the reason is written beside the declaration
+rather than left for the next person to rediscover at a link error.
+
+#### 42.8.5 What is still owed before any prediction can be adjudicated
+
+A model trained by the toolkit on this testbed's own healthy telemetry; a run harness that
+drives the deployment, records the trace and extracts the two instants; the false-alarm runs
+T5 needs; and the GDS recording `Objective.md` 12's Phase 3 gate asks for. **None exists, and
+no figure of T1 to T7 is reported until they do.**

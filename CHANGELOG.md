@@ -14,6 +14,47 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.53] - 2026-09-14 - The physics testbed is built and wired, and building it moved the bar
+
+**`docs/MODELS.md` 42.8.** `fprime/SentinelRef/PowerSim/` is a passive component publishing
+**8 coupled channels with declared limits**, and the deployment **builds and links clean** at
+F's own `-Wshadow -Wconversion -Wold-style-cast -Werror`. The port 42.2 named as the whole gap
+is connected. **No prediction is adjudicated** -- T1 to T7 need a model and a run, and neither
+exists yet.
+
+### (!) T3 and T4 must beat the YELLOW crossing, not the red one
+On the seeded run, `CellTemp` crosses **yellow at 19,225 and red at 20,140**. **A limit check
+with yellow alarms sees the fault 915 ticks before the red trip**, so a warning "before the
+first red crossing" would credit Sentinel for beating a limit check it had not beaten. The
+band is not moved; the quantity it applies to is corrected, **before any run has been scored
+against it**.
+
+### The contextual window exists by construction and is large
+**Healthy: 20,000 ticks, zero crossings of any colour on any channel** -- three times the
+6,550-tick data floor. **Seeded: 11,225 ticks fully in limits** between injection and the first
+yellow. The fault ramps **one scalar**, the cell's internal resistance; every other channel
+moves because the physics couples it.
+
+### (!) The first channel the testbed tried to limit-check was one that cannot be
+A 5 W yellow low on `SolarInput` fired on **tick 0 of every run, healthy ones included**: the
+array reads 0 W through eclipse, 35% of every orbit. **Low solar is not a fault, it is night**,
+and whether it is anomalous depends on its relationship to the orbit phase -- the exact class
+`Objective.md` 2 says no limit can hold. The project's own thesis, arriving in its own testbed.
+
+### Two mechanisms the pre-registration assumed and the build had to supply
+**F' exposes no limit constant to C++**, so 42.3 departure 1's onboard evaluation needs a second
+copy of the dictionary -- and `tests/test_powersim_limits.py` re-derives it from the FPP on
+every run, failing in both directions and naming the channel and both values. Proved by a probe.
+
+**A component may not live in the deployment's own namespace**: its autocoded `cmdSeq` parameter
+shadows the `cmdSeq` *instance*, and F' builds at `-Wshadow -Werror`. It is `module Testbed` now,
+with the reason beside the declaration.
+
+### Still owed before anything is adjudicated
+A toolkit-trained model on this testbed's healthy telemetry; a run harness; the false-alarm
+runs; the GDS recording. **Zero bucket operations throughout** -- the testbed generates its own
+telemetry, which is the point of it. Ledger unmoved at **238 Class A and 5,740 Class B**.
+
 ## [0.6.52] - 2026-09-14 - The 30 are 25, and 45's null is registered as measurable
 
 **Two records that make the last three sections harder to over-read.** Zero bucket operations;
