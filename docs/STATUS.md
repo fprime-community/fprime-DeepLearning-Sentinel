@@ -157,7 +157,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 236 Class A and 5,566 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 238 Class A and 5,740 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -484,16 +484,29 @@ operations between them.
   finding on this data **is the first derivative**. Nothing is adopted; D68 stands. It frees no
   memory, and it is one arm, one dataset, n = 19 per half, UNDERPOWERED.
 
-**(!) The flown rule's lead time has never been measured, and four live sites imply it has**
-(`docs/MODELS.md` 45, 2026-09-14). Every lead figure this project holds -- 37.7a's median
-**-63.5**, 0 of 10 positive -- was measured on the **frozen** arm, which emits at a segment's
-end. **D68's rule crosses per tick.** The four sites all *disclaim* early warning, so nothing
-overclaims; the defect is the other shape -- a **measured negative reported where the truth is
-unmeasured**. Named at 45.1 and **not corrected there**: two are on the customer branch. 45 is
-pre-registered with four predictions; the read is **165 Class B and 1 Class A and is not
-taken**. What is free is a **bound**: over the 30 events the flown rule catches, lateness within
-the span is median **+31.0**, and it cannot come out positive because the scan never looked
-before the onset.
+**(!) The flown rule's lead time is measured, and it is less late rather than early**
+(`docs/MODELS.md` 45.6, 2026-09-14). 165 Class B and 1 Class A after a smoke, both projections
+exact, weight store unmoved, both gates passing. On the **9** events 37.7a also caught, the
+flown rule's median lead is **-2.0 against the frozen arm's -68.0, better on every one of the
+nine** -- and on the five where both still fire late, it is less late every time, which is the
+segment-end latency it does not carry. **LD1 HELD.**
+**(!) LD2 FAILED and the failure is not a finding of early warning.** The raw median is
+**+141.5 with 18 of 30 positive**, and its band required that a positive median be checked
+twice. It was: at 0.6820%, **P(an alarm somewhere in a 200-tick lookback) = 74.6%**, so chance
+alone gives about 22 of 30 and the rule manages 18. **The positive median measures the nearest
+routine alarm in the lookback, not a precursor** -- the upper quartile is +186 against a cap of
++200. **The +141.5 is not quoted as a lead anywhere.** And the 30 events span only 25 onsets,
+with four channels crossing at one timestep, so the effective n is far below 30. **No
+early-warning claim: that stays with work item 11.**
+
+**The four attribution sites are corrected on both branches** (45.1.1).
+
+**What 45.1 found, kept because it is why 45 exists.** Four live sites stated 37.7a's median
+**-63.5**, 0 of 10 positive, as the project's lead-time measurement without saying it was
+measured on the **frozen** arm, which emits at a segment's end. All four *disclaimed* early
+warning, so nothing overclaimed; the defect was the other shape -- **a measured negative
+reported where the truth was unmeasured**. All four now carry the attribution (45.1.1), two of
+them on the customer branch.
 
 **D68.1 is withdrawn before its read was spent, 2026-09-14.** Dilation lives in
 `DynamicThreshold` and reaches nothing the flown rule consumes: `eps()` has no readers,
@@ -520,7 +533,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**724 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**725 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -550,8 +563,8 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 724 tests
-.venv/bin/python scripts/check_no_list.py                        # 103 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 725 tests
+.venv/bin/python scripts/check_no_list.py                        # 104 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0

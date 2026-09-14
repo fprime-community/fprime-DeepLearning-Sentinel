@@ -424,6 +424,7 @@ prediction that failed and why. This document follows the same discipline.
   - [45.3 Predictions](#453-predictions)
   - [45.4 Falsification, and what it would and would not license](#454-falsification-and-what-it-would-and-would-not-license)
   - [45.5 Cost, and stop and report](#455-cost-and-stop-and-report)
+  - [45.6 OBSERVED -- LD2 fails, and the failure does not survive its own check](#456-observed----ld2-fails-and-the-failure-does-not-survive-its-own-check)
 
 <!-- /toc -->
 
@@ -13117,3 +13118,88 @@ adding three:
 2. **Any figure of this section is stated in wall clock**, or quoted as an early-warning claim.
 3. **45.2's bound is quoted as a lead.** It is a bound, it cannot come out positive, and it is
    not comparable with 37.7a's -63.5.
+
+### 45.6 OBSERVED -- LD2 fails, and the failure does not survive its own check
+
+**2026-09-14.** Both gates pass. **165 Class B and 1 Class A** after a **9 Class B and 1 Class
+A** smoke, **both projections exact** (9/9, then 165/165). Cached weights, **weight store
+1,313 -> 1,313** (asserted), 47.5 s, 77 of 81 channels. Producer `scripts/flown_rule_lead.py`;
+artifact `runs/smap-msl/_forensics/2026-09-14T221354Z-lead.json`. Month after: **238 Class A
+and 5,740 Class B of 50,000.**
+
+**Gate 1**: the frozen arm returns **0.6820% and 10 of 38**. **Gate 2**: the fused arm returns
+**13/19, 17/19, 30/38** -- D65's own numbers. The cut is **5.288128**, as 44.7 solved it.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **LD1** | the flown rule is better than 37.7a's **-63.5** by 30 or more, on the events both catch | on the **9** shared events: flown median **-2.0** against frozen **-68.0**, **better by 66** -- and better on **every one of the nine**, by +5 to +1,361 | **HELD** |
+| **LD2** | still not early: median lead **negative** | **+141.5 over 30 events, 18 of 30 positive.** Its band said a positive median *"would be checked twice before it was believed"*. **It was, and it does not survive** -- 45.6.1 | **FAILED its band, and the failure is NOT a finding of early warning** |
+| **LD3** | the scan window is fixed in advance | **200, a module constant**, and **0 of 30** leads sit at the window edge | **HELD** |
+| **LD4** | timesteps only | every figure in timesteps; no clock exists to express one in | **HELD** |
+
+#### 45.6.1 (!) The positive median is an artifact of the lookback, and the arithmetic is one line
+
+**At the matched rate, a crossing somewhere in a 200-tick window is not rare -- it is the
+common case.** The pooled nominal alarm rate is **0.6820%**, so over 200 nominal ticks the
+expected number of alarming ticks is **1.36**, and
+
+```
+  P(at least one alarm in a 200-tick lookback)  =  1 - (1 - 0.006820)^200  =  74.6%
+```
+
+**Observed: 18 of 30 positive, which is 60%.** Chance alone would give about **22 of 30**. The
+flown rule crosses before the labelled onset **less often than an unrelated alarm process at
+the same rate would**, so **the positive median measures the nearest routine alarm in the
+lookback and not an early warning.** LD2's band asked for exactly this check and it is why the
+number is not reported as a lead anywhere else in this repository.
+
+**The shape of the distribution says the same thing.** The upper quartile is **+186** against a
+cap of +200, and the largest leads cluster at **+186 to +192** -- one to two ticks of spread
+across eight events on five channels. That is a window edge showing through, not a physical
+precursor.
+
+#### 45.6.2 And the thirty are not thirty
+
+**30 events span 25 distinct onsets**, and channels sharing an onset share a crossing tick:
+
+```
+  onset 5000   E-1, E-10, E-11, E-12   all first cross at 4814
+  onset 5610   E-1, E-12               both at 5423
+  onset 1250   M-3, M-4                at 1099 and 1102
+```
+
+**Four channels crossing at the same absolute timestep is one observation, not four.** The
+effective `n` is well below 30 and no figure here is quoted without that said. **UNDERPOWERED**
+either way (`docs/HARNESS.md` 1).
+
+#### 45.6.3 What LD1 establishes, because it is the part that survives
+
+**The five events where the flown rule still fires late are the robust comparison**, because a
+negative lead cannot be manufactured by a lookback window:
+
+```
+  D-16[600]     -2   against  -47        G-7[3650]   -18  against  -59
+  F-8[1950]    -28   against  -33        G-7[7560]   -34  against  -69
+  A-8[4569]  -2,259  against -3,620
+```
+
+**Later than the onset on both arms, and less late on the flown rule every time.** That is the
+segment-end latency the flown rule does not carry, measured directly, and it is what 43.8
+predicted from reading the emission path. **The flown rule is less late than the rule it
+replaced. It is not early.**
+
+#### 45.6.4 What is NOT claimed, and this is the whole point of the section
+
+**No early-warning claim, in any form, and none is licensed by any figure above.** Lead here is
+measured against a **labelled onset** -- a hindsight annotation an operations engineer wrote
+after the fact -- and **never against a limit trip**. SMAP/MSL carries no clock. **Work item 11's
+testbed remains the only venue where a warning time exists**, and 42 is where that claim would
+have to be earned.
+
+**The +141.5 is not quoted as a lead anywhere**, on either branch, and 45.5's third stop
+condition is extended to cover it: a figure that cannot outrun its own null is not a result.
+
+**What would make this measurable** -- registered, not taken: the same scan at **matched
+non-event onsets**, so the null is measured rather than computed from a rate; or a rule that a
+crossing counts only when it is part of an alarm contiguous with the event. Both are new
+questions and need their own pre-registration.

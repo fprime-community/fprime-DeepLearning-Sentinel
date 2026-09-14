@@ -14,6 +14,51 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.51] - 2026-09-14 - The flown rule is less late, not early -- and the positive median does not survive its own null
+
+**`docs/MODELS.md` 45.6 run.** 165 Class B and 1 Class A after a 9 Class B smoke, **both
+projections exact**. Cached weights, **weight store 1,313 -> 1,313**, 47.5 s, 77 of 81 channels.
+Both gates pass: the frozen arm returns **0.6820% and 10 of 38**, the fused arm D65's **17/19**.
+Month after: **238 Class A and 5,740 Class B**.
+
+### LD1 HELD, and it is the part that survives
+On the **9** events 37.7a also caught, the flown rule's median lead is **-2.0 against the
+frozen arm's -68.0**, and it is better on **every one of the nine**. On the five where both
+still fire *after* the onset -- where a lookback window cannot manufacture a result -- it is
+less late every time:
+
+```
+  D-16[600]     -2  against    -47      G-7[3650]   -18  against   -59
+  F-8[1950]    -28  against    -33      G-7[7560]   -34  against   -69
+  A-8[4569] -2,259  against -3,620
+```
+
+That is the segment-end latency the flown rule does not carry, measured directly, and it is
+what 43.8 predicted from reading the emission path.
+
+### (!) LD2 FAILED, and the failure is NOT a finding of early warning
+The raw median is **+141.5, 18 of 30 positive**. LD2's band required a positive median be
+*"checked twice before it was believed"*. It was, and it does not survive:
+
+```
+  P(at least one alarm in a 200-tick lookback) = 1 - (1 - 0.006820)^200 = 74.6%
+```
+
+Chance alone gives about **22 of 30**; the rule manages **18**. It crosses before the labelled
+onset **less often than an unrelated alarm process at the same rate would**. The upper quartile
+is **+186** against a cap of +200, with eight events clustered in +186..+192 -- a window edge,
+not a precursor. **The +141.5 is not quoted as a lead anywhere, on either branch.**
+
+### And the thirty are not thirty
+30 events span **25 distinct onsets**; `E-1`, `E-10`, `E-11` and `E-12` all first cross at
+**4814**. Four channels crossing at one timestep is one observation, not four.
+
+### No early-warning claim, from any figure above
+Lead here is against a **labelled onset** -- a hindsight annotation -- never a limit trip, and
+SMAP/MSL has no clock. **Work item 11's testbed remains the only venue where a warning time
+exists.** What would make this measurable is registered and not taken: the same scan at matched
+**non-event** onsets, so the null is measured rather than computed.
+
 ## [0.6.50] - 2026-09-14 - All four attribution sites corrected, on both branches
 
 **45.1's four sites now name what was measured** (45.1.1), in the clause form
