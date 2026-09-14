@@ -460,19 +460,22 @@ seed.
 - **Outputs**: `runs/`, gitignored; every number in every document is read from an artifact
   there and cited by path.
 - **Documents**: `docs/INDEX.md` is the map, one sentence each.
-- **History**: all work lands on `dev` (tags `wi1`-`wi9`) and it is never rewritten;
-  `master` takes a snapshot when something is done. **`main` was retired 2026-09-14**
-  (D69.2), its commits all reachable from `master`.
-  **`master` exists locally as of 2026-09-11** (D67, D67.1): branched from `main`, carrying
-  **96 of 270 tracked files, 2.96 MiB** -- the component and the evidence it works, with
-  every omission named in its own `README.md`. **Pushed to `origin` on 2026-09-11**; the
-  repository is private, so no `LICENSE` is required until public release. **The GitHub
-  default moved to `master` on 2026-09-14**, and licence selection is the one remaining item
-  before the repository can go public.
-  **`master` became a customer branch 2026-09-11 (D69)**: 94 files, 2.41 MiB, its own four
-  documents, and `flight/` and `fprime/` byte-identical to `dev`. `dev` carries the guard
-  that re-derives every figure it states -- the two branches **share no commit**, so it
-  compares trees rather than walking ancestry. **Not pushed.**
+- **History**: **two branches.** All work lands on `dev` (tags `wi1`-`wi9`) and it is
+  **never rewritten**; `master` takes a snapshot when something is done. Nothing is ever
+  force-pushed.
+  **`master` is the public branch and the repository default** (D67, D67.1, D69): **94
+  files, 2.41 MiB**, its own four customer documents, and `flight/` and `fprime/`
+  byte-identical to `dev`. Every figure it states about this repository is re-derived by
+  `tests/test_master_documents_are_current.py`, which compares **trees rather than walking
+  ancestry** -- the two branches **share no commit**.
+  **`main` was retired 2026-09-14** (D69.2): an earlier snapshot branch, every commit of it
+  reachable from `master`, all nine tags on `dev`, and the external-link cost stated in that
+  rider rather than dismissed.
+  The repository is **private**, so no `LICENSE` is required yet, and **licence selection is
+  the one remaining item** before it can go public.
+  *(This bullet was rewritten in one pass on 2026-09-14. It had been amended three times and
+  carried both 96 files and 94, and both "exists locally" and "pushed"; the superseded detail
+  is in D67, D69 and `CHANGELOG.md` 0.6.41 to 0.6.43, which are the records.)*
 
 ## 9. Verify
 
