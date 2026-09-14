@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`d3ff483`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`eab3933`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
