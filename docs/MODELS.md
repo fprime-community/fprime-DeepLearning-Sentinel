@@ -418,6 +418,12 @@ prediction that failed and why. This document follows the same discipline.
   - [44.6 Cost, and stop and report](#446-cost-and-stop-and-report)
   - [44.7 OBSERVED -- the residual half never decides anything, on any of the 30](#447-observed----the-residual-half-never-decides-anything-on-any-of-the-30)
   - [43.8 (!) Rider, 2026-09-14: S5 is not taken, and the reason is that the adopted rule has no stride in it](#438-rider-2026-09-14-s5-is-not-taken-and-the-reason-is-that-the-adopted-rule-has-no-stride-in-it)
+- [45 Pre-registration: the flown rule's lead time, which has never been measured (roadmap)](#45-pre-registration-the-flown-rules-lead-time-which-has-never-been-measured-roadmap)
+  - [45.1 (!) Four live sites state the frozen arm's lead as though it were the project's](#451-four-live-sites-state-the-frozen-arms-lead-as-though-it-were-the-projects)
+  - [45.2 What is derivable now, at zero operations, and it is a bound](#452-what-is-derivable-now-at-zero-operations-and-it-is-a-bound)
+  - [45.3 Predictions](#453-predictions)
+  - [45.4 Falsification, and what it would and would not license](#454-falsification-and-what-it-would-and-would-not-license)
+  - [45.5 Cost, and stop and report](#455-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -12958,3 +12964,110 @@ something the stride actually gates: the **reported** dynamic threshold, if a mi
 consumed `dynamicEmitted()`; or the **version-1** rule, if a mission flew one. Neither is what
 43 was written to price, and neither is registered here. **A new question needs a new
 pre-registration, not this one's band.**
+
+---
+
+## 45. Pre-registration: the flown rule's lead time, which has never been measured (roadmap)
+
+**Written because 43.8 and D68.1's rider exposed a gap nobody had named.** Every lead-time
+figure this project holds was measured on a rule that **emits at the end of a 70-tick
+segment**. The rule that flies **crosses per tick**. So the flown rule's lead against the
+labelled onset is **unmeasured**, and has been since D68 adopted it on 2026-09-11.
+
+### 45.1 (!) Four live sites state the frozen arm's lead as though it were the project's
+
+`docs/MODELS.md` 37.7a measured **median -63.5 timesteps, 0 of 10 positive** on the
+**frozen** arm -- `telemanom.channel_ratios`, whose `emits_at = seg_hi - 1`. D68's rule has
+no segment in it. **These four present that figure without the attribution:**
+
+```
+  master  docs/EVIDENCE.md 7   "The only lead-time measurement this project holds is
+                               0 of 10 positive leads"
+  master  README.md            "The one lead-time measurement this project has is
+                               0 of 10 positive leads"
+  dev     README.md            the evidence table's "It warns early" row
+  dev     docs/MODELS.md 42.6  written 2026-09-14, in this same pass
+```
+
+**(!) The direction matters and is stated rather than softened.** All four **disclaim** early
+warning, so nothing overclaims and no figure is inflated. The defect is the opposite shape: they
+report a **measured negative** where the truth is **unmeasured**. A reader concludes *they
+measured the flown rule and it does not warn early*; the correct statement is *the flown rule's
+lead has never been measured, and the rule it replaced warned late*. `docs/DECISIONS.md:820-821`
+already names this class -- *"a claim in the audit trail that the audit trail does not
+support"* -- and calls it worse than a missing document.
+
+**Two sites have the attribution right and are the evidence that it can be said in one clause.**
+`flight/include/sentinel/DynamicThreshold.hpp:40` -- *"this is the quantity 37.7a's 0 of 10
+positive leads was measured on"*, sitting beside `emitted()`; and
+`fprime/Sentinel/Monitor/docs/sdd.md:122` -- *"The **frozen decision layer's** measured median
+lead is +0.0"*.
+
+**The four are named here and NOT corrected in this section.** Reported rather than fixed
+quietly, and brought to the owner: two of them are on the customer branch, and one is this
+pass's own.
+
+### 45.2 What is derivable now, at zero operations, and it is a bound
+
+`runs/smap-msl/_forensics/2026-09-14T212406Z-ablation.json` records, for each of the **30**
+events the flown rule catches, the **first emitting step inside the event span**. Against the
+labelled onset:
+
+```
+  lateness within the span, flown rule, 30 events
+    median  +31.0      min  +2      max  +2259
+    fires on the onset tick itself     0 of 30
+    within 10 ticks of the onset       8 of 30
+```
+
+**(!) This is a bound and never a lead, and the reason is in how it was scanned.** 44's
+producer looked at `masks[c][lo:hi+1]` -- inside the span only -- so `t >= onset` **by
+construction** and the figure cannot come out positive. It bounds lateness from below and lead
+from above; it does **not** say the flown rule is late, because a crossing before the onset was
+never looked for. **It is not comparable with 37.7a's -63.5**, which was `onset - emits_at` over
+a different population of 10 on a different rule.
+
+### 45.3 Predictions
+
+The quantity: for each of the 38 in-range contextual events, the **first tick** at which
+`max(z_residual, z_derivative) >= cut`, scanned from a stated window **before** the onset, at
+the matched **0.6820%** on 37.8's split. Lead is `onset - t`, positive meaning early.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **LD1** | **The flown rule is less late than the rule it replaced.** Median lead against 37.7a's **-63.5**, on the events both catch | better by **30 or more timesteps** -- the segment-end latency the flown rule does not have | 0 to 29 better | **worse than the frozen arm** -- per-tick emission is late for a reason that is not the segment, and that reason is the finding |
+| **LD2** | **And it is still not early.** Median lead over all events the flown rule catches | **negative**, which is what every measurement so far predicts | within +/- 5 of zero | **positive** -- this project would hold its first positive median lead, and it would be checked twice before it was believed and then reported with its alarm rate and its `n` |
+| **LD3** | **Some events cross before their onset.** Count with lead > 0 | reported as `k/n`, whatever it is, with the scan window stated | -- | **the scan window is chosen after seeing the answer.** A stop: it is fixed at **200 timesteps** before the onset here, in advance |
+| **LD4** | **No wall clock, in any framing.** Every figure in timesteps | timesteps only | -- | **any hours, minutes or seconds.** SMAP/MSL's timestamps are anonymised (`Objective.md` 1.1) |
+
+### 45.4 Falsification, and what it would and would not license
+
+**If LD2 fails high -- a positive median lead -- that is not an early-warning claim.** It would
+be a positive lead against a **labelled onset**, which is a hindsight annotation an operations
+engineer wrote after the fact, **not a limit trip**. 42's testbed remains the only venue where a
+warning time exists. What it would license is a correction to the four sites at 45.1 and to
+`Objective.md` 1.1's framing -- **nothing about hours, and nothing about missions.**
+
+**If LD1 fails**, the flown rule is late for a reason the segment does not explain, and the
+lateness is a property of the fused statistic rather than of the emission cadence. That is the
+more interesting outcome and it would be reported as one.
+
+### 45.5 Cost, and stop and report
+
+**Not derivable from any committed artifact.** 44's saved the emitting step only inside each
+span; D65's arms artifacts carry caught event lists and no timesteps. The scan needs the fused
+score arrays, which need the forecast, which needs the test arrays -- and **no telemetry is on
+local disk, ever** (Rule 1).
+
+**One read of the documented SMAP/MSL shape: 165 Class B and 1 Class A, after a smoke.** The
+month stands at **236 Class A and 5,566 Class B of 50,000**; this would end at **237 and
+5,740** including a 9 Class B smoke. **The read is NOT taken here.** It is brought to the owner
+with its cost.
+
+Stop and report, carrying 39.12's, 40.13's, 41.7's, 42.7's, 43.7's and 44.6's lists forward and
+adding three:
+
+1. **LD3 fires** -- the 200-timestep scan window moves after the answer is seen.
+2. **Any figure of this section is stated in wall clock**, or quoted as an early-warning claim.
+3. **45.2's bound is quoted as a lead.** It is a bound, it cannot come out positive, and it is
+   not comparable with 37.7a's -63.5.

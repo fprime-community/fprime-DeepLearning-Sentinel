@@ -484,6 +484,24 @@ operations between them.
   finding on this data **is the first derivative**. Nothing is adopted; D68 stands. It frees no
   memory, and it is one arm, one dataset, n = 19 per half, UNDERPOWERED.
 
+**(!) The flown rule's lead time has never been measured, and four live sites imply it has**
+(`docs/MODELS.md` 45, 2026-09-14). Every lead figure this project holds -- 37.7a's median
+**-63.5**, 0 of 10 positive -- was measured on the **frozen** arm, which emits at a segment's
+end. **D68's rule crosses per tick.** The four sites all *disclaim* early warning, so nothing
+overclaims; the defect is the other shape -- a **measured negative reported where the truth is
+unmeasured**. Named at 45.1 and **not corrected there**: two are on the customer branch. 45 is
+pre-registered with four predictions; the read is **165 Class B and 1 Class A and is not
+taken**. What is free is a **bound**: over the 30 events the flown rule catches, lateness within
+the span is median **+31.0**, and it cannot come out positive because the scan never looked
+before the onset.
+
+**D68.1 is withdrawn before its read was spent, 2026-09-14.** Dilation lives in
+`DynamicThreshold` and reaches nothing the flown rule consumes: `eps()` has no readers,
+`emitted()` is read only by `dynamicEmitted()`, which nothing calls, and `zResidual` -- the one
+consumed output -- is the trailing window's z, which dilation does not touch. **165 Class B and
+1 Class A not spent.** The question remains a real one about telemanom's published rule and is
+no longer a debt of this component's.
+
 **Owed and registered, not argued (D68.3).** A `param_version` 3 rule dropping the residual
 term is arguable after 44.7 and is not argued: one arm, one dataset, n = 19 per half. It needs
 the same ablation on a second dataset and its own pre-registration before it is proposed.

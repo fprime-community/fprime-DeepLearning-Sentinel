@@ -5138,6 +5138,42 @@ measurement can overturn -- so the third read is owed as an accounting of what t
 departure costs, not as a condition on the configuration. **165 Class B and 1 Class
 A, after a smoke. Not taken.**
 
+**(!) WITHDRAWN 2026-09-14, BEFORE THE READ WAS SPENT. Dilation does not reach the
+flown emission path at all**, and the same check that withdrew `docs/MODELS.md` 43's
+S5 answers this one. Traced at first hand:
+
+```
+  dilation lives in    DynamicThreshold.cpp:58-89, forward-only pad of 99 (39.5)
+  it determines        the surviving sequences, and through them eps() and emitted()
+  eps()      readers   0
+  emitted()  readers   1  -- Detector::dynamicEmitted(), Detector.hpp:107
+  dynamicEmitted()     readers 0. Nothing in flight/ or fprime/ calls it
+  zResidual()          the ONE consumed output, Detector.cpp:227 -- and it is
+                       m_window.z(channel, m_latest[channel]), the trailing window's
+                       z of the latest smoothed error. Dilation does not touch it
+```
+
+**So no dilated quantity gates a warning.** `Detector.cpp:199-210` crosses on
+`m_fusedScore >= threshold` **every tick** under `param_version` 2, and on `m_score`
+per tick under version 1. Neither consults a sequence, a pad or a segment.
+
+**And the customer branch already says the choice does not rest on the number.**
+`docs/EVIDENCE.md` section 9 carries the +13 as an **owed accounting**, immediately followed
+by *"The forward-only choice does not rest on that number; it rests on the fact that
+backward dilation would mark timesteps already emitted and a warn-only component has
+no un-emit."* It is not quoted anywhere as a live property of the flown rule.
+
+**(!) And that argument's own frame is the published rule.** "Backward dilation would
+mark timesteps already emitted" assumes the dilated set **is** the emission set, which
+was true of D25's rule and is not true of D68's. The choice stays right -- a carried,
+reported threshold should not claim retroactive extent either -- but **the reason is
+about the threshold this component reports, not about the rule it flies**.
+
+**165 Class B and 1 Class A not spent.** What the third read would divide -- lever from
+dial, on `channel_ratios`-shaped scores -- is a property of the **published** rule's
+alarm sets. It remains a real question about telemanom's rule and is **no longer a debt
+of this component's**. If it is ever taken it needs its own pre-registration saying so.
+
 ### D68.2 Rider, 2026-09-11: the footprint figure this entry quotes moved by 8 bytes
 
 **Alternative 1's arithmetic is not edited.** It refused running the dynamic

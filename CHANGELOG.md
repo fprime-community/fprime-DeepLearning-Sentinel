@@ -14,6 +14,47 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.49] - 2026-09-14 - The flown rule's lead time has never been measured, and four live sites imply it has
+
+**`docs/MODELS.md` 45, and it is the finding rather than the pre-registration.** Every
+lead-time figure this project holds -- 37.7a's median **-63.5**, **0 of 10 positive** -- was
+measured on the **frozen** arm, `telemanom.channel_ratios`, whose `emits_at = seg_hi - 1`.
+**D68's rule crosses per tick.** The flown rule's lead is **unmeasured** and has been since
+2026-09-11.
+
+### Four live sites state the frozen arm's figure as the project's
+`master`'s `docs/EVIDENCE.md` section 7 and `README.md`, `dev`'s `README.md` evidence table,
+and `docs/MODELS.md` 42.6 -- **written in this same pass**.
+
+**(!) The direction matters.** All four **disclaim** early warning, so nothing overclaims and no
+figure is inflated. The defect is the opposite shape: a **measured negative reported where the
+truth is unmeasured**. `docs/DECISIONS.md:820-821` already names the class -- *"a claim in the
+audit trail that the audit trail does not support"*.
+
+**Named at 45.1 and not corrected there.** Reported rather than fixed quietly: two are on the
+customer branch. Two other sites have the attribution right, and are the evidence it fits in one
+clause -- `DynamicThreshold.hpp:40` and the component's own SDD.
+
+### What is free, and it is a bound
+Over the **30** events the flown rule catches, lateness within the span is median **+31.0**,
+min +2, and **0 of 30** fire on the onset tick. **It cannot come out positive**: 44's producer
+scanned inside the span only, so it bounds lead from above and **is not comparable** with
+37.7a's -63.5.
+
+### D68.1 is withdrawn before its read was spent
+Dilation lives in `DynamicThreshold` and reaches nothing the flown rule consumes. `eps()` has
+**no readers**; `emitted()` is read only by `dynamicEmitted()`, which **nothing calls**; and
+`zResidual`, the one consumed output, is the trailing window's z, which dilation does not touch.
+`docs/EVIDENCE.md` section 9 already says the forward-only choice *"does not rest on that
+number"*. **(!) And that argument's own frame is the published rule**: "backward dilation would
+mark timesteps already emitted" assumes the dilated set **is** the emission set, true of D25's
+rule and not of D68's. The choice stays right; its reason is about the threshold the component
+**reports**, not the rule it **flies**. **165 Class B and 1 Class A not spent.**
+
+### The ledger is unmoved
+**236 Class A and 5,566 Class B.** Two registered reads withdrawn today before spending, and one
+more registered and not taken.
+
 ## [0.6.48] - 2026-09-14 - 43's S5 is withdrawn before its read was spent: the adopted rule has no stride in it
 
 **`docs/MODELS.md` 43.8.** S5 asked what a reduced stride costs *"the adopted rule at a matched
