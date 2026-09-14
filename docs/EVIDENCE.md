@@ -1,6 +1,6 @@
 # Evidence
 
-> **Paths outside this branch resolve on `dev`** at commit **`13d70f0`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`d3ff483`** (`docs/DECISIONS.md`
 > D69, on `dev`). Every figure below names the `dev` decision or section it comes from and
 > the run artifact it was read from. **Artifacts under `runs/` are cited by path and are not
 > in git on any branch** -- the path is the identifier.
@@ -189,8 +189,10 @@ and no credential.
 ## 7. What is not claimed
 
 - **No early-warning claim, in any form.** The only lead-time measurement this project holds
-  is **0 of 10 positive leads** (`docs/MODELS.md` 37.7a). Every figure here is recall at a
-  matched alarm rate. Lead, where reported at all, is in **timesteps**, never in hours, and
+  is **0 of 10 positive leads** (`docs/MODELS.md` 37.7a) -- **measured on the frozen decision
+  layer, which emits at the end of a 70-tick segment. The rule this branch ships crosses per
+  tick, and its lead time is unmeasured**, registered at `docs/MODELS.md` 45 on `dev`. Every
+  figure here is recall at a matched alarm rate. Lead, where reported at all, is in **timesteps**, never in hours, and
   a figure of "+26 timesteps" that once appeared in this project's own documents was
   **retired**: it was dated from the start of an alarm range that had been widened backwards
   from a crossing that had already happened.
@@ -230,7 +232,7 @@ and no credential.
 
 ## 10. Sources
 
-Every decision cited above is on `dev` at `13d70f0` in `docs/DECISIONS.md`: **D46** the
+Every decision cited above is on `dev` at `d3ff483` in `docs/DECISIONS.md`: **D46** the
 in-range population, **D65** the decision-layer finding, **D66** the envelope confound,
 **D68** the flight configuration, **D69** this branch's curation. The pre-registrations and
 their outcomes are `docs/MODELS.md` 26.18, 36, 37, 38 and 39.

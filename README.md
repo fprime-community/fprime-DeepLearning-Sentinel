@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`13d70f0`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`d3ff483`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -34,8 +34,10 @@ caveats.
   write one independently, which is the honest answer available today.
 - **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any
   wall-clock figure. The one lead-time measurement this project has is **0 of 10 positive
-  leads** (`docs/MODELS.md` 37.7a). Every figure here is recall at a matched alarm rate,
-  counted in **timesteps**, never in hours.
+  leads** (`docs/MODELS.md` 37.7a), **measured on the frozen decision layer, which emits at a
+  segment's end; the rule this branch ships crosses per tick and its lead time is unmeasured**
+  (`docs/MODELS.md` 45). Every figure here is recall at a matched alarm rate, counted in
+  **timesteps**, never in hours.
 - **The evidence is one arm on one dataset, UNDERPOWERED.** n = 19 per half. Read
   `docs/EVIDENCE.md` before quoting anything from it.
 
