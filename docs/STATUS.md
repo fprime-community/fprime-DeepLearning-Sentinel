@@ -465,9 +465,14 @@ operations between them.
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
   and its structural half is derivable from A6's committed table. **(!) The lever is confounded
   with the statistic by construction**: `SOLVE_WINDOW = ERROR_WINDOW + STRIDE`, so a stride
-  change moves the window, `MAX_SEQUENCES` and therefore the footprint. The separation is
-  committed in advance rather than discovered, which is 39.13.3's lesson. **S5 needs a read and
-  is not taken.**
+  change moves the window, `MAX_SEQUENCES` and therefore the footprint. **(!) AND S5 IS
+  WITHDRAWN BEFORE ITS READ WAS SPENT, 2026-09-14** (43.8). The adopted rule **emits per tick**
+  -- `Detector.cpp` compares the fused score to the cut every tick -- so the segment-end latency
+  A6 measured belongs to the **frozen** arm, and the flight equivalent, `dynamicEmitted()`, is
+  exposed and **never consumed**. There is no latency in the flown path for a smaller stride to
+  remove, and the only route left runs through `z_residual`, which D65.3 measured as deciding
+  nothing. **165 Class B and 1 Class A not spent.** S1-S4 stand; the stride is a **compute**
+  parameter and no longer a latency one.
 - **The derivative-only ablation** (`docs/MODELS.md` 44). **(!) RUN 2026-09-14** (44.7, D65.3),
   165 Class B and 1 Class A after a smoke whose projection matched exactly, weight store
   unmoved. Both gates pass: the frozen arm returns 0.6820% and 10/38, the fused arm returns

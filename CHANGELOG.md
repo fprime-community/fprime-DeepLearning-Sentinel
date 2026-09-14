@@ -14,6 +14,38 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.48] - 2026-09-14 - 43's S5 is withdrawn before its read was spent: the adopted rule has no stride in it
+
+**`docs/MODELS.md` 43.8.** S5 asked what a reduced stride costs *"the adopted rule at a matched
+rate"*. **The adopted rule does not emit on a stride**, and reading the emission path at first
+hand before spending the read is what found it.
+
+- `flight/src/Detector.cpp:199-210`: under `PARAM_VERSION_FUSED` the crossing is
+  `m_fusedScore >= m_model.threshold`, **every tick**, gated only by warm-up and
+  `baseline_only`. The version-1 path beside it is per tick too. **Neither is segment-gated.**
+- The segment-end emission A6 measured belongs to the **frozen** arm. Its flight equivalent,
+  `DynamicThreshold::emitted()`, is *"the tick a segment's solve decided a warning"* -- and it
+  is **exposed and never consumed**. `Detector::dynamicEmitted()` is its only reader and
+  nothing calls it.
+- 39.8 said the dynamic threshold would be *"computed and reported, never in the flag"*, and
+  D68 then adopted a per-tick statistic. **Between them the stride left the emission path, and
+  43 was written as though it had not.**
+
+**So there is no latency in the flown detector for a smaller stride to remove.** The one route
+left runs through `SOLVE_WINDOW`, which sets the depth of the window `z_residual` standardises
+against -- and **D65.3 measured that `z_residual` decides nothing**, reaching the cut on none of
+the thirty. S5 would have spent **165 Class B and 1 Class A** on a second-order effect on an
+inert term. **Not spent.**
+
+### What survives, all at zero operations
+S1 and S2 stand as statements about the **frozen** arm. S3 and S4 stand unchanged: the re-solve
+still runs once per `STRIDE` ticks and still dominates that tick, so **41's R6 is still the
+input and 43.3's formula is still the cost model**. **The stride is a compute parameter and no
+longer a latency one.**
+
+### A pre-registration exists so this is visible before the operations are spent
+It was. **The ledger is unmoved at 236 Class A and 5,566 Class B.**
+
 ## [0.6.47] - 2026-09-14 - The residual half of the flown rule decides nothing, on any of the 30
 
 **`docs/MODELS.md` 44 run** (44.7, D65.3). **165 Class B and 1 Class A** after a **9 Class B**

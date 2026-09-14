@@ -13,7 +13,7 @@ prediction that failed and why. This document follows the same discipline.
 
 ## Contents
 
-> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
+> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 43.8 follows 44.7; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
 
 - [1 What work item 4 built, and what it did not](#1-what-work-item-4-built-and-what-it-did-not)
   - [1.1 One deviation was withdrawn, and it would have been fatal](#11-one-deviation-was-withdrawn-and-it-would-have-been-fatal)
@@ -417,6 +417,7 @@ prediction that failed and why. This document follows the same discipline.
   - [44.5 Falsification](#445-falsification)
   - [44.6 Cost, and stop and report](#446-cost-and-stop-and-report)
   - [44.7 OBSERVED -- the residual half never decides anything, on any of the 30](#447-observed----the-residual-half-never-decides-anything-on-any-of-the-30)
+  - [43.8 (!) Rider, 2026-09-14: S5 is not taken, and the reason is that the adopted rule has no stride in it](#438-rider-2026-09-14-s5-is-not-taken-and-the-reason-is-that-the-adopted-rule-has-no-stride-in-it)
 
 <!-- /toc -->
 
@@ -12912,3 +12913,48 @@ there either**, which is where a reader looking at the adopted configuration wil
 
 **And it should be asked on ESA-ADB before it is believed.** One dataset is what D3's
 neighbouring caution and `docs/HARNESS.md` 1 both exist for. No such read is registered here.
+
+### 43.8 (!) Rider, 2026-09-14: S5 is not taken, and the reason is that the adopted rule has no stride in it
+
+**43.1 to 43.7 are not edited.** The arithmetic stands, S1 to S4 stand, and the cost model
+stands. **What is withdrawn is the assumption underneath S5**, found by reading the emission
+path at first hand before the read was spent rather than after.
+
+**S5 asked what a reduced stride costs "the adopted rule at a matched rate". The adopted rule
+does not emit on a stride.** `flight/src/Detector.cpp:199-210`: under
+`Format::PARAM_VERSION_FUSED` the crossing is `m_fusedScore >= m_model.threshold`, evaluated
+**every tick**, and `m_emitted` is that crossing gated only by warm-up and `baseline_only`.
+The version-1 path beside it is `m_score >= threshold`, also per tick. **Neither is
+segment-gated.**
+
+**The segment-end emission A6 measured belongs to the frozen arm**, `telemanom.channel_ratios`
+-- the published rule, which decides a segment at its end. The port has its flight equivalent,
+`DynamicThreshold::emitted()`, described at `flight/include/sentinel/DynamicThreshold.hpp:72-74`
+as *"the tick a segment's solve decided a warning"* -- and it is **exposed and never consumed**.
+`Detector::dynamicEmitted()` (`flight/include/sentinel/Detector.hpp:107`) is the only reader,
+and nothing calls it. 39.8 said the dynamic threshold would be *"computed and reported, never in
+the flag"*, and D68 then adopted a per-tick statistic; between them the stride left the emission
+path entirely, and **43 was written as though it had not**.
+
+**So the latency S5 was written to price is not in the flown detector.** There is none to
+remove. Reducing `STRIDE` would still change `SOLVE_WINDOW`, and therefore the depth of the
+window `zResidual` standardises against -- but **D65.3 measured that `z_residual` decides
+nothing on this population**, reaching the cut on none of the thirty events the adopted rule
+catches. S5 as registered would spend **165 Class B and 1 Class A** to measure a second-order
+effect on an inert term.
+
+**The read is not taken, and the saving is the finding rather than the point.** A
+pre-registration exists so that this is visible before the operations are spent; it was, and
+this rider is what that looks like when it works.
+
+**What survives, all at zero operations.** S1 and S2 are derivable from A6's committed lead
+table and stand unchanged as statements about **the frozen arm**. S3 and S4 are about compute
+and footprint, which the stride still governs whatever emits -- the re-solve still runs once per
+`STRIDE` ticks and still dominates that tick, so **41's R6 remains the input and 43.3's formula
+remains the cost model.** The stride is now a **compute** parameter and no longer a latency one.
+
+**What would have to change for S5 to be worth taking.** It would have to be asked about
+something the stride actually gates: the **reported** dynamic threshold, if a mission ever
+consumed `dynamicEmitted()`; or the **version-1** rule, if a mission flew one. Neither is what
+43 was written to price, and neither is registered here. **A new question needs a new
+pre-registration, not this one's band.**
