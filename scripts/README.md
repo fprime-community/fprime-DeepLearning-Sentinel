@@ -96,6 +96,6 @@ figure this project reports.**
 
 - **No script deletes anything.** A script behind any documented figure is
   ARCHIVE-and-cite at worst (`Objective.md` 11's never-delete rule).
-- **No script writes to `main` or `master`**, or pushes.
+- **No script writes to `master`**, or pushes. (`main` was retired 2026-09-14, D69.2.)
 - **No script reads `docs/manifest.snapshot.json`** -- it is a generated copy for
   humans, and `check_no_list.py` rule 4 refuses any code that reads it.

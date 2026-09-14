@@ -173,10 +173,16 @@ does not do.
   `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
   linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
   in `CHANGELOG.md` 0.6.1 to 0.6.29 with the artifact behind every figure.
-- **Branches.** `main` carries one commit per project checkpoint - the reviewable snapshot. The
-  complete development history, decision by decision, lives on `dev` (tags `wi1`-`wi9`, the
-  Releases). All work lands on `dev`; `main` advances only by a new snapshot commit at an
-  approved checkpoint. Neither branch is ever rewritten.
+- **Branches, and there are two.** `dev` carries the complete development history, decision
+  by decision, with tags `wi1`-`wi9` and their Releases; all work lands there and it is
+  **never rewritten**. `master` is the public branch and the repository default - the
+  component and the evidence it works, written for a customer, taking a snapshot when
+  something is done (D69). **Nothing is ever force-pushed.**
+  **(!) `main` was retired 2026-09-14** (D69.2). It was an earlier snapshot branch; every
+  commit it held is reachable from `master`, `git rev-list master..main` was 0 before it
+  went, and all nine tags were and are on `dev`. **Links of the form `/blob/main/...` from
+  outside this repository will 404** - none exists inside it, and none outside it can be
+  grepped for, so the risk is stated rather than dismissed.
 
 No number in any document was written without an artifact under `runs/` to read it from.
 

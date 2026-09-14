@@ -5174,3 +5174,59 @@ What this rider adds is the interval. The two figures in the evidence took one d
 days to drift; this one took **one commit**, and it drifted because `dev` did ordinary
 work. That is the argument for a guard rather than a sweep, stated in a number rather
 than in a worry.
+
+
+### D69.2 Rider, 2026-09-14: `main` is retired, in the order this entry set
+
+**Consequence 8 is not edited.** It says "**`main` is costed here and deleted
+nowhere**", and that was true of D69. This is the later act it costed, taken on the
+owner's word, and recorded here rather than left to a commit message.
+
+**The order, and it was followed.** The GitHub default moved to `master` first,
+because GitHub refuses to delete a repository's default branch; then the live prose;
+then `origin/main`; then local `main`.
+
+**The safety conditions were re-measured immediately before the deletion, not
+inherited from consequence 8's reading four days earlier.**
+
+```
+  git rev-list --count master..main          0    every commit reachable from master
+  git rev-list --count master..origin/main   0
+  tags wi1-wi9                               all on dev, none on main
+  default branch before                      main
+```
+
+So **no commit object and no Release was lost.** `master` is the default and the
+public face; `dev` is where work lands and is never rewritten.
+
+**(!) The departure from this entry's own list of nine, and it is a house-form one.**
+Consequence 8 named nine prose sites. **Three of them turned out to sit inside
+`CHANGELOG.md`'s dated entries 0.6.41 and 0.6.42**, which record what was true on
+2026-09-11 -- including that the default then stayed where it was. A dated entry is a record, and records are kept with a
+rider rather than corrected; the same treatment `[0.6.42]` itself gave
+`docs/REORG_PLAN.md`'s dated paragraph. **Seven live sites were rewritten**, on both
+branches:
+
+```
+  dev      README.md the branches paragraph    docs/INDEX.md the branches line
+           docs/STATUS.md 7 item I             docs/STATUS.md 8 the history bullet
+           scripts/README.md the no-write rule
+  master   README.md the branches section      docs/STATUS.md 6 the release section
+```
+
+Left as records and not touched: `docs/DECISIONS.md` D67 and this entry's own body,
+`docs/MODELS.md`'s sixteen pre-registration scope fences, `docs/REORG_PLAN.md`'s dated
+snapshot and `docs/reorg_plan.json`, and every site inside a dated `CHANGELOG.md` entry.
+
+**(!) THE RESIDUAL RISK, STATED RATHER THAN DISMISSED.** A URL of the form
+`github.com/.../blob/main/...` held **outside** this repository now 404s. **Zero such
+URLs exist inside either tree** -- that was measured across both, and is why consequence
+8 could say the internal cost was nil -- but **a grep cannot see a link in somebody
+else's document, a bookmark, a paper or an email**, and no measurement here bounds that
+number. It is not zero merely because it is unmeasured. What reduces it: every tag and
+Release resolves into `dev` and is unaffected, and a visitor arriving at the repository
+root lands on `master`, which is the branch a reader should see.
+
+**What is not claimed.** That this was free. A snapshot branch with five commits was
+removed and the links into it went with it.
+

@@ -428,10 +428,14 @@ enum, the F' coverage from that test's own loop bound, the headline from D65's t
 checks the citations in `master`'s documents, which **nothing had ever read**: `--master`
 mode resolves `dev`'s documents under the curated branch's rules and never opens the
 branch. **The debt register is empty**: all four stale figures died with the old
-`README.md`, and the guard is now proved by a probe rather than by a live defect. `main` is **costed and deleted
-nowhere**: no URL-shaped reference exists on either tree, all nine tags are on `dev`, and the
-order when it is taken is default to `master`, rewrite the nine prose sites, delete
-`origin/main`, then local `main`.
+`README.md`, and the guard is now proved by a probe rather than by a live defect.
+**(!) `main` IS RETIRED, 2026-09-14** (D69.2), in the order D69 set: the GitHub default moved
+to `master`, the live prose was rewritten, `origin/main` was deleted and then local `main`.
+`git rev-list master..main` was **0** before it went and all nine tags were on `dev`, so no
+commit object and no Release was lost. Three of D69's nine named sites turned out to be dated
+`CHANGELOG.md` entries and were **kept with a rider rather than edited**, which leaves seven
+live sites rewritten. **External `/blob/main/` links will 404**: none exists inside either
+tree and none outside can be grepped for.
 
 **Carried open.** D5, the tier ladder, is the only OPEN decision in the register. D14's
 weight-cache key is still positional. D21's `error_buffer` effect on alarm width is
@@ -456,13 +460,15 @@ seed.
 - **Outputs**: `runs/`, gitignored; every number in every document is read from an artifact
   there and cited by path.
 - **Documents**: `docs/INDEX.md` is the map, one sentence each.
-- **History**: all work lands on `dev` (tags `wi1`-`wi9`); `main` advances only by one
-  snapshot commit per approved checkpoint; neither branch is ever rewritten.
+- **History**: all work lands on `dev` (tags `wi1`-`wi9`) and it is never rewritten;
+  `master` takes a snapshot when something is done. **`main` was retired 2026-09-14**
+  (D69.2), its commits all reachable from `master`.
   **`master` exists locally as of 2026-09-11** (D67, D67.1): branched from `main`, carrying
   **96 of 270 tracked files, 2.96 MiB** -- the component and the evidence it works, with
   every omission named in its own `README.md`. **Pushed to `origin` on 2026-09-11**; the
   repository is private, so no `LICENSE` is required until public release. **The GitHub
-  default stays on `main`, and licence selection is the one remaining item before it moves.**
+  default moved to `master` on 2026-09-14**, and licence selection is the one remaining item
+  before the repository can go public.
   **`master` became a customer branch 2026-09-11 (D69)**: 94 files, 2.41 MiB, its own four
   documents, and `flight/` and `fprime/` byte-identical to `dev`. `dev` carries the guard
   that re-derives every figure it states -- the two branches **share no commit**, so it

@@ -31,5 +31,5 @@ Then whatever the question needs.
 | [docs/PI_ENVELOPE.md](PI_ENVELOPE.md) | **Reserved and deliberately empty.** The shape a Raspberry-Pi measurement must take, so a number has somewhere to land and nobody fills the gap with an estimate | When somebody asks whether it runs on a Pi |
 | [docs/manifest.snapshot.json](manifest.snapshot.json) | A generated copy of the bucket manifest for reading by humans; **no code reads it** (`check_no_list` rule 4) | To see what the bucket holds without spending an operation |
 
-Branches: `main` is one commit per checkpoint; the full history is on `dev` with tags `wi1`-`wi9`
+Branches: `master` is the public branch and the repository default; the full history is on `dev` with tags `wi1`-`wi9`
 and their Releases. Work items 9.5 to 9.14 are untagged and live in `CHANGELOG.md` 0.6.1 to 0.6.14. Artifacts live under `runs/`, gitignored, and are cited by path.

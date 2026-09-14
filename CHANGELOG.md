@@ -14,6 +14,32 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.43] - 2026-09-14 - `main` is retired and `master` is the front door
+
+**D69 consequence 8's costing, executed on the owner's word** (D69.2). In its stated
+order: the GitHub default moved to `master`, the live prose was rewritten, `origin/main`
+was deleted, then local `main`.
+
+### Safety, re-measured immediately before the deletion
+- **`git rev-list --count master..main` was 0**, and the same for `origin/main`: every
+  commit `main` held is reachable from `master`, so **no commit object was lost**.
+- **All nine tags `wi1`-`wi9` were on `dev`**, none on `main`, so **no Release was
+  orphaned**.
+
+### Seven live sites rewritten, three kept as records
+`dev`'s `README.md`, `docs/INDEX.md`, `docs/STATUS.md` (twice) and `scripts/README.md`;
+`master`'s `README.md` and `docs/STATUS.md`. **`CHANGELOG.md` 0.6.41 and 0.6.42 are
+dated entries and are kept with a rider rather than edited** -- they record what was
+true on 2026-09-11, including that the default then stayed on `main`. D67, this file's
+earlier entries, `docs/MODELS.md`'s scope fences and `docs/REORG_PLAN.md`'s dated
+snapshot are likewise untouched.
+
+### (!) The residual risk, stated rather than dismissed
+**External `/blob/main/` links now 404.** Zero such URLs exist inside either tree, which
+is measured; **a grep cannot see a link in somebody else's document**, and nothing here
+bounds that number. Tags and Releases resolve into `dev` and are unaffected, and a
+visitor now lands on `master`.
+
 ## [0.6.42] - 2026-09-11 - The ESA-ADB licence is verified at source, and both branches are pushed
 
 **The reorganisation is complete.** Zero bucket operations.
