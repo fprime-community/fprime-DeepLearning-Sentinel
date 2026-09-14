@@ -14,6 +14,40 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.52] - 2026-09-14 - The 30 are 25, and 45's null is registered as measurable
+
+**Two records that make the last three sections harder to over-read.** Zero bucket operations;
+the ledger stands at **238 Class A and 5,740 Class B**.
+
+### The thirty are not thirty independent events, said wherever the 30 is quoted
+`docs/MODELS.md` 44.7.4 and `docs/DECISIONS.md` D65.4 are **riders, not edits** -- 44.7 is an
+OBSERVED block and D65.3 sits inside a decision entry. **30 events span 25 distinct onsets**;
+`E-1`, `E-10`, `E-11` and `E-12` all first cross at **4814**. Four channels crossing at one
+absolute timestep is one observation, not four.
+
+**It strengthens AB4 rather than weakening it** -- a count of **zero** is zero under any
+grouping -- and is recorded because the same population is quoted for figures that *do* count
+agreements, and 45.6's is one.
+
+### 46: the matched-null scan, registered and not taken
+**(!) 45.6.1 refuted its own headline with a computed null, and that is the weaker half of the
+argument.** `1 - (1 - 0.006820)^200 = 74.6%` assumes alarms are independent across nominal
+ticks. **They run in streaks**, so the true probability is **lower** -- which would make 18 of
+30 look **less** like chance, not more. **45.6.1 is the conservative reading and could be wrong
+in the interesting direction**, which is the one direction worth registering a measurement for.
+
+46 draws **matched decoy onsets** from nominal regions -- same channels, same counts per
+channel, seeded, exclusions fixed in advance -- and runs 45's scan unchanged. MN3 makes a
+redraw after seeing the outcome a **stop**. **MN2's FAIL band sends an overturning result to a
+second dataset before a sentence of it is written anywhere.**
+
+**165 Class B and 1 Class A. Not taken**, because it blocks nothing: the +141.5 is quoted
+nowhere, and a measured null can only firm the refutation or overturn it under a band that
+already says what happens then.
+
+**No early-warning claim at any outcome.** A labelled onset is a hindsight annotation, not a
+limit trip. That claim stays with work item 11.
+
 ## [0.6.51] - 2026-09-14 - The flown rule is less late, not early -- and the positive median does not survive its own null
 
 **`docs/MODELS.md` 45.6 run.** 165 Class B and 1 Class A after a 9 Class B smoke, **both

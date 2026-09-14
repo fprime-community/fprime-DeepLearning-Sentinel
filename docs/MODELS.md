@@ -425,6 +425,11 @@ prediction that failed and why. This document follows the same discipline.
   - [45.4 Falsification, and what it would and would not license](#454-falsification-and-what-it-would-and-would-not-license)
   - [45.5 Cost, and stop and report](#455-cost-and-stop-and-report)
   - [45.6 OBSERVED -- LD2 fails, and the failure does not survive its own check](#456-observed----ld2-fails-and-the-failure-does-not-survive-its-own-check)
+- [46 Pre-registration: the matched-null scan, which turns 45's computed null into a measured one (roadmap)](#46-pre-registration-the-matched-null-scan-which-turns-45s-computed-null-into-a-measured-one-roadmap)
+  - [46.1 The quantity](#461-the-quantity)
+  - [46.2 Predictions](#462-predictions)
+  - [46.3 (!) What MN2 firing would and would not mean](#463-what-mn2-firing-would-and-would-not-mean)
+  - [46.4 Cost, and stop and report](#464-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -12950,6 +12955,22 @@ there either**, which is where a reader looking at the adopted configuration wil
 **And it should be asked on ESA-ADB before it is believed.** One dataset is what D3's
 neighbouring caution and `docs/HARNESS.md` 1 both exist for. No such read is registered here.
 
+#### 44.7.4 Rider, 2026-09-14: the thirty are not thirty independent events
+
+**No figure above changes.** `0 of 30` is still 0 of 30 and AB4 still held. What is added is
+the denominator's shape, measured at 45.6.2 the next time the same population was used:
+
+**The 30 events span only 25 distinct onsets**, and channels sharing an onset share a crossing
+tick -- `E-1`, `E-10`, `E-11` and `E-12` all first cross at **4814**; `E-1` and `E-12` at
+**5423**; `M-3` and `M-4` at 1,099 and 1,102. **Four channels crossing at one absolute
+timestep is one observation, not four.**
+
+**It strengthens AB4 rather than weakening it**, which is why it is recorded here rather than
+only where it was found: a statistic that came out **0 of 30** would have come out 0 of 25, or
+0 of any grouping, because not one event reached the cut on the residual. **Where it does
+matter is any figure that counts agreements**, and 45.6's does. **The effective `n` is well
+below 30 and is said wherever this population is quoted.**
+
 ### 43.8 (!) Rider, 2026-09-14: S5 is not taken, and the reason is that the adopted rule has no stride in it
 
 **43.1 to 43.7 are not edited.** The arithmetic stands, S1 to S4 stand, and the cost model
@@ -13061,7 +13082,7 @@ events the flown rule catches, the **first emitting step inside the event span**
 labelled onset:
 
 ```
-  lateness within the span, flown rule, 30 events
+  lateness within the span, flown rule, 30 events -- but only 25 distinct onsets (45.6.2)
     median  +31.0      min  +2      max  +2259
     fires on the onset tick itself     0 of 30
     within 10 ticks of the onset       8 of 30
@@ -13203,3 +13224,80 @@ condition is extended to cover it: a figure that cannot outrun its own null is n
 non-event onsets**, so the null is measured rather than computed from a rate; or a rule that a
 crossing counts only when it is part of an alarm contiguous with the event. Both are new
 questions and need their own pre-registration.
+
+---
+
+## 46. Pre-registration: the matched-null scan, which turns 45's computed null into a measured one (roadmap)
+
+**Written because 45.6.1 refuted its own headline with arithmetic, and arithmetic is the weaker
+half of that argument.** LD2 measured a median lead of **+141.5** and **18 of 30 positive**,
+and the reason it is not reported as a lead is a **computed** null:
+
+```
+  P(at least one alarm in a 200-tick lookback) = 1 - (1 - 0.006820)^200 = 74.6%
+```
+
+**That calculation assumes alarms are independent across nominal ticks, and they are not.**
+Alarms come in runs -- the fused statistic crosses for stretches, not for isolated samples --
+so the true probability of a crossing in an arbitrary 200-tick window is **lower** than 74.6%,
+possibly much lower. **The direction of that error is against 45.6.1's own conclusion**: a
+lower null would make 18 of 30 look less like chance, not more. **45.6.1's refutation is
+therefore the conservative reading and could be wrong in the interesting direction.** This
+section registers the measurement that would settle it.
+
+### 46.1 The quantity
+
+**The same scan, at onsets that are not events.** For each channel, draw **matched decoy
+onsets** from its nominal region -- excluding every labelled span, every warm-up sample and
+every 200-tick lookback that overlaps either -- and run 45's scan unchanged: first tick at
+which `max(z_residual, z_derivative) >= cut`, from `decoy - 200`, at the same cut **5.288128**
+and the same matched **0.6820%**.
+
+**Matched on the two things that would otherwise explain a difference**: the same channels in
+the same proportion as the 30 real events, and **the same number of decoys per channel**, so a
+channel that carries four real events carries four decoys. Seeded, and the seed is recorded.
+
+**The comparison is the positive fraction**, not the median: `k/n` early at a decoy onset
+against **18 of 30** at a real one.
+
+### 46.2 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **MN1** | **The measured null is below the computed 74.6%**, because alarms run in streaks | decoy positive fraction **under 70%** | 70 to 80% | above 80% -- alarms are more spread than the run structure suggests, and 45.6.1 was if anything too kind to the rule |
+| **MN2** | **And the rule does not beat it.** Real onsets against decoy onsets, same scan | the two are within **1 standard error** of each other -- 45.6.1 stands, and the +141.5 stays unquoted | real exceeds decoy by 1 to 2 standard errors | **real exceeds decoy by more than 2 standard errors** -- the flown rule *does* cross earlier before real onsets than before arbitrary ones, 45.6.1's refutation is withdrawn, and **the result is re-measured on a second dataset before a single sentence of it is written anywhere** |
+| **MN3** | **Decoys are drawn before the answer is seen.** The draw is seeded, the seed is in the artifact, and the exclusion rule is fixed here | one draw, one seed, reported | -- | **any redraw after seeing MN2.** A stop: redrawing a null until it agrees is the failure this whole section exists to prevent |
+| **MN4** | **No wall clock, and no early-warning claim at any outcome** | timesteps only | -- | any hours, minutes or seconds |
+
+### 46.3 (!) What MN2 firing would and would not mean
+
+**It would not be an early-warning result.** Even a decisive MN2 would say the flown rule
+crosses **earlier before a labelled onset than before an arbitrary nominal tick**. A labelled
+onset is a hindsight annotation an operations engineer wrote after the fact, **not a limit
+trip**, and no wall clock exists on this data to express a warning time in. **Work item 11's
+testbed remains the only venue where a warning time exists**, and 42 is where that claim is
+earned or refused.
+
+**What it would license** is narrow and worth having: that the fused statistic carries
+**precursor structure** before labelled onsets on this dataset -- which is 36.4's observation
+about the derivative, tested rather than noticed, and which would make the ESA-ADB repeat the
+obvious next read rather than an optional one.
+
+### 46.4 Cost, and stop and report
+
+**165 Class B and 1 Class A after a smoke, and it is NOT taken.** The scan needs the fused
+score arrays for the nominal regions, which needs the forecast, which needs the test arrays.
+The month stands at **238 Class A and 5,740 Class B of 50,000**.
+
+**It is registered rather than run because it blocks nothing.** 45.6.1's conclusion is the
+conservative one: the computed null is an **upper** bound on chance, the rule failed to beat
+even that, and nothing downstream rests on the +141.5 because **the +141.5 is quoted nowhere**.
+A measured null would only make that refutation firmer, or overturn it -- and if it overturns
+it, MN2's FAIL band already says the result goes to a second dataset before it is written down.
+
+Stop and report, carrying 39.12's, 40.13's, 41.7's, 42.7's, 43.7's, 44.6's and 45.5's lists
+forward and adding two:
+
+1. **MN3 fires** -- a decoy draw is repeated after its outcome is known.
+2. **Any figure of this section is quoted as a lead, or as early warning.** It is a null, and a
+   null's only job is to say what a number has to beat.

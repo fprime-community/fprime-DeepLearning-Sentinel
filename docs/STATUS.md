@@ -480,7 +480,8 @@ operations between them.
   same 0.6820%**, on a cut that falls from 5.288128 to 4.431455, and it is a **strict superset
   on all 38** whose two extra events are both on TUNE. **(!) `z_residual` reaches the cut on
   none of the 30 events the fused rule catches**: median 0.080, maximum 4.652 against a cut of
-  5.288, negative on 15 of 30. **The residual term is not weak, it is inert**, and D65's
+  5.288, negative on 15 of 30 -- **though the 30 span only 25 distinct onsets** (45.6.2), so
+  the effective n is lower. **The residual term is not weak, it is inert**, and D65's
   finding on this data **is the first derivative**. Nothing is adopted; D68 stands. It frees no
   memory, and it is one arm, one dataset, n = 19 per half, UNDERPOWERED.
 
@@ -500,6 +501,15 @@ with four channels crossing at one timestep, so the effective n is far below 30.
 early-warning claim: that stays with work item 11.**
 
 **The four attribution sites are corrected on both branches** (45.1.1).
+
+**(!) And 45.6.1's refutation rests on a computed null, which 46 registers as measurable.**
+The 74.6% assumes alarms are independent across nominal ticks; they run in streaks, so the true
+figure is **lower** -- which would make 18 of 30 look **less** like chance, not more. **45.6.1
+is therefore the conservative reading and could be wrong in the interesting direction.** 46
+scans matched decoy onsets drawn from nominal regions, seeded and fixed before the answer, so
+the null is measured. **165 Class B and 1 Class A. Not taken -- it blocks nothing, because the
++141.5 is quoted nowhere.** If it overturns 45.6.1, its own band sends the result to a second
+dataset before a sentence of it is written.
 
 **What 45.1 found, kept because it is why 45 exists.** Four live sites stated 37.7a's median
 **-63.5**, 0 of 10 positive, as the project's lead-time measurement without saying it was

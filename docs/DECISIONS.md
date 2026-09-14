@@ -4793,6 +4793,22 @@ carried regardless. And it is **one arm, one dataset, n = 19 per half, UNDERPOWE
 (`docs/HARNESS.md` 1). A `param_version` 3 rule that drops the residual term is **arguable
 after this and is not argued here**; it needs a second dataset and its own pre-registration.
 
+### D65.4 Rider, 2026-09-14: the thirty are not thirty independent events
+
+**D65.3's arithmetic is not edited.** `z_residual` reached the cut on **0 of 30** and that
+stands. What is added is what the denominator is made of, measured at `docs/MODELS.md` 45.6.2
+the next time this population was read:
+
+**30 events, 25 distinct onsets.** `E-1`, `E-10`, `E-11` and `E-12` all first cross at
+**4814**; `E-1` and `E-12` at **5423**; `M-3` and `M-4` at 1,099 and 1,102. **Four channels
+crossing at one absolute timestep is one observation, not four**, so the effective `n` is well
+below 30.
+
+**It does not weaken D65.3 and is recorded anyway.** A count of **zero** is zero under any
+grouping -- not one event reached the cut on the residual, so no amount of correlation between
+them changes the verdict. It is written down because **the same population is quoted for
+figures that do count agreements**, and those need it.
+
 ---
 
 ## D66. The in-range contextual class is confounded with channel envelope width, and the scaling is not the cause
