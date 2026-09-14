@@ -431,6 +431,7 @@ prediction that failed and why. This document follows the same discipline.
   - [46.3 (!) What MN2 firing would and would not mean](#463-what-mn2-firing-would-and-would-not-mean)
   - [46.4 Cost, and stop and report](#464-cost-and-stop-and-report)
   - [42.8 (!) Rider, 2026-09-14: the testbed is built and wired, and building it moved the bar](#428-rider-2026-09-14-the-testbed-is-built-and-wired-and-building-it-moved-the-bar)
+  - [42.9 OBSERVED -- all seven held, on one testbed, one fault mode and ten correlated seeds](#429-observed----all-seven-held-on-one-testbed-one-fault-mode-and-ten-correlated-seeds)
 
 <!-- /toc -->
 
@@ -13385,3 +13386,94 @@ A model trained by the toolkit on this testbed's own healthy telemetry; a run ha
 drives the deployment, records the trace and extracts the two instants; the false-alarm runs
 T5 needs; and the GDS recording `Objective.md` 12's Phase 3 gate asks for. **None exists, and
 no figure of T1 to T7 is reported until they do.**
+
+### 42.9 OBSERVED -- all seven held, on one testbed, one fault mode and ten correlated seeds
+
+**2026-09-14. Zero bucket operations**, which is the point of the testbed: it generates its own
+telemetry, so no read of SMAP/MSL or ESA-ADB is involved at any stage. The ledger stands at
+**238 Class A and 5,740 Class B**.
+
+**What was run.** The toolkit fitted a model on **seed 7's healthy 20,000 ticks** --
+`PYTHONPATH=src python -m sentinel_toolkit fit --tier 3`, 8 channels, **268,224 B,
+`param_version` 2**, cut **20.062910** derived as the 0.999 quantile of the pooled nominal
+fused statistic, held-out sanity rate **0.1830%** against a calibration half of 0.1046%. Then
+**ten seeded runs and ten healthy controls**, seeds 1-10, scored by
+`fprime/SentinelRef/PowerSim/TestbedRun.cpp`, which **links `Sentinel::Detector` itself** --
+the same object the F' component runs and the golden vectors pin, not a restatement of it.
+**The model was fitted on a seed none of the scored runs use.**
+
+#### (!) 42.9.1 The first warning is not the detection, and the healthy control is what shows it
+
+The naive reading of the seeded run says **first warning at tick 2,700**, against a first limit
+crossing at 19,225 -- a lead of **+16,525**. **It is spurious.** The healthy control, same seed,
+no fault, warns at **tick 2,700 as well**. That alarm is the plant's, not the fault's.
+
+**Ground truth by construction is what settles it.** The two runs share a seed and a plant and
+differ in one scalar, so a warning present in the seeded run and absent in the healthy run at
+the same tick **is the fault's and nothing else can have caused it**:
+
+```
+  warnings in the seeded run     40
+  warnings in the healthy run    30
+  shared, so NOT the fault's     30      first at tick 2,700
+  fault-attributable             10      first at tick 8,100
+```
+
+**Every lead below is measured from the fault-attributable warning.** This is the trap 45.6.1
+found on SMAP/MSL arriving again in a place where, for once, it can be removed rather than
+bounded: there is no null to compute, because the counterfactual run exists.
+
+#### The predictions
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **T1** | port connects, `valid` true every tick, zero commands | topology builds and links clean at `-Wshadow -Wconversion -Wold-style-cast -Werror`; the deployment loads the toolkit's model -- *"ModelLoaded: 8 channels, 2 layers, tier 3, fitted q0.999 pooled nominal, span 2100, n 3825"*; `channelOut_out(0, vec, true)` is the only call site; neither component declares a command of its own | **HELD** |
+| **T2** | every channel in limits until the trip being measured | **0 of 10 healthy runs cross any limit of any colour** in 22,000 ticks. On all ten seeded runs the first crossing is **`CellTemp`, tick 19,224-19,225**, and no channel crosses earlier | **HELD** |
+| **T3** | positive lead on at least 8 of 10 | **10 of 10** | **HELD** |
+| **T4** | median lead as a fraction of fault-onset-to-limit above 0.25 | **0.871**; median lead **9,774.5 ticks**, min 5,305, max 11,125 | **HELD** |
+| **T5** | false-alarm rate under 1% | **316 / 196,500 warmed healthy ticks = 0.1608%**, against the toolkit's own held-out prediction of **0.1830%** -- an instrument check that agrees | **HELD** |
+| **T6** | the cut is derived, not chosen | produced by `fit_model` from the 0.999 quantile of the mission's own pooled nominal statistic. No label, no target rate, no operating point selected off the swept curve | **HELD** |
+| **T7** | worst-case tick under 10% of the period | per-tick **median 11 us, p99 28 us, worst 326 us**, against the deployment's 1 Hz period of 1,000,000 us -- **0.033% worst case**. An upper bound: the figure includes the trace write | **HELD** |
+
+#### 42.9.2 (!) The warning time is in TIMESTEPS, and the harness's wall clock is not it
+
+`TestbedRun` records `steady_clock` per tick, and the gap between the two instants on seed 1 is
+**0.131 s**. **That is compute time and it is not a warning time.** The harness runs 22,000
+ticks in about a quarter of a second; the physics it simulates is not running at that rate.
+
+**The warning time is 11,125 timesteps on seed 1, median 9,774.5 over ten.** Its wall-clock
+value is a property of the rate group the deployment runs at, which 42.3 departure 2 registered
+as a choice: at `SentinelRef`'s **1 Hz**, the median is **9,774 s, 2 h 43 min**. **At any other
+rate it is a different number of seconds and the same number of ticks**, which is why the
+transferable figure is T4's dimensionless fraction and not either of them.
+
+#### 42.9.3 What this does NOT establish, and the list is longer than the table
+
+- **Ten runs are not ten independent systems.** They share a plant, a fault mode, a fault rate
+  and an injection tick, and differ only in noise. The first limit crossing lands at
+  **19,224 or 19,225 in all ten** -- a two-tick spread -- because the deterministic ramp
+  dominates the noise entirely. **The effective `n` is close to one**, and the 10 of 10 is a
+  statement about reproducibility far more than about power.
+- **One fault mode.** `RESISTANCE_RISE` is the only degradation implemented. A method that
+  catches the one fault this project thought to write is not thereby a method that catches
+  faults nobody wrote, and `Objective.md` 13 item 8 already records that caveat for injected
+  faults generally.
+- **One model, one testbed.** The cut was derived on this plant's own healthy telemetry and
+  means nothing anywhere else.
+- **(!) NO EARLY-WARNING CLAIM ABOUT SPACECRAFT TELEMETRY FOLLOWS FROM ANY OF THIS.** What is
+  established is that **on this testbed**, at a measured false-alarm rate of 0.1608%, the flown
+  rule warned a measured number of timesteps before a declared limit was crossed. 37.7a's
+  **0 of 10 positive leads** on SMAP/MSL stands beside it, and 45.6's measurement -- that the
+  flown rule is **less late, not early**, on real telemetry -- is not overturned by a simulation
+  of a fault this project designed.
+- **The GDS recording `Objective.md` 12's Phase 3 gate asks for is NOT produced.** The
+  deployment runs and emits its events to the console, which is recorded above; a screen capture
+  of a live GDS session is an interactive artifact and is **owed**.
+
+#### 42.9.4 Artifacts
+
+Traces `runs/testbed/f_1.csv` to `f_10.csv` and `h_1.csv` to `h_10.csv`; summary
+`runs/testbed/t3_t5_summary.json`; model `runs/testbed/testbed.bin`; training telemetry
+`runs/testbed/healthy_seed7.npy`. **All under `runs/`, which is gitignored: cited by path,
+never committed.** Producers `fprime/SentinelRef/PowerSim/TestbedRun.cpp` and the toolkit, both
+in this commit.

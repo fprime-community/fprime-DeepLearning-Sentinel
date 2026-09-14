@@ -14,6 +14,48 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.54] - 2026-09-14 - All seven of 42's predictions held, and the healthy control is why any of them mean anything
+
+**`docs/MODELS.md` 42.9. Zero bucket operations** -- the testbed generates its own telemetry,
+which is the point of it. Ledger unmoved at **238 Class A and 5,740 Class B**.
+
+The toolkit fitted a model on the testbed's **seed 7** healthy telemetry -- 8 channels,
+`param_version` 2, 268,224 B, cut **20.062910** derived as the 0.999 quantile of the pooled
+nominal statistic. Ten seeded runs and ten healthy controls, seeds 1-10, were scored by a
+harness that **links `Sentinel::Detector` itself**. The model's seed is used by none of them.
+
+### (!) The first warning is not the detection
+The naive reading says first warning at tick **2,700** against a limit crossing at 19,225 -- a
+lead of **+16,525**. **The healthy control warns at 2,700 too.** Same seed, same plant, no
+fault. Ground truth by construction removes it: 40 warnings in the seeded run, 30 in the
+healthy, **30 shared and 10 the fault's, the first at tick 8,100** -- 100 ticks after injection.
+This is 45.6.1's trap arriving where, for once, the counterfactual run exists and the null can
+be **measured away instead of computed**.
+
+### All seven held
+**T1** topology builds and the deployment loads the model; **T2** 0 of 10 healthy runs cross
+any limit, and `CellTemp` is first in all ten seeded runs; **T3** positive lead **10 of 10**;
+**T4** median fraction **0.871**, median lead **9,774.5 ticks**; **T5** false alarms
+**0.1608%** against the toolkit's own 0.1830% prediction; **T6** the cut derived with no label
+and no target rate; **T7** worst tick **326 us**, 0.033% of the 1 Hz period.
+
+### (!) And what it does not establish is longer than the table
+**The warning time is in timesteps.** The harness's 0.131 s is **compute time, not a warning
+time**; at 1 Hz the median is 2 h 43 min, at another rate a different number of seconds and the
+same number of ticks. **Ten runs are not ten independent systems** -- the limit crossing lands
+at 19,224 or 19,225 in all ten, so the effective `n` is close to one. One fault mode, one
+model, one testbed, and the fault is one this project designed.
+
+**No early-warning claim about spacecraft telemetry follows.** 37.7a's 0 of 10 and 45.6's
+*less late, not early* both stand beside it. **The GDS recording is owed.**
+
+### The testbed documents its own findings
+`fprime/SentinelRef/PowerSim/docs/sdd.md` carries the eclipse finding with its tick numbers: a
+5 W yellow low on `SolarInput` fired on **tick 0 of every run, healthy ones included**, because
+the array reads 0 W through eclipse, 35% of every orbit. **Low solar is not a fault, it is
+night** -- and the first channel this testbed tried to limit-check turned out to be one that
+cannot be. This project's thesis, in its own instrument, found by a run rather than a review.
+
 ## [0.6.53] - 2026-09-14 - The physics testbed is built and wired, and building it moved the bar
 
 **`docs/MODELS.md` 42.8.** `fprime/SentinelRef/PowerSim/` is a passive component publishing

@@ -345,6 +345,26 @@ is carried and reported and drives nothing. **One arm, one dataset, n = 19 per h
 UNDERPOWERED, and no early-warning claim.** A third read -- both dilations at one fixed cut
 -- is **owed and not taken**; it refines N6 and blocks nothing.
 
+**(!) C IS BUILT, RUN AND ADJUDICATED, 2026-09-14** (`docs/MODELS.md` 42.9). The toolkit
+fitted a model on the testbed's own healthy telemetry -- 8 channels, `param_version` 2, cut
+**20.062910** derived as the 0.999 quantile of its pooled nominal statistic -- and ten seeded
+runs and ten healthy controls were scored by a harness that **links `Sentinel::Detector`
+itself**. **All seven predictions HELD**: positive lead on **10 of 10**, median lead **9,774.5
+timesteps** and **T4 fraction 0.871**, false alarms **0.1608%** against the toolkit's own
+held-out prediction of 0.1830%, worst-case tick **0.033%** of the 1 Hz period.
+**(!) The first warning is not the detection, and the healthy control is what shows it**: the
+naive reading gives a lead of +16,525 from a warning at tick 2,700 that the **healthy run makes
+too**. Ground truth by construction removes it -- same seed, same plant, one scalar differs --
+leaving **10 fault-attributable warnings, the first at tick 8,100**, 100 ticks after injection.
+**(!) The warning time is in TIMESTEPS; the harness's 0.131 s is compute time, not a warning
+time.** At the deployment's 1 Hz the median is 2 h 43 min, and at another rate it is a different
+number of seconds and the same number of ticks.
+**(!) Ten runs are not ten independent systems.** The first limit crossing lands at 19,224 or
+19,225 in **all ten** -- a two-tick spread -- so the effective `n` is close to one and 10 of 10
+is about reproducibility, not power. One fault mode, one model, one testbed. **No early-warning
+claim about spacecraft telemetry follows**: 37.7a's 0 of 10 and 45.6's *less late, not early*
+both stand beside it. **The GDS recording is owed.**
+
 **C. Work item 11, the F' Ref physics testbed** (Phase 3, pulled forward). Coupled
 current/heat/temperature/voltage, 8-12 channels, real dictionary limits, real clock, faults
 seeded **in the physics** and in-limits throughout for the contextual family, ground truth
