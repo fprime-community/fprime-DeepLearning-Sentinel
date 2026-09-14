@@ -3091,6 +3091,76 @@ own approval, and this entry does not grant it.
 5. **No ESA-ADB figure, task, weight, manifest or decision changes.** D43 and D44 stand
    exactly as written; this adds a dataset on which their question can be asked again.
 
+### D46.1 Rider, 2026-09-14: 23 of the 39 do not sit inside the envelope, they sit ON it
+
+**This entry's arithmetic is not edited and is not withdrawn. What changes is one
+word of its phrasing, and the word is doing real work.**
+
+**The question.** `scripts/smap_visibility.py:74` makes the in-range test
+**inclusive** -- `(span < lo) | (span > hi)` -- on 24.9's rule that *"an event that
+touches a channel's historical extreme has not left it"*. That is a defensible
+definition and it was pre-registered. **It also means "in range" and "inside the
+range" are not the same statement**, and nothing had ever measured the gap.
+
+**Measured.** For every step of every in-range contextual sequence,
+`margin = min(x - train_min, train_max - x)`; a sequence's margin is its minimum
+over the span -- how close it ever came to either rail. **28 Class B and 1 Class A
+after a 2 Class B smoke, both projections exact.** Producer
+`scripts/smap_margin.py`; artifact
+`runs/smap-msl/_forensics/2026-09-14T081501Z-margin.json`. Month after: **235 Class
+A and 5,392 Class B of 50,000.**
+
+```
+  touching a rail EXACTLY (margin 0.0)     23 of 39        and 23 of the scored 38
+  strictly inside                          16 of 39
+  nearest rail:  train_min 19, train_max  4
+  channels involved                        15 of 26
+  smallest non-zero margins                M-4[1250] 1.095e-05, M-3[1250] 4.615e-05
+```
+
+**These are exact zeros, not float noise.** The bands are flat from `0` to `1e-6`:
+23 at every one of them. Only at `1e-3` does the count move, to 25.
+
+**(!) AND 18 OF THE 23 SIT IN AN ENVELOPE OF EXACTLY `[-1, +1]`**, width 2.0000 --
+which is D66's affine map, *fitted on the test split*, showing through. For a channel
+whose training split also reaches both extremes, the training envelope **is** the
+scaler's saturation rails, the test split attains them **by construction**, and a
+labelled anomaly that reaches one is scored in range and **could not have been scored
+otherwise**. D66 established the *inequality* is immune to that map. It did not say,
+and this says, that for those channels the verdict is partly a property of the
+preparation.
+
+**What this does NOT do.** It does not move 39, or 38, or any recall figure: the
+scored population is unchanged and every detection result stands. It does not make
+the claim false. **D43's premise carries it** -- *a real RED or YELLOW limit sits
+outside a channel's historical operating range*, so a limit check would still not
+fire on a value that merely reaches that range's edge. What changes is that D43's
+premise is now **load-bearing rather than incidental**: on the arithmetic alone, an
+inclusive limit placed *at* the historical extreme would fire on 23 of these 39.
+
+**CONSEQUENCE: one word.** "Stay **entirely inside**" and "stay **strictly inside**"
+are wrong for 23 of the 39 and should read **"stay at or within"**, with the 23
+disclosed wherever the population is introduced. The sites are listed in the report
+this rider was written for; correcting them is a separate edit and is not done here.
+
+**(!) And one of the four failures is not a failure.** Enumerated with their
+excursions beyond the training envelope, taken from each channel's whole test split
+(`runs/smap-msl/_forensics/2026-09-10T041723Z-probe.json`), so each is an **upper
+bound** on the excursion inside the labelled span rather than the span's own figure:
+
+```
+  M-2[1110-2250]  MSL   622/1141 outside   +0.448951 above train_max
+  M-5[1250-1550]  MSL    35/301  outside   +0.113600 above, -0.053980 below
+  C-2[1540-1575]  MSL    33/36   outside   +2.000000 above train_max
+  M-1[1110-2250]  MSL    27/1141 outside   -0.160382 below train_min
+```
+
+**`C-2`'s training split is constant at -1.0.** Its envelope is
+`[-1.000000, -1.000000]` -- **zero width** -- so every test value above -1.0 is
+"outside" by construction and 33 of 36 steps are. That is a degenerate channel, not
+an anomaly leaving its range, and it must be said wherever the four are quoted. **All
+four failures are MSL**; all 26 SMAP contextual sequences are in range.
+
 ---
 
 ## D47. `error_window` is an absolute constant where it should be proportional, and it silently disabled scoring on short series
