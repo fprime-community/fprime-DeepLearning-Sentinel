@@ -1,6 +1,6 @@
 # Evidence
 
-> **Paths outside this branch resolve on `dev`** at commit **`28f7d27`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`384d17a`** (`docs/DECISIONS.md`
 > D69, on `dev`). Every figure below names the `dev` decision or section it comes from and
 > the run artifact it was read from. **Artifacts under `runs/` are cited by path and are not
 > in git on any branch** -- the path is the identifier.
@@ -216,12 +216,13 @@ and no credential.
 - **The twelfth refusal code** is not yet in the F' component's degrade-to-Level-1 test
   (`docs/DESIGN.md` section 4).
 - **A float64 reference** for the dynamic threshold, without which N2 cannot be judged.
-- **The ground toolkit**, which is pre-registered and unwritten, and without which a mission
-  cannot use any of this.
+- **The ground toolkit is not released on this branch**, and without it a mission cannot use
+  any of this. It is written: **3 of its 3 acceptance-ladder rungs have run** on `dev`, the
+  last on a real twelve-channel mission. What is owed here is the release, not the build.
 
 ## 10. Sources
 
-Every decision cited above is on `dev` at `28f7d27` in `docs/DECISIONS.md`: **D46** the
+Every decision cited above is on `dev` at `384d17a` in `docs/DECISIONS.md`: **D46** the
 in-range population, **D65** the decision-layer finding, **D66** the envelope confound,
 **D68** the flight configuration, **D69** this branch's curation. The pre-registrations and
 their outcomes are `docs/MODELS.md` 26.18, 36, 37, 38 and 39.

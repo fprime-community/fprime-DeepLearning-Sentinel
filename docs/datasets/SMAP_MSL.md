@@ -138,7 +138,7 @@ D17's stall signature.
 > `M-1[1110-2250]` 27/1141.
 
 The 38 are split **channel-disjoint 19/19**, committed at `docs/MODELS.md` 37.8 **before any
-sweep**. **Both halves are n = 19 and are stamped UNDERPOWERED (D3)** wherever they are
+sweep**. **Both halves are n = 19 and are stamped UNDERPOWERED (`docs/HARNESS.md` 1)** wherever they are
 quoted -- denominators under 20 are not a basis for a confident claim, and saying so is not
 modesty, it is the rule.
 
@@ -211,7 +211,7 @@ anomalies have a median span of **0.274**.
   are the population it can" now carries that qualification.
 - **The only within-channel test available is underpowered and settles nothing.** Four
   channels carry both classes -- `C-1`, `C-2`, `G-7`, `T-1` -- giving contextual 4/5 and
-  point 2/4. **n = 9. UNDERPOWERED (D3), and no conclusion is drawn from it.**
+  point 2/4. **n = 9. UNDERPOWERED (`docs/HARNESS.md` 1), and no conclusion is drawn from it.**
 - **(!) D48 IS NOT TOUCHED, and it is the load-bearing half of the claim.** D48 measured
   that no per-channel statistic reaches a flyable alarm rate on this data at any
   multiplier: `rstd` at **5,000 times** its calibrated threshold still alarms on

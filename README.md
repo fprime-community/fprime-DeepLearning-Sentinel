@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`28f7d27`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`384d17a`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -117,7 +117,7 @@ uncurated one, because a reader cannot tell what they are not seeing.
 
 | Absent | What it is | Why |
 |---|---|---|
-| `src/` | The ground toolkit: ingest, referee, models, the `model.bin` writer, and the toolkit itself at tiers 1 and 2 | **Not released.** See the warning above |
+| `src/` | The ground toolkit: ingest, referee, models, the `model.bin` writer, and the toolkit itself, whose **3 of its 3 acceptance-ladder rungs have run** on `dev` | **Not released.** See the warning above |
 | `scripts/` | The guards, the vector generators, every study that produced a figure | Development apparatus, not product |
 | `tests/` | The Python suite, which runs against `src/` | Runs against `src/`, which is not here |
 | `docs/MODELS.md` | Every pre-registration beside its outcome | The research record. Cited from here, resolves on `dev` |

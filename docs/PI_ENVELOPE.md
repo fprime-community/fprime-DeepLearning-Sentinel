@@ -7,8 +7,9 @@
 
 ## Why this document exists before its contents
 
-`docs/STATUS.md` section 7 carries the Raspberry-Pi envelope as roadmap work: whether the
-flight core runs inside a representative small-computer budget, and with how much margin.
+`Objective.md` section 12 carries the Raspberry-Pi envelope as **Phase 4**, and the curated
+branch's status document carries it as a roadmap row: whether the flight core runs inside a
+representative small-computer budget, and with how much margin.
 It is the first question anyone asks about a neural forecaster on a spacecraft, and the
 temptation is to answer it from the numbers that already exist -- `sizeof(Detector)`, the
 multiply-accumulate count, the flown weight size -- multiplied by a guess.
@@ -17,6 +18,10 @@ multiply-accumulate count, the flown weight size -- multiplied by a guess.
 record of what that costs: `docs/NARRATIVE.md` 6.9 records a figure written into a planning
 mock-up and later read back as data. So the page exists, the shape is agreed, and it stays
 empty.
+
+**(!) This page cited `docs/STATUS.md` section 7 until 2026-09-14**, which carries no such
+item on either branch. The roadmap moved and the reference did not -- the same drift this
+document exists to refuse, arriving in the document itself.
 
 ## What is already known, and it is not an envelope
 
@@ -61,3 +66,18 @@ When it is taken, it fills in exactly this and nothing more:
 - **Report the losers.** If it does not fit, that is the finding and it is published as one.
 - **No estimate is published here**, and if the measurement cannot be taken, this page says
   so and stays empty.
+
+## The measurement is pre-registered, and this page is still empty
+
+**`docs/MODELS.md` 41, 2026-09-14.** Nine numbered predictions with HOLD / NO VERDICT / FAIL
+bands, a stated falsification and five stop conditions, **written before a board was in hand**
+and naming the board they are registered against. It covers the eight rows above and adds
+training on the target, which `docs/reorg_plan.json`'s definition of done requires and the
+table did not name.
+
+**Scheduled, not blocked.** A board is to be obtained. **If a different one arrives, 41's
+absolute bands are re-derived and committed as a rider before it is switched on**, never
+after -- a band written once the hardware is known is not a pre-registration.
+
+**Nothing on this page changes until the measurement is taken.** The rule at the top still
+holds: a figure here that is not a measurement is a defect.
