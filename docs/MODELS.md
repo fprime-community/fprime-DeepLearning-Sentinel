@@ -13036,6 +13036,23 @@ lead is +0.0"*.
 quietly, and brought to the owner: two of them are on the customer branch, and one is this
 pass's own.
 
+#### 45.1.1 Rider, 2026-09-14: all four corrected, on the owner's word
+
+**45.1's list is not edited.** This records what was done about it.
+
+**All four now name what was measured**, in the clause form
+`flight/include/sentinel/DynamicThreshold.hpp:40` and the component's SDD already used: the
+figure is the **frozen decision layer's**, which emits at a segment's end, and **the flown rule
+crosses per tick and its lead time is unmeasured**, registered here at 45.
+
+```
+  dev     README.md evidence table        docs/MODELS.md 42.6
+  master  README.md                       docs/EVIDENCE.md section 7
+```
+
+**No figure moves on either branch**, and no disclaimer weakens: all four said no
+early-warning claim is made and all four still do. **The correction is to the attribution.**
+
 ### 45.2 What is derivable now, at zero operations, and it is a bound
 
 `runs/smap-msl/_forensics/2026-09-14T212406Z-ablation.json` records, for each of the **30**

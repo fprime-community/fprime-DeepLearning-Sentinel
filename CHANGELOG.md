@@ -14,6 +14,28 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.50] - 2026-09-14 - All four attribution sites corrected, on both branches
+
+**45.1's four sites now name what was measured** (45.1.1), in the clause form
+`DynamicThreshold.hpp:40` and the component's SDD already used: the figure is the **frozen
+decision layer's**, which emits at a segment's end, and **the flown rule crosses per tick and
+its lead time is unmeasured**, registered at `docs/MODELS.md` 45.
+
+```
+  dev     README.md evidence table        docs/MODELS.md 42.6
+  master  README.md                       docs/EVIDENCE.md section 7
+```
+
+**No figure moves and no disclaimer weakens.** All four said no early-warning claim is made and
+all four still do; the correction is to the attribution.
+
+### 39.5.1: forward-only dilation stands, and its stated reason describes the reported threshold
+*"Backward dilation cannot be emitted -- there is no un-emit"* assumes the dilated set **is**
+the emission set. It was, under D25's rule, which 39 was written against. D68 then adopted a
+per-tick statistic and **no dilated quantity gates a warning**. The choice does not change and
+neither does any number; the reason is about the threshold this component **reports**, not the
+rule it **flies**. **P39.6, and D68.1 which carries it, is withdrawn rather than owed.**
+
 ## [0.6.49] - 2026-09-14 - The flown rule's lead time has never been measured, and four live sites imply it has
 
 **`docs/MODELS.md` 45, and it is the finding rather than the pre-registration.** Every
