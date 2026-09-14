@@ -4526,6 +4526,54 @@ about whether heterogeneity across detectors buys anything. P2.3 above joins the
 6. **No early-warning claim is made or implied.** 37.7a measured 0 of 10 positive leads on
    the frozen arm, and this entry measures recall at a matched alarm rate, not lead time.
 
+### D65.1 Rider, 2026-09-14: two EVAL events traced per timestep, and what the trace shows
+
+**Nothing here changes a figure.** Two of this entry's own EVAL events were read back
+at per-timestep resolution to draw them, and the read is recorded because it spent
+operations: **2 Class B for a smoke and 4 for the run, both projected and actual**,
+cached weights, **weight store 1,313 -> 1,313**. Producer
+`scripts/dump_event_trace.py`; trace `runs/smap-msl/_traces/E-10-trace.npz`. Month
+after: **233 Class A and 5,362 Class B of 50,000.** The event spans came from
+`runs/smap-msl/_forensics/2026-09-03T192723Z-visibility.json`, already on disk, so no
+labels table was fetched.
+
+**It is a reproduction, and the producer refuses to be anything else.** The script
+rebuilds both arms from this entry's own artifact -- `channel_ratios >= 0.550599` and
+`max(z_residual, z_derivative) >= 5.288128` -- and **stops rather than drawing** if a
+trace disagrees with what the artifact records. Both events agree:
+
+```
+  E-10[5000-5050]   frozen MISSES, adopted CATCHES     as recorded
+  E-10[5601-5871]   frozen CATCHES, adopted CATCHES    as recorded
+```
+
+**(!) AND THE TRACE SAYS SOMETHING THE COUNTS DO NOT.** On **both** events the
+adopted rule fires on the **derivative**, never on the residual:
+
+```
+  event              z_residual   z_derivative   telemanom ratio    cut / multiplier
+  E-10[5000-5050]        3.211          6.162             0.518    5.288 / 0.551
+  E-10[5601-5871]        3.856          6.781             1.208    5.288 / 0.551
+```
+
+`z_residual` **does not reach the 5.288 cut on either**. So E-10[5601], which both
+rules catch, is not a case of the two agreeing about a loud residual: telemanom's
+dynamic threshold crosses on the smoothed error while the fused rule crosses on the
+derivative. **The two rules agree on the verdict and disagree about why.**
+
+**What that is and is not evidence of.** It is **one channel and two events**, and it
+is a property of these traces rather than a measurement over the population -- the
+per-event decomposition D65 consequence 5 registers as owed is still owed, and this
+does not discharge it. What it does do is make the mechanism visible at the resolution
+the counts cannot show, and it is consistent with 36.4, which measured that all ten
+residual-invisible events carry `z > 3` in the first derivative.
+
+**The span is the study's, not flight's.** These traces are taken at
+`proportional_config`'s window of **425** for this channel (D47), because that is the
+configuration this entry's numbers were produced under. The flight component
+standardises over a compile-time 2,100, so a trace drawn at 2,100 would not be this
+run.
+
 ---
 
 ## D66. The in-range contextual class is confounded with channel envelope width, and the scaling is not the cause
