@@ -87,8 +87,9 @@ anomaly leaving its range. The other three: `M-2[1110-2250]` 622/1141 steps outs
 `M-5[1250-1550]` 35/301, `M-1[1110-2250]` 27/1141.
 
 **And the point/contextual split is telemanom's own field, not derived here.**
-`labeled_anomalies.csv` ships a `class` column (upstream `README.md` 104-109); this project
-fetches it verbatim and checksums it, and never recomputes it.
+`labeled_anomalies.csv` ships a `class` column, documented at
+`third_party/telemanom/README.md:104-109`; this project fetches it verbatim and checksums
+it, and never recomputes it.
 
 For contrast, **11 of 61** point anomalies stay in range. That gap is the reason this
 population is the one the claim rests on.
