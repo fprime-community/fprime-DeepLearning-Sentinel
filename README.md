@@ -165,7 +165,7 @@ does not do.
 | It is warn-only | `Monitor.fpp` declares **zero commands**; `cmdIn` exists only for F's autocoded `PARAM_SET`/`PARAM_SAVE`, said in situ | **None.** Warn-only by interface, not by convention |
 | It fails safe | 12 refusal codes in `Status.hpp`, each with its own case; all degrade to Level 1 and none fails the topology (D32-D37) | None |
 | It builds in F' v4.3.0 | `docs/FPRIME.md` 4: F's own `Ref` built from this toolchain in 12.4 s | `Ref` moved at v4.3.0 and it is not in the breaking-change notes |
-| It warns early | -- | **No such claim is made.** `docs/MODELS.md` 37.7a measured **0 of 10 positive leads**; every figure here is recall at a matched alarm rate, in timesteps, never in hours |
+| It warns early | -- | **No such claim is made.** `docs/MODELS.md` 37.7a measured **0 of 10 positive leads** on the **frozen decision layer**, which emits at a segment's end; **the flown rule crosses per tick and its lead time is unmeasured**, registered at `docs/MODELS.md` 45. Every figure here is recall at a matched alarm rate, in timesteps, never in hours |
 
 - [docs/PHASE1_REPORT.md](docs/PHASE1_REPORT.md) is the self-contained account of Phase 1 for a
   newcomer; [docs/INDEX.md](docs/INDEX.md) is one sentence per document.

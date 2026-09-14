@@ -11245,6 +11245,34 @@ brought to the owner with its cost before it is spent. **No number of it is repo
 then**, and the port does not wait on it: the C++ implements the forward-only rule and the
 Python reference gains the same option, so the two match whatever the measurement says.
 
+#### 39.5.1 Rider, 2026-09-14: the choice stays right and its stated reason describes the reported threshold, not the flown rule
+
+**This departure is not edited and is not reversed. Forward-only dilation stands.** What is
+qualified is the sentence it was argued from.
+
+The argument here is that **backward dilation cannot be emitted** -- it would mark up to 99
+timesteps that have already been emitted, and *"there is no un-emit"*. **That assumes the
+dilated set IS the emission set.** It was, under D25's rule, which this section was written
+against: `channel_ratios` decides a segment at its end and its dilated runs are the alarm.
+
+**D68 then adopted a per-tick statistic.** `flight/src/Detector.cpp:199-210` crosses on
+`m_fusedScore >= m_model.threshold` every tick, and **no dilated quantity gates a warning** --
+`DynamicThreshold::epsilon()` has no readers, `emitted()` is read only by
+`Detector::dynamicEmitted()`, which nothing calls, and `zResidual`, the one consumed output,
+is the trailing window's z, which dilation does not touch. The full trace is D68.1's rider.
+
+**So the reason is about the threshold this component REPORTS, not the rule it FLIES.** It is
+still a good reason: a carried, reported threshold should not claim retroactive extent either,
+and a reader comparing this port against the published rule needs the departure stated. **The
+choice does not change and neither does any number.**
+
+**Consequence: P39.6 -- and D68.1, which carries it -- is withdrawn rather than owed.** The
+price of dropping backward dilation is a property of the **published** rule's alarm sets, not
+of this component's behaviour, so the read that would divide its lever from its dial
+(**165 Class B and 1 Class A**) buys nothing this project needs. **Not spent.** It remains a
+real question about telemanom's rule, and taking it would need its own pre-registration saying
+so.
+
 ### 39.6 (!) Departure 3 -- the footprint, and the three layouts costed
 
 `flight/test/Footprint.cpp:39` asserts `sizeof(Detector) < 320,000` against 19's
@@ -12565,7 +12593,8 @@ bounds.** If T3 and T4 and T5 all hold, this project may say that **on this test
 stated false-alarm rate, Sentinel warned a measured time before a declared limit tripped** --
 naming the testbed, the physics, the seeded fault and the operating point. It may **not** say
 that it warns early on spacecraft telemetry, and 37.7a's **0 of 10 positive leads** on SMAP/MSL
-stays quoted beside it wherever it appears.
+stays quoted beside it wherever it appears -- **measured on the frozen decision layer, which
+emits at a segment's end; the flown rule's own lead time is unmeasured and registered at 45.**
 
 Every figure carries `k/n` and the **UNDERPOWERED** stamp where `n < 20` (`docs/HARNESS.md` 1),
 which ten seeded runs will trip. Warning time is reported **in ticks, in testbed seconds and as
