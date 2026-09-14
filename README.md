@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`3d423cf`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`424da07`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -135,9 +135,9 @@ uncurated one, because a reader cannot tell what they are not seeing.
   evidence it works, taking a snapshot when something is done. A visitor arriving at this
   repository lands here.
 - **(!) `main` was retired on 2026-09-14.** It was an earlier snapshot branch. Every commit
-  it held is reachable from this one &#8212; `git rev-list master..main` was 0 before it went
-  &#8212; and all nine tags were and remain on `dev`, so no commit and no Release was lost.
-  **A `/blob/main/&#8230;` link held outside this repository will now 404.** No such link
+  it held is reachable from this one -- `git rev-list master..main` was 0 before it went
+  -- and all nine tags were and remain on `dev`, so no commit and no Release was lost.
+  **A `/blob/main/...` link held outside this repository will now 404.** No such link
   exists inside it; one held elsewhere cannot be searched for, so that risk is stated rather
   than dismissed.
 - **Nothing is ever force-pushed, and no branch is ever rewritten.**
