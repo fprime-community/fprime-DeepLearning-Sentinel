@@ -67,3 +67,17 @@ When it is taken, it fills in exactly this and nothing more:
 - **No estimate is published here**, and if the measurement cannot be taken, this page says
   so and stays empty.
 
+## The measurement is pre-registered, and this page is still empty
+
+**`docs/MODELS.md` 41, 2026-09-14.** Nine numbered predictions with HOLD / NO VERDICT / FAIL
+bands, a stated falsification and five stop conditions, **written before a board was in hand**
+and naming the board they are registered against. It covers the eight rows above and adds
+training on the target, which `docs/reorg_plan.json`'s definition of done requires and the
+table did not name.
+
+**Scheduled, not blocked.** A board is to be obtained. **If a different one arrives, 41's
+absolute bands are re-derived and committed as a rider before it is switched on**, never
+after -- a band written once the hardware is known is not a pre-registration.
+
+**Nothing on this page changes until the measurement is taken.** The rule at the top still
+holds: a figure here that is not a measurement is a defect.

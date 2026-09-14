@@ -14,6 +14,71 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.45] - 2026-09-14 - Four pre-registrations, none run, zero bucket operations
+
+**`docs/MODELS.md` 41 to 44, written before anything is measured**, in the form every section
+from 19 onward uses: numbered predictions with HOLD / NO VERDICT / FAIL bands, a stated
+falsification, reporting rules and stop conditions. **Nothing is adopted, nothing is built and
+no read is taken.** The operations ledger is unmoved.
+
+### 41, the Raspberry-Pi envelope (`Objective.md` 12, Phase 4)
+Nine predictions against a **named board**, with the rule that a different board re-derives the
+absolute bands **as a rider before it is switched on**. Two are dimensionless so they survive
+that change. `docs/PI_ENVELOPE.md` gains a pointer and **still carries no figures**.
+
+- **(!) A fresh checkout runs 2 of the 7 golden tiers.** `g3.bin` and `g4_*` are gitignored with
+  a stated reason and `GoldenVectors.cpp` skips an absent tier **silently**, so the ARM
+  cross-platform proof would have run 3 and 7 channels and reported success. 39.7 already wrote
+  the rule this trips. R2 now asserts the **tier count**, not only the tolerance.
+- **Nothing exists at 16 channels**, the compile-time maximum a mission sizing a rate group
+  needs. The fixture is generated on the target and not committed.
+- **Tracked content is 6.07 MiB, inside 39's N8 middle band** before this adds anything. N8's
+  row is a record and is not edited; the movement is reported beside it.
+- The margin denominator is **1,000 ms**, read from the topology rather than assumed.
+
+### 42, the F' Ref physics testbed (work item 11)
+Seven predictions. `SentinelRef` already has the component instanced, passive, on a 1 Hz rate
+group behind a real clock; **the gap is one unconnected port**, and the topology says so.
+
+- **(!) F' evaluates telemetry limits on the ground, not onboard.** So a limit trip and a
+  warning have different time bases, and **a warning time subtracted across two clocks is not
+  reported at all**. The testbed evaluates the dictionary's own limit values against the
+  onboard base, and the ground-to-onboard difference is reported as what it is.
+- **(!) 40.3a's floor sets the run length**: 6,550 ticks, **1 h 49 min per healthy run at 1 Hz**,
+  36 hours for a false-alarm figure over twenty. Raising the base clock is registered; a
+  **simulated time source is refused**.
+- This is the section that would make an early-warning claim permissible, **within its own
+  bounds and never about spacecraft telemetry**, with 37.7a's 0 of 10 quoted beside it.
+
+### 43, the stride reduction
+37.7a recorded this and declined to register it. Registered now, in two halves so the
+zero-operation claim is honest rather than deferred.
+
+- The cost side is **arithmetic once 41's R6 lands**: `mean(S) = m(1 + (R-1)/S)`, worked at
+  R6's three band boundaries.
+- **(!) The lever is confounded with the statistic by construction.**
+  `SOLVE_WINDOW = ERROR_WINDOW + STRIDE`, so a stride change moves the window, `MAX_SEQUENCES`
+  and the footprint -- and therefore N3's equality and N8's band, both records. The separation
+  is committed in advance, which is 39.13.3's lesson applied before rather than after.
+- **The ceiling is stated**: even at stride 1 the median lead on this population cannot better
+  about **+5.5 timesteps**, on n = 10. **Removing structural latency is not warning early.**
+- **S5 needs 165 Class B and 1 Class A. Not taken.**
+
+### 44, the derivative-only ablation
+The adopted rule with `z_residual` removed, matched **0.6820%**, same 19/19 split.
+
+- **It frees no memory, and saying otherwise would be wrong**: `zResidual` reads the dynamic
+  threshold's own window, which 39.8 and D68 keep carried regardless. What it would settle is
+  whether D65's headline is the fusion or **the derivative**.
+- **Two-sided bands**, because 39's N6 was *"a one-sided worry written as a two-sided band"* and
+  measured +13 in the direction it was not looking.
+- D65.1's two traces raise the question and say in as many words that two events are not a
+  measurement. **Needs 165 Class B and 1 Class A. Not taken.**
+
+### Owed and deliberately unregistered
+**D68.1** -- both dilations at one fixed cut -- and the repair of **arms 4a, 6 and 7** stay owed
+and unregistered. Bundling them into 44's read would make one approval cover four questions.
+
 ## [0.6.44] - 2026-09-14 - "At or within", not "inside": D46.1's correction is carried out on `dev`
 
 **D46.1 measured that 23 of the 39 touch a rail exactly and said the sites were a separate

@@ -351,6 +351,17 @@ seeded **in the physics** and in-limits throughout for the contextual family, gr
 by construction. *Done when* a model gate runs on it at a matched rate reporting in-limits
 catch rate, **time-to-limit-trip** and manoeuvre false alarms - and the live GDS recording
 exists.
+**(!) PRE-REGISTERED AND NOT YET BUILT, 2026-09-14** (`docs/MODELS.md` 42). Seven
+predictions, four departures, zero bucket operations. Two of the departures were found in the
+reading rather than anticipated: **F' evaluates telemetry limits on the ground, not onboard**,
+so a warning time subtracted across two clocks is not reported at all and the testbed evaluates
+the dictionary's own limit values against the onboard time base; and **40.3a's data floor sets
+the length of every run** -- 250 + 2,100 of warm-up plus 4,200 of calibration is **6,550 ticks,
+which at `SentinelRef`'s 1 Hz base clock is 1 h 49 min per healthy run** and 36 hours for a
+false-alarm figure over twenty. The registered way out raises the base clock and keeps the
+clock real; a **simulated time source is refused**, because a real clock is the one thing this
+testbed exists to provide.
+
 **D. Work item 10, in-orbit threshold recalibration.** File uplink, human-approved reload,
 on `model.bin` **version 1**: PARAMS is separately CRC'd and carries its own
 `param_version`, so no format change is needed. `docs/PHASE2.md` 5b states what it must
@@ -436,6 +447,34 @@ commit object and no Release was lost. Three of D69's nine named sites turned ou
 `CHANGELOG.md` entries and were **kept with a rider rather than edited**, which leaves seven
 live sites rewritten. **External `/blob/main/` links will 404**: none exists inside either
 tree and none outside can be grepped for.
+
+**J. Three more pre-registrations, all written 2026-09-14 and none run.** Zero bucket
+operations between them.
+
+- **The Raspberry-Pi envelope** (`docs/MODELS.md` 41), which `Objective.md` 12 carries as
+  Phase 4. Nine predictions against a **named board**, with the rule that a different board
+  re-derives the absolute bands **as a rider before it is switched on**. Two dimensionless
+  predictions are written to survive that change. **(!) Measured while writing it: a fresh
+  checkout runs 2 of the 7 golden tiers**, because `g3.bin` and `g4_*` are gitignored and
+  `GoldenVectors.cpp` skips an absent tier silently -- so the ARM proof would have passed on
+  3 and 7 channels and reported success. R2 therefore asserts the tier count. **Nothing exists
+  at 16 channels**, the compile-time maximum, and the timing fixture for it is generated on the
+  target rather than committed, because tracked content is **6.07 MiB** and already inside
+  39's N8 middle band.
+- **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
+  register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
+  and its structural half is derivable from A6's committed table. **(!) The lever is confounded
+  with the statistic by construction**: `SOLVE_WINDOW = ERROR_WINDOW + STRIDE`, so a stride
+  change moves the window, `MAX_SEQUENCES` and therefore the footprint. The separation is
+  committed in advance rather than discovered, which is 39.13.3's lesson. **S5 needs a read and
+  is not taken.**
+- **The derivative-only ablation** (`docs/MODELS.md` 44): the adopted rule with `z_residual`
+  removed, matched **0.6820%**, same 19/19 split. D65.1's two traces show the fused rule firing
+  on the derivative with `z_residual` never reaching the cut, and say in as many words that two
+  events are not a measurement. **It frees no memory** -- `zResidual` reads the dynamic
+  threshold's own window, which is carried regardless -- and what it would settle is whether
+  D65's headline is the fusion or the derivative. **Two-sided bands, because 39's N6 was a
+  one-sided worry written as a two-sided band. Needs a read; not taken.**
 
 **Carried open.** D5, the tier ladder, is the only OPEN decision in the register. D14's
 weight-cache key is still positional. D21's `error_buffer` effect on alarm width is

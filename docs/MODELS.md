@@ -385,6 +385,37 @@ prediction that failed and why. This document follows the same discipline.
   - [40.13 Cost, and stop and report](#4013-cost-and-stop-and-report)
   - [40.14 OBSERVED -- the ladder is complete; seven predictions held, one not adjudicated](#4014-observed----the-ladder-is-complete-seven-predictions-held-one-not-adjudicated)
   - [40.15 Deferred, with the slot registered so the gap is visible](#4015-deferred-with-the-slot-registered-so-the-gap-is-visible)
+- [41 Pre-registration: the Raspberry-Pi envelope, measured rather than estimated (Phase 4)](#41-pre-registration-the-raspberry-pi-envelope-measured-rather-than-estimated-phase-4)
+  - [41.1 What the handover brief said, and where this repository disagrees](#411-what-the-handover-brief-said-and-where-this-repository-disagrees)
+  - [41.2 What is measured, and what the reference is](#412-what-is-measured-and-what-the-reference-is)
+  - [41.3 Departures, each with its cost](#413-departures-each-with-its-cost)
+  - [41.4 Predictions](#414-predictions)
+  - [41.5 Falsification](#415-falsification)
+  - [41.6 Reporting](#416-reporting)
+  - [41.7 Cost, and stop and report](#417-cost-and-stop-and-report)
+- [42 Pre-registration: the F' Ref physics testbed, and the first wall clock (work item 11)](#42-pre-registration-the-f-ref-physics-testbed-and-the-first-wall-clock-work-item-11)
+  - [42.1 What the handover brief said, and where this repository disagrees](#421-what-the-handover-brief-said-and-where-this-repository-disagrees)
+  - [42.2 What exists, and the gap is one port](#422-what-exists-and-the-gap-is-one-port)
+  - [42.3 Departures, each with its cost](#423-departures-each-with-its-cost)
+  - [42.4 Predictions](#424-predictions)
+  - [42.5 Falsification](#425-falsification)
+  - [42.6 Reporting, and the one claim this unlocks](#426-reporting-and-the-one-claim-this-unlocks)
+  - [42.7 Cost, and stop and report](#427-cost-and-stop-and-report)
+- [43 Pre-registration: the stride, and what reducing it buys against what it costs (roadmap)](#43-pre-registration-the-stride-and-what-reducing-it-buys-against-what-it-costs-roadmap)
+  - [43.1 What A6 measured, and why the lateness is structural](#431-what-a6-measured-and-why-the-lateness-is-structural)
+  - [43.2 (!) The lever is confounded with the statistic, and the confound is in the constants](#432-the-lever-is-confounded-with-the-statistic-and-the-confound-is-in-the-constants)
+  - [43.3 The cost side is 41's R6, and it is arithmetic once R6 lands](#433-the-cost-side-is-41s-r6-and-it-is-arithmetic-once-r6-lands)
+  - [43.4 Predictions](#434-predictions)
+  - [43.5 (!) What this is not, and it is said on the front page rather than in a footnote](#435-what-this-is-not-and-it-is-said-on-the-front-page-rather-than-in-a-footnote)
+  - [43.6 Falsification](#436-falsification)
+  - [43.7 Cost, and stop and report](#437-cost-and-stop-and-report)
+- [44 Pre-registration: the derivative-only ablation -- does the residual half of the flown rule do anything? (roadmap)](#44-pre-registration-the-derivative-only-ablation----does-the-residual-half-of-the-flown-rule-do-anything-roadmap)
+  - [44.1 Why the question exists, and why D65.1 does not answer it](#441-why-the-question-exists-and-why-d651-does-not-answer-it)
+  - [44.2 What turns on the answer, stated accurately rather than optimistically](#442-what-turns-on-the-answer-stated-accurately-rather-than-optimistically)
+  - [44.3 (!) The band is two-sided, and 39's N6 is why](#443-the-band-is-two-sided-and-39s-n6-is-why)
+  - [44.4 Predictions](#444-predictions)
+  - [44.5 Falsification](#445-falsification)
+  - [44.6 Cost, and stop and report](#446-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -12195,3 +12226,610 @@ with no ML background produces a `model.bin` in under an hour". That is a claim 
 person, and this section registers no prediction it could honestly adjudicate. It is
 deferred to a walkthrough with a reader who has not seen the code, and the bar is recorded
 here so it is not quietly dropped.
+
+---
+
+## 41. Pre-registration: the Raspberry-Pi envelope, measured rather than estimated (Phase 4)
+
+**Written before the board is switched on, and before one is in hand.** `docs/PI_ENVELOPE.md`
+has been reserved and empty since it was created: *"A figure in this document that is not a
+measurement is a defect."* This section registers what will be measured, what it predicts and
+what would falsify it, in the form every section from 19 onward uses. **No number goes into
+`docs/PI_ENVELOPE.md` until this is reviewed and the measurement is taken.**
+
+**Nothing here is implemented from a description.** Every constant, assertion and tier count
+below was read at first hand in `flight/` and `.gitignore` while this was written, and is cited
+by line. Four things the brief this section was written from had recorded loosely were found
+wrong in the reading and are corrected in 41.1, and one finding nobody had recorded at all is
+41.3 departure 2.
+
+### 41.1 What the handover brief said, and where this repository disagrees
+
+The third handover brief this project has taken, and like the first two it **was never
+committed**. Recorded the same way 39.1 and 40.1 recorded theirs, so a later reader can tell
+which claims came from outside the repository and which from it. **The repository wins in every
+row.**
+
+| # | The brief | This repository |
+|---|---|---|
+| 1 | "WORK ITEM B -- **WI06**, the Raspberry-Pi envelope" | `wi6` is **work item 6, the TCN**, tagged 2026-08-29. The Pi envelope has **no work-item number**: it is `Objective.md` 12 **Phase 4**, and a roadmap row on the curated branch |
+| 2 | do not extrapolate "from **x86**" | There is no x86 here. The workstation is **arm64 macOS** (`docs/FPRIME.md` 3), so the host is already ARM and the thing that makes it not an answer is that it is **not Pi-class**, not that it is a different architecture. The trap the brief names is real; its reason is wrong |
+| 3 | `docs/PI_ENVELOPE.md` is "reserved and **deliberately empty**" | It is **3,656 bytes of prose** and carries an eight-row table fixing the shape a measurement must take. Empty of **figures**, which is what its own banner says. **That table binds this section**, and it requires three things the brief's list omits: **stride cost reported separately**, **thermal behaviour**, and **margin against a stated rate-group period** |
+| 4 | the measurements are tick cost, peak RSS, load time, determinism and the golden vectors | Five of nine. `docs/reorg_plan.json`'s definition of done also requires the envelope **for inference *and* for training**, and `docs/PI_ENVELOPE.md` adds the three in row 3. All nine are registered at 41.4 |
+| 5 | "`sizeof(Detector)` **asserted** exactly" | It is a **runtime equality** in a test binary -- `flight/test/Footprint.cpp:74`, `checkEqualU32(detector, 603032U)` -- not a `static_assert`. The only `static_assert`s in `flight/` are `flight/include/sentinel/Types.hpp:103-107` and cover float widths and IEC-559. The distinction matters here because a runtime check runs **on the target**, which is the whole point |
+| 6 | "N3 FAILED at **603,032 B**" | N3's row measured **603,024 B** and 39.13.5 says *"N3's row above is not edited"*. **603,032 is the current object**, after `99fffd2` added `U32 m_peakChannel`. Both are +3.70% and the verdict is unchanged; this section measures against **603,032**, which is what `Footprint.cpp` asserts |
+| 7 | flight rules at "`docs/MODELS.md`:2974-2982" | **Stale, and this is the third time.** 39.1 row 12 cited 2612-2620; 40.1 row 5 corrected that to 2974-2982 and **has itself gone stale by 17 lines**. The table is **2989-2996**; **CPP-1 at 2991**, **CPP-3 at 2993**. Both earlier rows are dated records and are not edited -- this row is where the chain continues |
+| 8 | "CPP-3 fixed-size **interface** types" | CPP-3 is fixed-size types **throughout**, with external APIs as the *exemption*. The interface rule is **CPP-21** |
+
+### 41.2 What is measured, and what the reference is
+
+**The unit under test is `Detector::step`**, the whole per-tick path, not a component of it:
+
+```
+  the tick                   flight/include/sentinel/Detector.hpp:64
+    forward pass               Gru.cpp, MAX_LAYERS 2, MAX_HIDDEN 80, MAX_GATE_WIDTH 240
+    smoothing                  Ewma.cpp, span 105, bias-corrected, F64
+    trailing moments           TrailingWindow.cpp, F64 sum/sumSquares/count on a ring
+    the derivative             DerivativeStream.cpp, O(1) per channel per tick (39's N7)
+    the dynamic threshold      DynamicThreshold.cpp
+
+  the constants              flight/include/sentinel/Config.hpp
+    MAX_CHANNELS  16   :23        ERROR_WINDOW   2100  :73
+    STRIDE        70   :78        SOLVE_WINDOW   2170  :107
+    Z_CANDIDATES  19   :87        MAX_SEQUENCES  1085  :112
+    warm-up       250 + 2100 = 2350, docs/MODEL_FILE.md's PARAMS
+```
+
+**(!) Two ticks exist and they are not the same measurement.** On 69 ticks in 70 the threshold
+is read; on the seventieth it is **re-solved** over `SOLVE_WINDOW` 2,170 across 19 `z`
+candidates plus the pruning ladder bounded at `MAX_SEQUENCES`. `docs/PI_ENVELOPE.md`'s table
+already says the stride tick is *"reported separately, not averaged into the others"*, and a
+mean over the two is the number this section exists to refuse.
+
+**The margin denominator is stated and is not a guess.** `fprime/SentinelRef/Top/topology.fpp:119`
+wires the component to `rateGroup_1Hz`, so the flown period is **1,000 ms** and every margin
+below is against that. A mission on a faster rate group re-derives the margins; the tick costs
+do not move.
+
+### 41.3 Departures, each with its cost
+
+**Departure 1 -- nothing exists at 16 channels, and the widest prediction has no fixture.**
+Committed tiers run at 3, 6, 7 and 12 channels. `MAX_CHANNELS` is 16 and **no model, vector or
+fixture anywhere in this repository reaches it**, so the compile-time maximum -- the case a
+mission sizing a rate group actually needs -- has never been exercised. The 16-channel point is
+generated from `scripts/make_golden_vectors.py`'s `seeded_weights(n_channels, hidden, ...)`, a
+seed and the fixture, at **zero bucket operations**. It is a timing fixture and **is not
+committed as a vector tier**, for 41.7's size reason.
+
+**(!) Departure 2 -- the cross-platform proof would pass by skipping, and nobody would see it.**
+`.gitignore:45-46` excludes `flight/test/vectors/g3.bin` and `g4_*` deliberately and with a
+stated reason, and `flight/test/GoldenVectors.cpp:83-84` returns `false` for a tier whose files
+are absent -- **silently, with no line printed**. Measured rather than assumed: of the seven
+golden tiers, **a fresh checkout has two**.
+
+```
+  suite         fresh checkout    this workstation
+  golden             2 of 7            7 of 7      <-- the gap
+  baseline           4 of 4            4 of 4
+  trailing           3 of 3            3 of 3
+  threshold          2 of 2            2 of 2
+  derivative         2 of 2            2 of 2
+  fused (D68)        1 of 1            1 of 1
+```
+
+So a Pi cloned from `origin` runs the ARM proof on **3 and 7 channels and reports success**.
+39.7 already wrote the rule this trips: *"a suite that passes by skipping is not evidence."*
+**R2 therefore asserts the tier count and not only the tolerance**, and the 12-channel tiers are
+regenerated on the target from their seeds rather than assumed present.
+
+**Departure 3 -- `sizeof` is exact, and exactness is calibrated to an ABI.**
+`Footprint.cpp:74` asserts equality against 603,032 B, measured on arm64 macOS. `Detector`'s
+members are `F32`, `F64`, `U32` and `bool` arrays with no pointers, so on **aarch64 LP64** the
+alignment rules are the same and the figure should be identical. It is not guaranteed to be, and
+a 32-bit ARM target would differ in `F64` alignment. **R3 predicts equality and gives a
+difference somewhere to land**, so a mismatch is accounted for rather than read as a transcription
+failure -- and a mismatch that cannot be accounted for by a named alignment rule is the finding.
+
+**(!) Departure 4 -- the size headroom is already spent, and it is spent before this section
+adds anything.** 39's **N8** banded tracked content: under 6 MiB HOLD, 6 to 7 MiB no verdict,
+above 7 MiB a **stop**. It measured **5.53 MiB**. It is now **6,314,093 B = 6.022 MiB** -- inside
+the middle band. **N8's row is a record and is not edited**; the movement is reported beside it,
+the way 39.13.5 reported the footprint's 8 bytes. The consequence for this section is concrete:
+a 16-channel `.vec` tier at 12 channels' ~1,187 B/step would be megabytes, so **the timing
+fixture is generated on the target and not committed**, and R9 carries a stop condition on the
+cap.
+
+### 41.4 Predictions
+
+Numbered, with bands, written before the board exists. **Reported beside their outcomes,
+whatever those are.**
+
+**The board this is registered against is the Raspberry Pi 4 Model B, 4 GB, 64-bit OS,
+aarch64, no active cooling** -- named because a band without a target is not a prediction. It
+is the conservative choice of the class: a Pi 5 is faster, so a Pi 4 result bounds it.
+**(!) If a different board arrives, the absolute bands are re-derived and committed as a rider
+BEFORE it is switched on, never after.** The two dimensionless predictions, R6 and R5b, are
+written to survive that change.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **R1** | **Determinism on the target.** Two runs in one process and two processes, CRC-identical over 400 ticks, as `DeterminismTest.cpp` does on the workstation | bit-identical, both | -- | any difference at all. **A stop**, exactly as N4 is: a detector carrying 2,170 samples of state that is not reproducible cannot fly (`Objective.md` 11 rule 5) |
+| **R2** | **The golden vectors pass on ARM, and the suite says how many it ran.** Every tier at **1e-5** with the flags exact, **and the tier count equals the tracked count** | all tiers pass and the count is printed and correct | -- | any tier over tolerance, any flag differing, **or fewer tiers run than exist**. A silent skip is a FAIL, not a pass |
+| **R3** | **`sizeof(Detector)` on the target ABI**, against `Footprint.cpp`'s 603,032 B | **exactly 603,032 B** | differs, and **every byte is accounted for by a named alignment rule**, itemised the way 19.8 F1's 530 B and 39.13.2's 21,536 B were | differs and cannot be accounted for |
+| **R4** | **Peak RSS, and that it does not move.** Against the static 603,032 B plus the weight arena and the loader's buffers | within **1.5x** of the static total, and **RSS after 3,000 ticks equals RSS after 500** | 1.5x to 3x, with the excess attributed | above 3x, **or RSS growing across the run** -- growth is an **F' CPP-1 violation** (`docs/MODELS.md`:2991) and is a defect, not a measurement |
+| **R5a** | **Per-tick wall clock, ordinary ticks**, at 3, 7, 12 and 16 channels. **Distribution reported; the worst case is the result** | worst-case ordinary tick **under 20 ms at 16 channels**, so the margin against the 1,000 ms period is above 50x | 20 to 100 ms | above 100 ms -- under a tenth of the period at the widest configuration, and the envelope is tight rather than comfortable |
+| **R5b** | **Worst case against median, dimensionless.** The tail is what a rate group is bounded by | worst/median **under 3x** on ordinary ticks | 3x to 10x | above 10x -- something is scheduling-bound rather than compute-bound and the mean is meaningless |
+| **R6** | **The stride tick, reported separately, as a ratio.** The seventieth tick re-solves over 2,170 samples and 19 candidates | stride/median **under 50x** | 50x to 200x | above 200x -- **the re-solve, not the forward pass, is the flight cost**, and 43's stride-reduction arithmetic is written against this number |
+| **R7** | **`model.bin` load time**, flown shape, from a cold file | under **500 ms** | 500 ms to 2 s | above 2 s -- a boot-time cost worth stating in the SDD |
+| **R8** | **Thermal.** The worst-case ordinary tick after 30 minutes of continuous running, against the first minute's | within **10%** | 10% to 50% | above 50% -- the board throttles under this load and **every figure above is a cold-start figure**, which is then said wherever they are quoted |
+| **R9** | **Training on the board** (`docs/reorg_plan.json`'s definition of done). The toolkit's tier-1 fixture fit, single channel | completes, with wall clock and peak RSS recorded | completes but exceeds the board's RAM and swaps -- reported as "not viable on this board", which **is** the measurement | **A refusal is a legitimate outcome**: if the toolchain cannot be installed, that is stated and the row reports why, rather than being left blank |
+
+### 41.5 Falsification
+
+**If R5a or R6 fails, the flight core does not fit a small-computer budget at the flown rate,
+and that is the finding.** It would be published as one. The component would then either need a
+slower rate group -- which is a mission's decision and is stated as such -- or the decision
+layer would need a cheaper re-solve, which is a redesign with its own pre-registration, not a
+tuning exercise.
+
+**If R1 fails the section stops there**, because every other number becomes meaningless: a
+timing distribution over a non-reproducible computation is a measurement of the scheduler.
+
+**If R2 fails on the flags**, the cross-platform claim -- that `1e-5` and exact flags hold off
+the development machine -- is false, and the port's N1 becomes a claim about one toolchain
+rather than about the arithmetic. That is a larger finding than the envelope and would be
+reported as one.
+
+### 41.6 Reporting
+
+**Milliseconds and timesteps, never "fast enough."** Every figure carries its board, its OS, its
+compiler and version, and its flags, in `docs/FPRIME.md` 3's form -- a toolchain block and a
+`host` line. The worst case is the result; the median is reported beside it and never instead
+of it. Margin is stated against the **1,000 ms** rate-group period, with the period named.
+
+**Losers are reported.** If it does not fit, `docs/PI_ENVELOPE.md` says so with the numbers
+that show it, which is what its "report the losers" rule already requires.
+
+**No claim is made about any board that was not measured.** A Pi 4 result is a Pi 4 result; it
+bounds a Pi 5 and says nothing about a Snapdragon.
+
+### 41.7 Cost, and stop and report
+
+**Zero bucket operations.** Every input is the committed fixture, a seed or a cached weight
+file -- 39.12's and 40.13's reason, unchanged. **No R2 operation is taken by this section or by
+the measurement it registers.**
+
+Stop and report, carrying 39.12's eight and 40.13's seven forward where they still apply, and
+adding five:
+
+1. **R1 fires.** Determinism is not a prediction that gets a NO VERDICT.
+2. **A tier is skipped rather than run**, on any suite, on the target.
+3. **Anything under `flight/` changes without `master` moving in the same commit.**
+   `tests/test_master_documents_are_current.py` asserts the two trees are byte-identical, so a
+   benchmark harness added on `dev` alone turns the cross-branch guard red.
+4. **The board that arrives is not the board 41.4 names and its bands have not been re-derived
+   and committed first.** A band written after the hardware is known is not a pre-registration.
+5. **Tracked content would pass 7 MiB.** It is at 6.022 MiB and inside N8's middle band before
+   this section adds anything; the timing fixture is generated on the target and not committed
+   for exactly this reason.
+
+**And the one thing this section may not do.** If no Pi-class board is available when the
+measurement is due, **`docs/PI_ENVELOPE.md` stays empty and says so**. An extrapolated envelope
+is worse than an absent one, which is the rule that document was created to hold.
+
+---
+
+## 42. Pre-registration: the F' Ref physics testbed, and the first wall clock (work item 11)
+
+**Written before any testbed code exists.** This is the only instrument this project can build
+that produces a **warning time in wall clock**. No dataset can: SMAP/MSL ships no limit
+definitions and its timestamps are anonymised, and ESA-ADB's clock is anonymised too
+(`Objective.md` 1.1). **Until this exists, no early-warning claim is permitted anywhere**, and
+41 and 39 both *add* latency rather than removing it.
+
+**Nothing here is implemented from a description.** The deployment, the unconnected port, the
+framework's limit mechanism and the toolkit's data floor were all read at first hand while this
+was written, and each is cited by line. Two of them contradict how this work has been described
+and are 42.3's departures 1 and 2.
+
+### 42.1 What the handover brief said, and where this repository disagrees
+
+| # | The brief | This repository |
+|---|---|---|
+| 1 | "WORK ITEM C -- **WI09**, the physics testbed" | `wi9` is **work item 9, the F' component and the Level 1 safe-failure mode**, tagged and shipped. The physics testbed is **WI11** (`Objective.md` 13), `docs/STATUS.md` 7 item C |
+| 2 | "Sentinel running alongside, on a model trained by the toolkit from that testbed's own healthy telemetry" | Correct, and now possible: 40.14's ladder is complete. **The brief does not say what that costs in testbed time**, and 40.3a's floor makes it the binding constraint -- 42.3 departure 2 |
+| 3 | "A subsystem simulation in F's Ref deployment with defined limits and a real clock" | Correct in every part, and **the limits are not checked onboard**. F' v4.3.0's `docs/reference/system-functional/telemetry-chan.md:32`: *"Limit checking is performed by the ground system based on the dictionary definition."* That makes the limit trip a **ground** event and Sentinel's warning an **onboard** one -- 42.3 departure 1 |
+| 4 | "the only instrument that can produce a wall-clock warning time" | **Agreed, and the repository says it first.** `docs/RESEARCH.md` Part IV and `Objective.md` 12 both record that the coupled subsystem in `SentinelRef` is the only venue where the break-to-limit-trip lead can be computed at all |
+
+### 42.2 What exists, and the gap is one port
+
+`fprime/SentinelRef/` is a real deployment that builds and runs. `Sentinel::Monitor` is
+instanced at `fprime/SentinelRef/Top/instances.fpp:76`, **passive** per D32 so it runs inside
+the caller's thread, and wired to the 1 Hz rate group at
+`fprime/SentinelRef/Top/topology.fpp:119`, with `Svc.LinuxTimer` behind it -- **a real clock,
+already**.
+
+**And its input port is not connected.** `fprime/SentinelRef/Top/topology.fpp:114-118` says so
+and says why:
+
+> *"unconnected here: this deployment proves the component builds and runs in a topology, and
+> the mission-side adapter that supplies the channel vector (D33) is Phase 3's integration
+> work. Unconnected, every tick runs with `valid = false`, which scores negative infinity and
+> cannot alarm -- so an unwired Sentinel is silent rather than wrong."*
+
+**42 is the work that connects it.** What goes on the other end is a subsystem simulation
+component publishing a `Sentinel.ChannelVector` (`fprime/Sentinel/Monitor/Monitor.fpp:10`,
+`[MAX_CHANNELS] F32`) through `ChannelSample(ref values, valid)` once per rate-group tick.
+
+### 42.3 Departures, each with its cost
+
+**(!) Departure 1 -- the limit trip is a ground event and the warning is an onboard one, and
+subtracting one from the other is not free.** F' declares red/orange/yellow limits on a
+telemetry channel in FPP -- the form is
+`TestDeploymentsProject/Ref/RecvBuffApp/RecvBuffApp.fpp:117-127` in the v4.3.0 checkout -- and
+**the ground system evaluates them against the dictionary**. So "the moment the limit trips"
+is timestamped when the GDS sees the channel, and "the moment Sentinel warns" is an F' event
+with the onboard time. Those differ by the downlink and decoding path, which is **not zero and
+is not constant**.
+
+Registered choice: **both quantities are taken from the same onboard time base**, by having the
+testbed component evaluate the dictionary's own limit values itself and emit the crossing as
+an event with an F' timestamp, **using the numbers the FPP dictionary declares and not a second
+copy of them**. The ground limit check still runs and is recorded, and **the difference between
+the two is reported rather than hidden** -- it is a measurement of the downlink path, which is
+worth having and is not what this section is about. **A warning time computed across two clocks
+is not reported at all.**
+
+**(!) Departure 2 -- the toolkit's data floor sets the length of every run, and at 1 Hz it is
+nearly two hours.** 40.3a established that the trailing span is compile-time in the flight
+component and not a model-file field, so **neither a mission nor the toolkit may choose it**,
+and the floor before a single figure can be reported is **250 + 2,100 of warm-up plus 4,200 of
+calibration = 6,550 ticks**. `SentinelRef`'s base clock is **1 Hz** and its three rate groups
+are 1 Hz, 0.5 Hz and 0.25 Hz (`fprime/SentinelRef/Top/instances.fpp:28-46`), so one healthy run
+is **6,550 s, 1 h 49 min**, before a single fault is seeded. A false-positive rate over twenty
+healthy runs is **36 hours of real time**.
+
+Three ways out, and the choice is registered rather than discovered:
+
+```
+  (i)   run it in real time at 1 Hz        honest, and 36+ hours per false-alarm figure
+  (ii)  raise the base clock               the clock stays REAL; the physics is accelerated
+  (iii) a simulated time source            the clock stops being real, which is the one thing
+                                           this testbed exists to provide
+```
+
+**(ii) is the registered choice and (iii) is refused.** `Svc.LinuxTimer`'s interval is a
+deployment setting; raising it runs the same physics against the same real clock, faster. **The
+cost is stated: the testbed's seconds are not a spacecraft's seconds**, because the physics'
+time constants are chosen rather than measured from hardware. So the transferable number is
+**dimensionless** -- warning time as a fraction of the interval between fault onset and limit
+trip -- and the absolute figure is reported in **testbed seconds and in ticks**, always named
+as such. This is D55's rule applied to time instead of to amplitude.
+
+**Departure 3 -- ground truth by construction is a strength and a bound, and both are stated.**
+The fault is seeded, so the testbed measures **sensitivity to faults this project thought of**.
+`Objective.md` 13 item 8 already records that caveat for the ESA-ADB injection study and it
+applies here unchanged. What the testbed buys that the 38 real events cannot is a **detection
+sensitivity curve** and a **lead-time measurement against a real limit**. It does not buy a
+claim that the method generalises to faults nobody designed, and **no such claim is made from
+it**.
+
+**Departure 4 -- "in limits throughout" is a constraint on the physics, not a property to check
+afterwards.** The contextual family only exists if every watched channel stays inside its
+declared red and yellow limits for the whole run while the *relationship* between them breaks.
+That is a design constraint on the coupled model and on the limit values chosen, and **it is
+verified by assertion in the testbed rather than observed**: a run in which any channel crosses
+a limit before the trip being measured is **discarded and reported as discarded**, not
+reinterpreted.
+
+### 42.4 Predictions
+
+Numbered, with bands, written before the testbed exists.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **T1** | **The port connects and the component stays warn-only.** `Monitor` receives a valid vector every tick and `Monitor.fpp` still declares **zero commands of its own** | topology builds, `valid = true` every tick of a healthy run, zero commands | -- | any command port added. **A stop**: `Objective.md` 11 rule 3 |
+| **T2** | **The contextual family is genuinely in limits.** Across the seeded degradation, every watched channel stays inside its declared red **and** yellow limits until the trip being measured | **100% of steps in limits** before the trip, on every retained run | -- | any earlier crossing -- the run is **discarded**, and if most runs discard, the physics does not produce the family and that is the finding |
+| **T3** | **A warning arrives before the limit trips.** Sentinel emits, at the operating point the toolkit derived on that testbed's own healthy telemetry, before the first red crossing | warning time **positive on at least 8 of 10** seeded runs | 5 to 7 of 10 | **4 or fewer** -- the method does not warn early on coupled physics it was trained on, which is a **negative result about the claim** and is published as one |
+| **T4** | **And the margin is worth having.** Warning time as a fraction of the fault-onset-to-trip interval, **dimensionless** so it transfers off this testbed | median **above 0.25** | 0.10 to 0.25 | below 0.10 -- it warns, but so close to the trip that the limit check would have served |
+| **T5** | **The false-alarm rate at that same operating point.** Healthy runs, no fault seeded, same model, same cut | **under 1%** of nominal ticks, matching the order the toolkit's own held-out figure predicts | 1% to 5% | above 5% -- the operating point does not survive contact with this data, and **T3 and T4 are not quoted without it** |
+| **T6** | **The operating point is derived, not chosen.** The cut comes from the `(1 - q)` quantile of the testbed's own pooled nominal fused statistic, exactly as 40.4 requires | the cut is produced by `fit_model` with no label and no target rate as input | -- | **any target alarm rate reaching the calibration.** A stop: `docs/HARNESS.md` 1 struck that framing |
+| **T7** | **It runs inside the rate group.** The measured tick cost on the host, against the period the deployment sets | worst-case tick under **10%** of the period | 10% to 50% | above 50% -- the testbed is timing-bound and its warning times measure the scheduler |
+
+### 42.5 Falsification
+
+**If T3 fails, the project's central claim does not survive its own testbed.** Sentinel would
+be shown not to warn before a limit trips on coupled physics **that it was trained on and that
+was built to be favourable** -- seeded, reproducible, ground truth by construction. That is the
+strongest negative result available to this project and it would be published as one, on the
+front page, with `Objective.md` 1.1's claim rewritten rather than defended.
+
+**If T5 fails while T3 holds**, the warning is real and the operating point is not, and the
+honest reading is that the testbed's healthy telemetry is too short or too clean for the
+calibration -- 42.3 departure 2's floor. That is reported as a property of the testbed, and
+**no warning time is quoted without its false-alarm rate beside it**, which is
+`docs/HARNESS.md` 1's rule and not a new one.
+
+### 42.6 Reporting, and the one claim this unlocks
+
+**This is the section that makes an early-warning claim permissible, and only within its own
+bounds.** If T3 and T4 and T5 all hold, this project may say that **on this testbed, at a
+stated false-alarm rate, Sentinel warned a measured time before a declared limit tripped** --
+naming the testbed, the physics, the seeded fault and the operating point. It may **not** say
+that it warns early on spacecraft telemetry, and 37.7a's **0 of 10 positive leads** on SMAP/MSL
+stays quoted beside it wherever it appears.
+
+Every figure carries `k/n` and the **UNDERPOWERED** stamp where `n < 20` (`docs/HARNESS.md` 1),
+which ten seeded runs will trip. Warning time is reported **in ticks, in testbed seconds and as
+T4's dimensionless fraction**, in that order, with the rate-group period named. Point-adjusted
+F1 is never reported (Kim et al., AAAI 2022). The live GDS recording `Objective.md` 12's Phase 3
+gate asks for is captured, and **the trace behind every reported warning is recorded and cited
+by path**, the way D65.1's traces were.
+
+### 42.7 Cost, and stop and report
+
+**Zero bucket operations, and this is the point of the testbed rather than a constraint on it.**
+It generates its own telemetry, so no read of SMAP/MSL or ESA-ADB is involved at any stage --
+training, calibration, scoring or reporting. **Rule 1 is not engaged**: no mission telemetry
+touches local disk.
+
+Stop and report, carrying 39.12's, 40.13's and 41.7's lists forward and adding six:
+
+1. **T1 fires** -- a command port, of any kind, on a warn-only component.
+2. **T6 fires** -- a target alarm rate, or a label, reaches the calibration.
+3. **A warning time is computed across two clocks.** 42.3 departure 1 exists to prevent it.
+4. **The runs are being retried until the physics produces the wanted family.** Discards are
+   counted and reported; a discard rate above half is a finding about the model, and tuning the
+   physics until T2 passes is **fitting the testbed to the answer**.
+5. **Anything would touch the frozen decision layer, the spent held-back sets, `master`, or a
+   committed vector.** The testbed consumes `flight/` and changes nothing in it.
+6. **A wall-clock figure from this testbed is quoted anywhere as a figure about spacecraft
+   telemetry.** It is a figure about this testbed until a mission says otherwise.
+
+---
+
+## 43. Pre-registration: the stride, and what reducing it buys against what it costs (roadmap)
+
+**37.7a recorded this and declined to register it**: *"Reducing the stride would buy most of
+this back and costs compute, not detection -- recorded here, not registered as an arm."* This
+section registers it.
+
+**Written before anything is measured, and the arithmetic below is derived rather than run.**
+Every constant is read at first hand in `flight/include/sentinel/Config.hpp` and cited by line.
+
+### 43.1 What A6 measured, and why the lateness is structural
+
+`docs/MODELS.md` 37.7a, on the ten events the frozen arm catches:
+
+```
+  median lead  -63.5    0 of 10 positive    n = 10, UNDERPOWERED (docs/HARNESS.md 1)
+  7 of the 10 sit inside one stride, 8 inside two
+```
+
+**Not one of the ten is detected before its labelled onset**, and the reason is not
+sensitivity. The detector emits at the **end of the stride segment carrying the crossing** --
+`emits_at = seg_hi - 1` in `telemanom.channel_ratios` -- and `STRIDE` is **70**
+(`flight/include/sentinel/Config.hpp:78`). The median lateness, 63.5, is **nine-tenths of one
+stride**. That is an artifact of when the detector is allowed to speak, not of when it knows.
+
+### 43.2 (!) The lever is confounded with the statistic, and the confound is in the constants
+
+`flight/include/sentinel/Config.hpp:107` is `SOLVE_WINDOW = ERROR_WINDOW + STRIDE`. **The
+stride is inside the window the threshold solves over.** So reducing it does not merely let the
+detector speak sooner -- it changes what the detector computes, and it changes the footprint:
+
+```
+  stride 70  -> SOLVE_WINDOW 2170   MAX_SEQUENCES 1085     <- today
+  stride 35  -> SOLVE_WINDOW 2135   MAX_SEQUENCES 1067
+  stride 10  -> SOLVE_WINDOW 2110   MAX_SEQUENCES 1055
+  stride  1  -> SOLVE_WINDOW 2101   MAX_SEQUENCES 1050
+```
+
+`MAX_SEQUENCES` is `SOLVE_WINDOW / 2` (`:112`) and sizes the pruning ladder's scratch, which
+39.13.2 itemised at **12,168 B** of the footprint. So a stride change moves `sizeof(Detector)`
+and therefore **N3's equality and N8's size band**, both of which are records.
+
+**This is 39.13.3's failure waiting to happen again**, and it is registered rather than
+discovered: there, a lever and a dial moved together and the read could not divide them.
+**The separation is committed here, before any measurement.** Either the window is held at
+2,170 while only the emission cadence changes -- which is a *different* detector from simply
+setting `STRIDE` smaller and is implemented as such -- **or** both move and the section reports
+**which of the two the number belongs to, with both rates stated rather than matched**. A read
+that cannot divide them adjudicates nothing and is not taken.
+
+### 43.3 The cost side is 41's R6, and it is arithmetic once R6 lands
+
+On 69 ticks in 70 the threshold is read; on the seventieth it is re-solved. Writing **R** for
+41's **R6** -- the stride tick as a multiple of the median ordinary tick -- the amortised
+per-tick cost over one stride is
+
+```
+  mean(S) = m * ( 1 + (R - 1) / S )        m = the median ordinary tick
+```
+
+which at today's `S = 70` is `m * (1 + (R-1)/70)`. **That is the whole cost model**, and it has
+one unknown, which 41 measures. Worked at R6's three band boundaries, relative to today:
+
+```
+                 S=70    S=35    S=10     S=7     S=1
+   R = 10        1.00    1.11    1.68    2.03    8.86
+   R = 50        1.00    1.41    3.47    4.71   29.41      <- R6's HOLD boundary
+   R = 200       1.00    1.74    5.44    7.66   52.04      <- R6's FAIL boundary
+```
+
+**So 43 cannot be closed before 41 has run**, and that is a dependency rather than a gap: the
+table above is filled by substituting one measured number, and the row that applies is chosen
+by R6's outcome rather than by preference.
+
+### 43.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **S1** | **The structural bound, at zero operations.** Segment-end emission contributes at most `S - 1` timesteps of latency, so reducing 70 to `S` removes **at most `70 - S`** per event. **The median cannot better `-63.5 + 69 = +5.5` even at `S = 1`**, and that ceiling is reached only if every crossing sat at its segment's first sample | the bound holds by construction on all ten of A6's events | -- | an event whose lead improves by **more than 69** under a smaller stride -- the emission rule is not what 37.7a says it is, and A6's account is wrong rather than incomplete |
+| **S2** | **Two of the ten are out of reach and stride reduction cannot touch them.** `M-3[1250]` at **-180** is under three strides and `A-8[4569]` at **-3620** is about **52**, so no stride removes their lateness | both remain negative at every `S`, and are reported as out of scope rather than averaged in | -- | either turning positive -- the lateness was not segment-end latency and 43.1's diagnosis is wrong |
+| **S3** | **The cost is 43.3's formula and nothing else.** Measured amortised per-tick cost at a reduced stride matches `m * (1 + (R-1)/S)` using 41's measured `R` | within **15%** | 15% to 40% | above 40% -- the re-solve is not the only term that scales with stride, and the cost model is wrong |
+| **S4** | **The footprint moves, and by exactly the arithmetic.** `sizeof(Detector)` at a reduced stride, against `MAX_SEQUENCES = (2100 + S) / 2` | the delta is **exactly** what the scratch arrays' arithmetic predicts, itemised the way 39.13.2 was | -- | anything unaccounted for |
+| **S5** | **Recall at a matched rate, and this is the half that needs a read.** The adopted rule at a reduced stride, at the matched **0.6820%**, on 37.8's channel-disjoint split | within **1 event** of stride 70's | 2 to 3 | **4 or more** -- the stride is not a free lever: it is changing the statistic, not just the cadence, and 43.2's confound is the explanation rather than an aside |
+
+### 43.5 (!) What this is not, and it is said on the front page rather than in a footnote
+
+**No early-warning claim follows from any outcome here.** Lead in 37.7a is measured against a
+**labelled onset** -- a hindsight annotation an operations engineer wrote after the fact -- and
+**not against a limit trip** (`Objective.md` 1.1). SMAP/MSL carries no clock and its timestamps
+are anonymised, so **every figure in this section is in timesteps and none is in wall clock**.
+
+And S1 makes the ceiling explicit: even at `S = 1`, the best this population can reach is a
+median lead of about **+5.5 timesteps**, on `n = 10`, **UNDERPOWERED**. Removing structural
+latency is not the same as warning early. **42's testbed remains the only venue** where a
+warning time exists at all.
+
+### 43.6 Falsification
+
+**If S3 fails, 43's entire cost case is wrong** and the trade this section exists to price
+cannot be priced from R6 alone. The section would then be a negative result about the cost
+model, and a direct measurement at each candidate stride would be registered separately rather
+than derived.
+
+**If S5 fails, the stride is not a cadence knob.** It would then be established that changing
+it changes the detector, 43.2's confound would be the finding, and any future stride proposal
+would have to be scored as a new arm at a matched rate rather than argued for on latency.
+
+### 43.7 Cost, and stop and report
+
+**Zero bucket operations, and the section is built in two halves so that this is honest rather
+than deferred.**
+
+- **S1, S2, S3 and S4 are derivable now.** S1 and S2 come from 37.7a's committed lead table and
+  `emits_at = seg_hi - 1`; S3 from 41's R6; S4 from `Config.hpp`'s arithmetic and a build.
+  **No telemetry and no read.**
+- **S5 is registered as owed and is not taken.** Because the stride changes `SOLVE_WINDOW`, the
+  statistic must be recomputed, which needs the test arrays: **165 Class B and 1 Class A after
+  a smoke**, the documented SMAP/MSL shape. **It is brought to the owner with its cost before
+  it is spent**, the way 39.5 registered N6 and carried it unadjudicated.
+
+**And S1's bound is a bound, never a measurement.** It assumes the crossing timestep does not
+move when the stride changes, which **43.2 says is false in general**. It is reported with that
+assumption named in the same sentence, every time, and it is not quoted as the lateness a
+stride reduction would actually remove.
+
+Stop and report, carrying 39.12's, 40.13's, 41.7's and 42.7's lists forward and adding four:
+
+1. **S5 is quoted before its read is taken.** A derived bound is not a measured recall.
+2. **A stride change reaches `flight/` without S4 being re-measured**, or without `master`
+   moving in the same commit.
+3. **N3's or N8's record is edited** to accommodate a moved footprint. They are records; a
+   rider goes beside them.
+4. **Any figure from this section is stated in wall clock**, or beside an early-warning claim.
+
+---
+
+## 44. Pre-registration: the derivative-only ablation -- does the residual half of the flown rule do anything? (roadmap)
+
+**D68 adopted `max(z_residual, z_derivative)` against one calibrated cut, and never measured
+whether the first term contributes.** This section registers the ablation that would settle it:
+**`z_derivative` alone**, at the matched **0.6820%**, on 37.8's channel-disjoint 19/19 split.
+
+**Written before it is run, and it is not run here**: it needs a read, and that read is brought
+to the owner with its cost (44.6).
+
+### 44.1 Why the question exists, and why D65.1 does not answer it
+
+D65.1 traced two EVAL events at per-timestep resolution and found the adopted rule firing **on
+the derivative on both**:
+
+```
+  event              z_residual   z_derivative   cut
+  E-10[5000-5050]        3.211          6.162    5.288
+  E-10[5601-5871]        3.856          6.781    5.288
+```
+
+**`z_residual` does not reach the cut on either.** Even on `E-10[5601]`, which the frozen arm
+also catches, the two rules *"agree on the verdict and disagree about why"*.
+
+**And D65.1 says in as many words that this is not a measurement.** It is *"one channel and two
+events ... a property of these traces rather than a measurement over the population"*, and the
+traces are drawn at `proportional_config`'s span of **425** for that channel, not at the flight
+component's compile-time **2,100**. So it raises the question and leaves it open. **44 is what
+would close it.**
+
+### 44.2 What turns on the answer, stated accurately rather than optimistically
+
+**It is not a footprint saving, and saying so would be wrong.** `Detector::fused`
+(`flight/src/Detector.cpp:222-230`) takes its first term from
+`DynamicThreshold::zResidual`, which standardises against **the dynamic threshold's own
+trailing window** (`flight/src/DynamicThreshold.cpp:338-343`). That window exists because the
+threshold exists, and 39.8 and D68 keep the threshold **carried and reported** regardless. So
+dropping the residual term from the emission rule **frees nothing by itself**.
+
+**What it would establish is narrower and more useful.** If the residual term never decides
+anything, then the dynamic threshold's window stops being **load-bearing for emission** and
+becomes reported-only. That is a precondition for ever removing it -- not the removal -- and it
+is also a statement about the method: it would mean **the finding D65 reports as "residual
+fused with the first derivative" is, on this data, the first derivative**, and the headline
+should say so.
+
+### 44.3 (!) The band is two-sided, and 39's N6 is why
+
+`max(a, b) >= b`, so **at a fixed cut** derivative-only can only lose events -- it is a strict
+subset. **The measurement is not at a fixed cut.** At a matched rate the cut is re-solved, and
+removing a statistic from the maximum frees alarm budget, so the rate-matched cut falls and
+events that were below it can clear.
+
+**That is exactly the mechanism 39.13 measured and mis-banded.** N6 asked what dropping backward
+dilation would *cost*, banded 0 to 1 event as HOLD and 4 or more as FAIL, and measured **+13**:
+
+> *"the band fires while the concern it was written to detect does not materialise. **A
+> one-sided worry written as a two-sided band.**"*
+
+**44 is written knowing that.** Its bands cover gain and loss symmetrically, and **the cut's
+movement is reported beside the recall rather than absorbed into it** -- because 38.15
+established that for this score shape a moving dial *"is changing the character of the decision"*
+rather than matching a rate, and a read that cannot separate lever from dial adjudicates nothing.
+
+### 44.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **AB1** | **The residual half carries no events of its own.** Derivative-only against the adopted fused rule, both at the matched **0.6820%** on EVAL | the two agree within **1 event**, in either direction | 2 to 3, either direction | **4 or more in either direction.** Below: the residual term is load-bearing and D68's rule is right as it stands. Above: the residual term is **costing** events by spending budget, which is D65's P2.4 mechanism again and is the more interesting outcome |
+| **AB2** | **And the dial is reported, not absorbed.** The rate-matched cut for derivative-only against the fused rule's | reported to full precision with both realised rates, whatever it is | -- | **the cut is not reported**, or a recall figure is quoted without it. A recall figure without its alarm rate is not a result (38.15) |
+| **AB3** | **The set relation, not just the count.** Derivative-only's caught set against the fused rule's, event by event | a **strict superset or strict subset**, stated as which | the two sets differ in both directions | -- a symmetric difference is a legitimate outcome and is reported as one; this row exists so the count alone is never the answer |
+| **AB4** | **D65.1's traces generalise, or they do not.** Across every event the fused rule catches, how many have `z_residual` **at or above** the cut at the emitting timestep | **fewer than 2 of 19** on EVAL -- the traces were typical | 2 to 6 of 19 | **7 or more** -- D65.1's two events were unrepresentative, and 44.2's reading of them is withdrawn |
+| **AB5** | **Nothing is adopted by this section.** D68 stays the flight configuration whatever AB1 returns | `flight/`, `model.bin` and `param_version` untouched | -- | **any change to the flown rule.** A stop: adopting on one ablation, one dataset and `n = 19` is what 39.8 refused when it declined to let the port become the adoption decision |
+
+### 44.5 Falsification
+
+**If AB1 fails low -- derivative-only loses 4 or more -- the question is closed the dull way**
+and D68's rule is confirmed as needing both terms. That is a useful negative and is published
+as one.
+
+**If AB1 fails high -- derivative-only gains 4 or more -- then D65's own headline is
+mis-described.** The finding would not be "the residual fused with the first derivative"; it
+would be "the first derivative, which the residual dilutes". D65 and D68 would each gain a
+rider, `master`'s evidence document would need its section 1 rewritten rather than cited, and
+**the adoption decision would be re-opened with its own pre-registration** -- not taken here.
+
+**And if AB4 fails**, 44.2's argument rests on two unrepresentative traces and is withdrawn in
+writing, whatever AB1 says.
+
+### 44.6 Cost, and stop and report
+
+**Writing this section is zero bucket operations. Running it is not, and it is not run here.**
+
+The ablation needs `z_residual` and `z_derivative` per timestep for the scored population,
+which needs the smoothed error, which needs the forecast, which needs the test arrays -- and
+**no telemetry is on local disk, ever** (Rule 1). The cost is the documented SMAP/MSL shape:
+**165 Class B and 1 Class A, after a smoke**. **It is brought to the owner with its cost before
+it is spent**, alongside 43's S5 and the reads D68.1 and 39's N5 already owe.
+
+**The owed reads are not folded in.** D68.1 -- both dilations at one fixed cut -- and the repair
+of arms 4a, 6 and 7 stay **owed and unregistered**. Bundling them into this read would make one
+approval cover four questions, and 38.15's rule that an arm which cannot be brought to the
+budget is *unrun, not losing* exists because that kind of bundling is how arms get quietly
+adjudicated.
+
+Stop and report, carrying 39.12's, 40.13's, 41.7's, 42.7's and 43.7's lists forward and adding
+three:
+
+1. **AB5 fires** -- the flown rule changes on the strength of this.
+2. **Any figure of this section is quoted without its alarm rate and its cut** (AB2).
+3. **The read is taken without a smoke**, or without its cost stated first.
