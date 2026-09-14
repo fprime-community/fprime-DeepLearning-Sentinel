@@ -1,6 +1,6 @@
 # Evidence
 
-> **Paths outside this branch resolve on `dev`** at commit **`384d17a`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`13d70f0`** (`docs/DECISIONS.md`
 > D69, on `dev`). Every figure below names the `dev` decision or section it comes from and
 > the run artifact it was read from. **Artifacts under `runs/` are cited by path and are not
 > in git on any branch** -- the path is the identifier.
@@ -19,6 +19,14 @@ fixed before any tuning:
   telemanom's published rule (frozen)           0.6820%     6/19     4/19
   residual fused with the first derivative      0.6820%    13/19    17/19
 ```
+
+**(!) The component computes both terms, and the derivative is what decides.** On all thirty
+events this arm catches, `z_residual` reached the cut on **none of them** -- median **0.080**
+and a maximum of 4.652 against a cut of **5.288**, negative on 15 of the 30 -- and the
+derivative alone reaches the same **EVAL 17 of 19** at the same alarm rate
+(`docs/DECISIONS.md` D65.3, on `dev`, measured 2026-09-14). **The flown rule is unchanged and
+still computes both**; what changes is that this finding, on this data, is the first
+derivative.
 
 **The headline is EVAL's 17 of 19**, at the frozen rule's own alarm rate. It is the clean
 number: the cut was selected on TUNE, and EVAL is the half it was never selected on.
@@ -222,7 +230,7 @@ and no credential.
 
 ## 10. Sources
 
-Every decision cited above is on `dev` at `384d17a` in `docs/DECISIONS.md`: **D46** the
+Every decision cited above is on `dev` at `13d70f0` in `docs/DECISIONS.md`: **D46** the
 in-range population, **D65** the decision-layer finding, **D66** the envelope confound,
 **D68** the flight configuration, **D69** this branch's curation. The pre-registrations and
 their outcomes are `docs/MODELS.md` 26.18, 36, 37, 38 and 39.
