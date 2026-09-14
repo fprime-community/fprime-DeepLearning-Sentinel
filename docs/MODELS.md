@@ -12907,7 +12907,8 @@ no event moves in the losing direction.**
 nothing, the emission rule could be `z_derivative >= cut` alone, which would make the dynamic
 threshold reported-only for emission and **open** the question of whether its 2,170-sample ring
 must fly. That is a `param_version` 3 decision with its own pre-registration and its own
-D-entry, taken on more than one dataset. **Registered as a consequence, not taken as one.**
+D-entry, taken on more than one dataset. **Registered as owed at D68.3 and not argued
+there either**, which is where a reader looking at the adopted configuration will meet it.
 
 **And it should be asked on ESA-ADB before it is believed.** One dataset is what D3's
 neighbouring caution and `docs/HARNESS.md` 1 both exist for. No such read is registered here.

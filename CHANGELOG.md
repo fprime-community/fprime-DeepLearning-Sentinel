@@ -53,7 +53,8 @@ it was written to -- **nothing is adopted and D68 stands**.
 It frees no memory: `zResidual` reads the dynamic threshold's own window, which is carried
 regardless, and 44.2 said so before the read. It is **one arm, one dataset, n = 19 per half,
 UNDERPOWERED**. A `param_version` 3 rule dropping the residual term is **arguable after this
-and is not argued here**.
+and is not argued** -- registered as owed at **D68.3**, which names what it needs first: the
+same ablation on a second dataset, and its own pre-registration.
 
 ## [0.6.46] - 2026-09-14 - The customer branch said the toolkit was unwritten, and the guard could not see it
 

@@ -479,6 +479,11 @@ operations between them.
   finding on this data **is the first derivative**. Nothing is adopted; D68 stands. It frees no
   memory, and it is one arm, one dataset, n = 19 per half, UNDERPOWERED.
 
+**Owed and registered, not argued (D68.3).** A `param_version` 3 rule dropping the residual
+term is arguable after 44.7 and is not argued: one arm, one dataset, n = 19 per half. It needs
+the same ablation on a second dataset and its own pre-registration before it is proposed.
+`format_version` would stay 1 either way; D30 is untouched.
+
 **Carried open.** D5, the tier ladder, is the only OPEN decision in the register. D14's
 weight-cache key is still positional. D21's `error_buffer` effect on alarm width is
 undecided. `Objective.md` 13 item 8, the injected-fault sensitivity study on real telemetry,

@@ -5150,6 +5150,36 @@ that **no read has ever scored that composition**.
 two reasons and by the same margin**: +139,296 B either way, and still unmeasured.
 The account of the drift, and the 2% band that hid it, is `docs/MODELS.md` 39.13.5.
 
+### D68.3 A `param_version` 3 that drops the residual term, registered as owed and not argued
+
+**This entry is not edited and the flight configuration does not change.** `emitted`
+still follows `max(z_residual, z_derivative)` against one calibrated cut, on a
+`param_version` 2 PARAMS block.
+
+**What D65.3 makes arguable.** The ablation measured at `docs/MODELS.md` 44.7 found
+`z_residual` reaching the cut on **none of the thirty** events the adopted rule catches --
+median **0.080**, maximum **4.652** against a cut of **5.288**, negative on 15 of 30 -- with
+EVAL identical at **17 of 19** and derivative-only a **strict superset on all 38**. On this
+data the residual term decides nothing.
+
+**A rule of `z_derivative >= cut` alone would therefore be a candidate**, and it is a
+`param_version` 3 decision: the byte layout would not change and `format_version` would stay
+**1** (D30 untouched), but which statistic the threshold cuts would, and **both readers already
+refuse a `param_version` they do not know** with `BAD_PARAM_VERSION`. It would also make the
+dynamic threshold **reported-only for emission**, which opens -- and does not settle -- whether
+its 2,170-sample ring must fly at all.
+
+**(!) IT IS NOT ARGUED HERE, AND THE REASON IS THE EVIDENCE AND NOT CAUTION.** One arm, one
+dataset, **n = 19 per half, UNDERPOWERED** (`docs/HARNESS.md` 1). 44's AB5 was written
+specifically to stop this read from becoming the adoption decision, and it held. Adopting a
+flight rule on the strength of a single ablation is what 39.8 refused when it declined to let
+the port decide what flies, and the same refusal applies to its own producer.
+
+**What it needs before it is argued:** the same ablation on **a second dataset** -- ESA-ADB is
+the candidate, and no such read is registered -- and **its own pre-registration** with bands,
+a falsification and a stop condition, in the form 44 itself used. **Registered as owed. Not
+taken, and not argued.**
+
 
 ---
 
