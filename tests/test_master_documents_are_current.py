@@ -257,6 +257,24 @@ FIGURES = (
     Figure("toolkit_rungs/STATUS", "docs/STATUS.md",
            r"(\d+) of its \d+ acceptance-ladder rungs have run",
            _toolkit_rungs_built, "acceptance-ladder rungs that run"),
+    # (!) AND TWO MORE, BECAUSE THE COMMENT ABOVE DESCRIBED A SITE IT DID NOT
+    # COVER. `docs/EVIDENCE.md` section 9 said the toolkit was "pre-registered and
+    # unwritten" and `README.md`'s absent-paths table said "at tiers 1 and 2" --
+    # both stale, both customer-facing, and both invisible here because neither
+    # stated a number to check. Rewritten into the same form on 2026-09-14 and
+    # pinned below. A guard that covers three of the four places a figure appears
+    # is how the fourth goes stale.
+    Figure("toolkit_rungs/EVIDENCE", "docs/EVIDENCE.md",
+           r"(\d+) of its \d+ acceptance-ladder rungs have run",
+           _toolkit_rungs_built, "acceptance-ladder rungs that run"),
+    # A SECOND occurrence in `README.md`, so it needs its own pattern: `_on_master`
+    # searches with `re.search`, which returns the first match and would never
+    # reach this one. Anchored on the absent-paths table's own wording -- and
+    # WITHOUT the `**` that surrounds the figure in the source, because
+    # `_flattened` strips emphasis before any pattern sees it.
+    Figure("toolkit_rungs/README_absent", "README.md",
+           r"the toolkit itself, whose (\d+) of its \d+ acceptance-ladder rungs",
+           _toolkit_rungs_built, "acceptance-ladder rungs that run"),
 )
 
 #: (!) The debt register, and it is EMPTY, which it has not been before.

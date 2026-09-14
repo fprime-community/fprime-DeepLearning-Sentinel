@@ -14,6 +14,35 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.46] - 2026-09-14 - The customer branch said the toolkit was unwritten, and the guard could not see it
+
+**Two customer-facing statements on `master` claimed the ground toolkit is less finished than
+it is**, both contradicted by **master's own** status document, which already said three of
+three acceptance-ladder rungs have run. `docs/EVIDENCE.md` section 9 said *"pre-registered and
+unwritten"*; `README.md`'s absent-paths table said *"at tiers 1 and 2"*.
+
+**This is D69's drift mechanism arriving on the branch D69 created.** The guard built in answer
+to D69.1 re-derives every figure from the source that produces it, and `_toolkit_rungs_built`
+reads the `LADDER` tuple in `src/sentinel_toolkit/selftest.py`. It covered `README`'s and
+`STATUS`'s claims and **not** these two, because neither stated a number for it to check.
+
+### Both rewritten, and two `Figure` rows added so they cannot drift again
+`tests/test_master_documents_are_current.py` grows `toolkit_rungs/EVIDENCE` and
+`toolkit_rungs/README_absent`. **The guard's own comment had predicted this**: *"tiers 1 and 2
+would have stopped matching the moment tier 3 ran, and a guard that stops matching is a guard
+that has gone blind"* -- the exact phrasing it warned about, left standing one table away.
+Both rows survive the existing mutation probe, which corrupts each figure in turn and requires
+the guard to report that one and only that one.
+
+### The shared documents move on both branches together
+`docs/datasets/SMAP_MSL.md` carried the `UNDERPOWERED (D3)` miscitation twice and is
+byte-identical across branches, so both were corrected in the same pass.
+`docs/PI_ENVELOPE.md` follows `dev` too, and **still carries no figures**.
+
+### And the snapshot commit moves
+`master`'s four customer documents now name `dev` at the commit their citations resolve at,
+which the guard checks against every shared path.
+
 ## [0.6.45] - 2026-09-14 - Four pre-registrations, none run, zero bucket operations
 
 **`docs/MODELS.md` 41 to 44, written before anything is measured**, in the form every section
