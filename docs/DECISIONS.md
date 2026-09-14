@@ -4736,6 +4736,63 @@ convention requires of a shared document.
 **What is not affected.** `docs/MODELS.md` 18.8.2 and `docs/RESULTS.md` 1a cite D3 for *bare
 recall and event-wise F0.5*, which is exactly what D3 says. Those are correct and stay.
 
+### D65.3 Rider, 2026-09-14: the residual half of this entry's arm decides nothing, on any of the 30
+
+**This entry's arithmetic is not edited and is not withdrawn.** 17 of 19 is 17 of 19, and
+the read below reproduced it to the event before measuring anything else. **What changes is
+what the number is a finding *about*.**
+
+**The question this entry left open.** The adopted arm is
+`max(z_residual, z_derivative)`. D65.1 traced two EVAL events and found the rule firing on
+the **derivative** on both, with `z_residual` at 3.211 and 3.856 against a cut of 5.288 --
+and said in as many words that two events on one channel are *"a property of these traces
+rather than a measurement over the population"*. **`docs/MODELS.md` 44 registered the
+ablation that would settle it; this is its result.**
+
+**Measured.** Derivative-only, `z_derivative` alone, at this entry's own matched
+**0.6820%** on 37.8's channel-disjoint split. **165 Class B and 1 Class A after a 9 Class B
+smoke, both projections exact.** Cached weights, **weight store 1,313 -> 1,313**, 77 of 81
+channels. Producer `scripts/derivative_only_ablation.py`; artifact
+`runs/smap-msl/_forensics/2026-09-14T212406Z-ablation.json`. Month after: **236 Class A and
+5,566 Class B of 50,000.**
+
+```
+  arm                          cut       rate       TUNE    EVAL    all 38
+  frozen (stage 4)          0.550599   0.6820%      6/19    4/19    10/38   gate 1
+  fused: max(z_r, z_d)      5.288128   0.6820%     13/19   17/19    30/38   gate 2
+  derivative only           4.431455   0.6820%     15/19   17/19    32/38
+```
+
+**Both gates pass.** The frozen arm returns 0.6820% and 10 of 38; the fused arm returns this
+entry's own 13/19, 17/19 and 30/38. So the restatement the ablation is measured against **is**
+what this entry measured.
+
+**(!) `z_residual` REACHES THE CUT ON NONE OF THE THIRTY.** At the step the fused rule fires,
+over all 30 events it catches: `z_residual` median **0.080**, maximum **4.652** against a cut
+of **5.288**, and **negative on 15 of the 30**. `z_derivative` over the same thirty has a
+minimum of **5.403**. The maximum is not near the cut; it is below it on every event. **The
+`max()` takes the derivative every time it fires**, and on half the events the residual is
+below its own trailing mean at the moment the component warns.
+
+**EVAL is identical, 17 against 17.** Derivative-only is a **strict superset on all 38** --
+nothing is caught by the fusion and missed by the derivative alone -- and its two extra events,
+`P-1[3539]` and `T-8[870]`, are **both on TUNE**, the half no figure is reported from. So the
+honest statement is *the residual contributes nothing*, not *removing it helps*.
+
+**CONSEQUENCE, and it is one sentence of description rather than any number.** This entry's
+finding, on this data, **is the first derivative**; the fusion is not doing work. Wherever the
+arm is described as *"the residual fused with the first derivative"*, that remains a correct
+description of **what the component computes** and is no longer a correct account of **what
+decides**. Both are said together from here.
+
+**What this does NOT do.** It moves no figure: 17/19, 4/19, 30/38, 10/38 and 0.6820% are
+exactly as this entry left them. **It is not an adoption decision** -- D68's flight
+configuration is untouched and `docs/MODELS.md` 44's AB5 was written to stop exactly that. It
+frees no memory: `zResidual` reads the dynamic threshold's own trailing window, which is
+carried regardless. And it is **one arm, one dataset, n = 19 per half, UNDERPOWERED**
+(`docs/HARNESS.md` 1). A `param_version` 3 rule that drops the residual term is **arguable
+after this and is not argued here**; it needs a second dataset and its own pre-registration.
+
 ---
 
 ## D66. The in-range contextual class is confounded with channel envelope width, and the scaling is not the cause

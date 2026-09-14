@@ -416,6 +416,7 @@ prediction that failed and why. This document follows the same discipline.
   - [44.4 Predictions](#444-predictions)
   - [44.5 Falsification](#445-falsification)
   - [44.6 Cost, and stop and report](#446-cost-and-stop-and-report)
+  - [44.7 OBSERVED -- the residual half never decides anything, on any of the 30](#447-observed----the-residual-half-never-decides-anything-on-any-of-the-30)
 
 <!-- /toc -->
 
@@ -12833,3 +12834,80 @@ three:
 1. **AB5 fires** -- the flown rule changes on the strength of this.
 2. **Any figure of this section is quoted without its alarm rate and its cut** (AB2).
 3. **The read is taken without a smoke**, or without its cost stated first.
+
+### 44.7 OBSERVED -- the residual half never decides anything, on any of the 30
+
+**2026-09-14.** Both reproduction gates pass. **165 Class B and 1 Class A** after a
+**9 Class B and 1 Class A** smoke whose **projection matched actual exactly** (projected 9,
+actual 9; then projected 165, actual 165). Cached weights, **weight store 1,313 -> 1,313**
+(asserted), 67.5 s, 77 of 81 channels -- the four skipped are the training defects D17 and
+37.5 already record (`E-3`, `G-1`, `D-11`, `D-12`). Artifact
+`runs/smap-msl/_forensics/2026-09-14T212406Z-ablation.json`; producer
+`scripts/derivative_only_ablation.py`, in this commit. Month after: **236 Class A and
+5,566 Class B of 50,000.**
+
+#### The two gates, because everything below rests on them
+
+**Gate 1, the frozen arm rebuilt.** **0.6820% and 10 of 38**, TUNE 6/19 and EVAL 4/19 --
+identical to 38.15, D65 and 39.13.1 on every read so far.
+
+**Gate 2, the fused arm rebuilt.** **0.6820%, TUNE 13/19, EVAL 17/19, 30 of 38** -- identical
+to D65's table. The restatement this ablation is measured against **is** what D65 measured,
+so a difference below is the ablation's and not the harness's.
+
+#### The predictions
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **AB1** | the two agree within 1 event on EVAL, either direction | **EVAL 17/19 against 17/19 -- identical, zero events apart.** TUNE 15/19 against 13/19; all 38: 32 against 30 | **HELD**, on the half it is reported on |
+| **AB2** | the dial is reported, not absorbed | fused **5.288128**, derivative-only **4.431455**, **-0.856673**. Both realised at **0.6820%** exactly | **HELD** |
+| **AB3** | a strict superset or subset, stated as which | **derivative-only is a strict superset on all 38.** Nothing is caught by the fused rule and missed by the derivative alone, on either half. The two extra events are **`P-1[3539]` and `T-8[870]`, both TUNE** | **HELD** |
+| **AB4** | fewer than 2 of 19 on EVAL have `z_residual` at or above the cut at the emitting step | **0 of 30**, across both halves. `z_residual` at the emitting step: median **0.080**, max **4.652** against a cut of **5.288**, and **negative on 15 of the 30**. `z_derivative` over the same 30: median **6.360**, min **5.403** | **HELD, and more strongly than its band asked** |
+| **AB5** | nothing is adopted | `flight/`, `model.bin` and `param_version` untouched. D68 stands | **HELD** |
+
+#### 44.7.1 (!) What this establishes, and it is narrower than it looks
+
+**The residual term is not weak. It is inert.** Its maximum over all thirty caught events --
+**4.652** -- is below the cut the fused rule solves to, so `max(z_residual, z_derivative)`
+takes the derivative **every time it fires**. On half of them the residual is **below its own
+trailing mean** at the moment the rule warns.
+
+**D65.1's two traces were typical after all.** They showed `z_residual` at 3.211 and 3.856
+against a 5.288 cut and said in as many words that two events are not a measurement. Over the
+population it is **0 of 30**, and 44.2's reading of them stands rather than being withdrawn.
+
+**So the finding D65 reports as "the residual fused with the first derivative" is, on this
+data, the first derivative.** The fusion is not doing work. That is recorded as a rider on D65
+rather than an edit to it, and **D65's arithmetic is untouched** -- 17 of 19 is 17 of 19, and
+gate 2 reproduced it to the event.
+
+**What it does NOT establish.** It does not say the residual is useless on other data; it says
+it decided nothing on **one dataset, one arm, n = 19 per half, UNDERPOWERED**
+(`docs/HARNESS.md` 1). It does not free memory: `zResidual` reads the dynamic threshold's own
+trailing window, which 39.8 and D68 keep carried regardless, and 44.2 said so before the read.
+And **it is not an adoption decision** -- AB5 held because it was written to.
+
+#### 44.7.2 The +2 is on TUNE, and that is why EVAL is the reported half
+
+Derivative-only gains **`P-1[3539]` and `T-8[870]`**, and **both channels are TUNE's**. EVAL --
+the half no parameter was selected on -- is **identical at 17 of 19**. The honest headline is
+therefore *the residual contributes nothing*, not *removing it helps*: the gain sits entirely
+on the half this project does not report from, and **37.8's rule that every parameter is
+selected on TUNE and reported on EVAL is what makes that distinction available at all.**
+
+**The cut moved as 44.3 said it would**, from 5.288128 to 4.431455. Removing a statistic from a
+maximum frees alarm budget and the rate-matched cut falls -- the mechanism 39.13 measured on
+N6. Because AB3 shows a **strict superset**, none of that freed budget bought a loss, so
+unlike N6 the lever and the dial do not need dividing here: **there is nothing to divide when
+no event moves in the losing direction.**
+
+#### 44.7.3 What is owed after this
+
+**A cheaper flight rule is now arguable and is not argued here.** If the residual term decides
+nothing, the emission rule could be `z_derivative >= cut` alone, which would make the dynamic
+threshold reported-only for emission and **open** the question of whether its 2,170-sample ring
+must fly. That is a `param_version` 3 decision with its own pre-registration and its own
+D-entry, taken on more than one dataset. **Registered as a consequence, not taken as one.**
+
+**And it should be asked on ESA-ADB before it is believed.** One dataset is what D3's
+neighbouring caution and `docs/HARNESS.md` 1 both exist for. No such read is registered here.

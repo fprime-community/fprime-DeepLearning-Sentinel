@@ -14,6 +14,47 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.47] - 2026-09-14 - The residual half of the flown rule decides nothing, on any of the 30
+
+**`docs/MODELS.md` 44 run** (44.7, D65.3). **165 Class B and 1 Class A** after a **9 Class B**
+smoke whose projection matched actual exactly, both times. Cached weights, **weight store
+1,313 -> 1,313**, 77 of 81 channels, 67.5 s. Month after: **236 Class A and 5,566 Class B**.
+
+### Both reproduction gates pass, and everything below rests on them
+The frozen arm returns **0.6820% and 10 of 38**; the fused arm returns D65's own **13/19,
+17/19, 30/38**. The restatement the ablation is measured against **is** what D65 measured.
+
+```
+  arm                          cut       rate       TUNE    EVAL    all 38
+  frozen (stage 4)          0.550599   0.6820%      6/19    4/19    10/38
+  fused: max(z_r, z_d)      5.288128   0.6820%     13/19   17/19    30/38
+  derivative only           4.431455   0.6820%     15/19   17/19    32/38
+```
+
+### (!) z_residual reaches the cut on none of the thirty
+At the step the fused rule fires: median **0.080**, maximum **4.652** against a cut of
+**5.288**, **negative on 15 of 30**. `z_derivative` over the same thirty has a minimum of
+5.403. **The residual term is not weak, it is inert** -- the `max()` takes the derivative every
+time it fires, and on half the events the residual sits below its own trailing mean at the
+moment the component warns. D65.1's two traces were typical after all.
+
+### EVAL is identical, and the +2 is on TUNE
+17 against 17. Derivative-only is a **strict superset on all 38**; its two extra events,
+`P-1[3539]` and `T-8[870]`, are **both TUNE channels**. So the honest statement is *the
+residual contributes nothing*, not *removing it helps* -- a distinction only 37.8's split
+makes available.
+
+### All five predictions held, and AB4 more strongly than its band asked
+AB1 held at zero events apart; AB2 reported the dial (-0.856673) rather than absorbing it;
+AB3 named the relation; AB4 asked for fewer than 2 of 19 and got **0 of 30**; AB5 held because
+it was written to -- **nothing is adopted and D68 stands**.
+
+### What it does not do
+It frees no memory: `zResidual` reads the dynamic threshold's own window, which is carried
+regardless, and 44.2 said so before the read. It is **one arm, one dataset, n = 19 per half,
+UNDERPOWERED**. A `param_version` 3 rule dropping the residual term is **arguable after this
+and is not argued here**.
+
 ## [0.6.46] - 2026-09-14 - The customer branch said the toolkit was unwritten, and the guard could not see it
 
 **Two customer-facing statements on `master` claimed the ground toolkit is less finished than

@@ -157,7 +157,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 235 Class A and 5,392 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 236 Class A and 5,566 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why
@@ -468,13 +468,16 @@ operations between them.
   change moves the window, `MAX_SEQUENCES` and therefore the footprint. The separation is
   committed in advance rather than discovered, which is 39.13.3's lesson. **S5 needs a read and
   is not taken.**
-- **The derivative-only ablation** (`docs/MODELS.md` 44): the adopted rule with `z_residual`
-  removed, matched **0.6820%**, same 19/19 split. D65.1's two traces show the fused rule firing
-  on the derivative with `z_residual` never reaching the cut, and say in as many words that two
-  events are not a measurement. **It frees no memory** -- `zResidual` reads the dynamic
-  threshold's own window, which is carried regardless -- and what it would settle is whether
-  D65's headline is the fusion or the derivative. **Two-sided bands, because 39's N6 was a
-  one-sided worry written as a two-sided band. Needs a read; not taken.**
+- **The derivative-only ablation** (`docs/MODELS.md` 44). **(!) RUN 2026-09-14** (44.7, D65.3),
+  165 Class B and 1 Class A after a smoke whose projection matched exactly, weight store
+  unmoved. Both gates pass: the frozen arm returns 0.6820% and 10/38, the fused arm returns
+  D65's own 17/19. **Derivative-only reaches EVAL 17/19 against 17/19 -- identical -- at the
+  same 0.6820%**, on a cut that falls from 5.288128 to 4.431455, and it is a **strict superset
+  on all 38** whose two extra events are both on TUNE. **(!) `z_residual` reaches the cut on
+  none of the 30 events the fused rule catches**: median 0.080, maximum 4.652 against a cut of
+  5.288, negative on 15 of 30. **The residual term is not weak, it is inert**, and D65's
+  finding on this data **is the first derivative**. Nothing is adopted; D68 stands. It frees no
+  memory, and it is one arm, one dataset, n = 19 per half, UNDERPOWERED.
 
 **Carried open.** D5, the tier ladder, is the only OPEN decision in the register. D14's
 weight-cache key is still positional. D21's `error_buffer` effect on alarm width is
@@ -489,7 +492,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**723 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**724 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -519,8 +522,8 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 723 tests
-.venv/bin/python scripts/check_no_list.py                        # 102 files, no LIST, no glob
+.venv/bin/python -m pytest -q                                    # 724 tests
+.venv/bin/python scripts/check_no_list.py                        # 103 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0
