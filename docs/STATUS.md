@@ -156,7 +156,7 @@ seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment
 v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
 baseline with the code named in the event, **0/11** failing the topology (D32-D37).
 
-**Operations.** 230 Class A and 5,341 Class B for 2026-09, of 50,000 each, read from the
+**Operations.** 231 Class A and 5,356 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.
 
 ## 5. What we did, and why

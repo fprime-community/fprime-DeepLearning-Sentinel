@@ -12142,6 +12142,42 @@ artifact is one Class A behind the ledger's true state by construction. 39.13's
 corrected to the ledger's own state. **After both runs here: 230 Class A and
 5,341 Class B of 50,000.**
 
+#### 40.14.2 Rider, 2026-09-14: the curve was not in the artifact, and the run reproduces exactly
+
+**The first run printed the sensitivity curve and did not record it.**
+`scripts/toolkit_tier3.py` serialised the operating point -- cut, alarms, steps --
+and not the sweep around it, so the report could be read once at the terminal and
+never redrawn from a record. **A figure that exists only in stdout is not a figure
+this project has**, and 40.4 makes the curve half of what the calibration report
+is *for*. The field is added and the run repeated.
+
+**15 Class B projected, 15 actual**, plus 1 Class A. Month after:
+**231 Class A and 5,356 Class B of 50,000.**
+
+**(!) And it is a reproduction.** Every substantive field of
+`runs/esa-adb/_toolkit/2026-09-14T012144Z-tier3-mission1.json` equals
+`2026-09-11T201935Z-tier3-mission1.json` -- **22 of 22**, including the cut to
+every digit, both halves' alarm counts, the healthy window's bounds and the model
+byte count. Only wall clock, fetch time and peak RSS differ, which are properties
+of the machine and not of the result. Two independent reads two days apart, and
+T4's determinism prediction now holds across processes **and across runs on real
+telemetry** rather than on a fixture alone.
+
+```
+  quantile        cut     calibration half      held-out half
+  0.99       9.092431    2,836  1.0001%       1,362  0.4803%
+  0.995     10.027543    1,418  0.5001%         691  0.2437%
+  0.999     11.875282      284  0.1002%         230  0.0811%   <- the derived cut
+  0.9995    12.632434      142  0.0501%         147  0.0518%
+  0.9999    15.068773       29  0.0102%          72  0.0254%
+```
+
+**The two halves cross**, and the crossing is the informative part: loose of the
+cut the held-out half is **quieter** than the half the cut was derived on, tight of
+it **noisier**. A single operating point would have hidden that, which is the
+argument for reporting a curve rather than a number and is why
+`docs/HARNESS.md` 1 permits one at all.
+
 ### 40.15 Deferred, with the slot registered so the gap is visible
 
 **The data-sufficiency grader.** `docs/HARNESS.md` 6b requires it in as many words -- "the

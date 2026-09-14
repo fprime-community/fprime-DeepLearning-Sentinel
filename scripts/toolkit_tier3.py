@@ -160,6 +160,17 @@ def main(argv=None) -> int:
         "fit_alarms": cal.fit_alarms, "fit_steps": cal.fit_steps,
         "holdout_alarms": cal.holdout_alarms, "holdout_steps": cal.holdout_steps,
         "ratio": round(cal.ratio, 4),
+        # (!) The swept curve, which the first run did not record. It is the
+        # sensitivity half of the calibration report -- the cut is derived and
+        # the curve is REPORTED around it -- and leaving it out of the artifact
+        # meant the report could be printed once and never redrawn from a
+        # record. A figure that exists only in stdout is not a figure this
+        # project has. `docs/HARNESS.md` 1 is why the curve is reported at all.
+        "curve": [{"quantile": q, "cut": cut,
+                   "fit_alarms": fa, "holdout_alarms": ha,
+                   "fit_rate": fa / cal.fit_steps if cal.fit_steps else None,
+                   "holdout_rate": ha / cal.holdout_steps if cal.holdout_steps else None}
+                  for q, cut, fa, ha in cal.curve],
         "provenance": cal.provenance(),
         "model_bytes": len(result.model_bytes),
         "param_version": spec["params"]["param_version"],
