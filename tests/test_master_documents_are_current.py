@@ -22,6 +22,7 @@ another document's prose, which is how a figure travels while staying wrong.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -47,8 +48,18 @@ MASTER_ONLY = {"docs/DESIGN.md", "docs/EVIDENCE.md"}
 
 
 def _git(*args: str) -> str:
+    """(!) `GIT_INDEX_FILE` is scrubbed, and that is not defensive programming.
+
+    Building `master`'s tree with plumbing sets `GIT_INDEX_FILE` to a scratch
+    index. If it is still exported when this suite runs, `git ls-files` reads
+    that index instead of the working one, `on_dev` becomes `master`'s file list,
+    and the subset check fails for a reason that has nothing to do with either
+    branch. Seen 2026-09-14. A guard that can be made to lie by an environment
+    variable is not one to trust.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "GIT_INDEX_FILE"}
     return subprocess.run(["git", *args], cwd=ROOT, check=True,
-                          capture_output=True, text=True).stdout
+                          capture_output=True, text=True, env=env).stdout
 
 
 def _ref_exists(ref: str) -> bool:
