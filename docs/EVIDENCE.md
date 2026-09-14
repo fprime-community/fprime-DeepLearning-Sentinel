@@ -172,6 +172,93 @@ member so a warning could name its peak channel, and padding took the object fro
 -- but nothing caught the drift, because the check was a 2% band on a compile-time constant.
 It is an **equality** now. Recorded at `docs/MODELS.md` 39.13.5 on `dev`.
 
+## 5a. The physics testbed, and the first warning time measured against a real limit
+
+**Numbered 5a so sections 6 to 10 keep the numbers other documents cite**, the way
+`docs/HARNESS.md` 5a does on `dev`.
+
+No dataset this project holds can produce a warning time: SMAP/MSL ships no limit definitions
+and ESA-ADB's clock is anonymised. So a subsystem was simulated instead -- a coupled power and
+thermal plant, eight channels, limits declared in its own F' dictionary, and a seeded
+degradation that ramps **one scalar**, the cell's internal resistance, and lets the physics
+carry it everywhere else. The ground toolkit fitted a model on **that plant's own healthy
+telemetry**, on a seed none of the scored runs use. Ten seeded runs, ten healthy controls.
+Source `docs/MODELS.md` 42 and 42.9 on `dev`; component `fprime/SentinelRef/PowerSim/`.
+
+### (!) The method is the result: the null is measured away, not computed
+
+**The naive reading of a seeded run is wrong, and the healthy control is what shows it.** Seed
+1 says *first warning at tick 2,700*, against a first limit crossing at 19,225 -- a lead of
+**+16,525**. But the healthy control, **same seed, same plant, no fault, warns at tick 2,700
+as well**. That alarm is the plant's, not the fault's.
+
+Because the two runs differ in exactly one scalar, a warning present in the seeded run and
+absent in the healthy run **at the same tick** is the fault's, and nothing else can have caused
+it. That is ground truth by construction, and it replaces a computed null with a measured one:
+
+```
+  seed 1, 22,000 ticks. One column is about 323 ticks.
+
+  healthy control   ........#..###.##..##.#...##.#.#....###.#..###.##...#.##..#..###..#.
+  seeded run        ........#..###.##..##.#..###.###.##.###.##.###.##.###.###.##.###.##.
+  ATTRIBUTABLE      .........................#....#..##......#........##....#..#.....#..
+                                            ^                                  ^  ^
+                                            fault 8,000            yellow 19,225  red 20,140
+
+  40 warnings in the seeded run.  30 in the healthy run.  30 shared, so not the fault's.
+  10 attributable, the first at tick 8,100 -- one hundred ticks after injection.
+```
+
+**The attributable row is empty for the first 8,000 ticks, and that is the argument.** Every
+figure below is measured from the attributable warning. **Quoted without that method, the
+number is 16,525 and it is false.**
+
+### What was measured
+
+| | |
+|---|---|
+| **Lead, seed 1** | **11,125 timesteps** before the first limit crossing of any colour |
+| **Lead, median of ten** | **9,774.5 timesteps**; min 5,305, max 11,125. Positive on **10 of 10** |
+| **As a fraction** of the fault-onset-to-limit interval | **0.871** median -- the dimensionless figure, and the only one that transfers off this plant |
+| **False alarms** | **316 / 196,500 warmed healthy ticks = 0.1608%**, against the **0.1830%** the toolkit's own pre-launch report predicted for data it had not calibrated on |
+| **Compute** | per tick **median 11 us, worst 326 us**, against this deployment's 1 Hz period -- **0.033% of the budget**, worst case, and that figure includes the trace write |
+
+### (!) Read these in the same breath as the numbers
+
+- **Timesteps, not seconds.** At this deployment's 1 Hz rate group the median lead is 2 h 43
+  min. At another rate it is a different number of seconds and **the same number of ticks**.
+  The plant's time constants are chosen, so its seconds are not a mission's.
+- **Ten runs are not ten independent systems.** They share a plant, a fault mode, a rate and an
+  injection tick and differ only in noise. The first limit crossing lands at **19,224 or 19,225
+  in all ten** -- a two-tick spread -- so the **effective `n` is close to one**, and 10 of 10 is
+  a statement about reproducibility far more than about power.
+- **One fault mode, one model, one testbed**, and it is **a fault this project designed**. A
+  method that catches the degradation someone thought to write is not thereby a method that
+  catches degradations nobody wrote.
+- **This is not an early-warning claim about spacecraft telemetry.** On real telemetry the flown
+  rule is **less late than the rule it replaced, and not early** (`docs/MODELS.md` 45.6 on
+  `dev`). Section 7 stands unchanged.
+- **The live GDS recording is not produced** and is owed.
+
+### (!) The first channel the testbed tried to limit-check was one that cannot be
+
+`SolarInput` was first declared with a **yellow low of 5 W**. It fired on **tick 0 of every
+run, healthy ones included**. The array reads **0 W through eclipse, which is 35% of every
+orbit**: low solar power is not a fault, **it is night**. Whether a low reading is anomalous
+depends on the relationship between that channel and the orbit phase, and the same 0 W is
+correct in shadow and catastrophic in sunlight.
+
+Its limits now sit where a **sensor bias** would be, `red -5.0, yellow -2.0`, because that is
+the only thing a fixed threshold on that channel can honestly detect. **This project's own
+argument, demonstrated in its own instrument, and found by a run rather than a review.**
+
+### And the bar is yellow, not red
+
+`CellTemp` crosses **yellow at 19,225 and red at 20,140**. A ground system with yellow alarms
+sees this fault **915 ticks before the red trip**, so a lead scored against the red trip alone
+would credit the component with beating a limit check it had **not** beaten. Every figure above
+is measured against the **first crossing of any colour**.
+
 ## 6. What you can check from this branch, and what you cannot
 
 **Can, with a C++ toolchain and nothing else:** every figure in section 4, the footprint in
@@ -189,14 +276,17 @@ and no credential.
 
 ## 7. What is not claimed
 
-- **No early-warning claim, in any form.** The only lead-time measurement this project holds
-  is **0 of 10 positive leads** (`docs/MODELS.md` 37.7a) -- **measured on the frozen decision
-  layer, which emits at the end of a 70-tick segment. The rule this branch ships crosses per
-  tick, and its lead time is unmeasured**, registered at `docs/MODELS.md` 45 on `dev`. Every
-  figure here is recall at a matched alarm rate. Lead, where reported at all, is in **timesteps**, never in hours, and
-  a figure of "+26 timesteps" that once appeared in this project's own documents was
-  **retired**: it was dated from the start of an alarm range that had been widened backwards
-  from a crossing that had already happened.
+- **No early-warning claim about spacecraft telemetry, in any form.** Two lead measurements
+  exist on real telemetry and neither is one. **0 of 10 positive leads**
+  (`docs/MODELS.md` 37.7a) was measured on the **frozen decision layer**, which emits at the
+  end of a 70-tick segment; the rule this branch ships crosses **per tick**, and its own lead
+  was measured separately at `docs/MODELS.md` 45.6 on `dev`, which found it **less late than
+  the rule it replaced and not early** -- the one positive median it produced failed to beat
+  its own null. **Section 5a's testbed lead is a different claim**: a simulated plant and a
+  fault this project designed, transferring to no mission. Lead, where reported at all, is in
+  **timesteps**, never in hours, and a figure of "+26 timesteps" that once appeared in this
+  project's own documents was **retired** -- it was dated from the start of an alarm range that
+  had been widened backwards from a crossing that had already happened.
 - **No point-adjusted F1, ever**, on the grounds Kim et al. (AAAI 2022) give.
 - **No claim that the component beats a limit check on a mission's own data.** It has never
   been run on a mission.

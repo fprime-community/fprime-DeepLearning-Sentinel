@@ -33,10 +33,11 @@ caveats.
   of a two-half product.** `docs/MODEL_FILE.md` specifies the file completely enough to
   write one independently, which is the honest answer available today.
 - **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any
-  wall-clock figure. The one lead-time measurement this project has is **0 of 10 positive
-  leads** (`docs/MODELS.md` 37.7a), **measured on the frozen decision layer, which emits at a
-  segment's end; the rule this branch ships crosses per tick and its lead time is unmeasured**
-  (`docs/MODELS.md` 45). Every figure here is recall at a matched alarm rate, counted in
+  wall-clock figure. On real telemetry the rule this branch ships is **less late than the rule
+  it replaced, and not early** (`docs/MODELS.md` 45.6); the frozen layer it replaced measured
+  **0 of 10 positive leads** (37.7a). A warning time **has** been measured against a real limit
+  on a **simulated** plant -- `docs/EVIDENCE.md` section 5a -- and that is a claim about a
+  testbed and a fault this project designed, not about a mission. Every figure here is in
   **timesteps**, never in hours.
 - **The evidence is one arm on one dataset, UNDERPOWERED.** n = 19 per half. Read
   `docs/EVIDENCE.md` before quoting anything from it.
