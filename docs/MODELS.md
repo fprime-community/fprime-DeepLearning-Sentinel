@@ -13477,3 +13477,33 @@ Traces `runs/testbed/f_1.csv` to `f_10.csv` and `h_1.csv` to `h_10.csv`; summary
 `runs/testbed/healthy_seed7.npy`. **All under `runs/`, which is gitignored: cited by path,
 never committed.** Producers `fprime/SentinelRef/PowerSim/TestbedRun.cpp` and the toolkit, both
 in this commit.
+
+#### 42.9.5 Rider, 2026-09-14: the attribution method travels with the number, as a rule
+
+**42.9 is not edited.** This makes explicit a reporting rule its 42.9.1 established and stated
+once.
+
+**Every lead figure this testbed produces is quoted with the method that produced it.** Not as
+a caveat and not in a footnote: the same sentence, or the one beside it. The reason is
+arithmetic rather than style --
+
+```
+  naive first warning, seed 1     lead +16,525 ticks     FALSE
+  fault-attributable warning      lead +11,125 ticks     the measurement
+```
+
+-- and the difference between them is the **thirty warnings the healthy control makes at the
+same ticks**. A reader given 11,125 without the method cannot tell it from 16,525, and 16,525
+is the number a reasonable person would compute from the seeded run alone.
+
+**The rule, stated so it can be checked.** A document may state a testbed lead only if the same
+passage says that it is **fault-attributable**, established by differencing the seeded run
+against a healthy control on the same seed. `docs/EVIDENCE.md` section 5a on `master` leads with
+it and carries the figure that shows it; `docs/STATUS.md` 7 item C carries it; this section's
+42.9.1 is its account.
+
+**And it generalises past this testbed, which is why it is a rider and not a footnote.** 45.6.1
+had to *compute* a null on SMAP/MSL because no counterfactual run exists there, and it could
+only bound the answer. Here the counterfactual run exists, so the null is **measured away**.
+**That difference -- not the lead -- is what a simulated testbed buys**, and it is the case for
+work item 11 that no recall figure could have made.

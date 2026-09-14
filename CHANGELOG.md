@@ -14,6 +14,40 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.55] - 2026-09-14 - The testbed result reaches the customer branch, with the method that makes it one
+
+**`master` gains `docs/EVIDENCE.md` section 5a** -- numbered 5a so sections 6 to 10 keep the
+numbers other documents cite. **`docs/MODELS.md` 42.9.5** makes the attribution requirement a
+**reporting rule** rather than a fact stated once.
+
+### The rule, because the arithmetic demands it
+```
+  naive first warning, seed 1     lead +16,525 ticks     FALSE
+  fault-attributable warning      lead +11,125 ticks     the measurement
+```
+The difference is the **thirty warnings the healthy control makes at the same ticks**. A reader
+given 11,125 without the method cannot tell it from 16,525 -- and 16,525 is what a reasonable
+person would compute from the seeded run alone. **A document may state a testbed lead only if
+the same passage says it is fault-attributable**, established by differencing against a healthy
+control on the same seed.
+
+### And that difference is what the testbed bought
+45.6.1 had to **compute** a null on SMAP/MSL, because no counterfactual run exists there, and
+could only bound the answer. Here the counterfactual run exists and the null is **measured
+away**. That, and not the lead, is the case for work item 11 -- and no recall figure could have
+made it.
+
+### On `master`, in one section and in the same breath
+The figure with the attributable row empty for 8,000 ticks; lead 11,125 and median 9,774.5;
+fraction 0.871; false alarms 0.1608% against the toolkit's own 0.1830% prediction; compute
+0.033% of the 1 Hz budget. **Then, not after a gap: timesteps not seconds, effective `n` near
+one, one fault mode, one testbed, a fault this project designed, and no early-warning claim
+about spacecraft telemetry.** The eclipse finding with its tick numbers, and the yellow bar.
+
+Section 7 and the README's lead-time bullet are corrected to stay true now that a testbed lead
+exists. **Neither weakens.** Zero bucket operations; the ledger stands at **238 Class A and
+5,740 Class B**.
+
 ## [0.6.54] - 2026-09-14 - All seven of 42's predictions held, and the healthy control is why any of them mean anything
 
 **`docs/MODELS.md` 42.9. Zero bucket operations** -- the testbed generates its own telemetry,
