@@ -52,8 +52,9 @@ flight packaging is this project's contribution.**
 
 - Onboard protection today is a per-channel limit check - a thermostat. Nothing in an F'
   deployment watches relationships between channels at all (`Objective.md` 2.1, 3).
-- **39 of 43** labelled contextual anomalies on SMAP/MSL stay entirely inside their
-  channel's own historical range (D46). A limit check cannot see them by construction.
+- **39 of 43** labelled contextual anomalies on SMAP/MSL stay **at or within** their
+  channel's own historical range (D46; **23 of the 39 touch a rail exactly**, D46.1).
+  A limit check cannot see them by construction.
 - The method was published in 2018 and no reusable flight component followed.
 
 **No wall-clock claim is made.** "Hours before anything breaks" was struck from
@@ -116,8 +117,8 @@ arms measured; its freeze does not.** A tenth arm -- the smoothed residual fused
 **first derivative of the raw value**, both standardised against a trailing window only --
 reaches **EVAL 17 of 19 against the frozen arm's 4**, at the frozen arm's own **0.6820%**,
 on the channel-disjoint split committed before any sweep. It is a **strict superset**: it
-loses nothing the frozen arm caught. **n = 19, UNDERPOWERED (D3).** Reproduced identically
-on two independent reads (`docs/MODELS.md` 38.15). The all-38 figure of 30 is
+loses nothing the frozen arm caught. **n = 19, UNDERPOWERED (`docs/HARNESS.md` 1).**
+Reproduced identically on two independent reads (`docs/MODELS.md` 38.15). The all-38 figure of 30 is
 **CONTAMINATED** -- it includes the 19 TUNE events the cut was selected on -- and is never
 the headline. **D65 adopts nothing**: it re-opens the decision layer and does not name a
 flight configuration.
@@ -350,7 +351,6 @@ seeded **in the physics** and in-limits throughout for the contextual family, gr
 by construction. *Done when* a model gate runs on it at a matched rate reporting in-limits
 catch rate, **time-to-limit-trip** and manoeuvre false alarms - and the live GDS recording
 exists.
-
 **D. Work item 10, in-orbit threshold recalibration.** File uplink, human-approved reload,
 on `model.bin` **version 1**: PARAMS is separately CRC'd and carries its own
 `param_version`, so no format change is needed. `docs/PHASE2.md` 5b states what it must
@@ -481,7 +481,7 @@ seed.
 
 ```bash
 .venv/bin/python -m pytest -q                                    # 723 tests
-.venv/bin/python scripts/check_no_list.py                        # 87 files, no LIST, no glob
+.venv/bin/python scripts/check_no_list.py                        # 102 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch
 PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest         # 8/8, oracle 1.0

@@ -105,7 +105,8 @@ stands. **(!) The catch comparison that used to be offered as its evidence is wi
 
 **(!) And the claim was restated on 2026-09-03, after Phase 1 closed.** Sentinel catches
 anomalies a limit check can never see: on SMAP/MSL, 39 of 43 labelled contextual anomalies stay
-entirely in range, no per-channel statistic reaches a flyable alarm rate there, and the
+at or within their channel's historical range (23 of the 39 touch a rail exactly, D46.1), no
+per-channel statistic reaches a flyable alarm rate there, and the
 forecaster under a **dynamic** threshold operates at 0.68% and catches 10 of 38 (D46, D48,
 `docs/MODELS.md` 26.18). That result is `gru-telemanom` per channel and univariate, **not** the
 `gru-quantile` configuration this report describes, and it post-dates every measurement below. The break-to-limit lead remains a Phase 3 measurement on a real clock.

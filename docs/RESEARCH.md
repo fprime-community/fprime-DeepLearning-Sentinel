@@ -482,12 +482,14 @@ verified at its primary source.**
 
 - **ESA-ADB** -- Kotowski et al. **Verified**: `arxiv.org/abs/2406.17826`,
   "European Space Agency Benchmark for Anomaly Detection in Satellite Telemetry",
-  twelve authors, submitted 25 Jun 2024, revised 17 Aug 2025, comments "87 pages,
-  24 figures, 19 tables". **The survey's "DMLR 2026" is not on that page and is
-  not verified.** The survey's structural point is the one that matters here and
-  it matches our own reading: the Univariate/Multivariate, Local/Global and
-  Point/Subsequence attributes are inferred from **how many channels are annotated
-  and over what span**, not from in-range status -- which is exactly why
+  **eleven** authors (was "twelve"; re-verified at `arxiv.org` 2026-09-14, and
+  `docs/datasets/ESA_ADB.md` names all eleven in order), submitted 25 Jun 2024,
+  revised 17 Aug 2025, comments "87 pages, 24 figures, 19 tables". **The survey's
+  "DMLR 2026" is not on that page and is not verified.** The survey's structural
+  point is the one that matters here and it matches our own reading: the
+  Univariate/Multivariate, Local/Global and Point/Subsequence attributes are
+  inferred from **how many channels are annotated and over what span**, not from
+  in-range status -- which is exactly why
   `docs/HARNESS.md` section 1 records that operationalising "contextual" as
   `Dimensionality == Multivariate` is an interpretation, and why D43 had to define
   the class by training min/max instead.

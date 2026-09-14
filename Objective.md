@@ -186,11 +186,25 @@ forecaster never speaks first.
 **(!) RESTATED 2026-09-03, and this is the claim.**
 
 **Sentinel catches anomalies a limit check can never see.** On NASA's SMAP/MSL
-telemetry, **39 of 43** labelled contextual anomalies stay entirely inside their
+telemetry, **39 of 43** labelled contextual anomalies stay **at or within** their
 channel's historical range; **no per-channel statistic reaches a flyable alarm rate
 there** -- a rolling standard deviation at 5,000x its calibrated threshold still
 alarms on 15.17% of nominal steps; and the forecaster **under a dynamic threshold**
 operates at **0.68%** and catches **10 of 38** -- the baseline now being improved.
+
+**(!) "At or within" is exact, and the word was "entirely inside" until 2026-09-14.**
+The in-range test is inclusive -- touching a channel's historical extreme does not
+count as leaving it (`docs/MODELS.md` 24.9) -- and nothing had measured what that
+costs until D46.1 did: **23 of the 39 touch a rail exactly**, margin 0.0 and not
+float noise, and only **16 sit strictly inside**. **No figure moves** -- 39, 38 and
+every recall number are unchanged.
+
+**What the claim rests on, said here because it is where a reader meets it.** D43's
+premise: a real RED or YELLOW limit sits **outside** a channel's historical operating
+range, so a limit check would still not fire on a value that merely reaches that
+range's edge. **That premise is now load-bearing rather than incidental**: on the
+arithmetic alone, an inclusive limit placed *at* the historical extreme would fire on
+23 of these 39 (`docs/DECISIONS.md` D43, D46.1).
 
 **(!) Read the configuration with the claim, never apart from it.** That 10 of 38 is
 `gru-telemanom` -- the **published dynamic threshold**, not D25's frozen static
@@ -743,7 +757,7 @@ been verified against the raw arrays.**
 sensor-to-sensor claim, which D57 retires as the sole thesis. SMAP/MSL turns out to
 support two other claims this project cares about more:
 
-1. **The in-limits claim.** 39 of 43 labelled contextual sequences stay strictly inside
+1. **The in-limits claim.** 39 of 43 labelled contextual sequences stay at or within
    their channel's training min/max - six and a half times ESA-ADB's population and five
    times denser (D46). It is the population ESA-ADB does not have, and it is the only
    place the in-limits claim has been measured at all: 10 of 38 at 0.68% nominal.

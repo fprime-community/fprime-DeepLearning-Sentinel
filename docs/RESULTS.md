@@ -275,7 +275,8 @@ from anything in this document** (Objective.md 1.1).
 
 **What this project claims, restated 2026-09-03. Sentinel catches anomalies a limit
 check can never see.** On NASA's SMAP/MSL telemetry 39 of 43 labelled contextual
-anomalies stay entirely inside their channel's historical range (D46); no
+anomalies stay at or within their channel's historical range (D46; 23 of the 39
+touch a rail exactly, D46.1); no
 per-channel statistic reaches a flyable alarm rate there, a rolling standard
 deviation at 5,000x its calibrated threshold still alarming on 15.17% of nominal
 steps (D48); and the forecaster under a **dynamic** threshold operates at **0.68%**

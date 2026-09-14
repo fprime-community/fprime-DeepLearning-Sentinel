@@ -93,8 +93,8 @@ From [Objective.md section 1.1](Objective.md), which governs every figure quoted
   Measured from the first crossing, the median lead is **0.0** on the gate set (D21,
   `docs/RESULTS.md` 6f). No wall-clock claim - no hours, no "~4h" - is made from Phase 1 evidence.
 - **The claim, restated 2026-09-03:** **Sentinel catches anomalies a limit check can never
-  see.** On NASA's SMAP/MSL telemetry, **39 of 43** labelled contextual anomalies stay entirely
-  inside their channel's historical range; **no per-channel statistic reaches a flyable alarm
+  see.** On NASA's SMAP/MSL telemetry, **39 of 43** labelled contextual anomalies stay **at or
+  within** their channel's historical range; **no per-channel statistic reaches a flyable alarm
   rate there** (a rolling standard deviation at 5,000x its threshold still alarms on 15.17% of
   nominal steps); and the forecaster **under a dynamic threshold** operates at **0.68%** and
   catches **10 of 38** -- the baseline now being improved (D46, D48, `docs/MODELS.md` 26.18).
@@ -159,8 +159,8 @@ does not do.
 
 | Claim | Evidence | Caveat |
 |---|---|---|
-| It warns before a limit trips | D46: **39 of 43** contextual anomalies stay inside their channel's historical range. `docs/MODELS.md` 26.18: **10 of 38 at 0.6820%** | **26%, on one dataset, with no floor to compare against at that rate.** And D66: the in-range class is confounded with channel envelope width |
-| A better decision layer reaches more of them | D65: the residual fused with the first derivative reaches **EVAL 17 of 19** where the frozen arm reaches 4, at the same alarm rate, a strict superset, reproduced on two independent reads | **n = 19 per half. UNDERPOWERED (D3).** One arm, one dataset |
+| It warns before a limit trips | D46: **39 of 43** contextual anomalies stay **at or within** their channel's historical range -- **23 of the 39 touch a rail exactly** (D46.1). `docs/MODELS.md` 26.18: **10 of 38 at 0.6820%** | **26%, on one dataset, with no floor to compare against at that rate.** And D66: the in-range class is confounded with channel envelope width |
+| A better decision layer reaches more of them | D65: the residual fused with the first derivative reaches **EVAL 17 of 19** where the frozen arm reaches 4, at the same alarm rate, a strict superset, reproduced on two independent reads | **n = 19 per half. UNDERPOWERED (`docs/HARNESS.md` 1).** One arm, one dataset |
 | The shipped core runs that rule | D68: `emitted` is the fused statistic against one calibrated cut, on a `param_version` 2 PARAMS block. Held to the reference at **1e-5 with the emission flag exact**, end to end from a real `model.bin` | **Was D25's static quantile until 2026-09-11**, and a version-1 file still gets that rule. `docs/MODELS.md` 39.13 is the port's full account, N3 failed and recorded |
 | It is warn-only | `Monitor.fpp` declares **zero commands**; `cmdIn` exists only for F's autocoded `PARAM_SET`/`PARAM_SAVE`, said in situ | **None.** Warn-only by interface, not by convention |
 | It fails safe | 12 refusal codes in `Status.hpp`, each with its own case; all degrade to Level 1 and none fails the topology (D32-D37) | None |

@@ -3161,6 +3161,69 @@ bound** on the excursion inside the labelled span rather than the span's own fig
 an anomaly leaving its range, and it must be said wherever the four are quoted. **All
 four failures are MSL**; all 26 SMAP contextual sequences are in range.
 
+### D46.2 Rider, 2026-09-14: D46.1's correction is carried out, and the record half is named rather than edited
+
+**D46.1 is not edited.** It said the sites were *"listed in the report this rider was
+written for"* and that *"correcting them is a separate edit and is not done here"*. This
+is that edit, recorded here rather than left to a commit message, in the form D69.2 used
+for the same kind of sweep.
+
+**(!) The list of eleven the sweep was handed was wrong in six ways, and re-measuring it
+first is why this entry can be trusted.** Three entries were not sites at all --
+`docs/INDEX.md:29` carries no such wording, `docs/DECISIONS.md:3040` is D43's **6 of 32**
+on `m1-g8.9.10` and a different population inside a record, and `docs/DECISIONS.md:3838`
+is D56's ALTERNATIVES rebuttal with the real site **70 lines later at 3908**. Two were
+offset by one line, in `docs/RESULTS.md` and `docs/PHASE1_REPORT.md`. Two
+carry the **inclusive** wording and are right as they stand (`docs/RESEARCH.md:446`
+"never leave", `:473` "in range"). And **two live sites were missing from it** --
+`README.md`'s evidence table and `docs/MODELS.md` 37.7a. **Every line was read before it
+was touched.**
+
+**Seven live sites rewritten, all on `dev`.** `master` was migrated separately on the same
+day and already carries "at or within" and the load-bearing disclosure:
+
+```
+  Objective.md 1.1 the restated claim     Objective.md 9 the in-limits claim
+  README.md the restated claim            README.md the evidence table
+  docs/STATUS.md 2                        docs/RESULTS.md 3
+  docs/PHASE1_REPORT.md 3
+```
+
+**And the premise is stated once, where a reader meets the claim.** `Objective.md` 1.1
+now carries D43's premise -- a real RED or YELLOW limit sits **outside** a channel's
+historical operating range -- and says in as many words that it is **load-bearing rather
+than incidental**, because on the arithmetic alone an inclusive limit placed *at* the
+historical extreme would fire on 23 of these 39. It is said there and not repeated at
+every site, which is what D46.1 asked for.
+
+**Ten sites kept as records, quoted and not corrected**, on the rule this document's own
+header sets and `docs/MODELS.md` 21.2 restates -- nothing is overwritten and no number is
+deleted:
+
+```
+  D57 EVIDENCE 3 (:3908)                  D66 CONTEXT (:4655)
+  docs/MODELS.md 26.2 V1, a pre-registration    docs/MODELS.md 26.6 OBSERVED
+  docs/MODELS.md 26.30.4, quoting the headline  docs/MODELS.md 37.7a OBSERVED
+  CHANGELOG.md 0.6.6, a dated entry             docs/REORG_PLAN.md, a dated snapshot
+  docs/reorg_plan.json, the machine-readable plan
+  docs/datasets/SMAP_MSL.md, D66 quoted verbatim -- and on both branches
+```
+
+**(!) The retired-claim guard is NOT widened, and the reason is a measurement.**
+`tests/test_documents_are_current.py`'s `CLAIMS` register matches none of these phrases,
+so it did not see this edit and will not see a regression. Widening it was considered and
+refused on the argument that file already makes at `:66-77`, where a previous widening
+proposal was measured at **30 sites, every one a legitimate record**, and the measurement
+was reported rather than the change made. **Nothing here is retired**: D46.1 says so
+directly -- the figure and the claim both stand and only the word changes -- and a
+register of retirements is not the place for a rewording. The count is reported instead:
+**ten record sites and one shared with `master`** would have had to enter the register,
+against seven live corrections it would have protected.
+
+**What this does not do.** It moves no figure. 39, 38, 23, 16 and every recall number are
+exactly as D46.1 left them, and no scored population changes. D43, D44, D46 and D66 stand
+as written.
+
 ---
 
 ## D47. `error_window` is an absolute constant where it should be proportional, and it silently disabled scoring on short series
@@ -4643,6 +4706,35 @@ residual-invisible events carry `z > 3` in the first derivative.
 configuration this entry's numbers were produced under. The flight component
 standardises over a compile-time 2,100, so a trace drawn at 2,100 would not be this
 run.
+
+### D65.2 Rider, 2026-09-14: the UNDERPOWERED stamp cites the wrong decision, and it is this entry a reader meets it in
+
+**No figure and no verdict changes. One citation does.**
+
+This entry stamps its headline **"n = 19, UNDERPOWERED (D3)"**. **D3 is not that rule.**
+D3 is *"The gate metric is event-wise F0.5, never bare recall"* -- the `mavg` episode,
+29 of 31 bought with alarms on a third of nominal time -- and it says nothing about `n`.
+**The `n < 20` rule is `docs/HARNESS.md` 1**: *"resolution `1/n` beside it, and anything
+with `n < 20` is stamped UNDERPOWERED."* D46 cites it correctly; this entry, D66 and D68
+do not.
+
+**Three sites, and they are records, so they are quoted rather than edited:** this entry's
+headline, D66's within-channel `n = 9` line, and D68's caveat paragraph. The same
+miscitation stands in eight `docs/MODELS.md` pre-registrations and OBSERVED blocks and in
+five dated `CHANGELOG.md` entries, all of which are records for the same reason.
+
+**Corrected where it was live**, which is where a reader actually meets the stamp without a
+decision entry around it: `README.md`'s evidence table and `docs/STATUS.md` 4 now read
+**UNDERPOWERED (`docs/HARNESS.md` 1)**.
+
+**(!) Two live sites are shared with `master`, and both branches move together.**
+`docs/datasets/SMAP_MSL.md` carries the same miscitation twice and is byte-identical on
+both branches. Brought to the owner rather than folded in, and **corrected on both on the
+owner's word** -- the customer branch moves in the same pass, which is what D69's
+convention requires of a shared document.
+
+**What is not affected.** `docs/MODELS.md` 18.8.2 and `docs/RESULTS.md` 1a cite D3 for *bare
+recall and event-wise F0.5*, which is exactly what D3 says. Those are correct and stay.
 
 ---
 

@@ -14,6 +14,50 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.44] - 2026-09-14 - "At or within", not "inside": D46.1's correction is carried out on `dev`
+
+**D46.1 measured that 23 of the 39 touch a rail exactly and said the sites were a separate
+edit. This is that edit.** `master` was migrated on the same day; every remaining live site
+was on `dev`. Zero bucket operations. **No figure moves** -- 39, 38, 23, 16 and every recall
+number are exactly as D46.1 left them.
+
+### Seven live sites rewritten
+`Objective.md` 1.1 and 9, `README.md` twice, `docs/STATUS.md` 2, `docs/RESULTS.md` 3 and
+`docs/PHASE1_REPORT.md` 3. **Ten more are records and are quoted rather than corrected**,
+named in D46.2.
+
+### (!) The list of eleven the sweep was handed was wrong in six ways
+Three entries were not sites at all, two were offset by a line, two carry the **inclusive**
+wording and are right as they stand, and **two live sites were missing from it**. Every line
+was read before it was touched, and the triage is D46.2's.
+
+### The premise is stated once, where a reader meets the claim
+`Objective.md` 1.1 now says that D43's premise -- a real RED or YELLOW limit sits **outside**
+a channel's historical operating range -- is **load-bearing rather than incidental**.
+
+### The retired-claim guard is not widened, and the measurement is reported instead
+`CLAIMS` matches none of these phrases. Widening it would have put **ten record sites** into
+the register to protect seven live corrections, which is the failure
+`tests/test_documents_are_current.py` argues against at `:66-77`. Reported, not made.
+
+### Four stale figures and citations repaired in the same pass
+- **`docs/STATUS.md` 9's `check_no_list` figure was 87 and the live count is 102**, read from
+  the run rather than transcribed. Nothing re-derives it, unlike the test count.
+- **`docs/PI_ENVELOPE.md` cited `docs/STATUS.md` section 7**, which carries no such item on
+  either branch. It is `Objective.md` section 12, Phase 4. The correction is kept as a note,
+  because it is the drift that document exists to refuse arriving in the document itself.
+- **The ESA-ADB author count was "twelve" in `docs/RESEARCH.md` and eleven in
+  `docs/datasets/ESA_ADB.md`**, which enumerates them. **Re-verified at `arxiv.org` 2026-09-14:
+  eleven**, and every other field of that record matches.
+- **The UNDERPOWERED stamp cites D3, which is the F0.5 gate metric.** The `n < 20` rule is
+  `docs/HARNESS.md` 1. Corrected at the two live sites, quoted at the record sites, and
+  recorded as D65.2.
+
+### And both branches move for the shared document
+`docs/datasets/SMAP_MSL.md` carries the D3 miscitation twice and is byte-identical on both
+branches. Corrected on both **on the owner's word**, in the same pass, which is what D69's
+convention requires of a document neither branch owns alone.
+
 ## [0.6.43] - 2026-09-14 - `main` is retired and `master` is the front door
 
 **D69 consequence 8's costing, executed on the owner's word** (D69.2). In its stated
