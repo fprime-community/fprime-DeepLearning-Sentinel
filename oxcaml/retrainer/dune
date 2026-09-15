@@ -1,0 +1,13 @@
+; E1, the pipe. A static archive with a C-callable interface and nothing else.
+;
+; `foreign_stubs` compiles retrainer_stubs.c INTO the archive, so the C++ side links
+; one library rather than a library plus a loose object. The stubs are hand-written
+; CAMLprim, not ctypes: every crossing is a reviewable piece of source rather than a
+; generated one, which is the argument `flight/` already makes for being a hand-written
+; transcription held to a reference (`docs/MODELS.md` 47.6).
+(library
+ (name retrainer)
+ (modes native)
+ (foreign_stubs
+  (language c)
+  (names retrainer_stubs)))

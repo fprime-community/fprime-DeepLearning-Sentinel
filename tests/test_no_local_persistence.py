@@ -25,6 +25,15 @@ exempt: `fprime/`'s own sources, the component and the deployment, stay under
 every rule below, so a dataset parked beside the component is still caught. The
 checkout was scanned before the exemption was written and holds **0** files with
 a dataset or array suffix, so nothing is being waved through.
+
+Work item 47 adds the second, on the same terms and after the same check. The
+OxCaml switch under `oxcaml/.opam/` is a reproducible build dependency rebuilt by
+`scripts/oxcaml_setup.sh` (`docs/MODELS.md` 47.8), gitignored, and it was scanned
+before this exemption was written: **46,133 files, 0 with a dataset suffix and 0
+with an array suffix**. Only that subtree is exempt. `oxcaml/retrainer/` is this
+project's own source -- the OCaml module, the hand-written stubs and the header --
+and stays under every rule below, so a dataset parked beside the stubs is still
+caught.
 """
 from __future__ import annotations
 
@@ -49,10 +58,13 @@ DATASET_SUFFIXES = {".parquet", ".pkl", ".zip", ".h5", ".hdf5", ".feather", ".ar
 #: Arrays are how weights are stored, so they are allowed -- but only as outputs.
 ARRAY_SUFFIXES = {".npy", ".npz"}
 
-#: The F' toolchain (D31, work item 9): a gitignored, script-rebuilt dependency
-#: tree, skipped for the reason given in this module's docstring. Matched as path
-#: prefixes rather than by name, so `fprime/` alone is never skipped.
-TOOLCHAIN_PREFIXES = ((("fprime", "lib"), ("fprime", "fprime-venv")))
+#: The F' toolchain (D31, work item 9) and the OxCaml toolchain (D70, work item
+#: 47): gitignored, script-rebuilt dependency trees, skipped for the reason given
+#: in this module's docstring. Matched as path prefixes rather than by name, so
+#: `fprime/` and `oxcaml/` alone are never skipped -- `oxcaml/retrainer/` is this
+#: project's own source and stays under every rule below.
+TOOLCHAIN_PREFIXES = ((("fprime", "lib"), ("fprime", "fprime-venv"),
+                       ("oxcaml", ".opam")))
 
 
 def _files(root: Path, skip: set[str]):
@@ -105,9 +117,17 @@ def test_the_toolchain_exemption_covers_only_what_it_claims(project_root):
     scanned = {p.relative_to(project_root).as_posix() for p in _files(project_root, OUTPUTS)}
     assert not any(f.startswith("fprime/lib/") for f in scanned)
     assert not any(f.startswith("fprime/fprime-venv/") for f in scanned)
+    assert not any(f.startswith("oxcaml/.opam/") for f in scanned)
     settings = project_root / "fprime" / "settings.ini"
     if settings.exists():
         assert "fprime/settings.ini" in scanned, "fprime/'s own sources must stay scanned"
+    # `oxcaml/retrainer/` is this project's own source, not the toolchain, so a
+    # dataset parked beside the stubs is still caught -- the same narrowness the
+    # `fprime/settings.ini` line above asserts.
+    stubs = project_root / "oxcaml" / "retrainer" / "retrainer.ml"
+    if stubs.exists():
+        assert "oxcaml/retrainer/retrainer.ml" in scanned, \
+            "oxcaml/'s own sources must stay scanned"
 
 
 def _repository_files(project_root):

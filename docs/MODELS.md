@@ -13796,15 +13796,31 @@ Recorded as a template now and **filled with measured values at E1**, in
 `docs/FPRIME.md`'s house form -- pin, one command, a version block measured on a stated
 date, what is gitignored and why, and a proof that runs.
 
+**FILLED AT E1, 2026-09-15.** Measured by `scripts/oxcaml_setup.sh`, which prints every
+version it found, and reproduced into this block rather than transcribed from memory.
+
 ```
-  oxcaml               commit           <pinned at E1>
-  ocaml base           5.4 plus later runtime patches, per OxCaml's own README
-  opam switch          <name>, created --empty and pinned to the OxCaml repository
-  dune                 <version>
-  target glibc         <version, and the host it was measured on>
-  host                 <uname, arch, cores, RAM>
+  opam                 2.5.2                    (brew bottle)
+  opam repository      ox = git+https://github.com/oxcaml/opam-repository.git
+  switch               5.2.0+ox
+  ocamlopt -version    5.2.0+ox
+  compiler package     oxcaml-compiler.5.2.0minus39, built FROM SOURCE
+  dune                 3.24.2
+  OPAMROOT             oxcaml/.opam, inside this directory and gitignored
+  host                 Darwin arm64, 10 cores, 16 GiB, macOS 26.6.2
+  system deps          autoconf 2.73, automake 1.19  (see 47.13 finding 1)
+  target glibc         NOT MEASURED. E4's, and E4 is not run
   fprime               v4.3.0, 7d8f579f159d2f7c2d4984d92828575e37f87fa6 (D31), unchanged
 ```
+
+**(!) THE BASE VERSION IS 5.2.0 AND NOT 5.4, AND THE TWO SOURCES DISAGREE.** OxCaml's own
+README says *"OxCaml is currently based on OCaml 5.4 (plus some patches from later upstream
+revisions, mainly in the runtime)"*, and 47.1 row 21 recorded that as the base version the
+brief failed to pin. **The switch that actually installs is `5.2.0+ox` and `ocamlopt
+-version` reports `5.2.0+ox`.** This block pins what was measured on this machine, not what
+either document says. Which of the two is stale is not established here and is not guessed
+at; what is established is that **a reader who trusted the README would have pinned the
+wrong base**, which is 47.1 row 17's lesson arriving a second time in the same section.
 
 **Nothing of the OxCaml toolchain is committed**, for the reason `docs/FPRIME.md` 2 gives
 about the F' checkout: it is reproduced by a script, and a second copy in this repository
@@ -13924,9 +13940,89 @@ Stop and report, carrying 39.12's eight forward and adding four:
 
 ### 47.13 OBSERVED
 
-**Empty. Nothing has been run.** This section is filled by E1, E2, E3 and E4 in order, each
-reported when it completes and each a stop, with its predictions beside their outcomes and
-its losers in full.
+**E1 only. E2, E3 and E4 have not been run**, and each is a stop before the next.
+
+#### 47.13.1 E1 OBSERVED -- the chain closes, and six things were learned by it failing first
+
+**2026-09-15. Zero bucket operations**, as registered: E1 generates its own numbers. The
+ledger is unmoved at 238 Class A and 5,740 Class B, read from `docs/STATUS.md` and not from
+the bucket. Weight store 1,313 -> 1,313.
+
+Artifacts, in this commit: `oxcaml/retrainer/` (the OCaml module, the hand-written stubs,
+the C header, the stage-1 harness), `fprime/SentinelRef/Retrainer/` (the F' component, its
+SDD and its unit test), `scripts/oxcaml_setup.sh`, `scripts/oxcaml_e1.sh`.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **X1** | the chain closes, and the returned value is exactly the hand-computed one | Two stages. **Stage 1**, a C++ harness at the flight flag set: boot, init, the ALREADY_INIT refusal, feed, step, export -- **count 10, sum 55, mean 5.5, all three exact**, tolerance literally 0.0. **Stage 2**, `Retrain::Retrainer` built by the F' v4.3.0 autocoder and toolchain and driven through F's own generated port machinery in a unit-test process: same numbers off telemetry, state carried across two ticks to 20 and 110 | **HELD** |
+| **X2** | the nine-flag set is unchanged and the binary links | **Unchanged, and then some.** Stage 1 links at `-std=c++14 -fno-exceptions -fno-rtti -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror`, nothing dropped. **Stage 2 is stricter than the band asked for**: F's own build adds `-Wold-style-cast` and `-Wdouble-promotion` to that set and the component compiles clean under it | **HELD** |
+| **X3** | no OCaml value crosses, and no exception can | Every entry point returns `int32_t`; the two array-carrying calls take caller-owned memory wrapped `CAML_BA_EXTERNAL`, so the GC never owns or moves it. Four refusals exercised -- ALREADY_INIT, SHORT_BUFFER on a short and on a null buffer, OVERFLOW -- **each returned as a status code**, with component state unchanged after each. **And the F' unit test builds at `-fsanitize=address,undefined`**, so the whole boundary ran clean under ASan and UBSan rather than merely not crashing | **HELD** |
+| **X12** | the install is under 90 min and under 12 GiB | **373.52 s = 6 min 14 s** wall clock, 1,345 s user across 10 cores, peak RSS 1.72 GiB, **2.7 GiB** on disk. Plus 44 s for dune | **HELD**, and by a wide margin in both dimensions |
+
+**(!) SIX THINGS WERE LEARNED BY SOMETHING FAILING, AND THAT IS WHAT E1 IS FOR.** None of
+the six is in any document this project read beforehand; each cost between one minute and
+twenty to find, and each would have cost a later reader the same.
+
+1. **The install aborts on undeclared system dependencies.** The first run exited **10 after
+   13 s**: `opam` needs `autoconf` and `automake` for the `ocaml-variants` package the switch
+   invariant names, and with `-y` it chooses *abort* rather than installing them. Now a named
+   prerequisite check at the top of `scripts/oxcaml_setup.sh`.
+2. **The switch builds the compiler from source, and a documentation page said it would not.**
+   OxCaml's install page, read before starting, states the compiler is *fetched as a binary*.
+   The switch invariant is `ocaml-variants {= "5.2.0+ox"}` and the log shows
+   `oxcaml-compiler.5.2.0minus39` retrieved and built. **X12 existed because this was
+   registered as unmeasured rather than assumed**, and that turned out to be the right call.
+3. **Linking needs `-output-complete-obj`, and the archives alone are not enough.** dune's
+   `retrainer.a` plus `libasmrun.a` leaves about thirty symbols undefined -- `caml_program`,
+   `caml_globals`, `caml_frametable`, `caml_code_segments`, `caml_unit_deps_table` and the
+   whole `caml_exn_*` set. Those are not *in* any archive: `ocamlopt` synthesises them at
+   link time from the particular set of modules being linked. Recorded in both build files.
+4. **OxCaml flags `Callback.register` as multidomain-unsafe, and the safe variant is not a
+   drop-in.** `Callback.Safe.register` demands `'a @ portable`, and a closure over a mutable
+   `ref` is not portable. Taking it would mean restructuring the module around OxCaml's modes
+   -- E5's work, not a pipe's. **The alert is disabled narrowly at the one call site with its
+   reason**, and everything else builds at `-warn-error +a -alert @all`. **That gate was
+   watched failing**: removing the opt-out gives `Error (alert unsafe_multidomain)` and
+   `rc=2`, which is the same proof `flight/Makefile` records about its own lint recipe.
+   **And the alert is pointing at exactly what 47.5 argues about.**
+5. **(!) OCaml module state is PROCESS-global, so there is one retrainer per process.** The
+   accumulator lives in a module-level `ref`, `caml_startup` runs once, and a second component
+   instance in the same process re-attaches to the same accumulator -- `init` refuses it with
+   `ERR_ALREADY_INIT`, correctly. **This is consistent with the architecture rather than in
+   tension with it**: D70 consequence 2 puts the retrainer in its own OS process, so one
+   process meaning one retrainer is the right shape. What it rules out is a
+   test-per-behaviour structure, because gtest runs every case in one process. The unit test
+   is one ordered lifecycle for that reason, and the reason is in the source.
+6. **Two F' mechanics that a reading would not have given.** An FPP module constant lands in
+   the generated `FppConstantsAc.hpp` as an unscoped enum and needs including and casting --
+   `PowerSim.cpp`'s existing idiom, found by copying it after the build failed. And
+   `UT_AUTO_HELPERS` *defines* `connectPorts()` and `initComponents()`; defining them again
+   is a redefinition, and defining one of them wrongly is how a tester ends up driving a
+   component with half its ports connected.
+
+**What E1 did NOT establish, stated so the next section is not asked to inherit it.**
+Nothing about allocation -- `[@zero_alloc]` appears nowhere in E1, and 47.7's C1 is
+**untouched and still UNVERIFIED**. Nothing about isolation -- the two stages are each a
+single process, no hub is crossed, no detector runs beside anything, and **47.7's C2 is
+untouched and is the claim that can end the approach**. Nothing about a flight target; C4 is
+untouched. `ocamlopt -help` does offer `-zero-alloc-check {default|all|opt|none}`, which is
+**an observation about a help string and is not evidence for C1** and is recorded here only
+so E3 knows the flag exists.
+
+**Cost.** Zero bucket operations. Two Homebrew bottles installed on the host (`opam`,
+`autoconf`/`automake`) -- outside this repository, and the same relationship `docs/FPRIME.md`
+3 already records for `clang-tidy`. 2.7 GiB under `oxcaml/.opam`, gitignored, exempted in
+`tests/test_no_local_persistence.py` after the subtree was scanned: **46,133 files, 0 with a
+dataset suffix and 0 with an array suffix**, the same check and the same result the F'
+checkout gave. `oxcaml/retrainer/` is this project's own source and stays under every rule.
+
+**Gates after E1**: 735 tests, `check_no_list` 104 clean, both `check_references` modes
+resolve, selftest 8 of 8, `make -C flight test` and `make -C flight lint` green, weight store
+1,313, tracked content 6.27 MiB of 8. `flight/` is **untouched** by E1; `fprime/` is not, so
+`master` moves in the same commit as required by 47.12 stop 9.
+
+**STOP. E2 is not started.** It is the isolation gate and the experiment that can refuse the
+approach.
 
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
