@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`ae2f103`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`e598244`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -94,13 +94,36 @@ configs`. `docs/FPRIME.md` rebuilds the checkout with one command, and then all 
 **To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` pins it and
 rebuilds it from nothing with one command.
 
+## (!) `fprime/SentinelRef/Retrainer/` is an experiment, and nothing here depends on it
+
+This branch gained an F' component on 2026-09-15 that calls into a library written in
+**OxCaml**, Jane Street's branch of OCaml. It is named here rather than left to be found,
+because a curated branch that quietly acquires a garbage-collected runtime would be worse
+than an uncurated one.
+
+**What it is.** The first of four experiments asking whether a language whose compiler can
+*prove* a code path performs no allocation is a candidate for onboard model retraining. It
+computes a sum and a mean and contains **no machine learning**. It exists to prove a chain --
+compile, link, runtime startup, the C boundary, F' integration -- and it proved it.
+
+**What it is not.** Not adopted, not flown, not on any path the detector takes, and not
+exported: `fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so a mission
+adopting Sentinel does not inherit an OCaml runtime. The experiment that would decide whether
+the approach survives at all has **not been run**.
+
+**And it does not change what you can build here.** `make -C flight test` and
+`make -C flight lint` are untouched and need no new tool. The module **skips itself with a
+message** if the OxCaml toolchain is absent, which on a fresh clone of this branch it always
+is, so the F' build is unaffected. Every claim about it, and the decision to try it at all,
+lives on `dev` in `docs/MODELS.md` 47 and `docs/DECISIONS.md` D70.
+
 ## What is here
 
 | Path | What it holds |
 |---|---|
 | `flight/` | **The C++ inference core.** GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader, and the committed vectors. C++14, no exceptions, no RTTI, no STL containers, **no allocation after init**, `-Werror` |
 | `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp`, its SDD and its unit tests |
-| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this |
+| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this. **It also carries `Retrainer/`, an experiment and not a feature** -- see the note below |
 | `docs/DESIGN.md` | What the component does, the rule it flies, and the five permanent safety rules |
 | `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, and the caveats |
 | `docs/STATUS.md` | Where it is and what is next |

@@ -55,3 +55,18 @@ fprime/lib/
 fprime/fprime-venv/
 fprime/build-fprime-automatic-*/
 fprime/build-artifacts/
+
+# The OxCaml toolchain, work item 47 / E1. The opam root and the switch are built by
+# scripts/oxcaml_setup.sh and never committed, for the reason docs/FPRIME.md 2 gives about
+# the F' checkout: a second copy in this repository would drift from upstream silently.
+# It lives inside this directory because everything for this project does; it is exempted
+# from tests/test_no_local_persistence.py's tracked-content cap alongside fprime/lib and
+# fprime/fprime-venv, with the same stated reason.
+oxcaml/.opam/
+oxcaml/_build/
+# ocamlopt writes .cmi/.cmx/.o beside the source it compiles. Build output, and
+# `tests/test_no_local_persistence.py` counts anything untracked-and-not-ignored as
+# repository content, so these are named rather than left to inflate the cap.
+oxcaml/retrainer/*.cmi
+oxcaml/retrainer/*.cmx
+oxcaml/retrainer/*.o

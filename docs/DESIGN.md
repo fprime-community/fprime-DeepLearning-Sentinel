@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`ae2f103`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`e598244`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
