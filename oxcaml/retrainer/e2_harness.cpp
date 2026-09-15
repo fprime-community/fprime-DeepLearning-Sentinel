@@ -27,6 +27,7 @@
 #include <cstring>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 namespace {
 
@@ -48,6 +49,21 @@ std::vector<float> makeInputs(uint32_t cycles)
         v[i] = static_cast<float>((s >> 16) & 0x7FFFU) / 32768.0F;
     }
     return v;
+}
+
+// A busy-wait, NOT a sleep. docs/MODELS.md 47.13.2: the first X6 probe used
+// std::this_thread::sleep_for and compared the clock against the REQUESTED duration,
+// so it measured sleep_for's wake-up latency rather than the instrument. A busy-wait
+// ends when this same clock says it has, so requested and actual are one quantity.
+void stallNs(long long want)
+{
+    const auto t0 = std::chrono::steady_clock::now();
+    for (;;) {
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::nanoseconds>(now - t0).count() >= want) {
+            return;
+        }
+    }
 }
 
 }  // namespace
@@ -90,16 +106,48 @@ int main(int argc, char** argv)
     std::fprintf(stderr, "cores %u, %u cycles/arm, blocks of %u, probe %u ms\n",
                  cores, perArm, BLOCK, probeMs);
 
-    // X6 runs FIRST (47.9.1): a deliberate stall must be recovered by this instrument.
+    // X6 runs FIRST (47.9.1), through the REAL measurement path, in THIS binary and
+    // THIS run -- so the instrument that produced every figure below is the instrument
+    // that was validated, rather than a sibling of it.
     if (probeMs > 0U) {
-        const auto t0 = std::chrono::steady_clock::now();
-        std::this_thread::sleep_for(std::chrono::milliseconds(probeMs));
-        const auto t1 = std::chrono::steady_clock::now();
-        const long long measured =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
-        std::fprintf(stderr, "X6 probe: injected %u ms, recovered %lld ns\n",
-                     probeMs, measured);
-        std::printf("probe,%u,%lld\n", probeMs, measured);
+        const long long inject = static_cast<long long>(probeMs) * 1000000LL;
+        std::vector<long long> recovered;
+        std::vector<uint32_t> cleanNs;
+        uint32_t ps = 999U;
+        for (uint32_t i = 0U; i < 2000U; ++i) {
+            float values[Sentinel::Config::MAX_CHANNELS];
+            for (uint32_t c = 0U; c < CHANNELS; ++c) {
+                ps = (ps * 1103515245U) + 12345U;
+                values[c] = static_cast<float>((ps >> 16) & 0x7FFFU) / 32768.0F;
+            }
+            const bool doInject = ((i > 0U) && ((i % 250U) == 0U));
+            const auto t0 = std::chrono::steady_clock::now();
+            detector.step(values, true);
+            if (doInject) { stallNs(inject); }
+            const auto t1 = std::chrono::steady_clock::now();
+            const long long v =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+            if (doInject) { recovered.push_back(v); }
+            else { cleanNs.push_back(static_cast<uint32_t>(v)); }
+        }
+        std::sort(cleanNs.begin(), cleanNs.end());
+        const long long base = static_cast<long long>(cleanNs[cleanNs.size() / 2U]);
+        long long worstPct = 0;
+        for (size_t k = 0; k < recovered.size(); ++k) {
+            const long long delta = recovered[k] - base;
+            long long e = ((delta - inject) * 100LL) / inject;
+            if (e < 0) { e = -e; }
+            if (e > worstPct) { worstPct = e; }
+        }
+        std::fprintf(stderr, "X6: %zu busy-wait injections of %u ms, clean median %lld ns, "
+                     "worst error %lld%% (band 10%%) -> %s\n",
+                     recovered.size(), probeMs, base, worstPct,
+                     (worstPct <= 10) ? "HELD" : "FAILED");
+        std::printf("probe,%u,%lld,%lld\n", probeMs, base, worstPct);
+        if (worstPct > 10) {
+            std::fprintf(stderr, "X6 FAILED: X4 and X5 are withdrawn (47.9.1). Stopping.\n");
+            return 5;
+        }
     }
 
     uint32_t done[N_ARMS] = { 0U, 0U, 0U, 0U };

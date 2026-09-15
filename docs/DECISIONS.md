@@ -5696,7 +5696,41 @@ pattern -- `docs/user-manual/design-patterns/hub-pattern.md` at the v4.3.0 pin, 
    merely avoided.
 8. **Zero bucket operations.** Nothing in this decision or in `docs/MODELS.md` 47 reads or
    writes R2, and the ledger is unmoved.
-9. **(!) THE TWO CLAIMS IN THE EVIDENCE BLOCK ABOVE WERE FABRICATED, AND THAT IS RECORDED
+9. **(!) THE RETRAINER RUNS ON EXACTLY ONE DOMAIN AND NEVER CALLS `Domain.spawn`.** Added
+   2026-09-15 after E2 (`docs/MODELS.md` 47.13.2, 47.13.3), and it is a **requirement** in
+   the same sense consequence 2 is, not a preference. The authority is OCaml's own standard
+   library, read at source in this switch's `domain.mli:34-41`, where `Domain.spawn` carries
+   a `do_not_spawn_domains` alert reading, verbatim:
+
+   > **"User programs should never spawn domains. To execute a function on a domain, use
+   > [Multicore] from the threading library. This is because spawning more than
+   > [recommended_domain_count] domains (the CPU core count) will significantly degrade GC
+   > performance. Using both [Domain.spawn] and [Multicore] can cause [Multicore] to abort."**
+
+   It carries two further alerts: `unstable` -- *"The Domain interface may change in
+   incompatible ways in the future"* -- and `unsafe_multidomain`, pointing at
+   `Domain.Safe.spawn`.
+
+   **And the degradation is corroborated here rather than taken on the docstring.** E2's
+   smoke: **one** domain churned **1,064,096** times in 600 ms; **ten** domains managed
+   **612,687 between them**. Ten domains did **less total work than one**.
+
+   **(!) BUT THE THRESHOLD IN THE DOCSTRING IS NOT WHAT WAS CROSSED, AND THAT IS STATED
+   BECAUSE THE OPPOSITE WAS ASSERTED.** `Domain.recommended_domain_count ()` returns **10**
+   on this host and the host has **10** cores, so E2's ten-domain arm sits **exactly at** the
+   recommended count and **not above it**. A reading that ten domains is "a configuration the
+   language forbids" **does not survive the source**: what the library forbids is user
+   programs spawning domains **at all**, at any count, and the degradation it warns about
+   above the recommended count was observed here **at** it. The requirement rests on the
+   first sentence of the alert, which is categorical, and not on a threshold that was not
+   reached.
+
+   **What this fixes in the design.** The retrainer is one OS process running one domain.
+   Parallelism inside it, if it is ever wanted, goes through `Multicore` from the threading
+   library as the alert directs, and that is a pre-registration of its own. Nothing in
+   `oxcaml/retrainer/retrainer.ml` spawns a domain today, and E2's thrasher -- which does --
+   is apparatus that would not exist in a flight build.
+10. **(!) THE TWO CLAIMS IN THE EVIDENCE BLOCK ABOVE WERE FABRICATED, AND THAT IS RECORDED
    HERE RATHER THAN LEFT AS A CORRECTION.** Both reached this project in the handover brief
    that commissioned this work, presented as established fact and as strikes **against** the
    proposal the same brief was making. **Neither was a misremembering of a real source.** The

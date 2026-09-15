@@ -13694,6 +13694,20 @@ configuration is built and measured too, and is measured **to price what the pro
 not as a fallback. If it turns out to cost nothing on this workload, the argument above is
 wrong on this workload and 47.5 is re-opened rather than defended -- that is X5's FAIL band.
 
+**(!) AND THE RETRAINER RUNS ON EXACTLY ONE DOMAIN. Added 2026-09-15 after E2, and it is
+a requirement.** `docs/DECISIONS.md` D70 consequence 9 carries it with its source: this
+switch's `domain.mli:34-41` puts a `do_not_spawn_domains` alert on `Domain.spawn` reading
+*"User programs should never spawn domains ... spawning more than
+[recommended_domain_count] domains (the CPU core count) will significantly degrade GC
+performance"*, plus `unstable` and `unsafe_multidomain`. E2's smoke corroborates the
+degradation rather than taking it on the docstring: **one domain churned 1,064,096 times in
+600 ms where ten managed 612,687 between them**, so ten did less total work than one.
+**The threshold in that docstring was not what E2 crossed** --
+`Domain.recommended_domain_count ()` is **10** on a **10**-core host, so the ten-domain arm
+sat exactly *at* it. The requirement rests on the alert's categorical first sentence, not on
+a count. Parallelism inside the retrainer, if ever wanted, goes through `Multicore` as the
+alert directs, and is a pre-registration of its own.
+
 **And this is the first cross-process boundary this project would have.** `Monitor` and
 `PowerSim` are passive and share the 1 Hz rate group's single thread today. Nothing in the
 tracked tree uses `Svc/GenericHub`, a socket, a shared-memory segment or a second process.
@@ -13768,13 +13782,33 @@ pattern. **Two documented mechanisms reasoned about together are not a measureme
 Discharged by: **E2**. Fallback: none. **If E2 fails, OxCaml is refused and that is the
 finding**, reported as a negative result in full.
 
-**STATUS AFTER E2, 2026-09-15: still UNVERIFIED, and now conditionally so.** With spare
-cores the separate process contains the collector completely -- zero ticks of 180,000 over
-the bound, worst tick below the idle arm's own. **With the host saturated it does not**: 22
-ticks breach and the worst is 9.78 ms, 30x the bound, by CPU and memory-bandwidth contention
-that no process boundary prevents. C2 claims isolation *completely enough for a 1 Hz flight
-rate group*; what is shown is that this **depends on headroom the claim does not mention**.
-X4 is **NO VERDICT**, not a pass, and C2 is not discharged by a conditional result.
+**STATUS AFTER E2, 2026-09-15: still UNVERIFIED, and the claim is AMENDED to carry its two
+conditions rather than left to be inherited without them.** The amended claim:
+
+> **C2, amended.** A separate OS process isolates the detector from the retrainer's garbage
+> collector **with core headroom on the host, at a 1 Hz rate group**. Neither condition is
+> optional and neither was in the original claim.
+
+**Condition 1, headroom.** With spare cores the containment is complete: zero ticks of
+180,000 over the bound, worst tick below the idle arm's own. With the host saturated it is
+not -- the worst tick is **8.94 ms** (47.13.3; 9.78 ms on the first run), by CPU and
+memory-bandwidth contention that **no process boundary prevents**, since the two runtimes
+share no collector.
+
+**Condition 2, rate, and it is the one most likely to be dropped in a retelling.** The 326 us
+bound is 42.9's *measured worst tick*, not a deadline, so the saturated outlier must be read
+against the period it would have to fit in:
+
+```
+    1 Hz    period 1,000,000 us    8.94 ms is  0.89% of it   comfortable
+   10 Hz    period   100,000 us    8.94 ms is  8.94% of it   a real bite
+  100 Hz    period    10,000 us    8.94 ms MISSES THE DEADLINE
+```
+
+**Sentinel's rate is a mission's choice, not a constant.** At 1 Hz the detector missed
+nothing and nobody should read E2 as saying it did; at 100 Hz the same outlier is a deadline
+miss. **C2 may not be quoted without both conditions**, and X4 is **NO VERDICT** rather than
+a pass precisely so that the conditional result is not inherited as an unconditional one.
 
 > **C3. An OxCaml static library can be linked into an F' deployment built at C++14 with
 > `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime started from C++, and no flag
@@ -14232,7 +14266,82 @@ with eight cores idle, false with none. A conditional result is not a discharged
 **Cost.** Zero bucket operations. 22 s of wall clock for the four arms, 720,000 timed cycles.
 No R2, no dataset, no network.
 
-**STOP. E3 is not started.**
+**(!) SUPERSEDED AS THE RESULT OF RECORD BY 47.13.3**, which re-takes the same measurement
+with the validated probe integrated into the measuring binary. This section is kept whole
+because a withdrawn result is a record. Its findings about `Domain.spawn`, about the
+degenerate TOST and about the headroom dependency all stand and are carried forward.
+
+#### 47.13.3 E2 RE-RUN, and this is the result of record
+
+**2026-09-15, after 47.13.2.** 47.13.2's X6 probe failed its band and was replaced after the
+fact; **the letter of 47.9.1 withdraws X4 and X5 when that happens**, and the owner's ruling
+is that the letter governs. So the measurement was **taken again** with the validated probe
+**integrated into the measuring binary itself**, and this re-run -- not 47.13.2 -- is the
+result of record. **47.13.2 is kept whole**, both probes are committed, and the original
+artifact is kept: a withdrawn result is a record, not a mistake to be tidied away.
+
+**What changed, and it is only the instrument's validation.** X6 now runs inside
+`e2_harness` at the start of the same process that produces every figure below, injecting a
+**busy-wait** through the real measurement path -- same timed region, same `Detector::step`,
+same recording code. **The harness exits non-zero and refuses to report X4 or X5 if X6 does
+not hold**, so the withdrawal rule is executable rather than advisory. **No band, no margin
+and no arm definition moved.** Artifact `runs/oxcaml/2026-09-15-e2-timings-rerun.csv`.
+
+**X6, in-run: 7 busy-wait injections of 1 ms against a clean median of 16,167 ns, worst
+absolute error 0%, band 10% -- HELD.** The first probe's failure is recorded at 47.13.2 and
+its cause stands: it called `std::this_thread::sleep_for` and compared the clock against the
+**requested** duration, so it measured `sleep_for`'s wake-up latency and not the instrument.
+The sleep really did last 1.264 ms and the clock read it correctly.
+
+| arm | n | median | p99 | p99.9 | worst | >326 us | thrash |
+|---|---|---|---|---|---|---|---|
+| **A** idle | 180,000 | 11,542 ns | 89,541 | 116,875 | 185,584 | **0** | 0 |
+| **B** separate process, 1 domain | 180,000 | 11,708 | 91,083 | 118,458 | **160,709** | **0** | 1,068,707 |
+| **B2** saturated, 10 domains | 180,000 | 12,416 | 96,292 | 129,208 | **8,940,917** | 13 | 609,120 |
+| **C** same-process domain | 180,000 | 11,708 | 91,000 | 119,250 | **275,583** | **0** | 884,112 |
+
+| # | Measured | Verdict |
+|---|---|---|
+| **X4** | **B**: median **+166 ns**, p99.9 **+1,583 ns**, worst **160,709 ns**, **0 of 180,000 ticks over the bound** -- holds on all three. **B2**: median +874 ns and p99.9 +12,333 ns both inside their margins, worst **8,940,917 ns**, 13 ticks over the bound and 8 over 1 ms | **NO VERDICT** |
+| **X5** | arm C worst **275,583 ns** against arm B's **160,709 ns** = **1.71x** | **NO VERDICT**, above 1x and below the 2x the band required |
+| **X6** | 7 injections, worst error **0%** | **HELD**, in-run |
+
+**It reproduces 47.13.2 closely**, which is the best evidence either run is real: X5 at
+**1.71x** against 1.70x, arm B clean in both, arm B2 breaching in both. **Nothing here is a
+new result; it is the same result under an instrument that was checked in the same breath.**
+
+**(!) AND X4 IS STILL NOT A PASS.** Arm B alone would hold on every criterion. 47.9.2 fixed
+X4's basis as **the worse of B and B2 before either was run**, and that basis is **not
+narrowed now that B2 is the one that broke**. Narrowing it after the fact is the exact shape
+of the thing 47.9.2 exists to prevent, and it would convert a conditional result into an
+unconditional one.
+
+**(!) WHAT ARM B2 IS EVIDENCE OF, RELABELLED.** B2 is **evidence of the headroom dependency,
+and it is not a verdict on the architecture.** A retrainer spawning ten domains is not a
+configuration this project would ever ship -- D70 consequence 9 now forbids the retrainer
+more than one domain outright -- so B2's breach says nothing about whether the *design*
+isolates, and it is not read as saying so.
+
+**But the reason given for that relabelling has to be the true one.** It was put that ten
+domains is *"a configuration the language forbids"*. **At source, it is not.**
+`Domain.recommended_domain_count ()` returns **10** on this **10**-core host, so B2 sat
+exactly **at** the recommended count, not above it -- and every thrashing arm, **B and C
+included**, calls `Domain.spawn`, so a prohibition on spawning cannot separate B2 from the
+arms whose numbers are being kept. **What actually separates B2 is core saturation and
+nothing else**, and that is the ground the relabelling stands on here.
+
+**(!) THE TOST IS DEGENERATE, RECORDED HERE BESIDE THE NUMBERS RATHER THAN IN A FOOTNOTE.**
+The bootstrap 90% CI is **`[+166, +166]`** for arms B and C -- **zero width**. This host's
+`steady_clock` has a **41.67 ns quantum** and the median of 180,000 quantised samples is
+pinned to a single tick, so the interval is **narrower than the instrument that produced it**
+and **is not evidence of precision**. What is substantive is that **the medians are genuinely
+within 1 us of each other**; the confidence interval around that is an artifact of
+quantisation and may not be quoted as a measurement of agreement. Any passage stating X4's
+median equivalence states this in the same breath.
+
+**Cost.** Zero bucket operations; ledger unmoved at 238 Class A and 5,740 Class B. 22 s of
+wall clock, 720,000 timed cycles, no dataset and no network. `flight/` and `fprime/`
+untouched, so `master` does not move.
 
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
