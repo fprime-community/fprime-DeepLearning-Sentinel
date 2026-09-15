@@ -13762,11 +13762,19 @@ remains.
 > **C2. A separate OS process isolates the detector from the retrainer's garbage collector
 > completely enough for a 1 Hz flight rate group.**
 
-**UNVERIFIED, and this is the one that can end the approach on its own.** Provenance:
+**UNVERIFIED, and E2 has now probed it without discharging it (47.13.2).** Provenance:
 inference from OCaml 5's documented stop-the-world minor collector plus F's documented hub
 pattern. **Two documented mechanisms reasoned about together are not a measurement.**
 Discharged by: **E2**. Fallback: none. **If E2 fails, OxCaml is refused and that is the
 finding**, reported as a negative result in full.
+
+**STATUS AFTER E2, 2026-09-15: still UNVERIFIED, and now conditionally so.** With spare
+cores the separate process contains the collector completely -- zero ticks of 180,000 over
+the bound, worst tick below the idle arm's own. **With the host saturated it does not**: 22
+ticks breach and the worst is 9.78 ms, 30x the bound, by CPU and memory-bandwidth contention
+that no process boundary prevents. C2 claims isolation *completely enough for a 1 Hz flight
+rate group*; what is shown is that this **depends on headroom the claim does not mention**.
+X4 is **NO VERDICT**, not a pass, and C2 is not discharged by a conditional result.
 
 > **C3. An OxCaml static library can be linked into an F' deployment built at C++14 with
 > `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime started from C++, and no flag
@@ -14114,6 +14122,117 @@ resolve, selftest 8 of 8, `make -C flight test` and `make -C flight lint` green,
 
 **STOP. E2 is not started.** It is the isolation gate and the experiment that can refuse the
 approach.
+
+#### 47.13.2 E2 OBSERVED -- the process contains it while the host has room, and not when it does not
+
+**2026-09-15. Zero bucket operations.** Ledger unmoved at 238 Class A and 5,740 Class B.
+Artifact `runs/oxcaml/2026-09-15-e2-timings.csv`, 720,000 rows; producer
+`oxcaml/retrainer/e2_harness.cpp` and `scripts/oxcaml_e2.sh`, in this commit. The harness
+**links `Sentinel::Detector` itself**, not a restatement of it -- the same object the F'
+component runs, the golden vectors pin and 42.9 measured.
+
+**Margins fixed at 47.9.1 and the fourth arm at 47.9.2, both committed before the harness
+existed.** Nothing below moved a band.
+
+| arm | n | median | p99 | p99.9 | worst | thrash counter |
+|---|---|---|---|---|---|---|
+| **A** idle | 180,000 | 11,500 ns | 89,375 | 115,750 | **150,791** | 0, correctly |
+| **B** separate process, 1 domain | 180,000 | 11,708 | 90,834 | 118,250 | **150,208** | 1,085,113 |
+| **B2** separate process, 10 domains | 180,000 | 12,417 | 96,750 | 139,541 | **9,778,500** | 655,974 |
+| **C** same-process domain | 180,000 | 11,708 | 91,250 | 118,625 | **255,625** | 894,683 |
+
+**Arm A's median is 11,500 ns against 42.9's 11 us on the same detector**, which is the
+corroboration that this harness is timing the thing it claims to be timing.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **X4** | the worse of B and B2 is equivalent to idle on all three criteria | **B holds on all three**: median +208 ns, p99.9 +2,500 ns, worst 150,208 ns, and **zero of 180,000 ticks over 326 us**. **B2 holds on median (+917 ns) and on p99.9 (+23,791 ns, inside the 50,000 margin) and FAILS the worst-tick bound**: 22 ticks over 326 us, 7 of them over 1 ms, worst **9,778,500 ns**, which is **30x the bound** | **NO VERDICT** -- 47.9.1's middle band exactly: median equivalent, a tail criterion outside. Reported as that and **not rounded to a pass** |
+| **X5** | arm C's worst tick is at least 2x arm B's | **255,625 ns against 150,208 ns, 1.70x** | **NO VERDICT** -- above 1x, below the 2x the band required |
+| **X6** | a 1 ms stall is recovered to within 10% | **FAILED as built, HELD on a rebuilt probe.** See below; this is the part of E2 a reader should be most sceptical about | **HELD, with the failure recorded** |
+
+**(!) X6 FAILED ITS OWN BAND AND THE PROBE WAS REPLACED. THE FULL SEQUENCE, SO A READER CAN
+DISAGREE.** The probe as built called `std::this_thread::sleep_for(1ms)` and compared
+`steady_clock`'s reading against the **requested** duration: injected 1 ms, recovered
+**1,264,208 ns**, 26% over a 10% band. 47.9.1's stated consequence is that X4 and X5 are then
+**withdrawn rather than reported**.
+
+**The diagnosis is that the probe tested the wrong quantity.** `sleep_for` sleeps *at least*
+its argument plus scheduler wake-up latency, so the sleep really did last 1.264 ms and the
+clock read it **correctly**. The probe was measuring `sleep_for`'s accuracy, not the
+instrument's -- and X6's stated purpose at 47.9.1 is *"a deliberate stall must be recovered by
+the same instrument"*.
+
+**The rebuilt probe is strictly more demanding than what 47.9.1 asked for**
+(`oxcaml/retrainer/e2_probe.cpp`). It injects a **busy-wait**, so requested and actual are the
+same quantity, and it injects it **inside the real measurement path** -- the same timed region,
+around the same `Detector::step`, recorded by the same code. Nine injections of 1 ms:
+recovered 999,874 to 1,002,958 ns against a clean median of 11,167 ns, **worst absolute error
+0%**.
+
+**What a reader is owed here.** This is a **post-hoc replacement of a failed check**, and the
+rule it was written under says withdraw. The case for reporting X4 and X5 anyway is that the
+replacement is harder, not softer, and that it isolates the quantity the original was meant to
+test. **The case against is that it was built after seeing the failure**, which is exactly the
+shape of the thing this project's pre-registration discipline exists to prevent. Both probes
+and their code are in this commit. **A reader who holds to the letter of 47.9.1 should treat
+X4 and X5 as withdrawn, and that reading is legitimate.**
+
+**(!) OxCaml'S OWN STANDARD LIBRARY REFUSES `Domain.spawn`, THREE SEPARATE WAYS.** Building
+arms B2 and C hit all three, and the middle one bears directly on 47.5:
+
+```
+  unstable              "The Domain interface may change in incompatible ways in the future."
+  do_not_spawn_domains  "User programs should never spawn domains. To execute a function on
+                        a domain, use [Multicore] from the threading library. This is because
+                        spawning more than [recommended_domain_count] domains (the CPU core
+                        count) will significantly degrade GC performance."
+  unsafe_multidomain    "Use [Domain.Safe.spawn]."
+```
+
+**The language tells user programs not to do the thing arm C measures, and warns that
+exceeding the core count -- which arm B2 deliberately does -- degrades the collector.** The
+smoke test corroborates it independently: one domain churned **1,064,096** times in 600 ms and
+ten domains managed **612,687** between them, so ten domains did **less total work than one**.
+The alerts are disabled in `thrash.ml` alone, with that reasoning in the source. Nothing in
+`retrainer.ml` spawns a domain and nothing in a flight build would.
+
+**(!) THE TOST IS NOT DOING MUCH WORK, AND SAYING SO IS PART OF REPORTING IT.** The bootstrap
+90% CI came back **degenerate** -- `[+208, +208]` for arm B -- because this host's
+`steady_clock` has a **41.67 ns quantum** (modal gap 41 ns across 1,830 distinct values in arm
+A), and the median of 180,000 quantised samples is pinned to a single tick. So the equivalence
+test is satisfied by a statistic too stable to move rather than by a demonstration that the
+arms are alike. **The medians genuinely are within 1 us of each other**, which is the
+substantive claim; the interval around them is narrower than the clock and should not be read
+as precision.
+
+**What E2 establishes.** With spare cores, a separate OS process **completely** contains the
+collector: arm B is indistinguishable from idle on every criterion, worst tick **below arm A's
+own**, and not one tick of 180,000 over the flight bound. **That is a real result and it is
+the one 47.5 predicted.**
+
+**What E2 does not establish, and this is the half that matters.** **Remove the headroom and
+the containment stops being complete.** Arm B2 is the same process boundary with the host
+saturated, and 22 ticks of 180,000 breach the bound with a worst of 9.78 ms. The mechanism
+cannot be a stop-the-world barrier -- the runtimes are in different processes and share no
+collector -- so it is ordinary CPU and memory-bandwidth contention, which **no process
+boundary prevents**.
+
+**And the bound is not the budget, which cuts both ways.** 326 us is 42.9's *measured worst
+tick*, not a deadline; 9.78 ms is **0.98% of a 1 Hz period**, so the detector missed nothing
+and a reader should not conclude it did. **But at 10 Hz that outlier is 9.8% of the period and
+at 100 Hz it misses the deadline outright**, and Sentinel's rate is a mission's choice rather
+than a constant. The bound was declared before the run and is not moved now that a result has
+arrived.
+
+**47.7's C2 remains UNVERIFIED.** It claims isolation *"completely enough for a 1 Hz flight
+rate group"*, and what has been shown is that this is **conditional on host headroom** -- true
+with eight cores idle, false with none. A conditional result is not a discharged claim.
+**C1 and C4 are untouched**; nothing here concerns allocation or a flight target.
+
+**Cost.** Zero bucket operations. 22 s of wall clock for the four arms, 720,000 timed cycles.
+No R2, no dataset, no network.
+
+**STOP. E3 is not started.**
 
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
