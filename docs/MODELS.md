@@ -13909,6 +13909,35 @@ is quoted as one.
 a deliberate **1 ms** stall injected into the detector must be recovered by the same
 instrument, to within 10%, or X4 and X5 are withdrawn rather than reported.
 
+#### 47.9.2 A fourth arm, declared 2026-09-15, also before the harness exists
+
+**47.9.1's arm B would be a weak test and that was noticed before running it, not after.**
+This host has **10 cores**. A detector on one core and a retrainer thrashing on one other
+leaves eight idle, so arm B measures a scenario in which the two barely contend, and it would
+very likely pass **for a reason that has nothing to do with process isolation**. A pass
+obtained that way would be worthless and, worse, quotable.
+
+```
+  B2  saturate   the detector, with the retrainer thrashing its GC in a separate
+                 OS PROCESS on ONE DOMAIN PER CORE. Same separation, no headroom
+```
+
+**X4 adjudicates on the WORSE of B and B2**, and that is stated before either is run. The
+direction is deliberate: it can only make the gate harder to pass, so it cannot be a way of
+tuning towards a result. If B passes and B2 fails, **the honest reading is that the isolation
+holds only while the host has spare cores**, which is not a property a flight target can be
+assumed to have, and X4 does not get to call that a pass.
+
+**Arm C is unchanged** and still prices X5 against arm B, one domain against one domain, so
+that the thread-versus-process comparison stays like-for-like.
+
+**And every arm reports the thrasher's own progress counter**, because an arm in which the
+thrasher did not run is not a clean arm -- it is a broken one that looks clean. **This
+matters most for arm C**: the detector's thread is not an OCaml domain, and if the runtime's
+main domain never reaches a poll point the thrashing domain can block at a stop-the-world
+barrier and make no progress at all, leaving the detector unimpeded for exactly the wrong
+reason. **An arm whose thrash counter is near zero is reported as INVALID, not as quiet.**
+
 ### 47.10 Falsification
 
 **If X4 fails, this approach is over and the section is a negative result.** Not revisited,
