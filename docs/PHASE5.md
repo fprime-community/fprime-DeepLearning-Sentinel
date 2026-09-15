@@ -218,3 +218,58 @@ onboard *at all* under CPP-1 is exactly what this claim is carrying.
 the design was worked out now, and `docs/HARNESS.md` 5a's rule applies to
 documentation as much as to decisions: written later is written wrong, because the
 alternatives get forgotten first.
+
+---
+
+## 7. Rider, 2026-09-15: a second route is registered, and it does not discharge section 4
+
+**Sections 1 to 6 are not edited.** This rider is appended because a reader who stops at
+section 4 would leave thinking mlpack is the only candidate, and since 2026-09-15 it is not.
+
+**What changed is not this design. It is the state of section 6's three conditions.**
+
+```
+  "The toolkit exists (Objective.md 13 item 12)"        MET.  All three acceptance
+                                                              rungs have run, the last
+                                                              on a real twelve-channel
+                                                              mission (docs/MODELS.md 40.14)
+  "Phase 3 has measured something"                      MET.  The physics testbed ran and
+                                                              all seven of its predictions
+                                                              held (docs/MODELS.md 42.9)
+  "The claim in section 4 is discharged, one way        OPEN. Unchanged. Nobody has read
+   or the other"                                              Armadillo at source
+```
+
+**Two of three are now true, and the third is the one that was always going to be hardest.**
+
+**The second route.** `docs/DECISIONS.md` D70 registers OxCaml as a candidate and
+`docs/MODELS.md` 47 pre-registers four experiments against it. The question it asks is
+section 4's question approached from the other side: not *which library allocates least*,
+but *can the compiler be made to prove the path allocates nothing, and fail the build when it
+does not*. Section 4's own fallback sentence anticipated a language-level answer without
+naming one --
+
+> **"if it does not, the design falls back to a hand-written training loop under the same
+> discipline as `flight/`, which is more work and is not blocked on anybody."**
+
+-- and that fallback is unchanged and still stands. `docs/DECISIONS.md` D70 alternative 1
+keeps it explicitly.
+
+**(!) THE CLAIM IN SECTION 4 IS NOT DISCHARGED BY ANY OF THIS, AND IS NOT REPLACED BY IT.**
+Routing around a question is not answering it. The Armadillo claim stays **UNVERIFIED** in
+exactly the terms section 4 states, what would discharge it is unchanged, and **if the OxCaml
+route is refused it becomes load-bearing again the same day**. Nothing in `docs/MODELS.md` 47
+may be cited as bearing on it in either direction.
+
+**And nothing in `docs/MODELS.md` 47 is established either.** Its section 47.7 carries four
+capability claims under the same stamp this document's section 4 invented, for the same
+reason, and its first experiment can end the approach. **Two candidate routes, both resting
+on claims nobody has yet run an experiment against**, is the accurate statement of where
+onboard retraining stands -- and it is a better position than one route in that condition,
+which is what section 4 alone described.
+
+**Section 5's seven open questions are untouched.** They are library-independent apart from
+questions 1 to 3, which are mlpack-, Armadillo- and BLAS-specific and would be replaced
+rather than answered if the OxCaml route were taken. **Question 4 -- what counts as recent
+healthy telemetry, decided onboard -- is unaffected by any of this, is still the hardest, and
+is still the one closest to `Objective.md` 11 rule 1.**

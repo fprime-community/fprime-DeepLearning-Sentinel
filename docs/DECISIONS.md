@@ -95,6 +95,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D67 `master` is curated: it carries the component and the evidence it works, and nothing else. Supersedes the branch proposal in `docs/REORG_PLAN.md` 7](#d67-master-is-curated-it-carries-the-component-and-the-evidence-it-works-and-nothing-else-supersedes-the-branch-proposal-in-docsreorg-planmd-7)
 - [D68 The flight configuration is adopted: the fused statistic emits, on a version-2 PARAMS block](#d68-the-flight-configuration-is-adopted-the-fused-statistic-emits-on-a-version-2-params-block)
 - [D69 The public branch carries customer documents; the laboratory record stays on `dev`. Supersedes D67 consequences 1 and 9](#d69-the-public-branch-carries-customer-documents-the-laboratory-record-stays-on-dev-supersedes-d67-consequences-1-and-9)
+- [D70 The retraining engine is where a second flight language is argued, and OxCaml is the candidate: registered, not adopted](#d70-the-retraining-engine-is-where-a-second-flight-language-is-argued-and-oxcaml-is-the-candidate-registered-not-adopted)
 
 <!-- /toc -->
 
@@ -5531,3 +5532,194 @@ root lands on `master`, which is the branch a reader should see.
 **What is not claimed.** That this was free. A snapshot branch with five commits was
 removed and the links into it went with it.
 
+
+---
+
+## D70. The retraining engine is where a second flight language is argued, and OxCaml is the candidate: registered, not adopted
+
+**DATE** 2026-09-15 | **STATUS** resolved as a scope-and-rationale decision, recorded
+**before any OxCaml exists on this machine**. No code is written here, no capability is
+claimed here, no file under `flight/` or `fprime/` is touched, and nothing is pushed. What
+is decided is **what will be tested and on what argument**, not what will be used.
+
+**CONTEXT.** `docs/PHASE5.md` scoped in-flight retraining under human approval and got as
+far as the question it could not answer. Its section 4 names mlpack and Armadillo as the
+candidate and then stamps the claim the whole design hangs on:
+
+> **"Armadillo can be made to run on statically allocated memory - fixed-size matrix types
+> with no allocation after initialisation."** ... **"This claim has not been verified and
+> nothing in this document may be quoted as though it has."** (`docs/PHASE5.md:145-149`)
+
+`docs/PHASE5.md` 6 lists three things that must be true before Phase 5 is built. **Two are
+now true**: the ground toolkit exists and all three of its acceptance rungs have run
+(`docs/MODELS.md` 40.14), and the physics testbed has measured something (`docs/MODELS.md`
+42.9). **The third is that claim, and it is still open.** So the design is blocked on a
+property of a C++ linear-algebra library that nobody here has read at source.
+
+**This entry is about answering that question a different way.** Not "which library
+allocates least", but *"can the compiler be made to prove it, and fail the build when it is
+not true"*. That is a language question, and F' has one language.
+
+**(!) AND THIS IS NOT NEW GROUND IN THIS REPOSITORY.** `docs/REORG_PLAN.md` 4 already
+carries an OCaml integration layer, with `docs/reorg_plan.json` recording both its
+provenance -- *"ORIGINATES IN THE HANDOVER BRIEF, NOT IN THE REPOSITORY"* -- and an
+enabling claim already stamped in the same terms as the Armadillo one: *"OCaml can be made
+to run with no allocation after initialisation, under a garbage collector, inside an F'
+rate group. THIS HAS NOT BEEN VERIFIED AND NOTHING MAY BE QUOTED AS THOUGH IT HAS."* It
+proposed a decision at "the next free number after D62". **That number is stale -- the
+register reached D69 -- and this is that entry, taken at D70.** `docs/REORG_PLAN.md` is
+research only and nothing in it has been executed; this decision does not execute it either.
+
+**ALTERNATIVES.**
+
+1. **A hand-written C++ training loop, under `flight/`'s own discipline.** Not refused, and
+   deliberately so. It is `docs/PHASE5.md:160-162`'s stated fallback -- *"more work and not
+   blocked on anybody"* -- and it remains the fallback if the experiments this entry
+   registers fail. A decision that leaves no way to proceed is not a decision.
+2. **mlpack and Armadillo, as `docs/PHASE5.md` 4 has it.** Held open, not refused. It is
+   conditional on a claim nobody has discharged, and this entry discharges nothing about it.
+   Whichever route is eventually taken, that claim still has to be read at source or dropped.
+3. **Rust.** Refused **as the answer to the strategic question**, with its reason below, and
+   **deliberately not measured**. See consequence 3, which is the part of this entry most
+   likely to be quoted at us.
+4. **OxCaml, registered as a candidate behind four experiments with kill conditions**, the
+   first of which can end it. **Adopted** -- as the thing to *test*, not as the thing to use.
+
+**EVIDENCE, and the first part is the argument rather than a measurement, which is said
+here rather than discovered later.**
+
+**The strategic case. Flight software has no safe high-level language.** Ada gives safety
+without abstraction. Rust gives memory safety but **does not raise the level of
+abstraction** -- memory is still managed by hand, with ownership threaded through every
+signature. OxCaml is the first candidate offering both: write at a high level, and have the
+compiler prove, with the build failing on violation, that a path performs no allocation.
+**That, and not "OxCaml is better for ML", is the case.** If F' is to gain a second
+language, this is the argument for it, and the retraining engine is the right first
+component to make it on: new, self-contained, in its own process, advisory-only, with no
+heritage to lose.
+
+**(!) The preceding paragraph is reasoned, not measured.** "Does not raise the level of
+abstraction" is a judgement about two languages, not a number read off an artifact.
+`docs/HARNESS.md` 1's rule is about figures and this is not one -- which is exactly why it
+is labelled here rather than left to look like a finding.
+
+**The second part is what is stated against it, and it is stated unprompted because a case
+that only survives being argued one way has not been argued.**
+
+| | Rust | OxCaml |
+|---|---|---|
+| Runtime | **none, and no garbage collector** | an OCaml 5.4 runtime with a GC |
+| Footprint | **smaller**, and the comparison is not close | larger, by the runtime |
+| Qualified compiler | **Ferrocene**, TUV SUD-qualified: ISO 26262 ASIL D, IEC 61508 SIL 3, IEC 62304 Class C; a core-library subset separately IEC 61508 SIL 2 / ASIL B | **none** |
+| Flight heritage | **early**: ESA OPS-SAT, and an onboard software simulator | **none** |
+| Targets | broad, including bare metal and 32-bit | x86-64 and arm64 Linux, arm64 macOS. **No 32-bit ARM, no musl, no documented cross-compile recipe** |
+| Stability | stable editions | *"OxCaml makes no promises of stability or backwards compatibility for its extensions (though it remains backwards compatible with OCaml)"* |
+
+**(!) THE FOOTPRINT ROW IS WRITTEN THIS WAY BECAUSE THE OPPOSITE HAS CIRCULATED.** Rust has
+no runtime and no garbage collector, so its footprint is **smaller** than OxCaml's, not
+larger. Any statement to the contrary in any document, brief or conversation is wrong and is
+corrected wherever it appears. **And there is no certification precedent for a
+garbage-collected runtime in flight software at all**, which is a larger obstacle than any
+row above.
+
+**(!) AND TWO CLAIMS THAT REACHED THIS PROJECT AGAINST OxCaml DO NOT SURVIVE READING.** Both
+were carried in a handover brief as strikes against the proposal, and a strike stated without
+a source is a rule violation regardless of which side it helps:
+
+```
+  "Jane Street describe the extensions as 'too fresh and too much in flux'"
+      NOT A QUOTATION. Neither phrase appears in the OxCaml announcement. What it
+      says is the stability sentence quoted in the table above, and "Our hope is
+      that these extensions can over time be contributed to upstream OCaml."
+
+  "Rust already has optional F' toolchain support in nasa/fprime"
+      FALSE AT THIS PROJECT'S OWN PIN. nasa/fprime v4.3.0 -- commit
+      7d8f579f159d2f7c2d4984d92828575e37f87fa6, the D31 pin -- holds no .rs file,
+      no cargo hook and no Rust toolchain. The only four occurrences of the word
+      are float-to-int semantics comments in Svc/FpySequencer. The claim describes
+      a LATER nasa/fprime than the one this project builds against, and is stated
+      that way or not at all.
+```
+
+**The third part is the architecture, and it is a requirement rather than a preference.**
+OCaml 5's minor collector is **stop-the-world across all domains**: a domain that exhausts
+its minor heap forces every domain to a barrier, and native code carries poll points at
+function entry and loop back-edges. **A retrainer on a separate thread would therefore stall
+the detector even if its own code were allocation-free**, which is the failure the whole
+exercise exists to avoid. F' supports the separate-process arrangement through the hub
+pattern -- `docs/user-manual/design-patterns/hub-pattern.md` at the v4.3.0 pin, the
+`Svc/GenericHub` component, and `Drv/ByteStreamBufferAdapter` with `Drv/TcpClient` and
+`Drv/TcpServer` for the transport. **None of it is used anywhere in this repository today**:
+`Monitor` and `PowerSim` are both passive and share the 1 Hz rate group's single thread
+(`fprime/SentinelRef/Top/instances.fpp`).
+
+**CONSEQUENCE.**
+
+1. **OxCaml is registered as a candidate and adopted as nothing.** Every capability it is
+   said to have stays **UNVERIFIED** until a cited experiment demonstrates it, in the exact
+   form `docs/PHASE5.md` 4 already uses for Armadillo. The experiments are pre-registered at
+   `docs/MODELS.md` 47 before any code, with kill conditions, and **E2 can end the approach
+   on its own**.
+2. **The retrainer is a separate OS process. That is a requirement of this decision**, not an
+   implementation detail left to whoever builds it, and its reason is the stop-the-world
+   minor collector above. A thread implementation is measured in E2 only to price what the
+   process buys, and is not a fallback.
+3. **(!) NO RUST COMPARISON IS BUILT, AND THIS IS A DECISION WITH A COST.** The strategic
+   case is a *safe high-level language*, which Rust does not provide, and the schedule does
+   not allow a bake-off. **So on that comparison this project is reasoning and not
+   measuring, and says so on the line where the comparison appears.** The cost is real and
+   is not argued away: if the abstraction claim in the strategic case is wrong, no
+   measurement here would catch it, and the table above is the honest summary of a case
+   Rust wins on every row that has been measured by anybody.
+4. **`Objective.md` is not edited.** Its section 12 marks Phase 5 as C++ and its gate as
+   no heap allocation after init, no exceptions, and the shadow measurably better on the
+   pre-launch sanity report. **A second language is not allowed for by that block**, and
+   that disagreement is recorded here rather than resolved by editing the governing
+   document before a single experiment has run -- the same treatment D63 gave it. If E1 to
+   E4 pass, amending section 12 is a decision of its own.
+5. **`docs/PHASE5.md` is not superseded.** Its section 4 text stands unedited; a dated rider
+   points at `docs/MODELS.md` 47 as a second route so a reader is not left thinking mlpack
+   is the only candidate. **The Armadillo claim is neither discharged nor replaced by this
+   entry** -- routing around a question is not answering it, and consequence 1 of any
+   adoption would be that the claim is finally read at source or the library dropped.
+6. **Objective.md 11 rule 1 is untouched and is not weakened.** The flying model stays
+   frozen, the retrainer is advisory, and every model handoff goes through F's existing
+   machinery: the retrainer writes a candidate `model.bin`, `FileDownlink` sends it and its
+   validation metrics to the ground, **a human approves**, `FileUplink` returns it, and a
+   command triggers the parameter reload. **The flying model is never modified in place.**
+7. **The boundary discipline is fixed here because it is what makes the design safe.** Only
+   fixed-size scalars, `Bigarray` for telemetry -- its buffer lives outside the OCaml heap
+   and is never moved by the GC -- and status codes. No OCaml value ever persists in C++.
+   **Every exception is caught inside OCaml and returned as a status code**: CPP-25 forbids
+   exceptions and the C++ side builds `-fno-exceptions` (`flight/Makefile:23`), so a
+   crossing is undefined behaviour and must be made structurally impossible rather than
+   merely avoided.
+8. **Zero bucket operations.** Nothing in this decision or in `docs/MODELS.md` 47 reads or
+   writes R2, and the ledger is unmoved.
+9. **(!) THE TWO CLAIMS IN THE EVIDENCE BLOCK ABOVE WERE FABRICATED, AND THAT IS RECORDED
+   HERE RATHER THAN LEFT AS A CORRECTION.** Both reached this project in the handover brief
+   that commissioned this work, presented as established fact and as strikes **against** the
+   proposal the same brief was making. **Neither was a misremembering of a real source.** The
+   quotation does not appear in the document it was attributed to, in any form; the F'
+   toolchain claim is false at the v4.3.0 pin **the same brief names elsewhere**. Accepted as
+   errors 2026-09-15.
+
+   **What caught them was reading the source, and nothing else would have.** The quotation was
+   caught by fetching the announcement and searching it; the toolchain claim by grepping the
+   pinned checkout, where the word occurs four times and every occurrence is a comment about
+   float-to-int semantics. **Neither was caught by the claim sounding wrong** -- both sounded
+   entirely plausible, and one of them is true of a later `nasa/fprime`.
+
+   **The rule they fall under is not new.** `docs/HARNESS.md` 1 says no number enters a
+   document that was not read from an artifact. The corollary this pair establishes, stated so
+   it can be cited: **no quotation enters a document that was not read from the thing quoted,
+   and no claim about a pinned dependency enters one without being checked at the pin.** A
+   version-less claim about a fast-moving dependency is not a fact, it is a fact with the date
+   removed.
+
+   **And the direction matters, which is why this is a consequence and not a footnote.** Both
+   claims argued against the position this entry adopts. It would have cost this project
+   nothing to let them stand -- they made the case look more honestly self-critical than it
+   was. **A claim that flatters your own scepticism gets less scrutiny than one that flatters
+   your conclusion**, and that asymmetry is the whole reason this consequence is written
+   down.

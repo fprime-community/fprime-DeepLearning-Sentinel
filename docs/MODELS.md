@@ -432,6 +432,21 @@ prediction that failed and why. This document follows the same discipline.
   - [46.4 Cost, and stop and report](#464-cost-and-stop-and-report)
   - [42.8 (!) Rider, 2026-09-14: the testbed is built and wired, and building it moved the bar](#428-rider-2026-09-14-the-testbed-is-built-and-wired-and-building-it-moved-the-bar)
   - [42.9 OBSERVED -- all seven held, on one testbed, one fault mode and ten correlated seeds](#429-observed----all-seven-held-on-one-testbed-one-fault-mode-and-ten-correlated-seeds)
+- [47 Pre-registration: the OxCaml gateway -- can a compiler prove a flight path allocates nothing? (Phase 5, roadmap)](#47-pre-registration-the-oxcaml-gateway----can-a-compiler-prove-a-flight-path-allocates-nothing-phase-5-roadmap)
+  - [47.1 What the handover brief said, and where this repository disagrees](#471-what-the-handover-brief-said-and-where-this-repository-disagrees)
+  - [47.2 Where this sits, and what it is not](#472-where-this-sits-and-what-it-is-not)
+  - [47.3 What is reused, and what is cited](#473-what-is-reused-and-what-is-cited)
+  - [47.4 (!) Departure 1 -- no Rust comparison is built, and the cost is stated rather than argued away](#474-departure-1----no-rust-comparison-is-built-and-the-cost-is-stated-rather-than-argued-away)
+  - [47.5 (!) Departure 2 -- the retrainer is a separate OS process, and that is a requirement](#475-departure-2----the-retrainer-is-a-separate-os-process-and-that-is-a-requirement)
+  - [47.6 (!) Departure 3 -- there are two boundaries, and the brief describes them as one](#476-departure-3----there-are-two-boundaries-and-the-brief-describes-them-as-one)
+  - [47.7 The capability register: everything OxCaml is said to do is UNVERIFIED until an experiment says otherwise](#477-the-capability-register-everything-oxcaml-is-said-to-do-is-unverified-until-an-experiment-says-otherwise)
+  - [47.8 The pins, so that a later reader can rebuild exactly this](#478-the-pins-so-that-a-later-reader-can-rebuild-exactly-this)
+  - [47.9 Predictions](#479-predictions)
+  - [47.10 Falsification](#4710-falsification)
+  - [47.11 Reporting](#4711-reporting)
+  - [47.12 Cost, and stop and report](#4712-cost-and-stop-and-report)
+  - [47.13 OBSERVED](#4713-observed)
+  - [47.14 Deferred, with the slots registered so the gaps are visible](#4714-deferred-with-the-slots-registered-so-the-gaps-are-visible)
 
 <!-- /toc -->
 
@@ -13507,3 +13522,434 @@ had to *compute* a null on SMAP/MSL because no counterfactual run exists there, 
 only bound the answer. Here the counterfactual run exists, so the null is **measured away**.
 **That difference -- not the lead -- is what a simulated testbed buys**, and it is the case for
 work item 11 that no recall figure could have made.
+
+---
+
+## 47. Pre-registration: the OxCaml gateway -- can a compiler prove a flight path allocates nothing? (Phase 5, roadmap)
+
+**Written before any OxCaml exists.** There is no `ocaml`, `opam`, `dune` or `ocamlfind` on
+this machine and not one `.ml` file in the tracked tree. This section registers what will be
+built, what it predicts, what would falsify it and what would stop it. **No code is written
+until this is reviewed**, which is the form every section from 19 onward uses.
+
+**Nothing here is implemented from a description.** Every F' mechanism below was read at
+first hand in the pinned v4.3.0 checkout while this was written and is cited. Every OxCaml
+capability was read at its own documentation and **is carried as UNVERIFIED regardless**
+(47.7), because reading a manual is not running an experiment -- the distinction
+`docs/PHASE5.md` 4 already draws for Armadillo and the one this whole section exists to
+respect.
+
+**The decision this rests on is `docs/DECISIONS.md` D70**, which carries the strategic case,
+what is stated against it, and the three consequences that are requirements rather than
+preferences. This section does not restate the argument; it registers the experiments.
+
+**The state this was written against**, measured 2026-09-15 before a line of it existed:
+735 tests pass, `check_no_list` 104 files clean, `check_references` 630 section / 623 path /
+402 line / 39 link / 4 node resolving in both modes, `sentinel_eval selftest` 8 of 8,
+`make -C flight test` and `make -C flight lint` green at `-Werror`, weight store 1,313,
+`flight/` and `fprime/` byte-identical across `dev` and `master`, ledger unmoved at 238
+Class A and 5,740 Class B.
+
+### 47.1 What the handover brief said, and where this repository disagrees
+
+The **sixth** handover brief this project has taken -- 37.1, 39.1, 40.1, 41.1 and 42.1
+adjudicate the other five -- and **no handover brief has ever been committed to this
+repository**, which 39.1 established by looking. Recorded the same way those five record
+theirs, so a later reader can tell which claims came from outside the repository and which
+from it.
+
+**The brief asked for this table itself**, which is to its credit, and reported its four
+immediate predecessors as carrying 12, 18, 15 and 23 errors. **This one carries 31. The
+repository wins in every row.**
+
+| # | The brief | This repository |
+|---|---|---|
+| 1 | `origin/dev` is ~287 files | **298** tracked |
+| 2 | `runs/` is ~1,504 files | **1,534** |
+| 3 | tracked content ~6.1 MiB of the 8 MiB cap | The repository's own figure is **6.07** (`docs/STATUS.md` 7); measured **6.22 MiB** at the time of reading and **6.27** once this section and D70 were written -- **re-measured per commit rather than restated**, which is 39.1 row 13's treatment of the same figure and the reason a tracked-size number is never copied forward. Cap and authority are right -- `tests/test_no_local_persistence.py:155`, 8 MiB raised from 4 by D64. **And a live staleness the brief did not cause: `docs/FPRIME.md:45` still says the test asserts 4 MiB** |
+| 4 | dev-only is `src/`, `scripts/`, `tests/`, MODELS, DECISIONS, NARRATIVE, RESULTS, Objective, `third_party/`; "everything else is on both" | **False, and by a wide margin.** `master` carries **102** files to `dev`'s 298. Also dev-only: `CHANGELOG.md`, `docs/HARNESS.md`, `docs/DATA.md`, `docs/RESEARCH.md`, `docs/THRESHOLD.md`, `docs/PHASE1_REPORT.md`, `docs/PHASE2.md`, `docs/PHASE5.md`, `docs/INDEX.md`, `docs/REORG_PLAN.md`, `docs/TELEMANOM_EXCERPTS.md`, `docs/manifest.snapshot.json`, `docs/reorg_plan.json`, `conftest.py`, `requirements.txt` |
+| 5 | master-only is `docs/DESIGN.md` and `docs/EVIDENCE.md` | **Holds**, and is asserted rather than hoped (`tests/test_master_documents_are_current.py:474`). But `master` has **four** customer documents: those two, plus `README.md` and `docs/STATUS.md` **curated** -- same name on both branches, different content by design |
+| 6 | (not stated) | `master`'s documents resolve into `dev` at **`ae2f103`**, and `dev` is at **`2ec5b92`**. Not a guard failure: the snapshot test requires only that the named commit exist and that shared paths match, and the one commit between them touched `CHANGELOG.md` and this file, neither of which is on `master`. **Worth knowing before any `master` commit** |
+| 7 | 39: N1 held, N4 held, N3 failed, N2 no verdict | **Incomplete.** The register is **N1 to N8**: N1, N4, **N7 and N8** held; N2 no verdict; N3 failed; **N5 and N6** not adjudicated (39.13). The brief's own owed list names N5 and drops N6 |
+| 8 | N3 failed at 603,032 B | 39.13 records **603,024 B**. **603,032 is the rider at 39.13.5** -- a `U32` added a day after adjudication took the object up 8 bytes. The figure is quotable; it is quoted with **that** citation |
+| 9 | +11,125 ticks, median 9,774.5, "87% of fault duration" | 11,125 is **seed 1, and it is the maximum** -- min 5,305 over ten seeds. And 0.871 is the fraction of the **fault-onset-to-limit interval**, not of "fault duration" (42.9, T4). Two different denominators, and the wrong one flatters the result |
+| 10 | "across all thirty events the rule catches" | The thirty span only **25 distinct onsets**, so the effective count is lower -- D65.4 and 45.6.2 both say so, and `docs/EVIDENCE.md` on `master` says it in the same breath as the thirty. The brief drops the qualifier |
+| 11 | the `n < 20` rule is miscited as D3 "in three places" | **Understated.** D65.2 names three **decision-register** sites and then adds **eight in this file and five in `CHANGELOG.md`**. A fresh grep finds **nine** here -- D65.2's own count is one low -- and five plus a sixth variant in `CHANGELOG.md`. The rule's home is right: `docs/HARNESS.md` 1, and D3 is the gate metric |
+| 12 | `param_version` 2 | True of the **flown configuration** (D68). The writer's default constant is still `PARAM_VERSION = 1` at `src/sentinel_export/format.py:23`, with `PARAM_VERSION_FUSED = 2` at `:36` -- the registered trap at 40.6, not a contradiction, but not interchangeable either |
+| 13 | all three acceptance rungs run | **Holds** (40.14). But **T1 is NOT ADJUDICATED** in the same block. "Three rungs ran" is not "all predictions held", and 40.14 is careful about it where the brief is not |
+| 14 | flight rules at `docs/MODELS.md:2991` (CPP-1) and `:2993` (CPP-3) | **Stale.** `:2991` is about the scorecard printer. The 19.3 table is at **`:3036-3045`**, CPP-1 at **`:3038`**, CPP-3 at **`:3040`**. **This is the fourth drift of one citation**: 39.1 row 12 said 2612-2620, 40.1 row 5 corrected it to 2974-2982, 41.1 row 7 corrected that to 2989-2996 and announced itself as the third. Line citations into this file do not survive it growing, and 47.12 stop 9 is the response |
+| 15 | the flight rules that bind are CPP-1, CPP-3 and CPP-21 | **CPP-25 is missing, and it is the one this brief's own architecture depends on.** "An exception crossing is undefined behaviour" is true *because* of CPP-25 -- no exceptions, RTTI, STL, `std::string` -- which `flight/Makefile:6` cites and `docs/PHASE5.md:109-118` quotes from source. **CPP-5** (C++14) is missing too, at `flight/Makefile:11`. CPP-21 for interfaces holds (20.4) |
+| 16 | Jane Street describe the extensions as "too fresh and too much in flux" | **Not a quotation.** Neither phrase appears in the OxCaml announcement. The real sentences are in D70's table and are used instead. **A strike stated without a source is a rule violation even when it argues against our own proposal**, which is why this row is here and not quietly dropped |
+| 17 | Rust already has optional F' toolchain support in `nasa/fprime` | **False at this project's own pin.** v4.3.0, commit `7d8f579f159d2f7c2d4984d92828575e37f87fa6`, holds no `.rs` file, no cargo hook and no Rust toolchain; the only four occurrences of the word are float-to-int semantics comments in `Svc/FpySequencer`. True of a **later** `nasa/fprime`, and stated that way or not at all |
+| 18 | Ferrocene is qualified ASIL D / SIL 3 | **Holds**, and is understated: also IEC 62304 Class C, with a core-library subset separately at IEC 61508 SIL 2 / ISO 26262 ASIL B |
+| 19 | Rust has flown (ESA OPS-SAT) | **Holds, with the qualifier that decides how much it is worth.** It is *early* heritage on an experimental CubeSat payload and an onboard software simulator, not a critical flight path |
+| 20 | OxCaml supports only x86-64/arm64 Linux and arm64 macOS | **Holds.** Upstream adds that x86 macOS may still work. The exclusions the brief names -- 32-bit ARM, musl, no documented cross-compile recipe -- hold |
+| 21 | (not stated) | **OxCaml is based on OCaml 5.4** plus later runtime patches. The brief asks for the base version pinned and never says what it is |
+| 22 | the default relaxed mode ignores allocation on exception paths, which is why `strict` is mandated | **Holds, and the mechanism is worth stating because it makes the `-g` mandate load-bearing rather than incidental.** The relaxed meaning applies **only to exceptions raised with a backtrace**; compiled without `-g` or with backtraces disabled, every `raise` is treated as `raise_notrace`. So `-g` plus backtraces enabled is what gives `strict` something to bite on |
+| 23 | the checker treats all indirect calls as allocating | **Holds** |
+| 24 | the compiler proves it **transitively**, with the build failing | **Holds in effect** -- a failure is a compile error and not a warning -- but the upstream wording is that *there is no need to annotate all callees of a `zero_alloc` function for the check to pass*. It is whole-call-tree analysis, not a per-callee annotation duty, and the difference matters to anyone estimating the labelling cost |
+| 25 | Rust "does not raise the level of abstraction" | An **argued position, not a measurement**, and the brief concedes as much. D70 consequence 3 labels it on the line where it appears rather than leaving it to read as a finding |
+| 26 | the boundary carries fixed-size scalars, `Bigarray` and status codes | **Two different boundaries are being described as one**, and conflating them produces a design F' forbids. See 47.6 |
+| 27 | F' supports this via the hub pattern and socket IPC | **Holds, and the source exists** -- `docs/user-manual/design-patterns/hub-pattern.md` at the pin, `Svc/GenericHub`, `Drv/ByteStreamBufferAdapter` with `Drv/TcpClient` and `Drv/TcpServer`. **But nothing in this repository uses any of it**: `Monitor` and `PowerSim` are both passive and share the 1 Hz rate group's single thread. E1 is the first cross-process boundary this project would have |
+| 28 | (not stated) | **`Objective.md` 12 marks Phase 5 as C++**, and its gate as no heap allocation after init, no exceptions, and the shadow measurably better on the pre-launch sanity report. A second language is not allowed for by that block. D70 consequence 4 records the disagreement and does not edit the document |
+| 29 | (not stated) | **`docs/PHASE5.md` 4's candidate is mlpack and Armadillo**, on a claim it stamps UNVERIFIED. This section is an alternative answer to the same question and says so; it discharges nothing about Armadillo (D70 consequence 5) |
+| 30 | this is new ground | **The repository registered it already.** `docs/REORG_PLAN.md` 4 carries an OCaml integration layer, and `docs/reorg_plan.json` records its provenance -- it originated in a handover brief, not in this repository -- with an enabling claim stamped UNVERIFIED in the same words, and a proposed decision at "the next free number after D62". **That number went stale at D69.** The entry is D70 |
+| 31 | the gates are the seven listed | **They are, and all seven are green** (preamble). But three of the figures the gate block states are re-derived by **nothing**: `docs/STATUS.md`'s 104 files, its 8 of 8 selftest and its three lint configurations. Only the 735 is machine-checked. All three happen to be correct today, verified in the same session; they are exactly the class D69 was written about |
+
+### 47.2 Where this sits, and what it is not
+
+**This is Phase 5's blocked question, answered a different way.** `docs/PHASE5.md` 6 names
+three things that must be true before onboard retraining is built. Two are now true -- the
+toolkit exists with all three rungs run (40.14), and the physics testbed has measured
+something (42.9). The third is `docs/PHASE5.md` 4's Armadillo claim, and it is open.
+
+**Routing around a question is not answering it**, and this section does not pretend
+otherwise. What it proposes is that the property Phase 5 needs -- *no allocation after init,
+on a path a review board can be shown* -- be established by a compiler that refuses to build
+the violation, rather than by a reading of a library's documentation. Whether that property
+is actually available is E3's question, and E3 can answer no.
+
+**What this is not.** Not an adoption. Not a claim that OxCaml is better for machine
+learning -- D70 is explicit that the case is a *safe high-level language* and nothing else.
+Not a comparison against Rust, which is deliberately not built (47.4). Not a modification to
+anything that flies: `flight/`, `fprime/Sentinel/Monitor/` and `model.bin` are untouched by
+every experiment below.
+
+### 47.3 What is reused, and what is cited
+
+```
+  the separate-process boundary   docs/user-manual/design-patterns/hub-pattern.md  (v4.3.0 pin)
+    the pattern                     a pair of hubs serialises calls on one side and
+                                    deserialises them into typed port calls on the other
+    the prohibition                 "Do not pass an Fw::Buffer across a hub" -- a fat
+                                    pointer into an address space that does not exist
+                                    on the far side. Never pass pointers through a hub
+    the components                  Svc/GenericHub, with Drv/ByteStreamBufferAdapter
+                                    pairing a byte-stream driver to the buffer-driver
+                                    interface GenericHub expects
+    the transport                   Drv/TcpClient, Drv/TcpServer
+
+  the flight rules                .github/skills/fprime-cpp-design/SKILL.md at nasa/fprime v4.3.0
+    CPP-1   :41-50                  no dynamic memory after initialization
+    CPP-3   :113-127                always use fixed-size numerical types
+    CPP-5   :185                    compiles cleanly as C++14
+    CPP-21  :151-156                no C-style arrays in interfaces; pair array and length
+    CPP-25  :279-290                no exceptions, RTTI, STL, std::string
+                                    Quoted at docs/PHASE5.md 3 rather than recalled, and
+                                    tabulated in this file at 19.3 and 20.4
+
+  the deployment                  fprime/SentinelRef/
+    the precedent E1 follows        fprime/SentinelRef/PowerSim/ -- apparatus, not product.
+                                    fprime/library.cmake exports Sentinel/Monitor and
+                                    nothing else, and an E1 component is exported by nothing
+    the module-name trap            PowerSim lives in module Testbed rather than SentinelRef
+                                    because autocoded parameter names would shadow an
+                                    instance name under -Wshadow -Werror and the topology
+                                    would not compile. E1 respects this rather than
+                                    rediscovering it
+    the wiring                      fprime/SentinelRef/Top/instances.fpp, and topology.fpp's
+                                    rate-group member ordering, which is not incidental
+
+  the evidence discipline         docs/PHASE5.md 4, for the shape of an UNVERIFIED claim
+                                  docs/HARNESS.md 1, for the rule it falls under
+                                  docs/NARRATIVE.md 11, for what it cost the last time a
+                                  reading was carried without its source
+```
+
+### 47.4 (!) Departure 1 -- no Rust comparison is built, and the cost is stated rather than argued away
+
+**The scope consequence of D70 consequence 3**, recorded here because a pre-registration
+that omits the arm it chose not to run is not a pre-registration.
+
+**Nothing in E1 to E4 measures Rust.** The strategic case is a safe high-level language,
+which Rust does not provide, and the schedule does not allow a bake-off. **So on that
+comparison this project is reasoning and not measuring**, and every passage that makes it
+says so in the same breath.
+
+**The cost, itemised.** Rust wins every row of D70's table that anybody has measured: no
+runtime, no garbage collector, a smaller footprint, a TUV SUD-qualified compiler, and early
+flight heritage. The one row where OxCaml is claimed to win -- the level of abstraction --
+**is the one row this project is not measuring**. If that claim is wrong, no experiment
+below would catch it. That is a real weakness in the case and it is not dressed up.
+
+**What would discharge it:** a Rust arm of E3's shape -- the same matrix multiply and
+gradient step, written in Rust, with the allocation property established by whatever
+mechanism Rust offers -- scored against the same criterion. Registered as owed at 47.14 and
+explicitly not taken.
+
+### 47.5 (!) Departure 2 -- the retrainer is a separate OS process, and that is a requirement
+
+**Not a preference, and not an implementation detail left to whoever builds it.**
+
+OCaml 5's minor collector is **stop-the-world across all domains**. A domain that exhausts
+its minor heap forces every domain to synchronise at a barrier, and native code carries poll
+points at function entry and at loop back-edges, so a domain has no way to opt out of being
+stopped. **A retrainer on a separate thread would therefore stall the detector even if the
+retrainer's own code were allocation-free** -- which is precisely the failure the
+`zero_alloc` machinery is being brought in to prevent, arriving by a route `zero_alloc`
+cannot see.
+
+**So the process boundary is load-bearing, and E2 exists to prove it is enough.** The thread
+configuration is built and measured too, and is measured **to price what the process buys**,
+not as a fallback. If it turns out to cost nothing on this workload, the argument above is
+wrong on this workload and 47.5 is re-opened rather than defended -- that is X5's FAIL band.
+
+**And this is the first cross-process boundary this project would have.** `Monitor` and
+`PowerSim` are passive and share the 1 Hz rate group's single thread today. Nothing in the
+tracked tree uses `Svc/GenericHub`, a socket, a shared-memory segment or a second process.
+E1 is where that changes, and it changes in `SentinelRef` -- apparatus -- rather than in
+anything `fprime/library.cmake` exports.
+
+### 47.6 (!) Departure 3 -- there are two boundaries, and the brief describes them as one
+
+**The brief's boundary discipline is right about what may cross and wrong about where.**
+Conflating the two produces a design F' forbids in as many words.
+
+```
+  BOUNDARY A -- the hub, between two OS processes
+    detector deployment  <--- serialized port calls --->  retrainer deployment
+    what crosses         serialized values only.
+    what must not        "Do not pass an Fw::Buffer across a hub" -- it is a fat
+                         pointer, and the address is meaningless on the far side.
+                         "Never pass pointers through a hub."
+    (!) A Bigarray here would be exactly the prohibited thing: a pointer into an
+        address space the other process does not have.
+
+  BOUNDARY B -- the C boundary, INSIDE the retrainer process
+    C++ caller           <--- CAMLprim stubs --->          OxCaml
+    what crosses         fixed-size scalars (CPP-3), status codes, and Bigarray
+                         for telemetry -- whose buffer lives OUTSIDE the OCaml
+                         heap and is therefore never moved by the GC, which is
+                         the entire reason it is the right carrier here.
+    what must not        no OCaml value persists in C++ across a call. Ever.
+    exceptions           every one caught inside OCaml and returned as a status
+                         code. CPP-25 forbids exceptions and the C++ side builds
+                         -fno-exceptions, so a crossing is undefined behaviour
+                         and must be STRUCTURALLY impossible, not merely avoided.
+```
+
+**Stubs are hand-written `CAMLprim`, not ctypes**, so that every crossing is a reviewable
+piece of source rather than a generated one -- the same argument `flight/` makes for being a
+hand-written transcription held to a reference at 1e-5.
+
+**And the model handoff crosses neither boundary as data.** It uses F's existing machinery:
+the retrainer writes a candidate `model.bin`, `FileDownlink` sends it and its validation
+metrics to the ground, **a human approves**, `FileUplink` returns it, and a command triggers
+the parameter reload. `Objective.md` 11 rule 1 holds literally -- **the flying model is never
+modified in place** -- and D70 consequence 6 is the record of that.
+
+### 47.7 The capability register: everything OxCaml is said to do is UNVERIFIED until an experiment says otherwise
+
+**The form is `docs/PHASE5.md` 4's, deliberately and without variation**, because that
+section is this repository's worked example of carrying a load-bearing claim honestly, and
+inventing a second form for a second claim is how the first one stops being followed.
+
+Each claim below is quoted as the claim, stamped, given its provenance, given what would
+discharge it, and given the fallback if it is not discharged.
+
+> **C1. A function marked `[@zero_alloc strict]` is proved by the compiler to perform no
+> allocation on any path, transitively through its call tree, and the build fails when it
+> does.**
+
+**UNVERIFIED.** Provenance: OxCaml's own documentation, read 2026-09-15. **Read, not run.**
+Discharged by: **E3**, on arithmetic of the shape a training step actually has, with `-g`,
+backtraces enabled and **no `assume` anywhere** -- and by a deliberately introduced
+allocation failing the build, because a check nobody has watched fail is not known to work.
+Fallback if it does not hold: the language's central advantage over C++ is gone, and D70
+alternative 1 -- a hand-written training loop under `flight/`'s discipline -- is what
+remains.
+
+> **C2. A separate OS process isolates the detector from the retrainer's garbage collector
+> completely enough for a 1 Hz flight rate group.**
+
+**UNVERIFIED, and this is the one that can end the approach on its own.** Provenance:
+inference from OCaml 5's documented stop-the-world minor collector plus F's documented hub
+pattern. **Two documented mechanisms reasoned about together are not a measurement.**
+Discharged by: **E2**. Fallback: none. **If E2 fails, OxCaml is refused and that is the
+finding**, reported as a negative result in full.
+
+> **C3. An OxCaml static library can be linked into an F' deployment built at C++14 with
+> `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime started from C++, and no flag
+> relaxed to achieve it.**
+
+**UNVERIFIED.** Provenance: the OxCaml and OCaml manuals' account of `caml_startup` and
+`CAMLprim`, plus this project's own flag set. Discharged by: **E1**. Fallback: if a flag has
+to be weakened, the approach is refused at once rather than measured further -- the flag set
+is what every number in this repository was taken under.
+
+> **C4. The toolchain can be built for aarch64 Linux and the result recorded reproducibly.**
+
+**UNVERIFIED.** Provenance: OxCaml's stated platform support -- x86-64 and arm64 Linux, arm64
+macOS -- read at its README. Discharged by: **E4**, natively on an arm64 host whose glibc
+matches the target, with the record in `docs/FPRIME.md`'s house form. Fallback: **if the
+eventual flight target is 32-bit ARM or an RTOS, E4 does not fail -- it ends the approach**,
+and this pre-registration says so before the measurement rather than after it.
+
+**(!) Nothing in 47.2 to 47.6 downstream of C1 and C2 may be quoted as established.** The
+architecture, the boundary discipline and the handoff are library-independent and stand on
+their own; **the assertion that a retraining engine can be written in OxCaml at all is what
+C1 and C2 are carrying**, exactly as `docs/PHASE5.md` 4 scopes the Armadillo claim.
+
+### 47.8 The pins, so that a later reader can rebuild exactly this
+
+Recorded as a template now and **filled with measured values at E1**, in
+`docs/FPRIME.md`'s house form -- pin, one command, a version block measured on a stated
+date, what is gitignored and why, and a proof that runs.
+
+```
+  oxcaml               commit           <pinned at E1>
+  ocaml base           5.4 plus later runtime patches, per OxCaml's own README
+  opam switch          <name>, created --empty and pinned to the OxCaml repository
+  dune                 <version>
+  target glibc         <version, and the host it was measured on>
+  host                 <uname, arch, cores, RAM>
+  fprime               v4.3.0, 7d8f579f159d2f7c2d4984d92828575e37f87fa6 (D31), unchanged
+```
+
+**Nothing of the OxCaml toolchain is committed**, for the reason `docs/FPRIME.md` 2 gives
+about the F' checkout: it is reproduced by a script, and a second copy in this repository
+would drift from upstream silently. The size cap (D64) is a second reason and not the first.
+
+### 47.9 Predictions
+
+Numbered, with bands, **written before any code**. Reported beside their outcomes, whatever
+those are. **E1 to E4 run in order and each is a stop** -- a band is not a reason to continue
+past one.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **X1** | **E1, the chain closes.** An OxCaml static library with five C-callable entry points -- `init`, `feed`, `step`, `status`, `export` -- hand-written `CAMLprim` stubs, linked into an F' component in `SentinelRef` running in its own process, returning a hand-checkable result. No ML | builds, links, the runtime starts from C++, and the returned value equals the hand-computed one **exactly** | the toolchain will not install on this host at all, so the boundary is never reached -- reported as a toolchain outcome, not a language one | it builds and the value is wrong, or the runtime cannot be started inside an F' deployment |
+| **X2** | **E1, the flag set survives.** The nine-flag set is unchanged and the binary links: C++14, `-fno-exceptions`, `-fno-rtti`, `-ffp-contract=off`, `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror` | unchanged, and `tests/test_flight_build.py`'s parity assertion still passes | -- | **any flag weakened or dropped. A stop**, because that flag set is what every measurement in this project was taken under |
+| **X3** | **E1, nothing leaks across boundary B.** No OCaml value is retained in C++ across any call; every entry point returns a fixed-size scalar or a status code; every exception is caught inside OCaml | exactly that, by inspection of all five stubs | -- | any stub returning or storing an OCaml value, or any path on which an exception could cross |
+| **X4** | **E2, THE ISOLATION GATE.** Detector per-cycle latency with the retrainer thrashing its GC in a separate process, against retrainer-idle | **TOST equivalence on the median at a margin declared before the run, AND p99.9 inside that margin, AND worst tick `<= 326 us`** (42.9's measured worst, which is 0.033% of the 1 Hz budget) | equivalence on the median with the tail outside it -- reported as exactly that and **not rounded to a pass** | not equivalent. **OxCaml is refused, and that is the finding** |
+| **X5** | **E2, what the process buys.** The same load with the retrainer as a domain in-process | worst tick degrades by **a factor `>= 2`** against the separate-process case | between 1x and 2x | **no measurable degradation** -- then 47.5's stop-the-world argument is wrong on this workload, and the separate-process requirement is **re-opened rather than defended** |
+| **X6** | **E2, the instrument can see.** A deliberate 1 ms stall injected into the detector, measured by the same apparatus | caught, and its size recovered | -- | not caught. **The whole of E2 is uninterpretable** and X4 and X5 are withdrawn rather than reported |
+| **X7** | **E3, `strict` holds on real arithmetic.** A matrix multiply and a gradient step, `[@zero_alloc strict]`, compiled with `-g` and backtraces enabled, **no `assume` anywhere** | clean build | it holds only with inlining hints that do not change the source's shape -- reported with the hints itemised | **it needs pervasive `assume` or inlining gymnastics. The core advantage does not hold**, and that is the finding |
+| **X8** | **E3, the check can fail.** A deliberately introduced allocation in the same code | **a compile error, not a warning** | -- | it builds. A gate that cannot go red is not a gate -- the argument `flight/Makefile` records about its own lint recipe, which could not fail until 2026-09-11 |
+| **X9** | **E3, the indirect-call rule is survivable.** All indirect calls are assumed allocating by the checker, and a gradient step is full of higher-order shapes | the gradient step needs **no `assume`** | **one** `assume`, itemised with the call it covers | more than one -- the labelling cost is not what the case assumed, and 47.4's abstraction claim weakens with it |
+| **X10** | **E4, the target builds.** aarch64 Linux, **natively on an arm64 host whose glibc matches the target**, not cross-compiled | builds, and E1's binary runs on it | builds, with no target available to run it on | will not build |
+| **X11** | **E4, the toolchain is reproducible from the record.** A second run from nothing, following `docs/FPRIME.md`'s form | every version in 47.8's block reproduces | -- | it does not, and the record is a description rather than a recipe |
+| **X12** | **The install cost, measured rather than assumed.** The OxCaml switch built from source on this host | under **90 min** wall clock and under **12 GiB** peak disk | 90 to 180 min, or 12 to 25 GiB | above either. **A stop** -- brought to the owner with the measured numbers before anything longer is run on this machine |
+
+### 47.10 Falsification
+
+**If X4 fails, this approach is over and the section is a negative result.** Not revisited,
+not re-run with a kinder margin: a garbage-collected runtime that cannot be isolated from a
+1 Hz detector by an OS process boundary cannot be near a flight detector by any arrangement
+this project would accept, and the finding is published as one. `docs/PHASE5.md` 4's mlpack
+route and D70 alternative 1's hand-written loop are what remain.
+
+**If X7 fails, the case collapses to its weakest form.** Without a compiler that proves the
+allocation property, OxCaml is a garbage-collected runtime with no qualified compiler, no
+flight heritage, a larger footprint than Rust and a narrower target list -- which is D70's
+table with its single winning row removed. **The honest conclusion would be that the
+strategic case was made on a capability the language does not deliver at this scale**, and
+that is what would be written.
+
+**If X1 or X2 fails, nothing downstream is meaningful** and E2 to E4 are not run. A chain
+that does not close is not a chain whose links are worth measuring.
+
+**And E4 can end the approach without failing.** If the eventual flight target is 32-bit ARM
+or an RTOS, OxCaml does not support it and no experiment changes that. X10 would be
+unrunnable rather than failed, and the approach would stop on a fact about the target rather
+than on a measurement about the language. **Registered before the measurement so it cannot
+be presented afterwards as a surprise.**
+
+### 47.11 Reporting
+
+**Losers reported in full**, with their bands, the same as 39.13's N3 and N6 and 42.9's
+account of the naive lead. A refused approach is a result this project publishes, not a
+branch it abandons quietly.
+
+**Every OxCaml capability carries its UNVERIFIED stamp until its own experiment reports**,
+and 47.7's register is updated by that experiment and by nothing else -- not by a second
+reading of the documentation, and not by a successful build of something adjacent.
+
+**Timing distributions in full, never a single number.** E2 reports median, p99, p99.9 and
+worst tick for every arm, against 42.9's measured worst of 326 us and the 1 Hz budget it is
+0.033% of. **A real-time gate is decided by its tail**, which is why X4's band is not a
+median test alone and why "statistically indistinguishable" is not the criterion: failing to
+reject a null rewards a noisy measurement, and TOST equivalence with a pre-declared margin
+does not.
+
+**No lead-time claim of any kind appears in this section**, and none of these experiments can
+produce one. Where a testbed lead is quoted anywhere downstream of this work, **42.9.5's rule
+binds**: it may be stated only if the same passage says it is fault-attributable, established
+by differencing against a healthy control on the same seed.
+
+**`k/n` with the UNDERPOWERED stamp wherever `n < 20`** (`docs/HARNESS.md` 1, and **not** D3
+-- 47.1 row 11). **Never point-adjusted F1** (Kim et al., AAAI 2022). Wall clock in seconds
+where it is a build or an install; **per-cycle figures in ticks and microseconds**, never in
+mission time.
+
+### 47.12 Cost, and stop and report
+
+**Zero bucket operations, throughout.** No experiment here reads telemetry: E1 returns a
+hand-checkable constant, E2 measures timing, E3 compiles arithmetic, E4 builds a toolchain.
+**The ledger does not move**, and it is read from `docs/STATUS.md` rather than from the
+bucket, which would itself cost a Class B.
+
+**Compute is the real cost and it is unmeasured**, which X12 exists to fix before anything
+long runs. There is no `opam` on this host, so the switch builds the compiler from source.
+**E1 to E3 run natively on this machine** -- arm64 macOS is a supported OxCaml platform.
+**E4's host does not exist yet**: this machine is arm64 macOS with no Linux, no container
+runtime and no cross-compiler. **That choice -- a pod, or a container runtime installed
+locally -- is taken at E4 time and not before**, with its numbers, because stopping after
+each experiment is the method and X4 can end the approach before a host is worth paying for.
+
+Stop and report, carrying 39.12's eight forward and adding four:
+
+1. The C++ cannot reach 1e-5 on any tier, or a crossing flag ever differs (N1). **Unchanged
+   and untouched here: no experiment below modifies `flight/`.**
+2. A vector needs anything beyond the cached weights and the fixture.
+3. The format needs a field the documents did not anticipate. **`model.bin` is not touched
+   by any experiment here; the trigger stays armed.**
+4. Anything would touch the frozen decision layer, the spent held-back sets, or Python
+   training code.
+5. Any bucket operation at all.
+6. N4 fires -- determinism is not a prediction that gets a NO VERDICT.
+7. N8 fires -- the vectors would take tracked content past 7 MiB.
+8. The measured `sizeof` lands outside N3's band.
+9. **(!) Anything under `flight/` or `fprime/` changes.** `tests/test_master_documents_are_current.py`
+   asserts both trees byte-identical across `dev` and `master`, so **E1 forces a `master`
+   commit in the same breath**. That is a stop and a conversation, not a step. **It is also
+   why 47.1 row 14's citation drift matters**: a line citation into a growing file is a
+   figure nothing re-derives, and the fourth instance of one is a pattern rather than an
+   accident.
+10. **X2 fires** -- any flight flag weakened to make a link succeed.
+11. **X12 fires** -- the install costs more than its band, and the owner sees the measured
+    numbers before a longer run is started on this machine.
+12. **A capability in 47.7 would be quoted as established by anything other than its own
+    experiment.**
+
+### 47.13 OBSERVED
+
+**Empty. Nothing has been run.** This section is filled by E1, E2, E3 and E4 in order, each
+reported when it completes and each a stop, with its predictions beside their outcomes and
+its losers in full.
+
+### 47.14 Deferred, with the slots registered so the gaps are visible
+
+**E5, the retraining engine itself.** Built only after E1 to E4 pass, and pre-registered in
+its own right when they do -- what it trains, on what window, under whose approval, and how
+`docs/PHASE5.md` 5's seven open questions are answered rather than inherited. Question 4 --
+*what counts as recent healthy telemetry, decided onboard* -- is the hardest of them and is
+closest to `Objective.md` 11 rule 1; `docs/PHASE5.md` 5 says it is a pre-registration of its
+own and that remains true.
+
+**The Rust arm of E3.** Named at 47.4, owed, and not taken. The same matrix multiply and
+gradient step in Rust, scored on the same criterion, is the measurement that would test the
+one row of D70's table this project is reasoning about rather than measuring. **Not built,
+and the reason is the schedule rather than the result**, which is the honest form of that
+sentence.
+
+**The Armadillo claim at `docs/PHASE5.md` 4.** Neither discharged nor replaced by anything
+here. If OxCaml is refused, that claim becomes load-bearing again immediately, and what
+would discharge it is unchanged: the mechanism named, cited by file and version, with
+whether it covers the expression templates mlpack's layers instantiate and whether
+ensmallen's optimisers allocate.
+
+**`docs/INDEX.md`'s row for this file** stops at 39 and is behind by 40 to 46 before this
+section adds a 47. **Nothing guards it** -- it is prose describing a document, and no test
+re-derives it. Recorded here rather than extended silently, because a one-line fix made
+without the owner seeing the gap is how the gap comes back.
