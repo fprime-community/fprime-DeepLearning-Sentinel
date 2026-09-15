@@ -13765,13 +13765,20 @@ discharge it, and given the fallback if it is not discharged.
 > allocation on any path, transitively through its call tree, and the build fails when it
 > does.**
 
-**UNVERIFIED.** Provenance: OxCaml's own documentation, read 2026-09-15. **Read, not run.**
-Discharged by: **E3**, on arithmetic of the shape a training step actually has, with `-g`,
-backtraces enabled and **no `assume` anywhere** -- and by a deliberately introduced
-allocation failing the build, because a check nobody has watched fail is not known to work.
-Fallback if it does not hold: the language's central advantage over C++ is gone, and D70
-alternative 1 -- a hand-written training loop under `flight/`'s discipline -- is what
-remains.
+**DISCHARGED 2026-09-15 by E3 (47.13.4). The first of the four.** Provenance was OxCaml's
+own documentation, read and **not run**; it is now run. `matmul`, `forward` and `grad_step`
+hold `[@zero_alloc strict]` with `-g`, backtraces enabled, `-zero-alloc-check all` and
+**zero `assume` annotations**; a deliberately introduced allocation fails the build with a
+**compile error**; an indirect call is refused; and allocation on an **exceptional return**
+is refused by `strict` where relaxed permits it. **One accommodation** was required and is
+itemised at 47.13.4: a float returned across a non-inlined boundary is boxed, so the one
+function that returned a float writes into a preallocated slot instead.
+
+**What remains UNVERIFIED around it**: that the property survives a *training loop* rather
+than four functions on preallocated arrays. Four annotated functions are not an optimiser, a
+learning-rate schedule or a recurrent cell, and `docs/PHASE5.md` 5 question 2 is untouched.
+**C1 as worded is discharged; the inference from C1 to "a retraining engine can be written
+this way" is not**, and E5 is where that would be earned.
 
 > **C2. A separate OS process isolates the detector from the retrainer's garbage collector
 > completely enough for a 1 Hz flight rate group.**
@@ -14342,6 +14349,92 @@ median equivalence states this in the same breath.
 **Cost.** Zero bucket operations; ledger unmoved at 238 Class A and 5,740 Class B. 22 s of
 wall clock, 720,000 timed cycles, no dataset and no network. `flight/` and `fprime/`
 untouched, so `master` does not move.
+
+#### 47.13.4 E3 OBSERVED -- `strict` holds on real arithmetic, and the one thing it demanded was a signature
+
+**2026-09-15. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. Source
+`oxcaml/retrainer/zalloc.ml` and `zalloc_main.ml`, in this commit. Compiled **with `-g`,
+backtraces enabled, `-zero-alloc-check all`, and no `assume` anywhere**, exactly as 47.9
+registered.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **X7** | `strict` holds on a matrix multiply and a gradient step, no `assume`, no inlining gymnastics | **`matmul`, `forward` and `grad_step` passed on the first compilation, unchanged.** No inlining hint was used anywhere. **One accommodation**, itemised below, and it was a signature rather than a body | **HELD** |
+| **X8** | a deliberately introduced allocation fails the build | `Array.make` inside `matmul`: **`rc=2`, "Error: called function may allocate (external call to caml_array_make)"** -- a compile error, not a warning | **HELD** |
+| **X9** | the gradient step needs no `assume` | **Zero `assume` annotations in the file.** The only two occurrences of the word are in comments saying there are none | **HELD** |
+
+**(!) THE ONE ACCOMMODATION, STATED SO A READER CAN WEIGH IT.** Written the obvious way,
+`checksum` returned its float and the checker refused it: **"Error: allocation of 16 bytes
+for float"**. It was right -- a float **returned** across a non-inlined boundary is boxed.
+**The arithmetic was never the problem**; the return type was. It now writes into a
+preallocated slot, which is the same shape 47.6 already requires at the C boundary.
+
+**A stricter reading than 47.9's would call that a NO VERDICT**, and the band does not,
+because it reserves NO VERDICT for *inlining hints that do not change the source's shape*
+and there were none of those. **The reading is offered rather than argued away.**
+And note what did **not** allocate: the `ref 0.0` accumulators in all four functions, which
+flambda2 unboxes without being asked.
+
+**(!) AND THE ANNOTATED CODE COMPUTES SOMETHING, WHICH IS WHAT ENTITLES X7 TO THE WORDS
+"REAL ARITHMETIC".** A zero-alloc function that computes nothing passes trivially, so
+`zalloc_main.ml` runs the annotated functions and checks them against values worked out by
+hand: `a` and `b` all ones gives every element of `c` equal to **16**; `w = 0`, `x = 1`,
+`y = -1`, `lr = 0.5` gives `w = -1.0` after one gradient step and **14.0** after two. All
+eight checks exact.
+
+**Three things the checker was made to demonstrate rather than be taken on documentation.**
+
+```
+  indirect calls          a higher-order call inside a strict function:
+                          REJECTED, "called function may allocate (indirect call)".
+                          47.1 row 23 holds, by experiment.
+
+  exceptional paths       the distinction `strict` exists for, isolated so that the
+                          annotation is the ONLY variable and the function returns unit:
+
+                             with -g     relaxed  BUILT        strict  REJECTED
+                            without -g   relaxed  REJECTED     strict  REJECTED
+
+                          strict's refusal names it: "may allocate ON A PATH TO
+                          EXCEPTIONAL RETURN". 47.1 row 22 holds.
+
+  the -g mandate          load-bearing, and now shown to be. WITHOUT -g the relaxed
+                          annotation rejects the same code, because every raise is
+                          treated as raise_notrace -- so a build without -g would have
+                          made strict and relaxed indistinguishable and the whole
+                          mandate moot. 47.9 required -g for this reason and was right.
+```
+
+**(!) A FIRST PROBE OF THE EXCEPTION PATH WAS WRONG AND IS RECORDED RATHER THAN DROPPED.**
+It gave a function that **returned a float**, so both arms failed on **return-value boxing**
+-- the same 16-byte float allocation as `checksum` -- and the exception path was never
+reached. Rewritten to return `unit`, which leaves the annotation as the only variable. **The
+mistake is the same one E2's X6 made**: an instrument that fails for a reason unrelated to
+the thing it is testing, and it was caught the same way, by reading the error rather than the
+verdict.
+
+**Incidental, and relevant to 47.5 rather than to E3.** `ocamlopt` carries
+`-enable-poll-insertion` and `-disable-poll-insertion`. 47.5's argument rests on native code
+having poll points at function entry and loop back-edges; **that they are a compiler flag is
+noted and nothing is concluded from it here**, because E3 measured no timing and a flag's
+existence is not a measurement.
+
+**What E3 establishes.** 47.7's **C1 is DISCHARGED** -- the first of the four to be. The
+compiler does prove the property, transitively through the call tree, on every path including
+exceptional returns, and it fails the build with a compile error when it does not hold. That
+is the capability the strategic case at D70 rests on, and it is now demonstrated rather than
+read.
+
+**What E3 does not establish.** Nothing about a training loop: four functions on
+preallocated arrays are not an optimiser, a schedule, or a recurrent cell, and
+`docs/PHASE5.md` 5's question 2 is untouched. Nothing about isolation -- **C2 remains
+UNVERIFIED and conditional** (47.13.3). Nothing about a flight target; **C4 untouched**. And
+nothing about OxCaml's unboxed `float#`, which is the language-native answer to the one
+accommodation above and was deliberately not reached for, because E3 asks what plain OCaml
+costs under `strict`.
+
+**STOP. E4 is not started.**
 
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
