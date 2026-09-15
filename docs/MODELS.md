@@ -13847,6 +13847,68 @@ past one.
 | **X11** | **E4, the toolchain is reproducible from the record.** A second run from nothing, following `docs/FPRIME.md`'s form | every version in 47.8's block reproduces | -- | it does not, and the record is a description rather than a recipe |
 | **X12** | **The install cost, measured rather than assumed.** The OxCaml switch built from source on this host | under **90 min** wall clock and under **12 GiB** peak disk | 90 to 180 min, or 12 to 25 GiB | above either. **A stop** -- brought to the owner with the measured numbers before anything longer is run on this machine |
 
+#### 47.9.1 E2's margins and design, declared 2026-09-15 BEFORE the harness was built
+
+**X4 says "at a margin declared before the run" and 47.9 did not give the number.** This
+fixes that, and it is a separate dated block rather than an edit to X4 so that the order is
+checkable: this commit lands before any E2 measurement exists. **Nothing below was chosen by
+looking at a result, because there is no result to look at.**
+
+**The basis is 42.9's own measurements of the same `Sentinel::Detector`**: per tick **median
+11 us, worst 326 us**, against this deployment's 1 Hz period, which is **0.033%** of the
+budget at worst. Every margin here is derived from those two numbers and from nothing else.
+
+```
+  d_median   10 us    the equivalence margin on the median. Just under ONE median
+                      tick of the detector's own work (42.9's 11 us). A shift the
+                      detector would not notice inside its own quantum.
+  d_tail     50 us    the thrashing arm's p99.9 may exceed the idle arm's by at
+                      most this. About 15% of 42.9's worst tick.
+  worst      326 us   ABSOLUTE, not relative: 42.9's measured worst tick. The
+                      thrashing arm may not exceed it at all.
+```
+
+**The test is TOST, and the reason is in 47.9 already**: failing to reject a null rewards a
+noisy measurement, so equivalence is the thing to demonstrate rather than the thing to fall
+back on. **Two one-sided tests at alpha = 0.05**, which is the 90% confidence interval of the
+difference in medians lying entirely inside `+/- d_median`. The interval is a **bootstrap**
+one -- 10,000 resamples -- because per-cycle latencies are heavy-tailed and a normal-theory
+interval on this data would be a statement about an assumption rather than about the timing.
+
+**Three arms, and the third exists only to price the second.**
+
+```
+  A  idle       the detector alone, no retrainer running
+  B  process    the detector, with the retrainer thrashing its GC in a SEPARATE
+                OS PROCESS. This is the arm X4 adjudicates
+  C  thread     the detector, with the retrainer thrashing its GC on a second
+                DOMAIN IN THE SAME PROCESS. This is the arm X5 prices
+```
+
+**N = 200,000 detector cycles per arm**, run **interleaved in ten blocks of 20,000 per arm,
+round-robin A B C**, so that thermal drift and any background load on the host land on all
+three arms rather than on whichever ran last. **The first block of each arm is discarded as
+warm-up** and is not in any figure.
+
+**(!) AND WHAT THIS MEASURES IS PER-CYCLE COMPUTE LATENCY UNDER CONTENTION, NOT RATE-GROUP
+SCHEDULING JITTER.** The detector free-runs rather than being paced at 1 Hz, because pacing
+200,000 cycles at 1 Hz is 55 hours per arm. A GC stall -- the mechanism 47.5 is about --
+shows up in per-cycle compute time, so this is the right instrument for the question. It is
+**not** an instrument for scheduler behaviour under a real rate group, and no figure from E2
+is quoted as one.
+
+**Verdicts, fixed here.**
+
+| Arm B result | X4 |
+|---|---|
+| the 90% bootstrap CI of the median difference lies inside `+/- 10 us`, **and** p99.9 exceeds A's by at most 50 us, **and** worst tick `<= 326 us` | **HOLD** |
+| median equivalent, one or both tail criteria outside | **NO VERDICT**, reported as exactly that and not rounded to a pass |
+| median not equivalent | **FAIL. OxCaml is refused and that is the finding**, and 47.10 governs what is written |
+
+**X5** holds if arm C's worst tick is at least **2x** arm B's. **X6** is run first, not last:
+a deliberate **1 ms** stall injected into the detector must be recovered by the same
+instrument, to within 10%, or X4 and X5 are withdrawn rather than reported.
+
 ### 47.10 Falsification
 
 **If X4 fails, this approach is over and the section is a negative result.** Not revisited,
