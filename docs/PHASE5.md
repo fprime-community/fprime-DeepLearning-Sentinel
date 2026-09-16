@@ -273,3 +273,93 @@ questions 1 to 3, which are mlpack-, Armadillo- and BLAS-specific and would be r
 rather than answered if the OxCaml route were taken. **Question 4 -- what counts as recent
 healthy telemetry, decided onboard -- is unaffected by any of this, is still the hardest, and
 is still the one closest to `Objective.md` 11 rule 1.**
+
+---
+
+## 8. Rider, 2026-09-16: an eighth open question, because the ground recipe and rule 5 contradict each other
+
+**Sections 1 to 7 are not edited.** This rider adds a question section 5 does not carry.
+It is registered here, beside the other seven, rather than inside whichever pre-registration
+eventually meets it, **because it is a contradiction between two things this project has
+already committed to and a reader needs to meet it where the open questions live.**
+
+**Question 8, continuing section 5's numbering. How many epochs, when the recipe says "until it stops improving" and the rule says
+"fixed compute per cycle".**
+
+**The two statements, both of record.** The ground training recipe, which onboard retraining
+is supposed to be the same recipe as (`docs/PHASE5.md` 6, *"building it twice, in two
+languages, before the ground one is settled would be building the second one against a moving
+target"*), is `src/sentinel_models/lstm.py:94-96`:
+
+> `batch_size: int = 70` ... `max_epochs: int = 35` ... `patience: int = 10`
+
+**`patience` is early stopping.** The number of epochs actually run is **data-dependent**:
+somewhere between a handful and 35, decided by a validation loss that has not improved for
+ten epochs, with the best weights restored afterwards. The improvement test is
+`src/sentinel_models/lstm.py:118-120`:
+
+> `min_improvement: float = 0.001` -- *"an epoch must beat the best by 0.1%"* -- and
+> `validation_fraction: float = 0.2`, *"published as a random split; ours is the
+> chronological tail"*
+
+**(!) AND THE EPOCH COUNTS IN `lstm.py`'s OWN COMMENT MUST NOT BE QUOTED HERE.**
+`src/sentinel_models/lstm.py:98-105` records that telemanom's absolute `min_delta` of 3e-4
+made the improvement bar negative on ESA-ADB, so *"no epoch ever registered as an
+improvement"* and patience fired at 11 **for every fit in the project** -- a defect, since
+replaced by the dimensionless rule above. **That 11 is the number the bug produced, not the
+number the recipe produces**, and the honest statement is that under the current rule the
+epoch count is data-dependent and **has not been characterised**.
+
+And `Objective.md` 11 rule 5, quoted from `Objective.md:984`:
+
+> **"Deterministic onboard code.** Fixed memory, fixed compute per cycle, same inputs ->
+> same outputs."
+
+**These cannot both hold.** A training run whose length depends on the data it is training on
+does not have fixed compute. Section 5 question 5 already asked for *"a fixed number of
+operations rather than a convergence criterion"* -- **but it asked it as a design question
+about fitting inside a rate group, not as a conflict with the recipe**, and the conflict is
+the harder half. **Question 5 is about the budget. This is about the recipe being
+incompatible with having one.**
+
+**(!) AND IT IS NOT DISPOSED OF BY SAYING "RUN A FIXED 35".** Three things go with early
+stopping and each costs something to drop:
+
+```
+  early stopping       fixed epochs run the model past its best point on data that
+                       stopped improving. telemanom's own recipe does not do this,
+                       so a fixed-epoch onboard model is NOT the ground recipe and
+                       cannot be quoted as though it were.
+
+  best-weights restore drops with it, or is kept by holding a THIRD copy of the
+                       weights (75,360 parameters) and a validation pass that is
+                       itself compute the budget has to carry.
+
+  the validation split which is what patience watches. Onboard, it comes out of the
+                       same "recent healthy telemetry" question 4 has not answered,
+                       so this question is entangled with the hardest one.
+```
+
+**Four candidate answers, none chosen here:**
+
+1. **Fixed epoch count, early stopping dropped.** Cheapest, deterministic, and **a
+   documented divergence from the ground recipe** that every later comparison has to carry.
+2. **Fixed epoch count with best-weights restore kept**, validation run every epoch. Still
+   deterministic; costs a third weight buffer and a validation pass per epoch.
+3. **Early stopping kept, with a hard epoch ceiling**, so compute is *bounded* rather than
+   *fixed*. **Rule 5 says fixed.** Taking this means arguing that a bound satisfies the rule,
+   which is a reading of rule 5 and not an application of it.
+4. **Retraining moved off the rate group entirely**, into a background task with a deadline,
+   so "per cycle" stops being the unit. **This is closest to what D70 consequence 2's separate
+   process already implies** -- and it is the answer that most needs writing down before it is
+   assumed, because the separate process was decided for GC isolation, not for this.
+
+**What would settle it:** a decision recording which of the four is taken, what it costs
+against the ground recipe, and -- if 3 or 4 -- an explicit reading of `Objective.md` 11 rule 5
+stating that a bound or a background deadline satisfies "fixed compute per cycle". **That is
+an amendment to a governing document if it is anything**, and D63 is the precedent for how
+this project treats a rule-1-shaped disagreement: record it, do not edit the rule to fit.
+
+**Nothing here is decided, and no pre-registration below it may quietly pick one.** A section
+that runs a fixed epoch count without saying it has answered this question has answered it by
+default, which is the failure mode this rider exists to prevent.
