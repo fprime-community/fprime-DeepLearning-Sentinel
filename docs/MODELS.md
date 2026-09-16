@@ -14436,6 +14436,51 @@ costs under `strict`.
 
 **STOP. E4 is not started.**
 
+#### 47.13.5 E4, and the two things that must be said before a host is rented
+
+**Nothing has been run. This block exists because E4 cannot start without a host that does
+not exist, and because one clause of its own pre-registration turns out to be unsatisfiable
+as written.**
+
+**(!) "MATCHING TARGET GLIBC" CANNOT BE SATISFIED, BECAUSE THIS PROJECT HAS NO DECLARED
+FLIGHT TARGET.** 47.9 X10 asks for a build *"natively on an arm64 host whose glibc matches
+the target"*, and 47.8's pin block has carried `target glibc  NOT MEASURED` since E1. There
+is no target to match: `Objective.md` 12's Phase 4 names *"Raspberry Pi / Snapdragon-class
+hardware"* as an envelope to measure, not as a flight target, and `docs/PI_ENVELOPE.md` is
+reserved and empty. **So E4 will record the glibc it built AGAINST and cannot record a
+match**, and X10's band is read accordingly: *builds, and E1's binary runs on it*. The
+matching clause is **registered as owed** and is discharged only when a target is declared.
+Stated here rather than quietly dropped from the band.
+
+**And the kill condition is unchanged and still armed.** If the eventual flight target is
+**32-bit ARM or an RTOS**, OxCaml does not support it, **E4 ends the approach** and no
+result on any Linux host changes that. That was registered at 47.10 before any measurement
+and is not softened now.
+
+**What E4 covers, and what it does not.** On the host: the OxCaml switch from
+`scripts/oxcaml_setup.sh`, then **E1's library and harness** -- which must return count 10,
+sum 55, mean 5.5 exactly, the same hand-checked numbers as on macOS -- and **E3's
+`[@zero_alloc strict]` check**, which must hold on aarch64 or the discharge of C1 at 47.13.4
+is architecture-specific and says so. **The F' deployment is NOT built on the host**: that
+needs the v4.3.0 framework checkout and its tool virtualenv, which is a second install of a
+different kind, and it is **registered as owed at 47.14** rather than smuggled into E4's
+scope.
+
+**Cost, stated before anything is spent.** Scaled from E1's measured build -- 373.5 s wall
+on 10 cores, **1,345 s of CPU**, peak RSS **1.72 GiB**, **2.7 GiB** on disk:
+
+```
+  need        aarch64 Linux, glibc (OxCaml excludes musl), >= 4 GB RAM, >= 20 GB disk
+  build       1,345 CPU-seconds. About 20-35 min on 2 slower ARM cores, 10-18 on 4
+  session     provision, install, E1, E3, record. One to two hours, generously
+```
+
+**No provider account exists in this repository and none will**: `.env` holds R2 and Kaggle
+credentials only, and hosts and accounts are the owner's (D15, D26). **The provisioning is
+the owner's to do**, and the figures below were read from third-party aggregators rather
+than from either vendor's own page, which is stated because 47.1 rows 16 and 17 are what
+happens when a number's provenance is not.
+
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
 **E5, the retraining engine itself.** Built only after E1 to E4 pass, and pre-registered in

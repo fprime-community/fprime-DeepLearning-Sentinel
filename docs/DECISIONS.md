@@ -5725,6 +5725,24 @@ pattern -- `docs/user-manual/design-patterns/hub-pattern.md` at the v4.3.0 pin, 
    first sentence of the alert, which is categorical, and not on a threshold that was not
    reached.
 
+   **(!) AND THE CLAIM THAT TEN DOMAINS IS FORBIDDEN CAME FROM THE INSTRUCTION, NOT FROM
+   THE SOURCE.** It arrived as a direction to relabel E2's saturated arm *because "ten
+   domains is a configuration the language forbids"*. **It is not**, and the disagreement
+   was found by reading `domain.mli` before acting on it: `recommended_domain_count ()` is
+   **10** on a **10**-core host, so that arm sat exactly **at** the count; and every
+   thrashing arm in E2 -- including the two whose numbers were kept -- calls `Domain.spawn`,
+   so a prohibition on spawning could not have separated one from the others anyway. The
+   relabelling was right and its stated reason was not; it stands on **core saturation**,
+   which is the real distinction. Accepted as an error 2026-09-15.
+
+   **This is the same failure mode as consequence 10 and it is logged beside it on purpose.**
+   There, two claims arrived in a brief and argued *against* the position being adopted.
+   Here, one arrived in an instruction and argued *for* a change that was going to be made
+   anyway -- which is the easier of the two to wave through, because nothing about accepting
+   it feels like a concession. **A claim that arrives with the authority to act on it gets
+   less scrutiny than one that arrives as an argument**, and the rule is unchanged by where
+   it came from: read the source before the source is quoted.
+
    **What this fixes in the design.** The retrainer is one OS process running one domain.
    Parallelism inside it, if it is ever wanted, goes through `Multicore` from the threading
    library as the alert directs, and that is a pre-registration of its own. Nothing in
