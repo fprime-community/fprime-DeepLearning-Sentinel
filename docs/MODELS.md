@@ -456,7 +456,8 @@ prediction that failed and why. This document follows the same discipline.
   - [48.5 Falsification](#485-falsification)
   - [48.6 Reporting](#486-reporting)
   - [48.7 Cost, and stop and report](#487-cost-and-stop-and-report)
-  - [48.8 OBSERVED](#488-observed)
+  - [48.8 OBSERVED -- the backward pass holds clean, and the forward needs one hint](#488-observed----the-backward-pass-holds-clean-and-the-forward-needs-one-hint)
+  - [48.9 Owed](#489-owed)
 
 <!-- /toc -->
 
@@ -14741,6 +14742,100 @@ Stop and report, carrying 47.12's twelve forward and adding two:
     construction**, and reaching for one means 47.14's ordering is being overridden after all
     -- which is a decision to take, not a step to slide into.
 
-### 48.8 OBSERVED
+### 48.8 OBSERVED -- the backward pass holds clean, and the forward needs one hint
 
-**Empty. Nothing has been run.**
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host: the arm64 macOS
+host E1 to E3 ran on. Source `oxcaml/retrainer/gru_cell.ml`, `gru_check.ml`, `gru_diag.ml`,
+`g6_flight_cell.cpp` and `scripts/oxcaml_s48.sh`, in this commit.
+
+**THE HEADLINE: `docs/PHASE5.md` 5 QUESTION 2 IS ANSWERED YES FOR OxCaml.** The backward pass
+of the flown GRU cell, at the flown shape, with fixed-size gradient buffers, **holds
+`[@zero_alloc strict]` with no `assume` and no inlining hint of any kind.** That is the
+question this section existed to ask.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **G1** | forward holds `strict`, no hint | **Needs exactly one `[@inline]`, on `sigmoid`.** Unhinted, `forward` fails with *"called function may allocate (direct call camlGru_cell__sigmoid)"*: a float **returned** across a function boundary is boxed -- 47.13.4's `checksum` finding again -- and flambda2 does **not** inline it unasked | **NO VERDICT**, which is the band's own wording for a hint, itemised |
+| **G2** | **the backward pass holds `strict`**, no `assume` | **HOLDS, and holds unhinted.** With every hint and annotation stripped from `sigmoid`, the only function that fails is `forward`; `backward` and `zero_grads` pass untouched. `backward` never calls a float-returning helper -- it reads the stored `r`, `z`, `n` and differentiates in place | **HELD** |
+| **G3** | gradients right to 1e-6 relative over all 23,616 | **1.309e-06** at `eps = 1e-5`, worst on `w_ih`. Just outside | **NO VERDICT**, and the band is not moved. Diagnosed below |
+| **G4** | zero `assume` | **0**. The two occurrences of the word are comments saying so | **HELD** |
+| **G5** | a deliberate allocation fails the build | `Array.make` inside **`backward`**: `rc=2`, *"called function may allocate (external call to caml_array_make)"* | **HELD** |
+| **G6** | the forward cell is the flown cell | **5.199e-06** against `flight/`'s own `Gru::step` | **NO VERDICT**, inside the band 48.4 labelled *"consistent with F32-vs-F64"* |
+
+**(!) G3's MISS IS FINITE-DIFFERENCE ROUNDOFF, NOT A WRONG GRADIENT, AND THE BAND STILL
+STANDS.** An `eps` sweep (`gru_diag.ml`) is the textbook U-shape rather than an error floor:
+
+```
+    eps      worst rel     worst abs     worst rel where |g| > 1e-3
+    1e-3     5.271e-07     1.477e-07     5.271e-07
+    1e-4     9.823e-08     1.477e-09     5.215e-09
+    1e-5     1.309e-06     3.362e-11     1.645e-08     <- the reported figure
+    1e-6     1.117e-05     2.601e-10     1.705e-07
+    1e-7     2.085e-04     2.463e-09     1.615e-06
+```
+
+**A wrong gradient shows a floor that does not move with `eps`.** This moves by a factor of
+ten per decade below `1e-4`, which is roundoff `O(macheps/eps)` exactly; the worst
+**absolute** error bottoms at **3.362e-11**; and restricted to gradients above `1e-3` the
+worst relative error is **1.6e-8**. The 1.3e-6 is near-zero gradient entries inflating a
+relative denominator.
+
+**(!) AND THE REASON IT IS STILL NO VERDICT IS A DEFECT IN THIS SECTION'S OWN
+PRE-REGISTRATION.** 48.4 fixed a tolerance and **never fixed `eps`**. At `eps = 1e-4` the
+worst relative error over all 23,616 is **9.823e-08** and G3 would be a HOLD. **Choosing that
+`eps` now, having seen both numbers, would be tuning to pass**, so the figure reported is the
+one the checker was written with before any of this was known. **The band was
+under-specified, that is my error, and the verdict stands rather than the band moving.** A
+re-run with `eps` declared first is registered as owed at 48.9.
+
+**(!) BOTH INSTRUMENTS WERE SHOWN TO CATCH THE DEFECT THEY EXIST FOR.** 48.1 names two
+details a textbook GRU gets wrong. One of them -- `b_hn` **inside** the reset product, D26's
+defect -- was deliberately introduced and both checks caught it hard:
+
+```
+  correct cell     G6  5.199e-06        G3  1.309e-06
+  b_hn moved out   G6  9.022e-02        G3  1.670e+00
+                       17,000x worse         a different quantity entirely
+```
+
+**The other detail cannot be probed this way, and saying so matters.** ATen's
+`(h - n) z + n` and the textbook `(1 - z) n + z h` are **algebraically identical** --
+`(h-n)z + n = hz + n(1-z)` -- so they differ only in floating-point evaluation order. The
+transcription follows ATen's because every measurement in this project was taken against it,
+but **no test here would distinguish them**, and 48.1's warning about that detail rests on
+reading rather than on a check.
+
+**What this establishes.** The recurrent backward pass is not where OxCaml's allocation
+guarantee breaks. 47.7's **C1 stays discharged and now extends further than 47.13.4 could
+claim**: not only feed-forward arithmetic but the backward pass of the actual model, at the
+actual shape, with gradient accumulation into fixed buffers.
+
+**What it does not.** **One cell, one timestep, one layer.** No optimiser, no learning-rate
+schedule, no sequence, no backpropagation through time, no window selection, no model file
+and no F' component -- 48.7 stop 14 kept all of it out by construction. **Float64 where the
+flight core is F32** (48.3), so no figure here is quoted beside a flight-core figure. And
+**no timing figure exists**: 48.6 forbids one, and a per-cycle training cost against
+`Objective.md` 11 rule 5 remains E5's to establish.
+
+**47.14's ordering is unchanged and E5 has not started.** E4 has not run and E2 is NO
+VERDICT.
+
+### 48.9 Owed
+
+**A G3 re-run with `eps` declared before it.** The band was under-specified and the verdict
+above records that rather than repairing it. What would settle G3 is a pre-registered `eps`
+-- `1e-4` is where the sweep's absolute error is smallest over the whole parameter set -- or
+a criterion on **absolute** rather than relative error, which the near-zero entries argue for.
+**Not taken here, because taking it now would be choosing the test after seeing the answer.**
+
+**A float64 comparison against `src/sentinel_models/reference.py`'s forward.** 48.2 named this
+when it chose finite differences: a self-contained check proves the gradient agrees with
+*this* forward pass and cannot prove the forward pass is the reference's. G6 narrows that gap
+against `flight/` at F32; it does not close it. The same debt 39.14 carries for the threshold.
+
+**A float32 cell.** 48.3's departure. Registered, not built.
+
+**Backpropagation through time.** One timestep is not a sequence, and the gradient buffers a
+sequence needs -- carried state, accumulated across steps -- are the next place `strict` could
+break. This is the nearest thing to a successor experiment and it is **not** E5.
