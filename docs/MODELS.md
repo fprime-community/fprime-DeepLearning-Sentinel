@@ -14481,6 +14481,51 @@ the owner's to do**, and the figures below were read from third-party aggregator
 than from either vendor's own page, which is stated because 47.1 rows 16 and 17 are what
 happens when a number's provenance is not.
 
+#### 47.13.6 E4 DEFERRED, 2026-09-16, to a single hardware session with 41
+
+**Nothing is provisioned and nothing is spent.** E4 stays **prepared and unrun** exactly as
+47.13.5 committed it: the setup script is OS-aware, the cost is stated, the scope is fixed
+and the kill condition is armed.
+
+**The reason is that two experiments want a board and neither wants it alone.** Section 41,
+the Raspberry-Pi envelope, has been *"written before the board is switched on, and before one
+is in hand"* since it was registered, and `docs/PI_ENVELOPE.md` has been reserved and empty
+longer than that. E4 needs an aarch64 Linux host with glibc. **Running both in one session is
+one provisioning, one toolchain install and one set of travel costs rather than two.**
+
+**(!) AND ONE BOARD MAY SATISFY BOTH, WHICH IS WORTH CHECKING FIRST RATHER THAN ASSUMING.**
+A Raspberry Pi running **64-bit** Raspberry Pi OS is aarch64 with glibc, which is exactly
+E4's platform requirement. If that holds, the session needs one board and not two machines.
+What to check **before** relying on it, none of which is established here:
+
+```
+  RAM        E1 measured peak RSS 1.72 GiB building the switch. A 4 GB board is the
+             floor and an 8 GB one is comfortable; a 2 GB Pi 4 is not enough.
+  disk       2.7 GiB for the switch, more in flight during the build. 32 GB of card
+             is workable, and an NVMe hat is better than an SD card for a compile.
+  time       1,345 CPU-seconds. On four slower cores that is tens of minutes, not the
+             six it took on this host, and it should be measured rather than projected.
+  64-bit     a 32-bit Raspberry Pi OS image does NOT satisfy E4. OxCaml excludes
+             32-bit ARM, and 47.10's kill condition fires on a 32-bit target.
+```
+
+**(!) THEY MEASURE DIFFERENT THINGS AND MUST NOT BE CONFLATED IN THE REPORTING.** Section
+41.2's unit under test is **`Detector::step`**, the C++ flight core's per-tick path, against a
+1,000 ms period. E4's unit under test is **the OxCaml toolchain** -- that it builds, that E1's
+harness returns the same hand-checked numbers, and that E3's `strict` check still holds. One
+board, two experiments, two sections, and **no figure crosses between them**.
+
+**And they must be sequenced, not overlapped.** E2 measured what a compiler-shaped load does
+to a neighbour on the same host: with the cores saturated, the detector's worst tick went to
+8.94 ms. **An OxCaml build running while 41 is timing `Detector::step` would corrupt 41's
+numbers in exactly the way E2 documents.** Build first, measure second, and say which order
+was used.
+
+**What this changes in 47.14's ordering: nothing yet.** E5 is still registered there as built
+only after E1 to E4 pass, and **E4 has not run and E2 is NO VERDICT**. Any decision to start
+E5 before both is a decision to take, with its reason recorded, and not a gap to drift
+through.
+
 ### 47.14 Deferred, with the slots registered so the gaps are visible
 
 **E5, the retraining engine itself.** Built only after E1 to E4 pass, and pre-registered in
