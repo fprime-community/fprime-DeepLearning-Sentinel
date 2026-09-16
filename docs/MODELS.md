@@ -458,6 +458,14 @@ prediction that failed and why. This document follows the same discipline.
   - [48.7 Cost, and stop and report](#487-cost-and-stop-and-report)
   - [48.8 OBSERVED -- the backward pass holds clean, and the forward needs one hint](#488-observed----the-backward-pass-holds-clean-and-the-forward-needs-one-hint)
   - [48.9 Owed](#489-owed)
+- [49 Pre-registration: the gradient check specified before it runs, and the forward held to `reference.py` (Phase 5)](#49-pre-registration-the-gradient-check-specified-before-it-runs-and-the-forward-held-to-referencepy-phase-5)
+  - [49.1 What is reused, and what is added](#491-what-is-reused-and-what-is-added)
+  - [49.2 (!) Departure 1 -- the step, the rule and the tolerance are derived, not read off 48.8's sweep](#492-departure-1----the-step-the-rule-and-the-tolerance-are-derived-not-read-off-488s-sweep)
+  - [49.3 (!) Departure 2 -- `reference.py` declares float32, and the comparison is float64 without editing it](#493-departure-2----referencepy-declares-float32-and-the-comparison-is-float64-without-editing-it)
+  - [49.4 Predictions](#494-predictions)
+  - [49.5 Falsification](#495-falsification)
+  - [49.6 Reporting](#496-reporting)
+  - [49.7 Cost, and stop and report](#497-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -14839,3 +14847,226 @@ against `flight/` at F32; it does not close it. The same debt 39.14 carries for 
 **Backpropagation through time.** One timestep is not a sequence, and the gradient buffers a
 sequence needs -- carried state, accumulated across steps -- are the next place `strict` could
 break. This is the nearest thing to a successor experiment and it is **not** E5.
+
+---
+
+## 49. Pre-registration: the gradient check specified before it runs, and the forward held to `reference.py` (Phase 5)
+
+**Written before any of it exists.** `oxcaml/retrainer/` today holds E1's pipe, E3's four
+annotated arithmetic functions, and 48's cell, checker and diagnostic. This section registers
+what will be built, what it predicts and what would falsify it, in the form every section
+from 19 onward uses. **No code is written until this is reviewed.**
+
+**(!) THIS DOES NOT OVERTURN 48's G3.** 48.4 fixed a tolerance and left the step
+under-specified; 48.8 recorded **NO VERDICT** at 1.309e-06 rather than move the band, and
+**that verdict stands permanently as the record of what 48 asked.** This section does not
+re-adjudicate it. It asks a properly specified question, takes its own verdict, and publishes
+48's number beside the new one (**J2**). A section that quietly converted a NO VERDICT into a
+HOLD would be doing the exact thing 48.9 refused to do, and would be worth less than leaving
+G3 alone.
+
+**(!) AND IT IS NOT E5. 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT, so E5's condition is unmet and is not being reinterpreted. This is **narrower than
+48**: the same one cell, one timestep, one layer, no optimiser, no schedule, no sequence, no
+window selection, no F' component and no model file. **Nothing here touches 47.7's C3**,
+whose status is a separate question; C3 is neither discharged, re-scoped, nor cited as
+settled anywhere below.
+
+**What it answers.** The first two items of **48.9**, and nothing else:
+
+> **"A G3 re-run with `eps` declared before it."** ... **"A float64 comparison against
+> `src/sentinel_models/reference.py`'s forward."**
+
+**Why a section and not a patch.** Re-running 48's checker with a different `eps` would be
+choosing the test after seeing the answer, which 48.9 named and refused. What makes a re-run
+legitimate is declaring the step rule, the step and the criterion **first, from the
+arithmetic rather than from the sweep**. And two defects found since 48.8 -- both in 48's own
+instrument, neither named at 48.9 -- mean this is a better-specified experiment than 48.9
+knew it was asking for. They are 49.2.
+
+**48.8 reproduces, and that is recorded before anything is built on it.** Re-run on this host
+before this section was written: `ocamlopt 5.2.0+ox`; `assume` count **0**; `backward` clean
+unhinted; G3 **1.309e-06** on `w_ih`; G5 rejected with *"called function may allocate
+(external call to caml_array_make)"*; G6 **5.199e-06** at index 79. **Every figure of record
+in 48.8 is confirmed**, so this section rests on a result that has now been taken twice.
+
+### 49.1 What is reused, and what is added
+
+**The cell is 48's cell.** `oxcaml/retrainer/gru_cell.ml` -- the flown algebra transcribed
+from `flight/include/sentinel/Gru.hpp:22-40`, hidden 80, inputs 16, gate width 240, 23,616
+parameters and inputs, one `[@inline]` on `sigmoid`, no `assume`. **The three annotated
+functions `forward`, `backward` and `zero_grads` are not edited**, because editing them would
+change what 48 measured. The same fixed-seed fill is used, so it is the same cell on the same
+numbers.
+
+**What is added sits outside the annotations.** A dump entry point for Arm B, a new checker
+carrying the declared step rule and criterion for Arm A, and a runner. **The
+`[@zero_alloc strict]` build is re-run unchanged as part of this section** (**J6**), so that
+adding a dump path cannot quietly cost 48 its result.
+
+**The reference for Arm B is `src/sentinel_models/reference.py`**, which 39.2 established is
+the forward pass only, and which `flight/` is held to at 1e-5.
+
+### 49.2 (!) Departure 1 -- the step, the rule and the tolerance are derived, not read off 48.8's sweep
+
+**Two defects in 48's instrument, found after 48.8 and named here because 48.9 does not name
+them.**
+
+**First, the checker departs from its own pre-registration.** 48.2 registers *"`eps` chosen
+per-parameter as a relative step"*. `oxcaml/retrainer/gru_check.ml:37-41` uses a fixed
+**absolute** step -- `let eps = 1e-5 in`, then `arr.(idx) <- saved +. eps`. 48.8's
+self-criticism says the band *"never fixed `eps`"*, which is true, but 48.2 **did** fix the
+step **rule** and the code does not follow it. That is recorded nowhere, and it is corrected
+here rather than in 48, whose text stands.
+
+**Second, G3's "absolute floor" is ambiguous and the two readings disagree on the verdict.**
+48.4 words the band as *"max relative error `<= 1e-6`, with an absolute floor of `1e-9` for
+near-zero gradients"*. `oxcaml/retrainer/gru_check.ml:45` implements
+`denom = max(|fd|, |analytic|, 1e-9)` -- a floor on the **denominator**, which prevents a
+division by zero and **exempts nothing**. Under the other reading -- a near-zero entry passes
+when its **absolute** error is inside 1e-9 -- every such entry passes, because 48.8's own
+sweep records a worst absolute error of **3.362e-11** at `eps = 1e-5`. **G3 would have been a
+HOLD under a reading of its own words.** 48.8 took the stricter reading and left the verdict
+alone, which was the conservative call and the right one; what it did not do is say that this
+was the thing needing settling. It is settled here, in advance.
+
+**So all three are declared now, before the code:**
+
+```
+  step rule   h(p) = h_rel * max(|p|, 1.0)        relative, per-parameter, as 48.2 registered.
+                                                  The max(.,1.0) guard is declared because a
+                                                  zero-valued parameter has no relative step.
+
+  step        h_rel = macheps^(1/3) = 6.055454e-06
+                                                  Central differences trade truncation O(h^2)
+                                                  against roundoff O(macheps/h); the total is
+                                                  minimised near macheps^(1/3). For IEEE
+                                                  double macheps = 2^-52 = 2.220446e-16.
+
+  criterion   |fd - g| <= atol + rtol*|g|
+              rtol = 1e-6                         CARRIED UNCHANGED FROM 48.4. Nothing is
+                                                  loosened on the relative side.
+              atol = K * macheps * L_scale / h_rel,  K = 4
+                                                  The roundoff floor of a central difference:
+                                                  two loss evaluations, each rounded at
+                                                  ~macheps*|L|, differenced and divided by 2h.
+                                                  K = 4 is a small declared constant, not a
+                                                  fitted one. L_scale = |L| at the initial
+                                                  parameters, printed before any gradient is
+                                                  compared.
+```
+
+**(!) `h_rel` IS DELIBERATELY NOT `1e-4`.** 48.9 observed that *"`1e-4` is where the sweep's
+absolute error is smallest over the whole parameter set"*. **Taking that number would be
+choosing the test after seeing the answer**, which is the thing 48.9 declined to do and which
+this section exists to avoid doing on its behalf. The derived value, 6.06e-06, lands **nearer
+48's own 1e-5 than the flattering 1e-4**, and that is the point: it is derived, not selected.
+
+**(!) AND THE MODEL BEHIND `atol` IS DISCLOSED AS HAVING BEEN CHECKED AGAINST PUBLISHED
+DATA.** The floor `macheps*|L|/h` predicts **2.220e-11** at 48's step of `1e-5` for a loss of
+order 1; 48.8 published a worst absolute error of **3.362e-11** there. **The model is right
+to within a factor of 1.5 on a number that was already public.** Checking a derived model
+against published data is not the same act as choosing a threshold to pass -- but it is close
+enough to it that it is stated here rather than discovered later, and **K was not moved
+afterwards**. J3 tests the model's shape independently, and J2 publishes the figure that does
+not depend on it at all.
+
+### 49.3 (!) Departure 2 -- `reference.py` declares float32, and the comparison is float64 without editing it
+
+**The obvious reading says this arm is impossible.** `src/sentinel_models/reference.py:68`
+pins `DTYPE = np.float32`, so *"a float64 comparison against `reference.py`'s forward"* looks
+like it requires either editing a frozen contract or accepting F32 -- and accepting F32 would
+add little, because G6 already compared against `flight/` at F32 and got 5.199e-06.
+
+**Read at source, it is possible, and `reference.py` is not modified.** `DTYPE` is applied at
+the **layer** entry points (`src/sentinel_models/reference.py:497` and `:533`), not in the
+cell. `reference.gru_cell` (`src/sentinel_models/reference.py:455-482`) never mentions it,
+and `_sigmoid` (`src/sentinel_models/reference.py:401-408`) allocates with `np.empty_like`,
+which preserves dtype. **Calling `gru_cell` directly with float64 arrays therefore propagates
+float64 end to end**, against an unmodified reference.
+
+**Two agreements verified before predicting anything.** `reference.py:482` returns
+`(h - n) * z + n` -- ATen's form, which is 48.1's second detail. And both sigmoids use the
+same non-overflowing branch at `x >= 0`: `reference.py:404` and
+`oxcaml/retrainer/gru_cell.ml:70`. So the two implementations should differ only by summation
+order and by libm against NumPy on `exp` and `tanh`.
+
+**Transport.** The OCaml side writes weights, `x`, `h` and `h'` at `%.17g` to a text file;
+the Python side reads it, calls `gru_cell`, and compares. **The dump lives outside the
+`[@zero_alloc strict]` functions**, and J6 re-runs the strict build to prove that.
+
+**What the departure costs.** Nothing is claimed here about the F32 path. This compares two
+float64 implementations of the same algebra; **the F32 flight core remains covered by G6 and
+by `flight/`'s own 1e-5 contract**, and no figure in this section is quoted beside a
+flight-core figure.
+
+### 49.4 Predictions
+
+Numbered, with bands, **written before the code**.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **J1** | **The declared criterion holds.** `abs(fd - g) <= atol + rtol*abs(g)` over all 23,616, at the declared step rule and `h_rel` | every entry inside | at most 10 entries outside, each itemised with its parameter and its margin | more than 10, or any entry outside by more than 10x -- the gradient is wrong and 48's G2 verdict on `strict` is worth re-reading |
+| **J2** | **48's own criterion is reported beside it.** Worst relative error on 48.4's exact rule, at the new step | -- | -- | **reported whatever it is.** 48's NO VERDICT is restated, never replaced. If this number is worse than 1.309e-06, that is published too |
+| **J3** | **The sweep is a U, not a floor.** Worst absolute error across `h_rel` in `1e-3 ... 1e-7` | falls, then rises, with the minimum inside `[1e-5, 1e-3]` | a minimum at an endpoint | a floor that does not move with the step -- which would mean the gradient is wrong and J1 passed for the wrong reason |
+| **J4** | **The forward matches `reference.py` at float64.** Max abs difference over the 80 outputs | **`<= 1e-12`** | `(1e-12, 1e-9]` | `> 1e-9` -- at this precision that is a transcription defect, reported and not tuned away |
+| **J5** | **The new instrument can fail.** `b_hn` moved outside the reset product -- D26's defect (`docs/DECISIONS.md:1631-1634`) | J4 exceeds `1e-9` **and** J1 reports entries outside | one of the two catches it | neither does -- the instrument is not known to work, and J1 and J4 are withdrawn rather than reported |
+| **J6** | **48's result is undisturbed.** The `[@zero_alloc strict]` build re-run with the dump path present | clean, `assume` count 0, `backward` still clean unhinted | -- | anything else -- the dump path has cost 48 its result, and it is removed rather than annotated around |
+
+### 49.5 Falsification
+
+**If J1 fails, the backward pass is wrong**, and 48.8's claim that the recurrent backward pass
+holds `strict` becomes a claim about arithmetic nobody has checked. G2's verdict is about
+what the compiler accepts; it was never about correctness, and 48.5 said so.
+
+**If J3 shows a floor, J1 passed for the wrong reason** and is withdrawn. A tolerance wide
+enough to admit a wrong gradient is not a check.
+
+**If J4 fails, the cell is not `reference.py`'s cell.** 48.2 registered this comparison as
+owed precisely because finite differences prove the gradient agrees with *this* forward pass
+and cannot prove the forward pass is the reference's. A failure here is a transcription
+defect, reported as one and fixed before anything else in 48 or 49 is believed.
+
+**If J5 fails, nothing else in this section is reported.** An instrument nobody has watched
+fail is not known to work, and that rule is 48's (G5) rather than new.
+
+**None of these would reopen 47.7's C1.** C1 is about allocation and was discharged at
+47.13.4 and extended at 48.8; this section measures arithmetic. **A wrong gradient would not
+make `strict` less proved -- it would make the thing `strict` was proved about less
+interesting**, which is a different sentence and is the honest one.
+
+### 49.6 Reporting
+
+**Losers in full**, with their bands. **J2 is reported whatever it says**, including if it is
+worse than 48's 1.309e-06, because it is the only number in this section comparable with the
+record and a section that published it only when flattering would be worthless.
+
+**Every entry outside J1's band is itemised** with its parameter name, index, analytic value,
+finite-difference value and margin -- a count that is not enumerable is not a count, which is
+48.6's rule.
+
+**No timing figure.** As 48.6: this section measures arithmetic and what the compiler
+accepts. A per-cycle training cost against `Objective.md` 11 rule 5 remains E5's to establish.
+
+**Float64 throughout**, so **no figure here is quoted beside a flight-core figure.**
+
+**48's figures are restated, not amended.** G3 stays at NO VERDICT, 1.309e-06.
+
+### 49.7 Cost, and stop and report
+
+**Zero bucket operations.** The cell generates its own weights from a fixed seed; no dataset,
+no network, no R2. The ledger stays at 238 Class A and 5,740 Class B for 2026-09, read from
+`docs/STATUS.md` and not from the bucket. **No new host**: the arm64 macOS host E1 to E3 and
+48 ran on. **No hardware.** Nothing under `flight/` or `fprime/` is touched, so `master` does
+not move.
+
+Stop and report, carrying 47.12's twelve and 48.7's two, and adding two more:
+
+15. **Any of `h_rel`, `atol`, `rtol` or the step rule is adjusted after a number has been
+    seen.** Stop. That is precisely what 48.9 refused, and doing it inside the section
+    written to repair it would be worse than leaving G3 alone. If the declared constants turn
+    out to be wrong, **the run is reported as a loser and the constants are re-declared in a
+    successor section**, not edited here.
+16. **Arm B would require editing `src/sentinel_models/reference.py`.** Stop. It is the
+    frozen contract `flight/` is held to at 1e-5. If 49.3's float64 route does not hold in
+    practice, **the arm is reported as blocked rather than routed around.**
