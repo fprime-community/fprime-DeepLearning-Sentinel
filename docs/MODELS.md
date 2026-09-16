@@ -448,6 +448,8 @@ prediction that failed and why. This document follows the same discipline.
   - [47.12 Cost, and stop and report](#4712-cost-and-stop-and-report)
   - [47.13 OBSERVED](#4713-observed)
   - [47.14 Deferred, with the slots registered so the gaps are visible](#4714-deferred-with-the-slots-registered-so-the-gaps-are-visible)
+  - [47.15 (!) Rider, 2026-09-16: C3 is NOT discharged, and 47.13.1's omission of it is the part that needed recording](#4715-rider-2026-09-16-c3-is-not-discharged-and-47131s-omission-of-it-is-the-part-that-needed-recording)
+  - [47.16 (!) Rider, 2026-09-16: four stale statements, corrected without overwriting them](#4716-rider-2026-09-16-four-stale-statements-corrected-without-overwriting-them)
 - [48 Pre-registration: one GRU cell, forward and backward, under `[@zero_alloc strict]` (Phase 5)](#48-pre-registration-one-gru-cell-forward-and-backward-under-zero-alloc-strict-phase-5)
   - [48.1 What is reused, and what the reference is](#481-what-is-reused-and-what-the-reference-is)
   - [48.2 (!) Departure 1 -- the backward pass has no reference in this repository, so the check is finite differences](#482-departure-1----the-backward-pass-has-no-reference-in-this-repository-so-the-check-is-finite-differences)
@@ -14594,6 +14596,117 @@ ensmallen's optimisers allocate.
 section adds a 47. **Nothing guards it** -- it is prose describing a document, and no test
 re-derives it. Recorded here rather than extended silently, because a one-line fix made
 without the owner seeing the gap is how the gap comes back.
+
+### 47.15 (!) Rider, 2026-09-16: C3 is NOT discharged, and 47.13.1's omission of it is the part that needed recording
+
+**Raised because the register is quotable in both directions today.** 47.7 names **E1** as
+C3's discharger; E1 ran and held X1, X2 and X3; and 47.13.1's *"what E1 did NOT establish"*
+block names C1, C2 and C4 and **is silent on C3**. A reader may therefore conclude that C3
+was discharged and the register never updated, or that it was deliberately left open. **The
+record did not say which, and that is a defect in the record regardless of the verdict.**
+
+**Read at source, C3 as worded is NOT discharged, and it is left UNVERIFIED.** The clause
+that fails is the second one. C3 says:
+
+> **"An OxCaml static library can be linked into an F' deployment built at C++14 with
+> `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime started from C++, and no flag
+> relaxed to achieve it."**
+
+**E1 linked into a component unit-test executable, not into a deployment**, and the build
+files say so rather than the prose:
+
+```
+  fprime/SentinelRef/Retrainer/CMakeLists.txt:54-56
+      if (TARGET SentinelRef_Retrainer_ut_exe)
+          target_include_directories(SentinelRef_Retrainer_ut_exe PRIVATE "${OX_SRC}")
+          target_link_libraries(SentinelRef_Retrainer_ut_exe PRIVATE "${OX_OBJ}")
+
+  fprime/SentinelRef/Top/instances.fpp
+      Retrainer is NOT INSTANCED. The topology holds rateGroup_1Hz, rateGroup_0_5Hz,
+      rateGroup_0_25Hz, cmdSeq, chronoTime, rateGroupDriver, systemResources, timer,
+      comDriver, sentinelMonitor and powerSim, and nothing else.
+```
+
+**`${OX_OBJ}` is linked into exactly one target and it is the unit test.** The deployment
+binary contains no OxCaml at all. 47.13.1 already described stage 2 accurately -- *"driven
+through F's own generated port machinery in a **unit-test process**"* -- so the prose was
+never wrong; what was missing is the line drawn from that fact to C3.
+
+**What E1 DID establish, so that the open verdict is not read as a failure.** Every other
+clause of C3 holds, and two of them by a wider margin than C3 asked for:
+
+| C3 clause | E1 evidence | Standing |
+|---|---|---|
+| an OxCaml **static library** | dune's `retrainer.a` plus `-output-complete-obj`; 47.13.1 learning 3 | **shown** |
+| linked into **an F' deployment** | linked into `SentinelRef_Retrainer_ut_exe` only; `Retrainer` is not in `Top/` | **NOT SHOWN** |
+| **C++14, `-fno-exceptions -fno-rtti -Werror`** | X2, and **stricter**: F's build adds `-Wold-style-cast` and `-Wdouble-promotion` and it compiles clean | **shown, and exceeded** |
+| **runtime started from C++** | `caml_startup` from the C++ side in both stages; X1 exact to tolerance 0.0 | **shown** |
+| **no flag relaxed** | X2, *"nothing dropped"* | **shown on the C++ flag set** |
+
+**(!) AND ONE THING THAT IS NOT A C3 CLAUSE BUT WOULD BE QUOTED AS ONE.** 47.13.1 learning 4
+records a narrow `alert` opt-out at the single `Callback.register` call site, with everything
+else at `-warn-error +a -alert @all`. **That is an OCaml-side alert, not one of the C++ flags
+C3 enumerates**, so it does not bear on C3 as worded -- but a reader asking *"was anything
+relaxed"* deserves to meet it here rather than discover it later.
+
+**(!) AND WHICH DEPLOYMENT C3 MEANS IS ITSELF UNSETTLED, WHICH IS THE MORE INTERESTING HALF.**
+D70 consequence 2 and 47.5 make the retrainer **a separate OS process**, so it would be its
+own deployment rather than an instance inside `SentinelRef`. **Discharging C3 by instancing
+`Retrainer` into `SentinelRef/Top/` would demonstrate the opposite of the architecture this
+project has adopted.** So C3 cannot be discharged as written without first deciding whether
+*"an F' deployment"* means the detector's or the retrainer's, and **that is a decision to
+take, not a step to slide into.**
+
+**What would discharge it:** a deployment -- the retrainer's own, per D70 consequence 2 --
+that links `${OX_OBJ}`, starts the runtime from C++, builds at the flag set unchanged, and
+runs. **Not taken here.** C3 stays **UNVERIFIED**, and 47.7's *"the first of the four"* at
+C1 remains accurate: one discharged, three open.
+
+**Nothing in 48 or 49 rests on C3**, and neither cites it.
+
+### 47.16 (!) Rider, 2026-09-16: four stale statements, corrected without overwriting them
+
+**House form is a rider, not an edit**, so each superseded statement is quoted here and left
+standing where it is.
+
+**1. 47.13's preamble is stale.** It reads, and still reads:
+
+> **"E1 only. E2, E3 and E4 have not been run**, and each is a stop before the next."
+
+**True when written on 2026-09-15 and false since.** E2 ran (47.13.2, 47.13.3, NO VERDICT),
+E3 ran (47.13.4, PASSED, C1 discharged), and E4 was **deferred by decision** rather than run
+(47.13.5, 47.13.6). The correct statement is: **E1, E2 and E3 have run; E4 is deferred to a
+hardware session with 41; E5 has not started.**
+
+**2. 47.1 row 21 carries the wrong base version.** It reads:
+
+> **"OxCaml is based on OCaml 5.4** plus later runtime patches."
+
+**Superseded by 47.8**, which pins what the machine reports rather than what a README says:
+the switch is `5.2.0+ox`, `ocamlopt -version` reports **`5.2.0+ox`**, and the compiler
+package is `oxcaml-compiler.5.2.0minus39` built from source. **Re-confirmed 2026-09-16** on
+the 48 re-run, which printed `ocamlopt 5.2.0+ox`. Row 21 stands as the record of what was
+believed before the switch was built; **47.8 is the pin.** The same correction is made to
+`docs/DECISIONS.md` D70's table at **D70.1**.
+
+**3. The tracked-content figure has drifted, and the two places it is stated were each right
+when written.** `docs/STATUS.md` said **6.07 MiB**; 47.13.1's cost record says **6.27 MiB**
+after E1. **Measured 2026-09-16, after 49: 6,761,949 bytes = 6.45 MiB over 329 tracked
+files.** 47.13.1's figure is a **record of what E1 cost and is not edited**;
+`docs/STATUS.md`'s is a **status and is updated**, which is the distinction that decides
+which of the two moves.
+
+**(!) AND THE FIGURE IS WORTH WATCHING RATHER THAN JUST CORRECTING.** 39's **N8** banded
+tracked content: **under 6 MiB HOLD, 6 to 7 MiB no verdict, above 7 MiB a stop** that reports
+rather than trimming coverage to fit. At 6.45 MiB the repository is **not far past the middle
+of that band**, and D64's cap is 8 MiB. The documentation of 47, 48 and 49 is what moved it;
+**nothing here is trimmed, and the number is stated so the stop is seen coming.**
+
+**4. `docs/INDEX.md`'s row for this file stopped at 39.** 47.14 recorded the gap and
+declined to close it, on the grounds that *"a one-line fix made without the owner seeing the
+gap is how the gap comes back"*. **The owner has now seen the gap and asked for it closed**,
+so the row is extended to 49 in the same edit as this rider. It remains prose describing a
+document, still guarded by no test, and that has not changed.
 
 ---
 

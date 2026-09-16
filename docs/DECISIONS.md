@@ -5775,3 +5775,35 @@ pattern -- `docs/user-manual/design-patterns/hub-pattern.md` at the v4.3.0 pin, 
    was. **A claim that flatters your own scepticism gets less scrutiny than one that flatters
    your conclusion**, and that asymmetry is the whole reason this consequence is written
    down.
+
+### D70.1 Rider, 2026-09-16: the runtime row says 5.4 and the machine says 5.2.0+ox
+
+**The table in this entry states, and still states:**
+
+> | Runtime | **none, and no garbage collector** | an **OCaml 5.4** runtime with a GC |
+
+**That version is wrong and the row is otherwise untouched.** It was written on 2026-09-15
+from OxCaml's README, **before any switch existed on this machine**, which this entry says of
+itself at the top. The switch was then built and reports something else.
+
+**What the machine reports**, pinned at `docs/MODELS.md` 47.8 and re-confirmed 2026-09-16 on
+the section 48 re-run:
+
+```
+  switch                 5.2.0+ox
+  ocamlopt -version      5.2.0+ox
+  compiler package       oxcaml-compiler.5.2.0minus39, built FROM SOURCE
+```
+
+**Nothing else in the row changes, and nothing in the entry turns on it.** The row's claim is
+that OxCaml carries a runtime **with a garbage collector** and Rust carries none; that is
+unaffected by the base version, and so is every consequence below it -- in particular
+consequence 9, whose authority is this switch's own `domain.mli`. **The argument was never
+resting on 5.4**; a version that was read from a document rather than from the artifact was.
+
+**Why a rider and not a correction in place.** `docs/HARNESS.md` 1's rule is that no number
+enters a document that was not read from an artifact, and consequence 10 of this entry
+records what it cost the last time a claim was carried without its source. **Overwriting the
+row would delete the evidence that the rule caught something**, which is the opposite of what
+the rule is for. The same correction is recorded at `docs/MODELS.md` 47.16 item 2, where
+47.1 row 21 carries the same stale figure.
