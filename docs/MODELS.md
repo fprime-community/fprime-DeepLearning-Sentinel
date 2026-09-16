@@ -14712,6 +14712,102 @@ clarification, because (a) folds C3 into E5's critical path and (b) would reopen
 as established, which 47.12 stop 12 forbids, nor as refused, which the evidence above does not
 support.
 
+**(!) 47.15b Rider, 2026-09-16: the owner has ruled. Reading (c) is taken, C3 is re-worded and
+DISCHARGED, and a fifth claim is opened for the deployment question.**
+
+**The decision.** C3 bundled two claims with different evidence and different owners. They are
+separated here. **Nothing above is edited**; C3's original wording stands at 47.7 and is quoted
+in 47.15 so that what changed is legible.
+
+**C3, as it stood, is superseded:**
+
+> **"An OxCaml static library can be linked into an F' deployment built at C++14 with
+> `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime started from C++, and no flag
+> relaxed to achieve it."**
+
+**C3, re-worded to the claim E1 actually tested:**
+
+> **C3. An OxCaml static library can be linked into an F'-autocoded, F'-toolchain-built
+> executable at C++14 with `-fno-exceptions -fno-rtti -Werror`, with the OCaml runtime
+> started from C++, and no flag relaxed to achieve it.**
+
+**DISCHARGED 2026-09-15 by E1**, recorded 2026-09-16. **The second of the five.** The evidence
+is X2 (47.13.1), and it exceeds what the claim asks:
+
+```
+  the flag set               unchanged, nothing dropped: -std=c++14 -fno-exceptions -fno-rtti
+                             -ffp-contract=off -Wall -Wextra -Wpedantic -Wconversion -Wshadow
+                             -Werror
+
+  and STRICTER than C3 asked  F's own build adds -Wold-style-cast and -Wdouble-promotion on
+                             top of that set, and the component COMPILES CLEAN under it
+
+  the runtime from C++       caml_startup from the C++ side in both stages; X1 returns the
+                             hand-computed values exactly, tolerance literally 0.0
+
+  the library links          dune's retrainer.a plus -output-complete-obj (47.13.1 learning 3)
+```
+
+**The OCaml-side `alert` opt-out at the single `Callback.register` site (47.13.1 learning 4)
+does not bear on this claim either**, for the reason 47.15 gives: it is an OCaml alert, not one
+of the C++ flags C3 enumerates. It is cross-referenced here so that a reader asking *"was
+anything relaxed"* meets it at the point of discharge rather than later.
+
+**C5 is opened, and it carries the question C3 was wrongly asked to carry:**
+
+> **C5. An OxCaml static library can be linked into an F' DEPLOYMENT -- a topology with its
+> own `main`, built by the F' build system -- with the OCaml runtime started from C++ at a
+> defined point in the deployment's startup, and the deployment runs.**
+
+**UNVERIFIED.** Provenance: nothing. **No deployment anywhere has ever linked `${OX_OBJ}`** --
+`fprime/SentinelRef/Retrainer/CMakeLists.txt:54-56` links it into
+`SentinelRef_Retrainer_ut_exe` alone, and `Retrainer` is not instanced in
+`fprime/SentinelRef/Top/`. **Discharged by:** a **minimal retrainer deployment** -- its own
+`Top/`, a topology carrying the `Retrainer` and a rate group and nothing else, per D70
+consequence 2. That is real work and it is **not E5**; E5's deployment is the same shape
+carrying the whole engine. **Fallback:** if a deployment cannot start the runtime at a defined
+point, the separate-process architecture needs re-examining before E5 rather than during it.
+
+**(!) AND IT IS RECORDED AS DELIBERATELY LEFT OPEN RATHER THAN DROPPED.** The re-wording
+discharges C3 by narrowing it, and a narrowing that quietly lost the harder half would be the
+worse failure. **C5 is the harder half, written down, with a named discharger.** What E1
+established about deployments is nothing, and that is now a claim on the register rather than a
+silence in one.
+
+**(!) READING (b) WAS CONSIDERED AND IS REJECTED, WITH ITS REASON, BECAUSE A REJECTED OPTION
+THAT IS NOT WRITTEN DOWN GETS RE-PROPOSED.** Reading (b) is *"an F' deployment"* meaning
+`SentinelRef` itself -- instancing `Retrainer` into the detector's own topology. **Refused on
+three grounds:**
+
+1. **It puts the garbage collector in the detector's process**, on the process that owns the
+   1 Hz rate group, which is the single failure 47.5 and D70 consequence 2 exist to prevent.
+2. **It contradicts D70 consequence 2**, which is a **requirement** of that decision and not an
+   implementation detail. Taking (b) would mean reopening that decision, which is a decision of
+   its own.
+3. **(!) AND E2's NUMBERS DO NOT LICENSE IT.** E2 measured **separate processes only** --
+   47.13.3's arms are a detector process beside a retrainer process. **In-process coexistence
+   has never been measured at all**, and the mechanism says it would be worse: a stop-the-world
+   minor collection reaches the detector's **own** domain directly rather than a neighbouring
+   process. **Nobody may cite E2's "zero of 180,000 ticks over the bound" as evidence that (b)
+   is safe.** It is evidence about something else.
+
+**The register now reads, and 47.7 is not edited:**
+
+```
+  C1  zero_alloc strict proved transitively        DISCHARGED  E3 (47.13.4), extended by 48.8
+  C2  separate process isolates the detector       UNVERIFIED  and conditional: core headroom,
+                                                               1 Hz (47.13.3, 47.7 amendment)
+  C3  links into an F'-built executable at the     DISCHARGED  E1 (47.13.1 X2), as re-worded
+      flag set, runtime started from C++                       here
+  C4  the toolchain builds for aarch64 Linux       UNVERIFIED  E4, deferred (47.13.6)
+  C5  links into an F' DEPLOYMENT and it runs      UNVERIFIED  a minimal retrainer deployment
+```
+
+**Two statements elsewhere are now stale and are corrected here rather than edited.** 47.7's C1
+entry says *"the first of the four"* -- there are **five** claims and C3 is now the second
+discharged. And `docs/PHASE5.md` 7 says *"its section 47.7 carries four capability claims"*,
+written 2026-09-15 and true then. **Neither is edited; both are superseded by this block.**
+
 ### 47.16 (!) Rider, 2026-09-16: four stale statements, corrected without overwriting them
 
 **House form is a rider, not an edit**, so each superseded statement is quoted here and left
