@@ -393,6 +393,7 @@ prediction that failed and why. This document follows the same discipline.
   - [41.5 Falsification](#415-falsification)
   - [41.6 Reporting](#416-reporting)
   - [41.7 Cost, and stop and report](#417-cost-and-stop-and-report)
+  - [41.8 Rider, 2026-09-16: this board is shared with 47's E4, and the two must be sequenced](#418-rider-2026-09-16-this-board-is-shared-with-47s-e4-and-the-two-must-be-sequenced)
 - [42 Pre-registration: the F' Ref physics testbed, and the first wall clock (work item 11)](#42-pre-registration-the-f-ref-physics-testbed-and-the-first-wall-clock-work-item-11)
   - [42.1 What the handover brief said, and where this repository disagrees](#421-what-the-handover-brief-said-and-where-this-repository-disagrees)
   - [42.2 What exists, and the gap is one port](#422-what-exists-and-the-gap-is-one-port)
@@ -447,6 +448,15 @@ prediction that failed and why. This document follows the same discipline.
   - [47.12 Cost, and stop and report](#4712-cost-and-stop-and-report)
   - [47.13 OBSERVED](#4713-observed)
   - [47.14 Deferred, with the slots registered so the gaps are visible](#4714-deferred-with-the-slots-registered-so-the-gaps-are-visible)
+- [48 Pre-registration: one GRU cell, forward and backward, under `[@zero_alloc strict]` (Phase 5)](#48-pre-registration-one-gru-cell-forward-and-backward-under-zero-alloc-strict-phase-5)
+  - [48.1 What is reused, and what the reference is](#481-what-is-reused-and-what-the-reference-is)
+  - [48.2 (!) Departure 1 -- the backward pass has no reference in this repository, so the check is finite differences](#482-departure-1----the-backward-pass-has-no-reference-in-this-repository-so-the-check-is-finite-differences)
+  - [48.3 (!) Departure 2 -- float64 throughout, where the flight core is float32](#483-departure-2----float64-throughout-where-the-flight-core-is-float32)
+  - [48.4 Predictions](#484-predictions)
+  - [48.5 Falsification](#485-falsification)
+  - [48.6 Reporting](#486-reporting)
+  - [48.7 Cost, and stop and report](#487-cost-and-stop-and-report)
+  - [48.8 OBSERVED](#488-observed)
 
 <!-- /toc -->
 
@@ -12478,6 +12488,30 @@ is worse than an absent one, which is the rule that document was created to hold
 
 ---
 
+### 41.8 Rider, 2026-09-16: this board is shared with 47's E4, and the two must be sequenced
+
+**41 is not edited.** This records that the hardware session 41 has been waiting for now
+carries a second experiment, so that whoever switches the board on finds out here rather
+than from `docs/MODELS.md` 47.
+
+**`docs/MODELS.md` 47.13.6 defers E4 -- the OxCaml toolchain on aarch64 Linux -- into this
+session.** Both want a board and neither wants it alone. **A Raspberry Pi running 64-bit
+Raspberry Pi OS is aarch64 with glibc and may satisfy both from one board**, subject to the
+checks 47.13.6 lists: 4 GB of RAM as the floor, 2.7 GiB of disk for the switch and more in
+flight, and **a 32-bit image satisfies neither** -- OxCaml excludes 32-bit ARM.
+
+**(!) THEY MEASURE DIFFERENT THINGS AND NO FIGURE CROSSES BETWEEN THEM.** 41.2's unit under
+test is `Detector::step`, the C++ flight core's per-tick path against a 1,000 ms period. E4's
+is the OxCaml toolchain. Two sections, two records.
+
+**(!) AND THEY MUST BE SEQUENCED, NOT OVERLAPPED, OR 41's NUMBERS ARE CORRUPTED.** 47.13.3
+measured what a compiler-shaped load does to a neighbour on one host: with the cores
+saturated the detector's worst tick reached **8.94 ms**. **An OxCaml build running while this
+section times `Detector::step` would produce exactly that contamination.** Build first,
+measure second, and record which order was used.
+
+---
+
 ## 42. Pre-registration: the F' Ref physics testbed, and the first wall clock (work item 11)
 
 **Written before any testbed code exists.** This is the only instrument this project can build
@@ -14551,3 +14585,162 @@ ensmallen's optimisers allocate.
 section adds a 47. **Nothing guards it** -- it is prose describing a document, and no test
 re-derives it. Recorded here rather than extended silently, because a one-line fix made
 without the owner seeing the gap is how the gap comes back.
+
+---
+
+## 48. Pre-registration: one GRU cell, forward and backward, under `[@zero_alloc strict]` (Phase 5)
+
+**Written before any of it exists.** `oxcaml/retrainer/` today holds E1's pipe and E3's four
+annotated arithmetic functions and nothing recurrent. This section registers what will be
+built, what it predicts and what would falsify it, in the form every section from 19 onward
+uses. **No code is written until this is reviewed.**
+
+**(!) THIS IS NOT E5, AND 47.14's ORDERING IS DELIBERATELY NOT OVERRIDDEN.** 47.14 registers
+E5 -- the retraining engine -- as built only after E1 to E4 pass, and **E4 has not run while
+E2 is NO VERDICT**, so that condition is unmet and is not being reinterpreted. This is a
+**narrower experiment on the same host**: one cell, one timestep, no optimiser, no schedule,
+no window selection, no F' component and no model file. It answers a single question that
+stands between E3 and E5, and it answers it cheaply enough that a negative result costs days
+rather than weeks. **If it fails, E5 does not become a smaller problem; it becomes a
+differently-shaped one, and 47.14 still governs when it may start.**
+
+**What it answers.** `docs/PHASE5.md` 5 question 2, verbatim:
+
+> **"A fixed-memory recurrent cell.** The models here are GRUs. Whether mlpack's recurrent
+> layers can be instantiated at fixed size, with fixed-size gradient buffers and no
+> allocation in the backward pass, is unknown and is the question that decides whether the
+> library is usable at all for this."
+
+**Asked of OxCaml instead of mlpack**, which is the substitution `docs/DECISIONS.md` D70
+registers. The question is unchanged: **fixed size, fixed-size gradient buffers, no
+allocation in the backward pass.** `docs/PHASE5.md` 4's Armadillo claim is untouched either
+way (D70 consequence 5).
+
+**Why this and not something else.** E3 discharged 47.7's C1 on a matrix multiply and an SGD
+step over preallocated flat arrays. **A backward pass through a recurrent cell is a different
+order of difficulty**: it carries intermediate activations, it has a reset gate whose
+derivative multiplies a recurrent product, and it accumulates into gradient buffers rather
+than writing them. If `strict` cannot hold there, C1 being discharged at 47.13.4 does not
+carry to a retraining engine, and **that is worth finding out for the cost of one cell.**
+
+### 48.1 What is reused, and what the reference is
+
+**The algebra is the flown cell's, not a textbook's.** Transcribed from
+`flight/include/sentinel/Gru.hpp:22-40`, which is itself the transcription
+`src/sentinel_models/reference.py` is held to at 1e-5:
+
+```
+  r  = sigmoid(W_ir x + b_ir + W_hr h + b_hr)
+  z  = sigmoid(W_iz x + b_iz + W_hz h + b_hz)
+  n  = tanh   (W_in x + b_in + r * (W_hn h + b_hn))
+  h' = (h - n) * z + n
+```
+
+**Two details that a textbook GRU gets wrong and this one must not.** `b_hn` sits **inside**
+the reset product -- the recurrent product is formed once for all three gates with the full
+`b_hh` added, and the third block is then multiplied by `r`. And the state update is ATen's
+`(h - n) * z + n`, **not** the textbook `(1 - z) n + z h`; they are equal in exact arithmetic
+and not in floating point, and every measurement in this project was taken against ATen's.
+A cell that got either wrong would be differentiating something this project does not fly.
+
+**The shape is the flown maximum, not a toy.** `flight/include/sentinel/Config.hpp`:
+`MAX_HIDDEN` **80**, `MAX_INPUTS` **16**, `N_GATES` 3, so `MAX_GATE_WIDTH` **240**. One layer,
+one timestep. **23,616 parameters and inputs in total**, which is what the gradient check
+below has to cover.
+
+### 48.2 (!) Departure 1 -- the backward pass has no reference in this repository, so the check is finite differences
+
+**There is no reference implementation to hold the gradients to.** `reference.py` is the
+forward pass only (39.2 established that), training happens in torch, and **torch is not on
+the retraining path and is not being added to it for a test.** So correctness is established
+**self-containedly**, by central finite differences against the cell's own forward pass:
+
+```
+  for each of the 23,616 parameters and inputs p:
+      fd(p) = ( L(p + eps) - L(p - eps) ) / (2 eps)
+      compare against the analytic gradient
+```
+
+with `L` a fixed scalar loss over `h'`, and `eps` chosen per-parameter as a relative step.
+**Central rather than forward differences**, because the truncation error is `O(eps^2)`
+rather than `O(eps)` and the check has to be tighter than the thing it checks.
+
+**The cost of the departure, stated.** A finite-difference check proves the analytic gradient
+agrees with **this** forward pass; it cannot prove the forward pass is the flown one. That is
+what 48.1's transcription and prediction **G6** are for, and the two together are weaker than
+a reference would be. **Registered as owed: a float64 comparison against `reference.py`'s
+forward**, which is the same debt 39.14 already carries for the threshold and is not
+discharged here.
+
+### 48.3 (!) Departure 2 -- float64 throughout, where the flight core is float32
+
+The flight core is F32 (`Types.hpp`) because `model.bin` stores F32 and D30 froze it. **This
+cell is float64**, because OCaml's `float` is double and reaching for OxCaml's unboxed `float#`
+or a float32 representation would be answering a different question than *"does `strict`
+hold on a recurrent backward pass"*.
+
+**What that costs:** no figure here is comparable to a flight-core figure, and **none is
+quoted beside one**. G6's tolerance is set accordingly. A float32 cell is registered as owed
+and is not built.
+
+### 48.4 Predictions
+
+Numbered, with bands, **written before the code**.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **G1** | **The forward cell holds `strict`.** One GRU cell at hidden 80, inputs 16, on preallocated buffers, `[@zero_alloc strict]`, `-g`, backtraces enabled, **no `assume`** | clean build | holds only with an inlining hint, itemised | needs `assume`, or cannot be expressed without one |
+| **G2** | **THE BACKWARD PASS HOLDS `strict`.** Gradients w.r.t. `W_ih`, `W_hh`, `b_ih`, `b_hh`, `x` and `h`, accumulated into preallocated buffers, same flags, **no `assume`** | clean build | one `assume`, itemised with the call it covers | **two or more, or pervasive restructuring. This is the finding, and `docs/PHASE5.md` 5 question 2 is answered NO for OxCaml** |
+| **G3** | **The gradients are right.** Central finite differences over **all** 23,616 parameters and inputs | max relative error **`<= 1e-6`**, with an absolute floor of `1e-9` for near-zero gradients | `(1e-6, 1e-4]` | `> 1e-4` -- the backward pass is wrong, and a `strict` verdict on wrong arithmetic is worth nothing |
+| **G4** | **No `assume` anywhere in the file**, counted mechanically | **0** | -- | any |
+| **G5** | **The check can fail.** A deliberate allocation in the backward pass | compile error, rc != 0 | -- | it builds |
+| **G6** | **The forward cell is the FLOWN cell.** Against `flight/`'s `Gru::step` on the same weights and input, both in their own precision | max abs difference **`<= 1e-6`** | `(1e-6, 1e-4]`, consistent with F32-vs-F64 | `> 1e-4`, or the `b_hn` placement or the ATen update form differs -- a transcription defect, reported and not tuned away |
+
+### 48.5 Falsification
+
+**If G2 fails, `docs/PHASE5.md` 5 question 2 is answered NO for OxCaml**, and the answer is
+published as a negative result. A language whose allocation guarantee holds on a matrix
+multiply and breaks on the backward pass of the actual model **does not deliver the property
+the strategic case at D70 rests on**, and 47.7's C1 -- discharged at 47.13.4 -- would have to
+be re-scoped to say so: discharged for feed-forward arithmetic, refused for the recurrent
+backward pass.
+
+**If G3 fails, nothing else in this section means anything.** A `strict` verdict on arithmetic
+that computes the wrong gradient is the same defect E3 guarded against by checking its
+arithmetic, and G1, G2 and G6 are withdrawn rather than reported.
+
+**If G6 fails, the cell is not this project's cell** and the experiment has measured a GRU
+rather than *the* GRU. Reported as that, and the transcription is fixed before anything else
+is believed.
+
+### 48.6 Reporting
+
+**Losers in full**, with their bands. Every `assume` that proves necessary is **itemised with
+the call site it covers and the reason**, because G2's band is a count and a count that is not
+enumerable is not a count.
+
+**No timing figure is reported.** This section measures what the compiler will accept and
+whether the arithmetic is right; **it measures no wall clock**, and a per-cycle cost for a
+training step is E5's to establish against `Objective.md` 11 rule 5. Nothing here is quoted
+as a compute budget.
+
+**Float64 throughout** (48.3), so **no figure here is quoted beside a flight-core figure.**
+
+### 48.7 Cost, and stop and report
+
+**Zero bucket operations.** The cell generates its own weights from a fixed seed; no dataset,
+no network, no R2. **No new host**: this is the arm64 macOS host E1 to E3 ran on, and it needs
+nothing E1 did not already install.
+
+Stop and report, carrying 47.12's twelve forward and adding two:
+
+13. **G2 needs two or more `assume`s.** Stop and report: that is the finding, and it is
+    brought to the owner before any further OxCaml work is proposed.
+14. **Anything here would grow into E5.** An optimiser, a learning-rate schedule, a window
+    selector, a second layer, a model file or an F' component is **out of scope by
+    construction**, and reaching for one means 47.14's ordering is being overridden after all
+    -- which is a decision to take, not a step to slide into.
+
+### 48.8 OBSERVED
+
+**Empty. Nothing has been run.**
