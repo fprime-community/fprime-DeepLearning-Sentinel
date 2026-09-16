@@ -468,6 +468,8 @@ prediction that failed and why. This document follows the same discipline.
   - [49.5 Falsification](#495-falsification)
   - [49.6 Reporting](#496-reporting)
   - [49.7 Cost, and stop and report](#497-cost-and-stop-and-report)
+  - [49.8 OBSERVED -- all six hold, and the one number that got worse is the one that had to be published](#498-observed----all-six-hold-and-the-one-number-that-got-worse-is-the-one-that-had-to-be-published)
+  - [49.9 Owed](#499-owed)
 
 <!-- /toc -->
 
@@ -15183,3 +15185,113 @@ Stop and report, carrying 47.12's twelve and 48.7's two, and adding two more:
 16. **Arm B would require editing `src/sentinel_models/reference.py`.** Stop. It is the
     frozen contract `flight/` is held to at 1e-5. If 49.3's float64 route does not hold in
     practice, **the arm is reported as blocked rather than routed around.**
+
+### 49.8 OBSERVED -- all six hold, and the one number that got worse is the one that had to be published
+
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host: the arm64 macOS
+host E1 to E3, 48 and this all ran on. Source `oxcaml/retrainer/gru_fd.ml`, `gru_dump.ml`,
+`scripts/s49_reference_check.py` and `scripts/oxcaml_s49.sh`, in this commit. **`gru_cell.ml`
+is not edited**, and **`src/sentinel_models/reference.py` is not edited** -- stop 16 did not
+fire.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **J1** | the declared criterion holds over all 23,616 | **0 entries outside.** Worst absolute error **1.837013e-10**; worst margin **-2.999962e-11**, negative meaning inside | **HELD** |
+| **J2** | 48's own criterion reported beside it | **3.169313e-06** on `w_hh`, against 48.8's **1.309e-06**. **Worse, and published** | **REPORTED**, as registered |
+| **J3** | the sweep is a U, not a floor | `1e-3` 1.744307e-07, `1e-4` 1.744204e-09, `1e-5` **1.468843e-10**, `1e-6` 1.034873e-09, `1e-7` 1.182665e-08. **Interior minimum at `1e-5`** | **HELD** |
+| **J4** | the forward matches `reference.py` at float64 | **2.775558e-16** at index 29 -- one part in `2^-52`, the machine's own floor | **HELD** |
+| **J5** | both instruments fail on D26's defect | `b_hn` outside the reset product: Arm A **8,016 entries outside**, 48's criterion **1.670215**; Arm B **9.022202e-02** | **HELD** |
+| **J6** | 48's result is undisturbed by the dump path | `gru_cell.ml` + `gru_dump.ml` clean under `-zero-alloc-check all`; `assume` count **0**; `backward` still passes unhinted | **HELD** |
+
+**(!) J2 GOT WORSE, AND THAT IS THE RESULT THIS SECTION EXISTED TO BE ABLE TO PUBLISH.**
+48's relative criterion, evaluated at the a priori step, gives **3.169313e-06** where 48's own
+absolute step gave 1.309e-06. **A section that had quietly adopted a friendlier `eps` would
+have reported a better number and learned nothing.** What the pair actually shows is that
+**48.8's diagnosis was right**: the relative figure is dominated by near-zero gradients
+inflating a ratio, it moves around with the step without meaning anything, and the mixed
+criterion -- which 48.9 pointed at and 48.4 half-worded -- holds cleanly on the same data.
+**48's G3 stands at NO VERDICT, 1.309e-06, and nothing here replaces it.**
+
+**(!) THE DECLARED `K` WAS LOAD-BEARING, AND THE SENSITIVITY IS PUBLISHED SO NOBODY HAS TO
+TAKE IT ON TRUST.** With `L_scale = 3.268255e-01` the unit `macheps*L/h_rel` is
+**1.198421e-11**, so the declared `atol` at `K = 4` is **4.793684e-11**:
+
+```
+    K       atol          worst margin      J1
+    4    4.7937e-11       -3.0000e-11       inside   <- declared in 49.2, before the run
+    3    3.5953e-11       -1.8015e-11       inside
+    2    2.3968e-11       -6.0312e-12       inside
+    1    1.1984e-11       +5.9530e-12       OUTSIDE
+```
+
+**`K = 2` is the smallest value that still holds and `K = 1` would have failed**, so the
+constant was not a formality and J1 did not pass by being loose. It passed by **3.00e-11**,
+about 63% of `atol`.
+
+**(!) AND THE A PRIORI STEP IS NOT THE EMPIRICAL OPTIMUM. IT WAS NOT MOVED.** J3's minimum
+sits at `h_rel = 1e-5` with worst absolute error **1.468843e-10**; the declared
+`macheps^(1/3) = 6.055454e-06` gives **1.837013e-10**, about **25% worse**, and the two are a
+factor of **1.65** apart in step. **Stop 15 forbids moving it**, and it is not moved: the
+theory's step was declared, the theory's step was used, and the small distance between it and
+the observed optimum is reported as a finding rather than closed by a second choice.
+
+**(!) J4 IS THE TIGHTEST AGREEMENT THIS PROJECT HAS MEASURED, AND IT DISCHARGES 48.2's DEBT.**
+**2.775558e-16** is `2^-52` to within an ulp -- the two implementations agree to the last bit
+the format carries. 48.2 registered *"a float64 comparison against `reference.py`'s forward"*
+as owed precisely because finite differences prove the gradient agrees with **this** forward
+pass and cannot prove the forward pass is the reference's. **That debt is discharged.** And
+49.3's premise held at runtime rather than only on the page: the checker asserts the dtype
+rather than assuming it, and printed `reference.DTYPE is float32 by declaration` beside
+`result dtype float64`.
+
+**(!) BOTH J5 FIGURES REPRODUCE 48.8's PROBE EXACTLY**, which is a check on the apparatus
+rather than a coincidence. 48.8 recorded the `b_hn` defect at **1.670** on its G3 criterion
+and **9.022e-02** on G6; Arm A gives **1.670215** and Arm B **9.022202e-02**. The instruments
+are measuring the same defect on the same cell.
+
+**(!) THE RUN WAS TAKEN TWICE, AND WHY IS STATED.** The first run's J5 Arm B failed to build
+-- `Unbound module "Gru_cell"`, a missing `-I vb` on the variant link. **A build command was
+fixed; no constant, band or criterion was touched**, and J1 to J4 and J6 produced identical
+figures on both runs because the arithmetic is deterministic. Stop 15 is about the test, not
+the Makefile, and it did not fire.
+
+**What this establishes.** The backward pass of the flown GRU cell, at the flown shape, is
+**correct** -- not merely allocation-free. 48 proved the compiler accepts it; this proves the
+arithmetic it accepts is right, against a criterion fixed before the run, with the instrument
+watched failing. And the forward cell **is** `reference.py`'s cell, to the last bit of a
+double.
+
+**What it does not.** **One cell, one timestep, one layer, and one draw.** J4 compares a
+single `(x, h, W)` fill, not a sweep. **Float64 where the flight core is F32** (48.3), so no
+figure here is quoted beside a flight-core figure. **No timing figure exists** -- 49.6 forbids
+one, and a per-cycle training cost against `Objective.md` 11 rule 5 remains E5's to establish.
+And **J4 still cannot distinguish ATen's `(h - n) z + n` from the textbook `(1 - z) n + z h`**,
+because `src/sentinel_models/reference.py:482` uses ATen's form too -- 48.8 said that debt
+rests on reading rather than a check, and it still does.
+
+**47.14's ordering is unchanged and E5 has not started.** E4 has not run and E2 is NO VERDICT.
+**Nothing here touches 47.7's C3**, which 47.15 leaves UNVERIFIED.
+
+### 49.9 Owed
+
+**A float32 cell.** 48.3's departure, registered at 48.9 and still not built. J4's result
+makes it more interesting rather than less: the two implementations agree to `2^-52` in
+double, so an F32 comparison would isolate precision from transcription.
+
+**More than one draw for J4.** One fill is not a sweep. What would strengthen it is several
+`(x, h, W)` draws, including saturating inputs where `tanh` and the sigmoid branch are near
+their limits, since the branch at `x >= 0` is the one place the two implementations could
+disagree structurally rather than numerically.
+
+**Backpropagation through time.** 48.9's fourth item, untouched. One timestep is not a
+sequence, and the gradient buffers a sequence needs -- carried state, accumulated across
+steps -- remain the next place `strict` could break. **Still not E5.**
+
+**The update-form debt.** Unchanged and now known to be unclosable this way: no test in 48 or
+49 distinguishes the two algebraically identical forms, because every artifact this project
+compares against uses ATen's.
+
+**And what is NOT owed any more:** 48.9's first item, the G3 re-run with the step declared
+first, is discharged by J1 to J3; its second, the float64 comparison against `reference.py`,
+is discharged by J4.
