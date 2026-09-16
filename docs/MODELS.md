@@ -14666,6 +14666,52 @@ C1 remains accurate: one discharged, three open.
 
 **Nothing in 48 or 49 rests on C3**, and neither cites it.
 
+**(!) 47.15a Rider to this rider, 2026-09-16: IT IS C3's WORDING, NOT ITS EVIDENCE, THAT
+BLOCKS IT.** Added after review, because the paragraphs above can be read as saying E1 fell
+short and they should not be.
+
+**E1's evidence is not deficient.** Every clause of C3 that describes a *capability* --
+the static library links, the runtime starts from C++, the flag set is not relaxed -- was
+demonstrated, and the flag clause was demonstrated at a **stricter** set than C3 names. What
+is missing is not a measurement anybody declined to take. **It is that the only artifact
+which would satisfy C3's second clause as written is one this project has decided not to
+build.**
+
+**Spelled out, because it is the whole of the matter.** C3 says *"linked into an F'
+deployment"*. The only F' deployment that exists here is `SentinelRef`. Linking the OxCaml
+library into it means **instancing `Retrainer` into `fprime/SentinelRef/Top/`** -- putting the
+OCaml runtime and its garbage collector inside the detector's own process, on the process that
+owns the 1 Hz rate group. **That is precisely what D70 consequence 2 forbids**, on the
+stop-the-world minor collector at 47.5, and it is what E2 was run to price. **So a literal
+discharge of C3 would be a demonstration that the architecture is wrong.**
+
+**The evidence is therefore not what is open. The wording is.** C3 was written on 2026-09-15
+against a mental model in which there was one deployment; D70 consequence 2, written the same
+day, makes the retrainer a second process and so a second deployment. **The register has not
+caught up with the decision**, and that is the defect -- in C3, not in E1.
+
+**Registered as owed: which deployment C3 names.** It is one of three answers and each has a
+different cost:
+
+```
+  (a) the retrainer's own deployment      consistent with D70 c.2. C3 is re-worded to say so,
+                                          and is then discharged by building that deployment
+                                          -- which is E5's shape, not a separate experiment.
+  (b) SentinelRef itself                  contradicts D70 c.2. Taking it means re-opening the
+                                          separate-process decision, which E2 priced and did
+                                          not refute.
+  (c) any F'-autocoded, F'-toolchain      the weakest reading, and arguably what E1 already
+      -built executable                   did. If this is meant, C3 is discharged today and
+                                          the register should say so -- but then C3 is not
+                                          testing what its own fallback clause implies.
+```
+
+**Not chosen here.** Choosing it is the owner's, and it is a decision rather than a
+clarification, because (a) folds C3 into E5's critical path and (b) would reopen D70 c.2.
+**Until it is chosen, C3 stays UNVERIFIED and is not quoted in either direction** -- neither
+as established, which 47.12 stop 12 forbids, nor as refused, which the evidence above does not
+support.
+
 ### 47.16 (!) Rider, 2026-09-16: four stale statements, corrected without overwriting them
 
 **House form is a rider, not an edit**, so each superseded statement is quoted here and left
@@ -14703,6 +14749,32 @@ tracked content: **under 6 MiB HOLD, 6 to 7 MiB no verdict, above 7 MiB a stop**
 rather than trimming coverage to fit. At 6.45 MiB the repository is **not far past the middle
 of that band**, and D64's cap is 8 MiB. The documentation of 47, 48 and 49 is what moved it;
 **nothing here is trimmed, and the number is stated so the stop is seen coming.**
+
+**(!) 47.16a Rider to this rider, 2026-09-16: the figure moved again inside the same day, and
+the trend is registered as owed rather than managed.** After 49's source and results the
+measurement is **6,798,284 bytes = 6.48 MiB over 333 tracked files**, read immediately before
+this rider was written. It moved **twice in one
+day**, both times by documentation and its accompanying source, and **a figure that moves with
+every commit that describes work is not a figure anybody should be re-measuring by hand.**
+
+```
+  D64 cap                       8 MiB      hard
+  39's N8 stop                  7 MiB      report rather than trim coverage to fit
+  measured after 49             6.48 MiB   333 files
+  measured after 49's pre-reg   6.45 MiB   329 files
+  docs/STATUS.md before today   6.07 MiB   stale since before 47
+  47.13.1's record after E1     6.27 MiB   a record; correct for E1 and not edited
+```
+
+**What is owed, and it is a decision rather than a task.** The driver is **documentation, not
+data** -- 47, 48 and 49 are prose and a few hundred lines of OCaml, and the weight store has
+not moved off 1,313. So the three answers are: **raise the N8 stop**, because it was set for
+committed *vectors* and is being spent on *records*; **split the bands**, so that evidence and
+prose are counted separately; or **leave it and let the stop fire**, which is what N8 is for
+and which would force a conversation about what this repository is for. **None is taken here.
+Nothing is trimmed to stay under a line**, which 39's N8 explicitly forbids, and no guard
+re-derives any of these numbers -- `tests/test_no_local_persistence.py` bounds what may be
+committed, not how much.
 
 **4. `docs/INDEX.md`'s row for this file stopped at 39.** 47.14 recorded the gap and
 declined to close it, on the grounds that *"a one-line fix made without the owner seeing the

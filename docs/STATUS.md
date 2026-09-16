@@ -479,7 +479,7 @@ operations between them.
   `GoldenVectors.cpp` skips an absent tier silently -- so the ARM proof would have passed on
   3 and 7 channels and reported success. R2 therefore asserts the tier count. **Nothing exists
   at 16 channels**, the compile-time maximum, and the timing fixture for it is generated on the
-  target rather than committed, because tracked content is **6.45 MiB** (2026-09-16) and already inside
+  target rather than committed, because tracked content is **6.48 MiB** (2026-09-16, after 49) and already inside
   39's N8 middle band.
 - **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
