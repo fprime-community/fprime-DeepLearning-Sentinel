@@ -593,6 +593,14 @@ prediction that failed and why. This document follows the same discipline.
   - [61.5 Cost, and stop and report](#615-cost-and-stop-and-report)
   - [61.6 OBSERVED -- the cycle crosses into an F' component at the framework's own flag set](#616-observed----the-cycle-crosses-into-an-f-component-at-the-frameworks-own-flag-set)
   - [61.7 Owed](#617-owed)
+- [62 Pre-registration: E5-d, the hub crossing and the detector's tick with a retrainer beside it (Phase 5)](#62-pre-registration-e5-d-the-hub-crossing-and-the-detectors-tick-with-a-retrainer-beside-it-phase-5)
+  - [62.1 REQUIREMENTS DERIVED FROM:](#621-requirements-derived-from)
+  - [62.2 (!) What this rung measures, and the instrument it measures it with](#622-what-this-rung-measures-and-the-instrument-it-measures-it-with)
+  - [62.3 Predictions](#623-predictions)
+  - [62.4 Falsification](#624-falsification)
+  - [62.5 Cost, and stop and report](#625-cost-and-stop-and-report)
+  - [62.6 OBSERVED -- the hub was not built, and the host cannot produce a clean idle control](#626-observed----the-hub-was-not-built-and-the-host-cannot-produce-a-clean-idle-control)
+  - [62.7 Owed](#627-owed)
 
 <!-- /toc -->
 
@@ -18589,3 +18597,178 @@ wall-clock claim.
 connected to each other by anything.
 
 **Everything 60.7 owes**, unchanged.
+
+---
+
+## 62. Pre-registration: E5-d, the hub crossing and the detector's tick with a retrainer beside it (Phase 5)
+
+**E5's fourth rung, and the first use of F''s hub machinery anywhere in this repository.**
+`docs/MODELS.md` 47.1 row 27 recorded that the pattern and the components exist *"But nothing in
+this repository uses any of it"*, and 47.6 made the two-boundary distinction this rung finally
+crosses. **E1 was the first cross-process boundary this project would have; it never crossed
+one.**
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred. **C5 is what
+this rung bears on and it is not closed by it either** -- a hub between two processes is not
+`Retrainer` instanced into `SentinelRef`, and option (b) stays rejected on 47.15b's three
+grounds.
+
+### 62.1 REQUIREMENTS DERIVED FROM:
+
+```
+  fprime/lib/fprime/docs/user-manual/design-patterns/hub-pattern.md:50-55
+        "Do not pass an Fw::Buffer across a hub ... serialize and send the underlying
+        data instead"
+  hub-pattern.md:61-63
+        "Never pass pointers through a hub ... send serialized values instead"
+  hub-pattern.md:67-69          Drv::ByteStreamBufferAdapter at each end of the transport
+  docs/DECISIONS.md D70 c.2     the retrainer is a SEPARATE OS PROCESS, and it is a
+                                requirement rather than a preference
+  docs/MODELS.md 47.13.2/.3     E2: the mechanism is CPU and memory CONTENTION, not the
+                                barrier; NO VERDICT, and B2 saturated fails worst-tick
+  docs/MODELS.md 47.7 C2        "a separate process isolates the detector" -- UNVERIFIED
+                                and CONDITIONAL on core headroom at 1 Hz
+  docs/MODELS.md 42.9 T7        median 11 us, p99 28 us, WORST 326 us, measured by
+                                TestbedRun with steady_clock, against a 1 Hz period
+  docs/MODELS.md 47.9.2         X4's basis is the worse of B and B2, fixed BEFORE either
+                                ran, and not narrowed afterwards
+  docs/FPRIME.md:72             the host: macOS 26.6.1, arm64, 10 cores, 16 GiB
+```
+
+### 62.2 (!) What this rung measures, and the instrument it measures it with
+
+**(!) EVERY TIMING FIGURE THIS TRACK HAS PRODUCED SO FAR IS COMPUTE TIME. THIS IS WHERE A REAL
+WALL CLOCK FIRST APPEARS**, and every figure below is stated with its instrument. 42.9's 326 us
+is `TestbedRun`'s `steady_clock`, read once per tick, **and it includes the trace write** --
+47's X4 already treats it as an upper bound rather than a budget.
+
+**The comparison is against a healthy control in the 42.9.1 sense**: the same detector, the same
+seed, the same plant, with and without a retrainer process alive beside it. A tick figure
+without that control is the trap 42.9.1 found and 45.6.1 could only bound.
+
+### 62.3 Predictions
+
+The prefix is `HB`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **HB1** | **The hub carries serialized values and no `Fw::Buffer`.** Counted mechanically over the wiring | **0** `Fw::Buffer` across the hub boundary; every crossing a serialized port | -- | any `Fw::Buffer` or pointer crosses |
+| **HB2** | **Two processes, one hub, and the retrainer's runtime starts in the second.** | the retrainer process boots its runtime and reports a cycle across the hub | the transport stands up but the cycle does not cross | no crossing at all |
+| **HB3** | **The detector's worst tick with a retrainer beside it stays inside 42.9's 326 us**, at 1 Hz with core headroom | worst `<= 326 us` | `(326, 1000]` us -- still 0.1% of the period, and reported as a regression against 42.9 rather than a pass | `> 1000` us |
+| **HB4** | **And the excess over the healthy control is attributable**, 42.9.1's method | the paired difference is reported, whatever its sign | -- | no control is run |
+| **HB5** | **The rate table.** 1, 10 and 100 Hz, worst tick at each | all three measured and reported with the period beside them | some rate unmeasured, with its reason | none measured |
+| **HB6** | **C2's condition is stated with the result.** *"with core headroom on the host, at a 1 Hz rate group. Neither condition is optional"* | the headroom is reported as a number, not as a word | -- | the result is quoted without it |
+
+### 62.4 Falsification
+
+**If HB3 fails, a separate process does NOT isolate the detector on this host**, and C2 stays
+UNVERIFIED with a measurement against it rather than an absence. **Reported as that**; E2's NO
+VERDICT already says the mechanism is contention, and a failure here is that mechanism arriving.
+
+**If HB2 fails for want of the hub machinery standing up, that is reported as an unbuilt
+crossing, not as a negative result about the design.** The distinction matters: *"it does not
+work"* and *"we did not build it"* are different sentences and 40.14's T1 is what happens when
+they are conflated.
+
+### 62.5 Cost, and stop and report
+
+**Zero bucket operations.** **`fprime/` moves if the wiring lands, and `master` moves with it.**
+
+Stop and report, carrying every stop from 47.12 through 61.5, and adding:
+
+34. **An `Fw::Buffer` or a pointer is sent across the hub.** Stop. `hub-pattern.md:50-63` is
+    unambiguous and a hub that carries one is not the pattern.
+35. **A wall-clock figure is stated without its instrument.** Stop. This rung is where wall
+    clock enters the project and 42.9.2 already excluded it once.
+
+### 62.6 OBSERVED -- the hub was not built, and the host cannot produce a clean idle control
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched -- **the wiring did not land, so `master` does not move.**
+Source `oxcaml/retrainer/tick_rate.cpp`, `scripts/s62_rate_table.py` and
+`scripts/oxcaml_s62.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **HB1** | the hub carries serialized values, no `Fw::Buffer` | **no hub was wired**, so nothing crossed one either way | **NO VERDICT** |
+| **HB2** | two processes, one hub, the runtime in the second | **two processes: yes.** The retrainer runs as a separate OS process throughout. **One hub: no.** | **NO VERDICT** |
+| **HB3** | worst tick with a retrainer beside it stays inside 326 us | **57.625 us at 1 Hz, 88.500 at 10 Hz, 289.000 at 100 Hz** -- inside at all three | **HELD**, and see the disclosure |
+| **HB4** | the excess over a healthy control is attributable | the paired difference is **negative at every rate**: -61.666, -73.250, -781.667 us | **HELD as a report, and it does not mean what it appears to** |
+| **HB5** | the rate table at 1, 10 and 100 Hz | all three measured, with the period beside each | **HELD** |
+| **HB6** | C2's condition stated as a number | **2 of 10 cores busy** -- one detector thread, one retrainer process | **HELD** |
+
+```
+  arm           Hz   ticks    median       p99     worst
+  control        1      60    25.000   188.916   188.916
+  retrainer      1      60    31.417    57.625    57.625
+  control-2      1      60    56.042   119.291   119.291
+  control       10     300    73.000   132.458   161.750
+  retrainer     10     300    42.875    62.750    88.500
+  control-2     10     300    67.792   165.750   265.584
+  control      100    1500    69.875   191.500  1070.667
+  retrainer    100    1500    38.250   101.833   289.000
+  control-2    100    1500    70.583   257.250  1162.792
+```
+
+**(!) THE HUB WAS NOT BUILT, AND 62.4 REQUIRED THAT BE SAID AS AN UNBUILT CROSSING RATHER THAN
+AS A RESULT.** It is not that the pattern failed. **It was not attempted**, because a hub
+crossing needs a **second deployment**: a `Svc::GenericHub` instance at each end, a buffer
+allocator, a `Drv::ByteStreamBufferAdapter` and a TCP driver, plus topology wiring for events
+and telemetry (`hub-pattern.md:64-80`). **47.1 row 27's sentence still stands unchanged --
+nothing in this repository uses any of it.** *"It does not work"* and *"we did not build it"*
+are different sentences, and 40.14's T1 is what happens when they are conflated.
+
+**(!) AND THE MEASUREMENT'S HEADLINE IS THAT THE INSTRUMENT IS NOT ADEQUATE TO THE QUESTION.**
+The retrainer arm is **quieter than the control at every rate**, by 62 to 782 us. Load cannot
+make a detector faster. **An A-B-A design was run to rule out ordering** -- control, retrainer,
+control -- and the retrainer arm is still the quietest of the three, while the two controls
+disagree with each other by **69.6 us at 1 Hz and 92.1 us at 100 Hz**.
+
+**The mechanism is the host, not the retrainer.** Between ticks the detector sleeps; on an idle
+machine the core downclocks and the cache goes cold, so the next tick is slow. A retrainer
+process spinning beside it **keeps the core awake**, and the ticks get faster. **That is a
+property of arm64 macOS power management on a laptop-class host, not a property of the
+design**, and every figure in the table above carries it.
+
+**(!) SO C2 IS STILL UNVERIFIED, AND THIS RUNG DID NOT ANSWER IT.** 47.7 registers C2 as
+*"a separate process isolates the detector -- UNVERIFIED, and conditional: core headroom, 1 Hz"*.
+E2 returned NO VERDICT and found the mechanism was **CPU and memory contention, not the
+barrier**. **This measurement cannot see contention, because the confound is larger than the
+effect.** Reported as an inadequate instrument rather than as a pass.
+
+**Disclosures, volunteered.**
+
+**HB3 holds and should not be leaned on.** The worst ticks are inside 326 us, but the controls
+reach **1,070 and 1,163 us with no retrainer running at all** -- so on this host the worst tick
+is dominated by scheduler and power-management noise, and 326 us is not a line this measurement
+can meaningfully sit either side of. **42.9's 326 us also included its trace write**, so it
+bounds a smaller quantity and the comparison is not like for like.
+
+**The orchestration was wrong twice before it was right, and both attempts were discarded.**
+The first captured a background pid with `$!` inside a command substitution -- a subshell -- so
+the parent could not wait on it, the stop file was deleted before the loop saw it, and
+retrainer loops accumulated for 26 minutes under an unknown load. **No number from either
+attempt is reported.** The driver is Python now, with real process control.
+
+**60 ticks at 1 Hz is a small sample for a worst-case figure**, and 42.9's T7 had 22,000. The
+tick counts here are 60, 300 and 1,500, chosen so the arms fit in minutes.
+
+**E5 is host-verified pending target (47.14a).** C4 UNVERIFIED and deferred; **C5 UNVERIFIED and
+open, and this rung does not bear on it** -- there was no deployment and no hub.
+`Retrainer` stays uninstanced.
+
+**Cost.** Roughly 6 minutes of real time across the three rates, twice over. **This is the
+first real wall clock in this track and every figure above is stated with its instrument**:
+`steady_clock` around `Detector::step()` alone, with the period reported separately.
+
+### 62.7 Owed
+
+**(!) THE HUB CROSSING ITSELF.** A second deployment with `Svc::GenericHub`, a buffer
+allocator, `Drv::ByteStreamBufferAdapter` and a TCP driver at each end, serialized values only.
+**This is the whole of HB1 and HB2 and it is the reason E5-d is not finished.**
+
+**A contention measurement on an instrument that can see it.** Pinned cores, a fixed clock, or
+a host that does not downclock -- or E4's Pi, where the question is the one that matters.
+**Until then C2 stays UNVERIFIED** and 47.7's wording does not move.
+
+**Everything 61.7 owes**, unchanged.
