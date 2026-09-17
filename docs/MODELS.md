@@ -480,6 +480,14 @@ prediction that failed and why. This document follows the same discipline.
   - [50.7 Cost, and stop and report](#507-cost-and-stop-and-report)
   - [50.8 OBSERVED -- U3 FAILS, the tape holds strict, and the criterion is what broke](#508-observed----u3-fails-the-tape-holds-strict-and-the-criterion-is-what-broke)
   - [50.9 Owed](#509-owed)
+- [51 Pre-registration: the tolerance model, derived rather than fitted (Phase 5)](#51-pre-registration-the-tolerance-model-derived-rather-than-fitted-phase-5)
+  - [51.1 (!) Why the signed sum was wrong, and a correction to 50.8's own account of it](#511-why-the-signed-sum-was-wrong-and-a-correction-to-508s-own-account-of-it)
+  - [51.2 The declared model, and the one thing that changes](#512-the-declared-model-and-the-one-thing-that-changes)
+  - [51.3 (!) The table is shown to agree after the derivation, not used to produce it](#513-the-table-is-shown-to-agree-after-the-derivation-not-used-to-produce-it)
+  - [51.4 Predictions](#514-predictions)
+  - [51.5 Falsification](#515-falsification)
+  - [51.6 Reporting](#516-reporting)
+  - [51.7 Cost, and stop and report](#517-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -15776,3 +15784,180 @@ decision for the owner and is recorded rather than taken.
 **Everything 49.9 still owes.** A float32 cell, more than one draw, and the update-form debt,
 none of them touched here. **Backpropagation through time is no longer owed** as an
 unattempted item -- it is attempted, it compiles, and its correctness is unsettled.
+
+**(!) 50.9a Rider, 2026-09-16: the withdrawal stands by decision, and the contradiction is a
+drafting defect worth carrying forward.** The owner has ruled and is not overriding 50.5:
+**U1, U2 and U6 stay withdrawn as claims, with their figures reported.** That is settled and is
+not revisited when U3 is.
+
+**And the contradiction itself is the more useful finding.** 50.5's falsification clause was
+imported from **48.5**, where wrong arithmetic was the only way the correctness prediction
+could fail. 50.3's diagnosis clause was written for **this** section, where a mis-scaled
+criterion is a second way it can fail. **Two clauses from two precedents, neither reconciled
+against the other, both binding, prescribing different things.** Neither was wrong on its own
+terms; the defect is that nothing in the drafting made them meet.
+
+**What to carry into how later sections are written.** A falsification clause imported from an
+earlier section **inherits that section's assumptions about how the prediction can fail**, and
+a departure that introduces a new failure mode has to be checked against every clause the
+section already carries -- not only against the prediction it modifies. **48.5 assumed one
+failure mode. 50.3 created a second. 50.5 was still written as though there were one.**
+
+---
+
+## 51. Pre-registration: the tolerance model, derived rather than fitted (Phase 5)
+
+**Written before any of it exists**, in the form every section from 19 onward uses. **No code
+is written until this is reviewed.** It comes **before everything else on the ladder**, for
+50.9's reason: what broke at 50.8 was the correctness instrument, and **a criterion that fails
+at `T` = 250 cannot validate a two-layer model, a head or an optimiser either.**
+
+**(!) IT IS NOT E5 AND 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT. **And it does not answer `docs/PHASE5.md` 8**: it trains nothing, runs no epochs and
+chooses no stopping rule.
+
+**What it settles.** 50.8's U3 FAIL, and whether 50's withdrawn U1, U2 and U6 were withdrawn
+because the arithmetic was wrong or because the instrument was.
+
+### 51.1 (!) Why the signed sum was wrong, and a correction to 50.8's own account of it
+
+**50.8 got the reason half right and stated it wrongly, and the wrong half is corrected here
+before it is built on.** 50.8 says:
+
+> *"The roundoff floor of a central difference depends on the magnitude of the terms
+> accumulated into the loss, not on the magnitude of their signed total, and those two are the
+> same thing only when `T` = 1 -- which is every case 48 and 49 ever tested."*
+
+**The first clause is right. The last clause is false.** `sum |a_i|` equals `|sum a_i|`
+**if and only if every `a_i` shares a sign**, which has nothing to do with `T`. The loss is
+`L = sum_t sum_i c_{t,i} h_{t,i}` and `coeff` is filled symmetric about zero, so **the terms
+have mixed signs at every `T`, including `T` = 1.** At `T` = 1 there are already 80 signed
+terms and the two quantities differ there too.
+
+**So 49's model was mis-specified from the beginning, not from `T` = 250.** What is actually
+special about the single-timestep case is not that the two agree -- **it is that the error was
+small enough that `rtol * |g|`, the criterion's other term, carried the entries `atol`
+under-covered.** The defect was present in 48 and 49 and invisible because `T` = 1 is cheap in
+roundoff, and **50's sweep did not create it, it exposed it.** Recorded this way because "the
+model became wrong at 250" and "the model was always wrong and only showed at 250" are
+different statements about how much of 48 and 49 to trust.
+
+**The derivation.** For a floating-point sum of `N` terms, the standard error bound is on the
+**accumulated magnitude**, not the total:
+
+```
+  computed(sum a_i) - sum a_i   <=   gamma_N * sum |a_i|          gamma_N ~ N * u
+```
+
+-- the classical summation bound, with `u` the unit roundoff. **The bound carries `sum |a_i|`
+precisely because cancellation does not cancel the errors**: each partial sum is rounded at
+the magnitude it actually reaches, and a total that cancels to near zero still cost every one
+of those roundings. A criterion scaled by `|sum a_i|` therefore **tightens without limit as
+the terms cancel**, while the error it is trying to bound does not move.
+
+Carrying that through a central difference, where two loss evaluations are differenced and
+divided by `2h`, and both carry an error of that size:
+
+```
+  error(fd)  ~  2 * K' * u * S / (2h)  =  K * macheps * S / h        S = sum_t sum_i |c h|
+```
+
+**And the `T`-dependence comes free.** `S` is a sum of **positive** terms, so it grows
+linearly with `T` by construction. **No explicit `T` term is declared**, and the prediction
+that none is needed is TM4.
+
+### 51.2 The declared model, and the one thing that changes
+
+**Exactly one quantity changes from 49.2. Everything else is carried verbatim**, which is the
+strongest available position against tuning: no new constant is chosen at all.
+
+```
+  step rule   h(p) = h_rel * max(|p|, 1.0)              UNCHANGED from 49.2
+  step        h_rel = macheps^(1/3) = 6.055454e-06      UNCHANGED from 49.2
+  rtol        1e-6                                      UNCHANGED from 48.4 and 49.2
+  K           4                                         UNCHANGED from 49.2
+  scale       S = sum_t sum_i |c_{t,i} * h_{t,i}|       CHANGED. Was L_scale = |sum ... |
+  atol        K * macheps * S / h_rel
+```
+
+**`K` is not re-derived and is not moved.** 49.8 published its sensitivity -- `K` = 2 was the
+smallest that held there, `K` = 1 would have failed -- and **re-choosing it now, against a
+different scale, would be choosing a constant after seeing a table.** It stays 4.
+
+**Both `S` and `|L|` are reported at every `T`**, so a reader can see the quantity that was
+wrong beside the one that replaced it.
+
+### 51.3 (!) The table is shown to agree after the derivation, not used to produce it
+
+**50.8's sweep pointed at `sum |c h|` and that is not why it is adopted.** The model above is
+derived from the summation error bound, which is a statement about floating-point arithmetic
+and would read the same if 50.8 had never been run. **The order matters and is recorded:
+51.1's derivation stands on the bound; 50.8's table is then checked against it by TM4.**
+
+**If the table disagreed with the derivation, the derivation would be reported as refuted** --
+not repaired until it matched. That is what makes this a prediction rather than a
+rationalisation, and TM4's band is written so that it can fail.
+
+**This section is committed before it is run**, so that the ordering is checkable in the
+history rather than asserted here.
+
+### 51.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `TM` because 32 holds K, 50
+holds U, and V, X and most single letters are taken.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **TM1** | **The derived criterion holds at `T` = 250**, over all 27,600 | **0 entries outside** | at most 10 outside, each itemised | more than 10 -- the model is still wrong, or the gradient is |
+| **TM2** | **It holds at every `T` in 50.8's sweep**, `{1, 5, 25, 50, 125, 250}` | 0 outside at all six | 0 outside at four or five | 0 outside at three or fewer -- a criterion that works at some `T` and not others is the defect 50.8 found, unfixed |
+| **TM3** | **`T` = 1 reproduces 49's J1 bit-for-bit under the CHANGED tolerance.** The gradient figures do not depend on the criterion | **23,616 checked and worst absolute error exactly 1.837013e-10**, with 0 outside | worst absolute error differs in the last digit | differs materially -- changing the tolerance changed the arithmetic, which would mean the checker is not measuring what it claims |
+| **TM4** | **`S` does not cancel, and it carries `T`.** Against `abs(L)`, which wandered over a factor of 48 across the sweep | `S(T)/T` **constant within 20%** across all six, and `S` monotonically increasing | within a factor of 2 | worse -- `S` does not carry the `T`-dependence and 51.1's derivation is refuted, reported as such and not repaired |
+| **TM5** | **The looser criterion can still fail.** D26's `b_hn` defect, at `T` = 250 | **more than 10 entries outside**, i.e. a FAIL verdict on a cell that is genuinely wrong | 1 to 10 outside | 0 outside -- the criterion now accepts a wrong gradient and **TM1 to TM4 are withdrawn** |
+
+### 51.5 Falsification
+
+**If TM1 fails, the gradient is the remaining suspect** and 50's withdrawal of U1, U2 and U6
+was right on its merits rather than only by the letter of 50.5. A successor would then have to
+check the BPTT algebra itself rather than the instrument around it.
+
+**If TM4 fails, 51.1's derivation is wrong** and is reported as wrong. `S` would then not be
+the scale, an explicit `T` term would be back on the table, and **no constant in 51.2 is
+adjusted to rescue it** -- stop 15 carries forward unchanged from 49 and 50.
+
+**If TM5 fails, nothing else in this section is reported.** A tolerance wide enough to accept
+D26's defect is not a tolerance, and TM1 to TM4 are withdrawn rather than published. **This is
+the clause 50 needed and did not have**, and it is written here to be unambiguous: **TM5 is
+about the instrument accepting wrong arithmetic, and it is the only clause that withdraws the
+others.** 50.9a's drafting lesson is applied rather than restated.
+
+### 51.6 Reporting
+
+**Losers in full.** Every entry outside any band is itemised with its parameter, index,
+analytic value, finite-difference value and margin.
+
+**`S` and `|L|` are both reported at every `T`**, and 50.8's table is reprinted beside the new
+one so the two models can be compared on the same rows.
+
+**50's verdicts are not amended.** U3 stands at FAIL and U1, U2 and U6 stay withdrawn, by
+50.9a's decision. **Whatever this section finds, it is a new record and not a revision of
+50's.**
+
+**No timing figure is quoted as a budget**, and float64 throughout, so no figure here sits
+beside a flight-core figure.
+
+### 51.7 Cost, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. **No new host.** The
+tape stays **five wide** -- 50.8's figure of record, `T` x 5 x 80 = 100,000 floats, 781 KiB at
+F64 -- and `gru_cell.ml` and `gru_seq.ml` are **not edited**, so that this section measures
+the instrument and not a changed cell.
+
+**Cost, from 50's measurement rather than a guess.** 50's U3 ran **230 s** at `T` = 250
+against a 207 s estimate -- **an 11% miss, which is the figure to carry forward for any later
+estimate built on 49's 66,800 cell-forwards/second.** The sweep over all six `T` is about
+24.1M cell-steps, so roughly **390 s**, and TM5 adds another **230 s**.
+
+Stop and report, carrying 47.12's twelve, 48.7's two, 49.7's two and 50.7's one, and adding:
+
+18. **The sweep exceeds 30 minutes of wall clock.** Stop and report. The estimate above is
+    measured and a large miss means the implementation is wrong, not the schedule.
