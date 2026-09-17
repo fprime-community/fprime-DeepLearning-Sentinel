@@ -509,6 +509,8 @@ prediction that failed and why. This document follows the same discipline.
   - [53.5 Falsification](#535-falsification)
   - [53.6 Reporting](#536-reporting)
   - [53.7 Cost, and stop and report](#537-cost-and-stop-and-report)
+  - [53.8 OBSERVED -- all six hold, and the `[@@noalloc]` reading is confirmed in the same run that rejects `Array.make`](#538-observed----all-six-hold-and-the-noalloc-reading-is-confirmed-in-the-same-run-that-rejects-arraymake)
+  - [53.9 Owed](#539-owed)
 
 <!-- /toc -->
 
@@ -16571,3 +16573,75 @@ Stop and report, carrying 47.12's twelve, 48.7's two, 49.7's two, 50.7's one, 51
     learning-rate schedule is **out of scope by construction** and would answer
     `docs/PHASE5.md` 8 by default, which that rider forbids. Reaching for one means the
     ladder's next rung has been started without being pre-registered.
+
+### 53.8 OBSERVED -- all six hold, and the `[@@noalloc]` reading is confirmed in the same run that rejects `Array.make`
+
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host. Source
+`oxcaml/retrainer/adam.ml`, `adam_check.ml`, `scripts/s53_adam_reference.py` and
+`scripts/oxcaml_s53.sh`, in this commit. **`gru_deep.ml` is not edited**, so this section adds
+an optimiser to 52's model without changing it.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **AD1** | the Adam update holds `strict` | **Clean on first compilation**, no hint, no `assume` | **HELD** |
+| **AD2** | **both bias-correction forms hold** | **Both clean.** `begin_step_pow` calls `( ** )` twice; `begin_step_running` calls it not at all. Neither needed anything | **HELD** |
+| **AD3** | the trajectory is torch's Adam as read | **worst relative 2.986271e-14**, worst absolute **1.110223e-16** -- one ulp -- over 20 updates on 75,360 parameters | **HELD** |
+| **AD4** | zero `assume` | **0** | **HELD** |
+| **AD5** | a deliberate allocation fails the build | `Array.make` inside `update_block`: *"called function may allocate (external call to caml_array_make)"* | **HELD** |
+| **AD6** | one full training step, every parameter moves | 52's forward, 52's backward, one update: **0 unmoved of 75,360** | **HELD** |
+
+**(!) 53.3's READING IS CONFIRMED, AND THE CONTRAST IS INSIDE ONE RUN.** The same build that
+**accepts** `( ** )` and `sqrt` -- stdlib externals carrying `[@@unboxed] [@@noalloc]` at
+`stdlib.mli:479-480` and `:485-486` -- **rejects** `Array.make`, which carries no such
+declaration, with the message 48.8's G5 recorded. **The checker's rule is the annotation, not
+the category**, and a reader who took G5's *"external call to caml_array_make"* to mean
+external calls are rejected now has both halves on the same page.
+
+**AD2 in particular was worth taking.** A running-product bias correction is the defensive
+thing to write, and **it turns out to be unnecessary**: `( ** )` holds. That is a
+simplification a retraining engine can have, established rather than assumed.
+
+**(!) AD6's LOSS DROPPED AND NOTHING IS CLAIMED FROM IT.** The loss went from
+**1.412771660e+01** to **-2.062004329e+01** after one update. **This is not learning and is not
+reported as learning.** The loss here is a linear functional with fixed random coefficients
+(52.3's shape); a step along the negative gradient of a linear functional decreases it by
+construction, without saying anything about a model fitting data. **What AD6 establishes is
+that the gradient reaches every one of the 75,360 parameters and the update moves each of
+them** -- which is a plumbing result, and the plumbing is what this rung exists to check.
+
+**Cost, and 52.9's instruction honoured by not obeying it literally.** 52.9 asked that the next
+section quoting a wall-clock estimate measure its own rate. **53.7 quoted no estimate**, on the
+grounds that the work is about five orders of magnitude below 52's and an estimate would be
+theatre. **Measured: 1 second, for the whole section.** Nothing was parallelised; the host's
+low-memory limit recorded at 52.8 was never approached.
+
+**What this establishes.** The optimiser the ground recipe actually configures -- Adam at
+`lr` 1e-3, betas (0.9, 0.999), `eps` 1e-8, no decay, no amsgrad -- **holds
+`[@zero_alloc strict]` with zero `assume` over the flown model's full parameter count**, and
+its arithmetic agrees with `torch/optim/adam.py` as read to one ulp. **A forward, a backward
+and a weight update now all hold**, which is every arithmetic component of a training step.
+
+**What it does not.** **One step is not training.** No epochs, no validation split, no
+patience, no stopping rule, no learning-rate schedule, no dropout -- **stop 20 kept all of it
+out by construction, and `docs/PHASE5.md` 8 is untouched.** Float64 where the flight core is
+F32. **No timing figure is a compute budget.** **47.14's ordering is unchanged and E5 has not
+started.** **Nothing here touches 47.7's C3 or C5.**
+
+### 53.9 Owed
+
+**A comparison against `torch` as EXECUTED.** AD3 proves agreement with the algorithm as read
+at `torch/optim/adam.py`, and cannot prove agreement with what torch runs -- which dispatches
+between single-tensor, foreach and fused paths. **Same shape as 48.9's reference debt**, and
+it is the more interesting of the two now that a trajectory exists to compare.
+
+**(!) One association in `addcmul_` was not determined by reading, and was mirrored rather
+than resolved.** `adam.py:475` is `addcmul_(grad, grad, value=1 - beta2)`, which computes
+`value * t1 * t2` **without the Python saying how it associates**. The transcription writes
+`((1 - b2) * g) * g` and the NumPy reference writes the same, so **AD3's agreement is
+insensitive to the choice** -- but the choice is unverified against torch, and a one-ulp claim
+about torch would not survive it. Named here rather than buried.
+
+**Everything 52.9 owes**, unchanged: the head-only loss, 51.9's TM4 re-run, a re-derived timing
+basis, float32, determinism and the stopping rule where `docs/PHASE5.md` 8 must finally be
+answered, and window selection.
