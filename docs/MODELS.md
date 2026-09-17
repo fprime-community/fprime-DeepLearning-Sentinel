@@ -515,11 +515,15 @@ prediction that failed and why. This document follows the same discipline.
 - [54 Pre-registration: the cell in float32, and what representation `strict` requires (Phase 5)](#54-pre-registration-the-cell-in-float32-and-what-representation-strict-requires-phase-5)
   - [54.1 What is reused, and what the reference is](#541-what-is-reused-and-what-the-reference-is)
   - [54.2 (!) Departure 1 -- float32 arithmetic is reachable only through primitives this switch does not document](#542-departure-1----float32-arithmetic-is-reachable-only-through-primitives-this-switch-does-not-document)
+  - [54.2a (!) Rider, 2026-09-17: the list is COMPLETED, and the requirement was derived rather than guessed](#542a-rider-2026-09-17-the-list-is-completed-and-the-requirement-was-derived-rather-than-guessed)
+  - [54.2b (!) Rider, 2026-09-17: the third occurrence is a pattern, and the drafting step becomes a guard](#542b-rider-2026-09-17-the-third-occurrence-is-a-pattern-and-the-drafting-step-becomes-a-guard)
   - [54.3 (!) Departure 2 -- the boxed representation is ALREADY KNOWN to fail, and that is said before the predictions](#543-departure-2----the-boxed-representation-is-already-known-to-fail-and-that-is-said-before-the-predictions)
   - [54.4 Predictions](#544-predictions)
   - [54.5 Falsification](#545-falsification)
   - [54.6 Reporting](#546-reporting)
   - [54.7 Cost, and stop and report](#547-cost-and-stop-and-report)
+  - [54.8 OBSERVED -- the F32 cell is `flight/`'s cell bit for bit, and the accumulation order is why](#548-observed----the-f32-cell-is-flights-cell-bit-for-bit-and-the-accumulation-order-is-why)
+  - [54.9 Owed](#549-owed)
 
 <!-- /toc -->
 
@@ -16747,6 +16751,78 @@ mark against the approach, recorded here in the section that benefits from them.
 library rather than hand-declared primitives. **No package is installed to get them**, because
 installing one would move 47.8's pin, and moving the pin is a decision rather than a step.
 
+### 54.2a (!) Rider, 2026-09-17: the list is COMPLETED, and the requirement was derived rather than guessed
+
+**Stop 21 fired, as it was written to.** 54.2 listed four builtins and two C externals, and the
+cell cannot be written with them: **`flight/src/Gru.cpp:31` is
+`1.0F / (1.0F + std::exp(-x))` and `:34` is `exponent / (1.0F + exponent)`. The sigmoid is a
+division, twice.**
+
+**(!) THAT IS WHAT MAKES THIS A COMPLETION OF THE LIST RATHER THAN THE EXPLORATORY PROBING STOP
+21 FORBIDS.** The requirement was **read off the flight source**, not discovered by trying
+primitive names to see what the compiler would take. The stop exists to prevent an undocumented
+interface growing by curiosity; it is not meant to prevent the section building the cell the
+flight core actually specifies.
+
+**`%divfloat32` is added to the permitted set, and nothing else is.** Measured:
+`1.0 /. 3.0` in float32 gives **0.3333333432674408**, against float64's 0.33333333333333331.
+
+**(!) AND SUBTRACTION AND COMPARISON ARE NOT ADDED, BECAUSE THEY DO NOT NEED TO BE.** Both are
+expressible within 54.2's original set, exactly, and the reasoning is recorded so that a later
+reader does not add them out of convenience:
+
+```
+  subtraction   a - b  ==  a + (-b)  exactly in IEEE 754, and  -b == b * (-1.0)  is an
+                exact sign flip, not a rounding. So `add a (mul b minus_one)` is
+                BIT-EQUAL to a float32 subtraction, using only %addfloat32 and
+                %mulfloat32.
+
+  comparison    %floatoffloat32 is an EXACT widening -- every float32 is a float64 --
+                so `to_f x >= 0.0` decides the same branch flight/'s `x >= 0` does.
+                No float32 comparison primitive is needed.
+
+  division      NOT expressible. Computing a/b in float64 and rounding to float32 is a
+                DOUBLE ROUNDING and is not bit-equivalent to float32 division. Since
+                FT3's band is bit-identical, that difference is precisely what the
+                prediction would catch. This is why division, and only division,
+                completes the list.
+```
+
+**`%subfloat32` and `%negfloat32` were found to exist while probing for `%divfloat32`.
+Neither is adopted**, and they are recorded here only so that a later section does not spend
+the probe again.
+
+### 54.2b (!) Rider, 2026-09-17: the third occurrence is a pattern, and the drafting step becomes a guard
+
+**Three pre-registrations have now specified something the target does not permit**, and the
+cause is the same in all three:
+
+```
+  50.1   declared a four-wide tape; Gru_cell.backward reads rec_ as well, so five are needed.
+  52.4   declared a probe feeding layer 1 the input x; layer 1's input width is 80 and x is 16,
+         so that model never typechecked.
+  54.2   listed the four primitives that had been probed, not the set flight/src/Gru.cpp:31,34
+         requires.
+```
+
+**(!) EACH WAS WRITTEN FROM WHAT HAD BEEN EXPLORED RATHER THAN FROM WHAT THE FLIGHT TARGET
+REQUIRES.** That is one fault, not three incidents, and it has cost a substitution, a
+correction and a fired stop.
+
+**The fix is a drafting step, and 52.8's lesson says a note asking a future author to remember
+it is not a fix.** So it is a guard.
+**Before a pre-registration is committed, its requirements are derived from the source of
+record and the section states where from.** Every `## N. Pre-registration:` section from **55
+onward** must carry a line reading **`REQUIREMENTS DERIVED FROM:`** followed either by the
+`file:line` citations its requirements come from, or by the word **`none`** with a reason.
+`tests/test_standing_figures_are_guarded.py` fails the suite otherwise.
+
+**(!) THE THRESHOLD IS 55 AND THE REASON IS NOT CONVENIENCE.** Sections 13 to 54 were written
+before this rule existed, and **judging them by a rule they did not have would be rewriting the
+record rather than improving it**. More usefully, 51 shows the rule must permit an honest
+`none`: a tolerance model derived from the summation error bound has no flight source, and a
+guard that forced it to invent one would be worse than no guard.
+
 ### 54.3 (!) Departure 2 -- the boxed representation is ALREADY KNOWN to fail, and that is said before the predictions
 
 **A prediction made after the fact is not a prediction.** While establishing what was
@@ -16821,3 +16897,83 @@ Stop and report, carrying every stop from 47.12 through 53.7, and adding:
     and report. The four in that block and the two C externals are what this section may use;
     **discovering a fifth by guessing is how an undocumented interface becomes a dependency
     nobody wrote down.**
+
+### 54.8 OBSERVED -- the F32 cell is `flight/`'s cell bit for bit, and the accumulation order is why
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host, **and no package
+installed** -- 54.2's objection stands unresolved, as that section said it would. Source
+`oxcaml/retrainer/gru_f32.ml`, `gru_f32_check.ml`, `f32_flight_cell.cpp` and
+`scripts/oxcaml_s54.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **FT1** | an unboxed representation holds `strict` forward | **Clean.** Bigarray `float32_elt` storage with every float32 a local temporary | **HELD** |
+| **FT2** | it holds for the backward | **Clean**, and the backward was **run** as well as built | **HELD** |
+| **FT3** | **the F32 cell IS `flight/`'s cell** | **80 of 80 outputs BIT-IDENTICAL.** Worst difference **0.000000e+00** | **HELD** |
+| **FT4** | zero `assume` | **0** | **HELD** |
+| **FT5** | a deliberate allocation fails the build | `Array.make` in the F32 forward: *"called function may allocate (external call to caml_array_make)"* | **HELD** |
+| **FT6** | the F32 cell is 48's algebra | **1.189105e-07** at index 19, about one F32 ulp at that magnitude | **HELD** |
+
+**(!) FT3 IS THE TIGHTEST RESULT THIS LINE OF WORK HAS PRODUCED.** Not "agrees to a
+tolerance" -- **the same bits**, on all 80 outputs, between an OCaml cell and the C++ function
+the F' component runs and the golden vectors pin. G6 could only manage 5.199e-06 with a band
+widened to *"consistent with F32-vs-F64"*, and 48.3's departure is why.
+
+**(!) AND IT REQUIRED A TRANSCRIPTION DETAIL THAT ONLY A BIT-IDENTICAL BAND COULD HAVE
+SURFACED.** `flight/src/Gru.cpp:15-25`'s `affine` **accumulates from `0.0F` and adds the bias
+last**; 48's cell **starts the accumulator at the bias**. The two are algebraically identical
+and differ in the last bits. **Transcribing 48's order would have failed FT3** -- and would
+have passed every band this project used before it, including G6's, which absorbed the
+difference without anyone seeing it. **A fourth detail to set beside 48.1's two and 53.2's
+three**, and the first one found by a band rather than by reading.
+
+**(!) STOP 21 FIRED AND WAS HONOURED.** The cell needs a division and 54.2 did not list one.
+Work stopped, the requirement was derived from `flight/src/Gru.cpp:31,34`, and 54.2a completed
+the list with **`%divfloat32` and nothing else**. The run used exactly:
+
+```
+  %addfloat32  %mulfloat32  %divfloat32  %floatoffloat32  %float32offloat   expf  tanhf
+```
+
+**`%subfloat32` and `%negfloat32` exist and were not used**, because 54.2a established
+subtraction is `add a (mul b (-1.0))` exactly and comparison is an exact widening. **The
+permitted set is what the cell was built from, checked mechanically by the runner.**
+
+**Cost.** **2 seconds.** No wall-clock estimate was quoted, on 53.7's reasoning.
+
+**What this establishes.** **A float32 GRU cell is expressible in OxCaml, allocation-free, with
+zero `assume`, and it is bit-for-bit the flown cell.** 48.3's departure is discharged **for
+this cell**.
+
+**(!) AND FOR NOTHING ELSE, WHICH 54.6 REQUIRED BE SAID.** 52's two-layer model and head, 53's
+optimiser, and 50 and 51's BPTT are **all still float64**, and every figure in those sections
+still carries 48.3's sentence: **not to be quoted beside a flight-core figure.** One cell is
+one cell.
+
+**(!) AND THE DEPENDENCY IS A STANDING RISK, NOT A SOLVED PROBLEM.** This result rests on five
+compiler builtins that **nothing installed in this switch documents**, on a language whose own
+stability statement promises none. **The result is real and the footing is not firm**, and
+those are both true at once.
+
+**`docs/PHASE5.md` 8 is untouched.** **47.14's ordering is unchanged and E5 has not started.**
+**Nothing here touches 47.7's C3 or C5.**
+
+### 54.9 Owed
+
+**Float32 for everything above one cell.** 50 and 51's BPTT, 52's second layer and head, and
+53's optimiser are all float64. **Each is its own rung**, and FT3's result says only that the
+first of them is reachable.
+
+**The undocumented-primitive dependency**, registered rather than resolved. What would settle
+it is the operations arriving through an installed, versioned library -- which moves 47.8's
+pin, and is a decision rather than a step.
+
+**A bit-identical comparison for the BACKWARD pass.** FT3 pins the forward against `flight/`.
+**There is no flight backward to pin against**, which 48.2 already recorded; a float32 backward
+can be checked for `strict` and for gradients, and cannot be checked against the flight core at
+all.
+
+**Everything 53.9 owes**, unchanged: the torch-as-executed comparison, the `addcmul_`
+association, the head-only loss, 51.9's TM4 re-run, a re-derived timing basis, and window
+selection.

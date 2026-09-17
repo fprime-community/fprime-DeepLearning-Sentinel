@@ -75,3 +75,36 @@ def test_the_index_row_for_models_reaches_the_highest_section() -> None:
         f"{max(named) if named else 'nothing'}. 47.14 recorded this gap and declined to "
         "close it silently; it is guarded now, so extend the row in the same commit as "
         "the section.")
+
+
+#: `docs/MODELS.md` 54.2b. Sections below this were written before the rule existed;
+#: judging them by it would rewrite the record rather than improve it.
+DERIVATION_RULE_FROM = 55
+
+
+def test_new_pre_registrations_state_where_their_requirements_came_from() -> None:
+    """`docs/MODELS.md` 54.2b, and it is a drafting step rather than a citation count.
+
+    Three pre-registrations specified something the target does not permit -- 50.1's
+    four-wide tape, 52.4's undimensionable probe, 54.2's incomplete primitive list --
+    and all three were written from what had been explored rather than from what the
+    flight target requires. The rule permits an honest ``none``: 51's tolerance model
+    is derived from the summation error bound and has no flight source.
+    """
+    text = (ROOT / "docs" / "MODELS.md").read_text(encoding="utf-8")
+    heads = [(m.start(), int(m.group(1)), m.group(2))
+             for m in re.finditer(r"^## (\d+)\. (.*)$", text, re.M)]
+    heads.append((len(text), 10 ** 6, ""))
+    missing = []
+    for i in range(len(heads) - 1):
+        start, number, title = heads[i]
+        if number < DERIVATION_RULE_FROM or "Pre-registration" not in title:
+            continue
+        body = text[start:heads[i + 1][0]]
+        if "REQUIREMENTS DERIVED FROM:" not in body:
+            missing.append(number)
+    assert not missing, (
+        f"pre-registration section(s) {missing} carry no 'REQUIREMENTS DERIVED FROM:' line. "
+        "docs/MODELS.md 54.2b: derive the section's requirements from the source of record "
+        "before committing it, and state where from -- or write 'none' with a reason, which "
+        "51's tolerance model would legitimately do.")
