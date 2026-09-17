@@ -547,6 +547,16 @@ prediction that failed and why. This document follows the same discipline.
   - [56.7 Cost, and stop and report](#567-cost-and-stop-and-report)
   - [56.8 OBSERVED -- the limit gate does all of the work, and it admits 11,225 ticks of a degrading spacecraft](#568-observed----the-limit-gate-does-all-of-the-work-and-it-admits-11225-ticks-of-a-degrading-spacecraft)
   - [56.9 Owed](#569-owed)
+- [57 Pre-registration: the tolerance model for a head-only loss, where `S` stops carrying `T` (Phase 5)](#57-pre-registration-the-tolerance-model-for-a-head-only-loss-where-s-stops-carrying-t-phase-5)
+  - [57.1 What is reused, and the reference is](#571-what-is-reused-and-the-reference-is)
+  - [57.2 REQUIREMENTS DERIVED FROM:](#572-requirements-derived-from)
+  - [57.3 (!) What the derivation says before anything is run](#573-what-the-derivation-says-before-anything-is-run)
+  - [57.4 Predictions](#574-predictions)
+  - [57.5 Falsification](#575-falsification)
+  - [57.6 Reporting](#576-reporting)
+  - [57.7 Cost, and stop and report](#577-cost-and-stop-and-report)
+  - [57.8 OBSERVED -- 51's model is adequate for the head-only loss, and the reason is the opposite of what 52 feared](#578-observed----51s-model-is-adequate-for-the-head-only-loss-and-the-reason-is-the-opposite-of-what-52-feared)
+  - [57.9 Owed](#579-owed)
 
 <!-- /toc -->
 
@@ -17616,3 +17626,214 @@ discriminate is **not** established, and this section's G-rate is evidence it is
 looks.
 
 **Everything 55.10 owes**, unchanged.
+
+---
+
+## 57. Pre-registration: the tolerance model for a head-only loss, where `S` stops carrying `T` (Phase 5)
+
+**52 registered this as owed and named it rather than sliding into it**
+(`docs/MODELS.md` 52, quoted): *"Its `S` is over 160 terms each carrying a 250-step recurrence,
+and whether 51's roundoff model is adequate for it is not established by anything. That is a
+section of its own and is named here so it is not slid into."* This is that section.
+
+### 57.1 What is reused, and the reference is
+
+**52's model, unedited.** `oxcaml/retrainer/gru_deep.ml` already carries two GRU layers, the
+output head, the forward, the BPTT over a five-wide tape, and **51.1's accumulated magnitude
+`s_out`**. Its loss is
+
+```
+  L = sum_t sum_i coeff_h[t,i] * h1[t,i]     +     sum_j coeff_y[j] * y[j]
+      ^ 20,000 terms at T = 250                    ^ 160 terms, whatever T is
+```
+
+**The head-only loss is that loss with `coeff_h` set to zero**, which is a change of inputs and
+not a change of model. 49's criterion is carried verbatim: `h_rel = macheps^(1/3) =
+6.055454e-06`, `rtol = 1e-6`, central differences.
+
+### 57.2 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 52                          the owed registration, quoted above
+  docs/MODELS.md 51.1                        the classical summation bound:
+                                             |computed(sum a_i) - sum a_i| <= gamma_N sum|a_i|
+                                             -- the bound carries the ACCUMULATED magnitude
+                                             because cancellation does not cancel the errors
+  docs/MODELS.md 49.2                        h_rel, rtol, the step rule, carried unchanged
+  oxcaml/retrainer/gru_deep.ml:204-208       the head's accumulation, and where s_out is
+                                             fed |coeff_y[j] * y[j]| -- the CANCELLED total
+  oxcaml/retrainer/gru_deep.ml:192-194       the per-timestep term, which head-only removes
+  flight/include/sentinel/ModelFile.hpp:32-35 n_out = 160 = MAX_PREDICTIONS x MAX_CHANNELS
+  flight/include/sentinel/Config.hpp:28-36   hs 80, ins 16, and the head reads the last
+                                             layer's width
+  src/sentinel_models/lstm.py:90             window 250, the flown T
+```
+
+### 57.3 (!) What the derivation says before anything is run
+
+**51's `S` is fed the cancelled total at two levels, and the head-only loss exposes the second.**
+
+`gru_deep.ml:206-207` feeds `s_out` the quantity `|coeff_y[j] * y[j]|`, where `y[j]` is the
+**finished** head output -- a sum of 81 terms that has already cancelled. **51.1's own argument
+says that is the wrong quantity**: the bound carries `sum |a_i|`, not `|sum a_i|`, and the head
+affine is a sum like any other. With `coeff_h` non-zero the 20,000 per-timestep terms dominate
+`S` and the head's under-count is invisible. **With `coeff_h` zero there is nothing else left.**
+
+**Three models are compared, and only the third is new:**
+
+```
+  M-51    S = sum_j |coeff_y[j] * y[j]|                    51's, applied naively.
+                                                           160 terms, no T anywhere.
+
+  M-flat  S = sum_j |coeff_y[j]| * ( |head_b[j]|
+                 + sum_k |head_w[j,k] * h_final[k]| )      51.1's rule applied ONE LEVEL
+                                                           DOWN: the loss written out as a
+                                                           single sum over 160 x 81 terms.
+                                                           Still no T.
+
+  M-rec   M-flat + sum_t sum_i |dL/dh1[t,i]| * A1[t,i]
+                 + sum_t sum_i |dL/dout0[t,i]| * A0[t,i]   the recurrence's own accumulated
+                                                           magnitude, weighted by the loss's
+                                                           sensitivity to it. A is the
+                                                           absolute magnitude accumulated in
+                                                           the affines that produced that
+                                                           unit. THIS is where T re-enters.
+```
+
+**M-rec is derived, not fitted.** It is the first-order error bound
+`|error(L)| <= gamma * sum_nodes |dL/dnode| * A_node` with the sum taken over every addition
+the computation performs, which is 51.1's bound stated for a graph instead of for one sum. The
+sensitivities `|dL/dh1[t,i]|` are the backward carry the BPTT already computes; the magnitudes
+`A` are accumulated in the forward. **No constant is introduced that 49 and 51 did not already
+fix**: `K`, `h_rel` and `rtol` are carried unchanged.
+
+### 57.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `HL`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **HL1** | **The head-only forward and backward hold `[@zero_alloc strict]`**, the two magnitude tapes included, **no `assume`** | clean build, **0** | holds only with an inlining hint, itemised | needs `assume` |
+| **HL2** | **M-51 under-covers at `T` = 250.** Gradient entries outside 49's criterion under M-51 | **>= 1** entry outside | -- | **0** -- 51's model is adequate for this shape after all, and 52's owed item was owed for nothing |
+| **HL3** | **M-flat is strictly larger than M-51**, at every `T` tested | `S_flat > S_51` at all four `T` | equal at some | smaller at any -- the derivation is wrong |
+| **HL4** | **M-rec covers the head-only gradients at `T` = 250** | **0** entries outside | 1 to 20 outside | **> 20** -- the graph bound is not sufficient either, and that is the finding |
+| **HL5** | **`T` re-enters through M-rec and only through M-rec.** `S_rec / S_flat` at `T` = 1, 10, 50, 250 | ratio **increases monotonically** with `T` | non-monotone but increasing overall | flat or decreasing -- the recurrence term is not carrying `T` |
+| **HL6** | **The check can fail.** A deliberately wrong gradient, one parameter, at `T` = 250 | caught under M-rec | -- | passes |
+
+### 57.5 Falsification
+
+**If HL2 fails, this section was not needed** and 52's owed item is discharged by measurement
+rather than by work. **Reported as that, plainly**, and M-flat and M-rec are reported as
+derived-and-unnecessary rather than quietly kept.
+
+**If HL4 fails, the finding is that a first-order graph bound is not enough for a 250-step
+recurrence**, and the head-only loss needs either a tighter model or a smaller `T`. **The band
+is not widened and `K` is not raised** -- stop 15, and 51 is the section that exists because
+that was done once already.
+
+**If HL6 fails, nothing else is reported.** 50.9a's lesson as 54.5 states it.
+
+### 57.6 Reporting
+
+**Losers in full.** Entry counts are reported **per parameter block**, not pooled, because
+`w_hh` and `head_w` have very different accumulation depths and a pooled count hides which.
+
+**Every `S` is reported at all four `T`**, so that the shape of the growth is visible rather
+than asserted from two endpoints.
+
+**(!) AND 48.3's SENTENCE STILL ATTACHES.** This section is float64 throughout, like 50 to 53.
+**No figure here is quotable beside a flight-core figure**, and 54's F32 cell does not change
+that for anything above one cell.
+
+### 57.7 Cost, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. No new host, no hardware,
+no package. `flight/` and `fprime/` are not touched, so `master` does not move.
+
+Stop and report, carrying every stop from 47.12 through 56.7, and adding:
+
+26. **`K`, `h_rel` or `rtol` is changed.** Stop. They are 49's and 51's and this section
+    inherits them; a tolerance model that needs a new constant to pass is not a model.
+27. **`coeff_h` is made non-zero to get a result.** Stop. That is 52's loss, which already
+    passed, and running it again would answer a question nobody asked.
+
+### 57.8 OBSERVED -- 51's model is adequate for the head-only loss, and the reason is the opposite of what 52 feared
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No new
+host, no hardware, no package. `flight/` and `fprime/` untouched, so `master` does not move.
+Source `oxcaml/retrainer/head57.ml`, `head57_check.ml` and `scripts/oxcaml_s57.sh`, in this
+commit. **`gru_deep.ml` is not edited**, so 52's figures still stand against the file they were
+measured on.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **HL1** | head-only forward and backward hold `strict`, tapes included | clean under `-zero-alloc-check all`; **0** `assume`, **0** hints | **HELD** |
+| **HL2** | **M-51 under-covers at `T` = 250** | **0 outside**, at stride 97 (780 entries) and again at stride 11 (**6,855 entries**) | **FAIL** |
+| **HL3** | M-flat strictly larger than M-51 | **3.822x, 4.942x, 5.100x, 4.606x** at `T` = 1, 10, 50, 250 | **HELD** |
+| **HL4** | M-rec covers all entries at `T` = 250 | 0 outside -- **but see the disclosure; it could not discriminate** | **HELD**, trivially |
+| **HL5** | `T` re-enters through M-rec | `S_rec / S_flat` = **4.642, 7.918, 8.152, 8.334**, monotone | **HELD** |
+| **HL6** | the check can fail | a deliberately wrong `head_w[0]` is caught under M-rec | **HELD** |
+
+**(!) HL2 FAILED, AND 57.5 SAYS WHAT THAT MEANS: THIS SECTION WAS NOT NEEDED.** 52 registered
+the head-only loss as owed because *"its `S` is over 160 terms each carrying a 250-step
+recurrence, and whether 51's roundoff model is adequate for it is not established by
+anything."* **It is established now, and it is adequate.** The owed item is discharged **by
+measurement, and the measurement says no work was required.**
+
+**(!) AND THE REASON IS THE OPPOSITE OF THE WORRY.** 52 feared that dropping the 20,000
+per-timestep terms would leave `S` too small and the tolerance too tight. **It does leave it
+smaller** -- `S` is about **5** here where 52's combined loss carried the per-timestep terms as
+well -- **and the loss got easier faster than the tolerance got tighter.** Removing those terms
+removed 20,000 accumulations' worth of roundoff and only 20,000 terms' worth of allowance, and
+the first is the larger loss. The head-only loss is a **shallower** computation than 52's, not
+a deeper one; what makes it unusual is where its error comes from, not how much there is.
+
+**The headroom, because "0 outside" does not say by how much.**
+
+```
+  atol under M-51                  7.303453e-10
+  worst |fd - analytic|            9.995761e-11
+  worst err / allowed              0.1189        on w_hh1   -- 8.4x of headroom
+```
+
+**Disclosures, volunteered.**
+
+**(!) HL4 HELD TRIVIALLY AND IS WORTH NOTHING AS WRITTEN.** M-rec covers every entry, but so
+does M-51, so covering them is no evidence that M-rec is right -- **a prediction that cannot
+distinguish its hypothesis from the null it was written against has not been tested.** HL4 was
+drafted assuming HL2 would hold. It did not, and HL4 went down with it. Recorded rather than
+quietly counted as a win.
+
+**"0 outside" is 0 outside the sample.** 6,855 of 75,360 parameters at stride 11, and 780 at
+stride 97. **The full set was not checked**, and at 400 seconds for the denser pass an
+exhaustive run is about 90 minutes. The claim is that no failure was found in a strided sample
+covering all ten parameter blocks, not that none exists.
+
+**M-flat and M-rec are DERIVED AND UNNECESSARY at float64 and `T` = 250, and they are kept
+rather than adopted.** HL5 shows M-rec does what it was built to do -- the ratio to M-flat
+grows with `T` and M-51 carries no `T` at all -- so the instrument works and the case for
+needing it has not arrived. **It is registered, not in use.**
+
+**(!) AND THE CASE FOR IT MAY ARRIVE AT F32.** This section is float64, where the unit roundoff
+is about 1.1e-16. E5-b assembles the cycle at F32, where it is about 6.0e-8. **Whether an 8.4x
+headroom survives that is not established here and nothing above may be read as saying it
+does** -- both `atol` and the error scale with the unit roundoff, so the ratio may hold or may
+not, and only running it decides.
+
+**Stops 26 and 27 both held.** `K` = 4.0, `h_rel` = `macheps^(1/3)` and `rtol` = 1e-6 are 49's
+and 51's, unchanged; `coeff_h` was zero for every figure above.
+
+**48.3's sentence still attaches.** float64 throughout. **No figure here is quotable beside a
+flight-core figure.**
+
+**Cost.** **403 seconds** at stride 11, 188 at stride 31, 45 at stride 97. Compute time on this
+host; no wall-clock claim.
+
+### 57.9 Owed
+
+**The same question at F32**, which is the one that may actually need M-rec. E5-b.
+
+**An exhaustive check rather than a strided one**, if any later section makes the margin
+matter. About 90 minutes at `T` = 250.
+
+**Everything 56.9 owes**, unchanged.
