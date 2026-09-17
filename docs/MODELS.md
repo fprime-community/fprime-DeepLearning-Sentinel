@@ -478,6 +478,8 @@ prediction that failed and why. This document follows the same discipline.
   - [50.5 Falsification](#505-falsification)
   - [50.6 Reporting](#506-reporting)
   - [50.7 Cost, and stop and report](#507-cost-and-stop-and-report)
+  - [50.8 OBSERVED -- U3 FAILS, the tape holds strict, and the criterion is what broke](#508-observed----u3-fails-the-tape-holds-strict-and-the-criterion-is-what-broke)
+  - [50.9 Owed](#509-owed)
 
 <!-- /toc -->
 
@@ -15661,3 +15663,116 @@ Stop and report, carrying 47.12's twelve, 48.7's two and 49.7's two, and adding 
     estimate above is measured and a large miss against it means something is wrong with the
     implementation, not with the schedule -- and a check that has to run overnight is the wrong
     check for a rung that exists to be cheap.
+
+### 50.8 OBSERVED -- U3 FAILS, the tape holds strict, and the criterion is what broke
+
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host. Source
+`oxcaml/retrainer/gru_seq.ml`, `gru_seq_check.ml` and `scripts/oxcaml_s50.sh`, in this commit.
+**`gru_cell.ml` is not edited.**
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **U1** | the sequence forward holds `strict` | **Clean, with no hint beyond 48's existing `[@inline]` on `sigmoid`.** 50.2's second predicted failure mode did not occur, because no helper here returns a float | **HELD**, and withdrawn -- see below |
+| **U2** | **the backward sweep through time holds `strict`** | **Clean. `forward_seq`, `backward_seq` and `zero_step_grads` all carry `[@zero_alloc strict]` and all pass**, over a 250-step reverse loop accumulating into 48's buffers, with a cross-module call to `Gru_cell.backward` proved transitively | **HELD**, and withdrawn -- see below |
+| **U3** | gradients right under 49's criterion over all 27,600 at `T` = 250 | **248 entries outside.** Worst absolute error **2.457976e-08**; worst margin **+1.439231e-08** on `w_hh` | **FAIL** |
+| **U4** | zero `assume` | **0** | **HELD** |
+| **U5** | a deliberate allocation inside the backward-through-time loop fails the build | `Array.make` inside `backward_seq`'s reverse loop: *"called function may allocate (external call to caml_array_make)"* | **HELD** |
+| **U6** | `T` = 1 reproduces 49's J1 bit-for-bit | **23,616 checked, worst absolute error 1.837013e-10, 0 outside.** Identical to J1 in every digit reported | **HELD**, and withdrawn -- see below |
+
+**(!) U3 FAILED ITS BAND AND THE BAND IS NOT MOVED.** Stop 15 did not fire: `h_rel`, `rtol`
+and `K` are 49.2's, unchanged, and nothing was adjusted after a number was seen.
+
+**(!) AND 50.5 CONTRADICTS 50.3, WHICH IS A DEFECT IN THIS SECTION'S OWN PRE-REGISTRATION.**
+50.5 says *"if U3 fails, nothing else in this section means anything, and U1, U2 and U6 are
+withdrawn rather than reported."* 50.3 says *"if U3 lands outside, the first question is
+whether the model needs a `T` term, **not whether the gradient is wrong**."* **Both were
+written before the run and they prescribe different things.** 50.5's clause was inherited from
+48.5, where the only way U3 could fail was wrong arithmetic; 50.3 then introduced a second
+failure mode and **nobody reconciled the two.**
+
+**Resolved conservatively: 50.5 is honoured.** U1, U2 and U6 are **reported with their figures
+and withdrawn as claims.** They are not cited as establishing anything until a successor
+section settles U3. **Overriding my own falsification clause because the diagnosis is
+convenient would be the exact failure this project keeps catching**, and the reconciliation is
+a decision for the owner rather than a reading to take here.
+
+**(!) THE DIAGNOSIS: `atol` WAS TIED TO `|L|`, AND `|L|` IS A SIGNED SUM.** The sweep was run
+by re-running the same binary at different `T` -- **no constant was changed** -- in the manner
+48.8 used for its `eps` sweep:
+
+```
+    T    L_scale       atol          worst_abs      outside   worst_abs/atol
+    1    3.268255e-01  4.793685e-11  1.837013e-10        0        3.8
+    5    1.185597e+00  1.738963e-10  4.267928e-10        1        2.5
+   25    8.755092e+00  1.284145e-09  4.863635e-09       39        3.8
+   50    7.676611e+00  1.125960e-09  9.353135e-09       94        8.3
+  125    1.817650e-01  2.666022e-11  1.358832e-08      208      509.7
+  250    4.905589e+00  7.195230e-10  2.457976e-08      248       34.2
+```
+
+**`worst_abs` grows smoothly and monotonically with `T`** -- 133.8x across a `T` ratio of 250,
+so very nearly linear. **`atol` does not grow at all: it wanders**, because it is
+`K * macheps * L_scale / h_rel` and `L_scale = |L|` is the magnitude of a **signed** sum over
+`T` steps. Over the sweep `|L|` ranges from **1.818e-01 to 8.755e+00 without regard to `T`**,
+and **at `T` = 125 it nearly cancels to zero**, collapsing `atol` to 2.667e-11 and putting 208
+entries outside on half the timesteps that `T` = 250 has.
+
+**So 50.3 predicted the right failure for the wrong reason.** It expected a missing `T` term.
+The actual defect is worse and more interesting: **a tolerance must not be scaled by a
+quantity that can cancel.** The roundoff floor of a central difference depends on the
+magnitude of the **terms accumulated into** the loss, not on the magnitude of their signed
+total, and those two are the same thing only when `T` = 1 -- which is every case 48 and 49
+ever tested.
+
+**(!) WHAT THIS DOES NOT SHOW.** It does **not** show the gradient is right. The relative
+errors are roundoff-scale rather than wrongness-scale -- **1.244e-06** on the largest itemised
+gradient, **2.377e-06** on another, **2.148e-05** on a small one, against J5's **1.670** for a
+genuinely wrong cell -- and U6 reproduces 49 bit-for-bit at `T` = 1. **That is suggestive and
+it is not a verdict**, because the criterion that would have decided it is the thing that
+failed. **U3 stands at FAIL.**
+
+**(!) AND 50.1 DECLARED A FOUR-WIDE TAPE WHERE FIVE ARE NEEDED.** 50.1 says *"r, z, n, h per
+step, T x 4 x 80 = 80,000 floats"*. `Gru_cell.backward` also reads `rec_` at the third gate
+block, so `rec_n` must be on the tape as well: **`T` x 5 x 80 = 100,000 floats, 781 KiB at
+F64** rather than 625 KiB. **The pre-registration under-specified what the tape must hold**,
+found while implementing rather than by reading, and the implementation follows the arithmetic
+rather than the declaration. Nothing turns on the size -- it is fixed either way, which is
+what CPP-1 asks -- but the figure of record is 5, not 4.
+
+**Cost.** U3 ran **230 s** against 50.7's measured estimate of **207 s**, an 11% miss.
+**Stop 17 did not fire.** The sweep added about 6 minutes. Zero bucket operations.
+
+**What this establishes, subject to the withdrawal.** A 250-step tape, claimed once at init, a
+250-step reverse sweep accumulating into fixed buffers, and a cross-module call chain, all
+compile clean under `-zero-alloc-check all` with **zero `assume` and no hint beyond the one 48
+already carried**. 50.2's first predicted failure mode -- the flat tape -- was registered in
+advance and the flat form worked; the second never arose.
+
+**What it does not.** **U3 is FAIL and the three `strict` results are withdrawn as claims
+pending its settlement.** One layer, no head, no optimiser, F64, no timing figure quoted as a
+budget. **`docs/PHASE5.md` 8 is untouched**: this section ran a fixed window, trained nothing,
+and chose no stopping rule.
+
+**47.14's ordering is unchanged and E5 has not started.** E4 has not run and E2 is NO VERDICT.
+**Nothing here touches 47.7's C3 or C5.**
+
+### 50.9 Owed
+
+**A successor section with the tolerance model declared first, and it comes before anything
+else on the ladder.** What broke is the correctness instrument, not the cell, and **a criterion
+that fails at `T` = 250 cannot validate a two-layer model or an optimiser either.** What it has
+to declare, before any number is seen: a scale that **cannot cancel** -- the accumulated
+magnitude `sum_t sum_i |coeff * h|` rather than `|sum_t sum_i coeff * h|` is the obvious
+candidate and is not adopted here -- and whether the floor carries an explicit `T` term, which
+the sweep above says it must. **Registering the candidate is not choosing it**, and choosing it
+after seeing this table is exactly what stop 15 forbids doing inside this section.
+
+**U1, U2 and U6's withdrawal, resolved.** 50.5 and 50.3 prescribe different things and the
+conservative one was taken. **Whether the withdrawal stands** once U3 is settled, or whether
+50.5's clause should have been worded to apply only to a wrong-arithmetic failure, is a
+decision for the owner and is recorded rather than taken.
+
+**Everything 49.9 still owes.** A float32 cell, more than one draw, and the update-form debt,
+none of them touched here. **Backpropagation through time is no longer owed** as an
+unattempted item -- it is attempted, it compiles, and its correctness is unsettled.
