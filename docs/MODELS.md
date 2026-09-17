@@ -529,11 +529,14 @@ prediction that failed and why. This document follows the same discipline.
   - [55.1 What is reused, and the reference is](#551-what-is-reused-and-the-reference-is)
   - [55.2 REQUIREMENTS DERIVED FROM:](#552-requirements-derived-from)
   - [55.3 (!) What the drafting step found, and it is said before the predictions](#553-what-the-drafting-step-found-and-it-is-said-before-the-predictions)
+  - [55.3a (!) Rider, 2026-09-17: the tick count was chosen and had to be derived, and nothing has been run](#553a-rider-2026-09-17-the-tick-count-was-chosen-and-had-to-be-derived-and-nothing-has-been-run)
   - [55.4 The budget, and what this section does not decide](#554-the-budget-and-what-this-section-does-not-decide)
   - [55.5 Predictions](#555-predictions)
   - [55.6 Falsification](#556-falsification)
   - [55.7 Reporting](#557-reporting)
   - [55.8 Cost, and stop and report](#558-cost-and-stop-and-report)
+  - [55.9 OBSERVED -- the wrapped window is deterministic, and the budget is exact at a 292x change of set size](#559-observed----the-wrapped-window-is-deterministic-and-the-budget-is-exact-at-a-292x-change-of-set-size)
+  - [55.10 Owed](#5510-owed)
 
 <!-- /toc -->
 
@@ -17141,6 +17144,41 @@ back a solve looks, and `STRIDE` is how often one happens. Corrected from
 `DynamicThreshold.cpp:280-284` before the prediction was written, which is the drafting step
 doing its job on the section that introduced it.
 
+### 55.3a (!) Rider, 2026-09-17: the tick count was chosen and had to be derived, and nothing has been run
+
+**The drafting step found a second thing, and this time before the run rather than after it.**
+
+`flight/test/DeterminismTest.cpp:42-43` calls `detector.reset()` at `steps / 2`, and
+`Detector::reset` reaches `DynamicThreshold::reset` and `TrailingWindow::reset`, which zeroes
+`m_filled` and the whole ring. **So the longest uninterrupted segment in a run is half of it**,
+and the window has to fill inside one segment or it never fills at all.
+
+**3,500 was a chosen number and it would have proved nothing.** Its segments are 1,750 ticks,
+short of the moment span at 2,100 and of the ring at 2,170. **DT2 would have failed, DT1 would
+have been withdrawn by it, and the section would have produced no result** -- the same shape as
+50.1's four-wide tape and 52.4's undimensionable probe, which is what D72 exists to catch.
+**It was caught before the run**, which is the difference D72 was written to make.
+
+**The count, derived rather than chosen:**
+
+```
+  a segment must fill the ring            SOLVE_WINDOW            2,170
+  and then solve at least 12 times        12 x STRIDE = 12 x 70     840
+                                          minimum segment         3,010
+  a segment is half a run                 minimum steps           6,020
+  registered                              steps                   6,400
+    -> segments of 3,200; the ring wraps at 2,170; 14 solves in the wrapped
+       regime per segment, and BOTH segments wrap rather than only the second
+```
+
+**What moves and what does not.** DT1 and DT2's tick count moves from 3,500 to **6,400**.
+**Their bands do not move**: DT1 is still bit-identical or fail, DT2 still requires both
+eviction points crossed and **>= 12** solves in the wrapped regime. **Nothing has been run and
+no number has been seen**, so this is not stop 15's shape -- it is a requirement derived from
+`Config.hpp` and `DeterminismTest.cpp` that 55.2 should have carried and did not.
+
+**55.2 is not edited.** It is a record of what was derived, and what it missed is the point.
+
 ### 55.4 The budget, and what this section does not decide
 
 D73 rules that a retraining cycle performs a fixed number of optimiser **steps**. **This
@@ -17218,3 +17256,87 @@ Stop and report, carrying every stop from 47.12 through 54.7, and adding:
     has decided how serious it is on the owner's behalf.
 23. **The flight budget `N` gets a value derived from anything in this section.** Stop. D73
     consequence 4 reserves that derivation, and 256 was chosen for convenience.
+
+### 55.9 OBSERVED -- the wrapped window is deterministic, and the budget is exact at a 292x change of set size
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No
+new host, no hardware, **and no package installed**. **Arm A changes `flight/test/`, so
+`master` moves in this commit series.** Source `flight/test/DeterminismTest.cpp`,
+`oxcaml/retrainer/cycle55.ml`, `cycle55_check.ml` and `scripts/oxcaml_s55.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **DT1** | the flight detector is bit-identical over a run that wraps | digest **0xDA9EBC7F**, equal on two runs in one process **and across two processes** | **HELD** |
+| **DT2** | the long run reaches what 400 did not | **2 of 2 segments wrapped** the ring; **2,202** ticks executed the moment eviction; **30** solves ran with the ring at capacity, against a band of **>= 12** | **HELD** |
+| **DT3** | the OxCaml cycle is bit-identical across two processes | digest **0x30a92086**, identical | **HELD** |
+| **DT4** | exactly `N` steps whatever the set holds | **256 and 256**, on sets of **7** and **2,048** -- a **292x** difference | **HELD** |
+| **DT5** | the seeded RNG is a fixed sequence | fingerprint **0x615266** redrawn identically; a different seed gives a different sequence | **HELD** |
+| **DT6** | `[@zero_alloc strict]`, zero `assume` | clean under `-zero-alloc-check all`; **0** `assume`, **0** inlining hints, **0** C externals called | **HELD** |
+| **DT7** | the check can fail | the dropout seed drawn from the clock: `DT3 across processes: bbbe7e71 == c711e77c: DIFFER`, rc != 0 | **HELD** |
+
+**(!) ARM A'S RESULT IS THE ONE THAT MATTERED, AND IT IS A NEGATIVE FINDING IN THE USEFUL
+SENSE.** `TrailingWindow`'s moment eviction -- `m_sum[c] -= leaving`, a running sum that
+subtracts -- **is deterministic across processes**, and so is the ring wrap. Nothing was
+broken. **What changes is what the claim covers**: before this section, `docs/STATUS.md` and
+`docs/EVIDENCE.md` said the detector is bit-identical across processes on the strength of a
+run in which neither eviction point was ever reached. **The sentence was true and the evidence
+under it was narrower than the sentence.** It is not narrower now.
+
+**(!) AND THE TICK COUNT HAD TO BE DERIVED TWICE.** 55.2 derived the eviction points and
+missed that `Detector::reset` at `steps / 2` halves the usable segment, so the registered
+3,500 would have produced segments of 1,750 -- **neither eviction point reached, DT2 failed,
+DT1 withdrawn by it, and the section would have produced nothing.** 55.3a caught it **before
+the run**, which is the difference D72 was written to make; 50.1 and 52.4 are the two that
+were caught after.
+
+**Arm B, and what a fixed budget does and does not buy.** The two set sizes produced
+**different digests** -- `0x30a92086` at 7 samples and `0xac0fb9bb` at 2,048. **D73's budget
+fixes the COST of a cycle, not its OUTCOME**, and a reader who takes "fixed compute" to mean
+"the same model whatever the window holds" has it wrong. That is the intended behaviour and it
+is stated here so it is not discovered as a surprise by whatever compares two cycles later.
+
+**Disclosures, volunteered.**
+
+**The optimiser is SGD and not Adam, by decision and not by omission.** An F32 Adam needs a
+float32 square root; 54.2 measured `%sqrtfloat32` as *"Unknown builtin primitive"*, so it would
+have to arrive as a C external, and reaching for a float32 operation outside 54.2a's list is
+**exactly stop 21's shape**. 53's Adam is float64 and 54.6 forbids quoting it beside an F32
+figure. **The F32 optimiser is owed and is E5-b's rung.** Nothing here is evidence that it is
+reachable.
+
+**The measured dropout rate is 29.77%, not 30%.** 6,097 units masked of 20,480 drawn. The mask
+is an exact integer ratio against `2^30` and a finite draw does not land on the nominal rate;
+that is arithmetic, not a defect, and it is reported because a reader checking 0.3 against this
+run would otherwise wonder.
+
+**The RNG sits on the flight-adjacent path**, as 55.4 disclosed before the run. It is
+counter-based, seeded from a constant, never from a clock or any entropy source, and it
+allocates nothing. **DT7's variant is what a clock seed does**, kept as evidence rather than
+as a warning.
+
+**One cell, still.** Arm B drives 54's F32 cell. 52's two layers and head, 50 and 51's BPTT and
+53's optimiser **remain float64**, and 48.3's sentence still attaches to every figure in them.
+Arm A's figures are `flight/`'s and arm B's are OxCaml's; **they are not quoted beside each
+other.**
+
+**Cost.** Arm A is inside `make -C flight test`. Arm B: **2 seconds**. Both are compute time on
+this host. **No wall-clock claim is made from either**, and this track's first real wall clock
+is still E5-d's.
+
+**What this establishes.** `flight/`'s determinism claim now covers the wrapped window. D73's
+fixed step budget is implementable, holds `[@zero_alloc strict]` with zero `assume`, and is
+exact across a 292x change in training-set size. **`docs/PHASE5.md` question 4 is untouched,
+47.14's ordering is unchanged, and 47.7's C3 and C5 are untouched.**
+
+### 55.10 Owed
+
+**The F32 optimiser**, and the float32 square root it needs. E5-b's rung, and stop 21 governs
+how the primitive arrives.
+
+**A loss that is the flown loss.** Arm B drives the state towards zero, which is a loss chosen
+to make a gradient, not the head-only loss 52 registered as owed. 57 is that section.
+
+**The flight budget `N`.** 256 is experimental and stop 23 forbids deriving a flight value from
+it. The derivation belongs to the section that assembles the cycle.
+
+**Everything 54.9 owes**, unchanged.
