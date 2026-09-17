@@ -525,6 +525,15 @@ prediction that failed and why. This document follows the same discipline.
   - [54.7 Cost, and stop and report](#547-cost-and-stop-and-report)
   - [54.8 OBSERVED -- the F32 cell is `flight/`'s cell bit for bit, and the accumulation order is why](#548-observed----the-f32-cell-is-flights-cell-bit-for-bit-and-the-accumulation-order-is-why)
   - [54.9 Owed](#549-owed)
+- [55 Pre-registration: determinism across a wrapped window, and the fixed step budget (Phase 5)](#55-pre-registration-determinism-across-a-wrapped-window-and-the-fixed-step-budget-phase-5)
+  - [55.1 What is reused, and the reference is](#551-what-is-reused-and-the-reference-is)
+  - [55.2 REQUIREMENTS DERIVED FROM:](#552-requirements-derived-from)
+  - [55.3 (!) What the drafting step found, and it is said before the predictions](#553-what-the-drafting-step-found-and-it-is-said-before-the-predictions)
+  - [55.4 The budget, and what this section does not decide](#554-the-budget-and-what-this-section-does-not-decide)
+  - [55.5 Predictions](#555-predictions)
+  - [55.6 Falsification](#556-falsification)
+  - [55.7 Reporting](#557-reporting)
+  - [55.8 Cost, and stop and report](#558-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -17050,3 +17059,162 @@ all.
 **Everything 53.9 owes**, unchanged: the torch-as-executed comparison, the `addcmul_`
 association, the head-only loss, 51.9's TM4 re-run, a re-derived timing basis, and window
 selection.
+
+---
+
+## 55. Pre-registration: determinism across a wrapped window, and the fixed step budget (Phase 5)
+
+**The first section written under D72's drafting rule**, and 55.2 is that rule's first
+application. It found something, which is recorded at 55.3 before any prediction is made.
+
+**Two arms, and they are independent.** Arm A is `flight/`'s determinism claim, which is of
+record and is narrower than it reads. Arm B is the OxCaml training loop under D73's fixed step
+budget. Neither depends on the other; both answer `Objective.md:986` rule 5.
+
+**A note on where this section's number came from.** The instruction commissioning this work
+listed the two owed tolerance items before determinism and window selection, and separately
+labelled determinism 55 and window selection 56. Both readings were available and neither
+moves a record. **The labels were taken**, on the dependency check: nothing depends on the
+TM4 re-run, and the head-only loss is needed only by the section that assembles the cycle,
+which is after both. Recorded here rather than left to be inferred.
+
+### 55.1 What is reused, and the reference is
+
+`flight/test/DeterminismTest.cpp` is the template for arm A and the method for arm B: it CRCs
+the **raw bit patterns** of every output, not the values, because *"two floats that compare
+equal can differ in their encoding, and the claim under test is about the encoding"*
+(`:28-31`). Its cross-process half writes `build/determinism.crc` on the first run and
+compares on the second, and `flight/Makefile:56-57` invokes the binary twice.
+
+Arm B reuses 54's `oxcaml/retrainer/gru_f32.ml` -- the F32 cell, forward and backward, under
+`[@zero_alloc strict]` with zero `assume` -- and 53's `adam.ml`. **Nothing from 48 to 53 that
+is still float64 is used**, per 54.6.
+
+### 55.2 REQUIREMENTS DERIVED FROM:
+
+```
+  flight/include/sentinel/Config.hpp:73      ERROR_WINDOW = 2100, the moment span
+  flight/include/sentinel/Config.hpp:78      STRIDE = 70, the re-solve period
+  flight/include/sentinel/Config.hpp:107     SOLVE_WINDOW = ERROR_WINDOW + STRIDE = 2170,
+                                             the ring's capacity
+  flight/src/DynamicThreshold.cpp:280-284    the threshold re-solves every STRIDE ticks
+  flight/src/DynamicThreshold.cpp:40         the window is configured span 2170, moments 2100
+  flight/src/TrailingWindow.cpp:49-51        `wrapped` at m_span, `momentsWrapped` at
+                                             m_momentSpan -- the two eviction points
+  flight/src/TrailingWindow.cpp:57-62        the departing sample leaves the moments by
+                                             subtraction, m_sum[c] -= leaving
+  flight/test/DeterminismTest.cpp:81-82      the run of record is 400 ticks, twice
+  Objective.md:986                           rule 5: fixed memory, fixed compute per cycle,
+                                             same inputs -> same outputs
+  src/sentinel_models/lstm.py:224-225        an epoch is usable_steps / divisor, floored at
+                                             the batch -- why D73's unit is the step
+  src/sentinel_models/lstm.py:92             dropout 0.3, the stochastic element rule 5 has
+                                             to account for
+```
+
+### 55.3 (!) What the drafting step found, and it is said before the predictions
+
+**The determinism claim of record is made on a run that never fills the window.** The threshold
+re-solves every **70** ticks, so a 400-tick run solves about five times -- but the ring holds
+**2,170** and the moments span **2,100**, so at 400 ticks neither has wrapped. `wrapped` and
+`momentsWrapped` are both false for the whole run.
+
+**Two code paths are therefore outside the standing claim:**
+
+```
+  the ring wrap            TrailingWindow.cpp:83, m_head returning to 0 and overwriting
+  the moment eviction      TrailingWindow.cpp:57-62, m_sum[c] -= leaving -- a running sum
+                           with subtraction, whose drift the header reports over 1e6 ticks
+```
+
+**A running sum that adds and subtracts in float64 is exactly the shape where two runs can
+diverge**, and it is the one shape the test does not reach. This is not a defect found in the
+code -- **nothing says the wrapped path is non-deterministic, and the expectation is that it
+is fine**. It is a gap between what the test exercises and what `docs/STATUS.md` and
+`docs/EVIDENCE.md` say determinism covers, and it was found by deriving the requirement from
+`Config.hpp` rather than from the test.
+
+**(!) AND AN EARLIER READING OF THIS WAS WRONG, WHICH IS WHY IT IS WRITTEN DOWN.** While
+drafting, the re-solve period was taken to be `SOLVE_WINDOW` -- 2,170 -- and the claim was
+going to be *"400 ticks never re-solves at all"*. **That is false**: `SOLVE_WINDOW` is how far
+back a solve looks, and `STRIDE` is how often one happens. Corrected from
+`DynamicThreshold.cpp:280-284` before the prediction was written, which is the drafting step
+doing its job on the section that introduced it.
+
+### 55.4 The budget, and what this section does not decide
+
+D73 rules that a retraining cycle performs a fixed number of optimiser **steps**. **This
+section does not set the flight budget.** It uses `N = 256` as an experimental constant, chosen
+to be large enough that a divergence would show and small enough to run in seconds, and
+**no figure here may be read as the flight value** -- D73 consequence 4 reserves that for the
+section that assembles the cycle, with its derivation.
+
+**Dropout is registered as a design item, not tested as one here.** `lstm.py:92` sets 0.3, and
+a stochastic mask is the one part of the recipe that rule 5's *same inputs -> same outputs*
+does not survive by construction. **A seeded, fixed-sequence RNG satisfies the rule
+literally**: the mask for step `k` is a pure function of the seed and `k`, so two processes
+draw identically and a resumed cycle draws identically. **The disclosure that goes with it:
+this puts an RNG on the flight-adjacent path.** It is counter-based and allocation-free, it is
+not seeded from a clock or from any entropy source, and a review board reading "random" in
+flight code is entitled to ask -- so it is named here rather than discovered later.
+
+### 55.5 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `DT`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **DT1** | **The flight detector is bit-identical across two process invocations over 3,500 ticks**, a run that crosses both eviction points | CRCs equal | -- | CRCs differ -- the wrapped path is not deterministic, and the standing claim is narrower than anyone thought |
+| **DT2** | **The 3,500-tick run reaches what 400 did not.** Counted, not assumed: pushes past 2,100 and past 2,170, and solves performed after the ring wraps | both eviction points crossed, **>= 12** solves in the wrapped regime | crossed, fewer than 12 solves after | not crossed -- the run is still inside the old claim and DT1 proves nothing new |
+| **DT3** | **The OxCaml training loop is bit-identical across two process invocations.** Same weights, same inputs, same seed, F32, CRC over raw bit patterns | CRCs equal | -- | CRCs differ |
+| **DT4** | **The loop performs exactly `N` optimiser steps whatever the training set holds.** Two sets differing by more than 10x | **exactly 256 and 256** | -- | any difference -- the budget is not fixed and D73 is not implemented |
+| **DT5** | **The seeded RNG is a fixed sequence.** The draw for step `k` is a pure function of seed and `k`, across processes and from a resumed start | sequences identical | -- | any difference |
+| **DT6** | **The loop holds `[@zero_alloc strict]` with zero `assume`**, counted mechanically | clean build, **0** | holds only with an inlining hint, itemised | needs `assume` |
+| **DT7** | **The check can fail.** Determinism broken on purpose -- the seed drawn from the clock | DT3's comparison fails, rc != 0 | -- | it passes, and DT3 proves nothing |
+
+### 55.6 Falsification
+
+**If DT1 fails, that is the most important result this section could produce** and it is
+reported as such, not investigated until it is reported: `flight/`'s determinism is a claim on
+`master`, in `docs/STATUS.md` and `docs/EVIDENCE.md`, and a run that breaks it makes those
+sentences wrong today. **The band is not widened** and the tick count is not reduced to get a
+green result -- 54.5's rule, and G6 is why it exists.
+
+**If DT2 fails, DT1 is withdrawn**, because a 3,500-tick run that did not wrap is a 400-tick
+run with more of the same and proves nothing the standing claim did not already say. DT2 is
+the only clause that withdraws another.
+
+**If DT4 fails**, D73 is not implementable as written and the finding is that a fixed step
+budget needs machinery this loop does not have. Reported as that, and **D73 is not quietly
+reinterpreted as a bound**, which is the candidate it rejected.
+
+**If DT7 fails, nothing else in arm B is reported**, on 50.9a's lesson as 54.5 states it.
+
+### 55.7 Reporting
+
+**Losers in full**, with every `assume` and every inlining hint itemised against its call
+site.
+
+**DT1 reports how many ticks were compared and how many solves fell in the wrapped regime**,
+not only that the CRCs matched, because "identical over a run that wrapped" and "identical
+over a run that did not" are different results and a CRC hides which.
+
+**Arm A's figures are `flight/`'s and arm B's are OxCaml's, and they are not quoted beside
+each other.** 48.3's sentence still stands for everything above one cell.
+
+### 55.8 Cost, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. No new host, no
+hardware, **and no package installed** -- 54.2's objection is unresolved and this section does
+not resolve it.
+
+**Arm A changes `flight/test/`, so `master` moves in the same commit series.** Arm A's figures
+are compute time on this host; no wall-clock claim is made from them.
+
+Stop and report, carrying every stop from 47.12 through 54.7, and adding:
+
+22. **DT1 fails.** Stop and report before investigating. A broken determinism claim on
+    `master` is the owner's to hear first, and a session that debugs it before reporting it
+    has decided how serious it is on the owner's behalf.
+23. **The flight budget `N` gets a value derived from anything in this section.** Stop. D73
+    consequence 4 reserves that derivation, and 256 was chosen for convenience.

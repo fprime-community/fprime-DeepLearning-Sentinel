@@ -363,3 +363,65 @@ this project treats a rule-1-shaped disagreement: record it, do not edit the rul
 **Nothing here is decided, and no pre-registration below it may quietly pick one.** A section
 that runs a fixed epoch count without saying it has answered this question has answered it by
 default, which is the failure mode this rider exists to prevent.
+
+---
+
+## 9. Rider, 2026-09-17: question 8 is answered, and the answer is a fifth candidate
+
+**Sections 1 to 8 are not edited.** Section 8 closed with **"no pre-registration below it may
+quietly pick one"**, so the answer is recorded here, beside the question, before any section
+runs under it. The decision is `docs/DECISIONS.md` D73.
+
+**The answer. The retraining cycle runs a fixed number of optimiser STEPS.** Best-weights
+tracking is kept as bookkeeping inside that budget. Improvement-based early termination is
+not used onboard.
+
+**(!) IT IS NOT ONE OF THE FOUR.** Candidates 1 and 2 both say *"fixed epoch count"*, and an
+epoch is not a fixed amount of compute: `src/sentinel_models/lstm.py:224-225` sizes an epoch
+from how much telemetry the window holds. Measured across the 41 recorded fits, steps per
+epoch run **17 to 868, a 51.1x spread**. A cycle budgeted in epochs can therefore cost fifty
+times more on one window than another, which is what `Objective.md` 11 rule 5 forbids.
+**The nearest candidate did not satisfy the rule it was offered under.**
+
+Candidate 2's second half is adopted -- best weights are kept, at the third-buffer and
+validation-pass cost this document already named. Candidates 3 and 4 are rejected in D73 with
+their reasons; briefly, 3 requires arguing that a bound satisfies "fixed", and 4's deadline is
+a wall clock, so a cycle would stop at a different step on a different day and fail rule 5's
+*same inputs -> same outputs* while satisfying its *fixed compute*.
+
+**Question 4 is no longer entangled with this one.** Section 8 recorded that the validation
+split *"comes out of the same recent healthy telemetry question 4 has not answered, so this
+question is entangled with the hardest one."* **Under a step budget it is not**: the cycle
+costs the same whatever the window yields. Question 4 remains open, remains the hardest, and
+is now independent.
+
+**The characterisation this document said was missing.** Section 8 recorded that under the
+current dimensionless rule the epoch count *"has not been characterised"*, and that the 11 in
+`lstm.py`'s comment is the defect's number. Read from the committed artifacts, not from a new
+run -- 47 distinct fits, **6 excluded** for carrying the defect's exact signature
+(`best_epoch` 0, `epochs_run` 11), leaving **41**:
+
+```
+  epochs run               min 8    median 28    mean 25.6    max 35
+  reached the 35 ceiling   14 of 41
+  stopped early            21 of 41
+  total optimiser steps    min 136  median 10,150            max 30,380
+```
+
+**Read it honestly: the recipe usually runs long.** Fourteen fits never stopped early, and
+the median sits at 28 of a possible 35. The early stopping the onboard rule drops was
+deciding the length of a minority of fits on this data -- **which makes the divergence
+smaller than this document feared and does not make it nothing.**
+
+**The budget itself is not set here.** These are ground fits on training sets of up to 60,724
+sequences; the onboard set is whatever question 4 yields and will be far smaller. The figures
+bound the recipe rather than giving the number, and the number is pre-registered with its
+derivation in the section that builds the cycle.
+
+**Two disclosures against the table above.** The batch size is taken as **70** from the
+recipe, because no artifact records it per fit -- `lstm.py:598` uses `batch_size` when
+`train_batch_size` is unset, which is the case for every fit here, and `lstm.py:150-154`
+records that this same 70 is really the error-window batch and that conflating the two was a
+correction of its own. And **`sequences_per_epoch` is a training-set count**, so the step
+figures exclude the validation pass that best-weights tracking requires; the budget has to
+carry that on top.

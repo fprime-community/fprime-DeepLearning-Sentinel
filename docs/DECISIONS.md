@@ -98,6 +98,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D70 The retraining engine is where a second flight language is argued, and OxCaml is the candidate: registered, not adopted](#d70-the-retraining-engine-is-where-a-second-flight-language-is-argued-and-oxcaml-is-the-candidate-registered-not-adopted)
 - [D71 The N8 stop moves to 7.5 MiB and D64's cap does not, because documentation is what moves the number and D64 already adjudicated what a byte count guards](#d71-the-n8-stop-moves-to-75-mib-and-d64s-cap-does-not-because-documentation-is-what-moves-the-number-and-d64-already-adjudicated-what-a-byte-count-guards)
 - [D72 A pre-registration states where its requirements came from, and a guard enforces it. Promotes `docs/MODELS.md` 54.2b from a section rider to a standing rule](#d72-a-pre-registration-states-where-its-requirements-came-from-and-a-guard-enforces-it-promotes-docsmodelsmd-542b-from-a-section-rider-to-a-standing-rule)
+- [D73 The retraining cycle runs a fixed STEP budget, not a fixed epoch count. Answers `docs/PHASE5.md` question 8](#d73-the-retraining-cycle-runs-a-fixed-step-budget-not-a-fixed-epoch-count-answers-docsphase5md-question-8)
 
 <!-- /toc -->
 
@@ -5954,3 +5955,111 @@ committed with section 54 and the suite has run green with it since.
    target before writing the band, and leave the evidence that they did.
 5. **`docs/MODELS.md` 54.2b is not edited.** It is the record of where the rule was taken.
    This entry is where it became general.
+
+---
+
+## D73. The retraining cycle runs a fixed STEP budget, not a fixed epoch count. Answers `docs/PHASE5.md` question 8
+
+**DATE** 2026-09-17 | **STATUS** resolved as a design decision, and it **answers a question
+that document registered rather than picking one silently**. `Objective.md` is not edited.
+No figure in any earlier section moves.
+
+**CONTEXT.** `docs/PHASE5.md` section 8 registered question 8: the ground recipe runs *"until
+it stops improving"* -- `src/sentinel_models/lstm.py:95-96`, `max_epochs` 35 with `patience`
+10 -- and `Objective.md:986` rule 5 requires *"fixed compute per cycle"*. It listed four
+candidate answers, chose none, and closed **"no pre-registration below it may quietly pick
+one."** This entry picks one, out loud.
+
+**THE RULING. The retrainer runs a fixed number of optimiser STEPS per retraining cycle.**
+Best-weights tracking is retained as bookkeeping inside that budget -- it is a comparison and
+a copy, not a variable loop. **Improvement-based early termination is not used onboard.**
+
+**(!) AND THIS IS A FIFTH ANSWER, NOT CANDIDATE 2.** Candidates 1 and 2 are both phrased as a
+*"fixed epoch count"*. **An epoch budget is not fixed compute**, because an epoch is a
+data-dependent number of steps: `lstm.py:224-225` sizes an epoch as
+`usable_steps / sequence_budget_divisor`, floored at the batch size, so the step count per
+epoch scales with how much telemetry the window holds. Measured over the 41 fits this
+repository has recorded under the current rule:
+
+```
+  steps per epoch      min 17     median 291     max 868       spread 51.1x
+```
+
+**A cycle budgeted in epochs could therefore cost fifty times more on one window than
+another, which is the thing rule 5 forbids.** Candidate 2 was the nearest of the four and it
+does not satisfy the rule it was offered under. Taking the stricter reading is what the
+conflict rule asks for, and the difference is not cosmetic.
+
+**THE OTHER THREE, CONSIDERED AND REJECTED WITH REASONS**, so that none is re-proposed:
+
+1. **Fixed epoch count, early stopping dropped.** Rejected on the arithmetic above -- not
+   fixed compute -- and separately because dropping best-weights restore discards the
+   protection D17 was written to add. It is also, as `docs/PHASE5.md` 8 says, a documented
+   divergence from the ground recipe that every later comparison would have to carry.
+2. **Fixed epoch count with best-weights restore kept.** Rejected on the same arithmetic.
+   **Its second half is adopted**: best-weights tracking is kept, at the cost that section
+   names -- a third weight buffer of 75,360 parameters and a validation pass inside the
+   budget.
+3. **Early stopping kept with a hard epoch ceiling**, compute *bounded* rather than *fixed*.
+   Rejected. `docs/PHASE5.md` 8 states the objection exactly -- **"Rule 5 says fixed"** -- and
+   taking it would have meant arguing that a bound satisfies the rule, which is a reading of
+   rule 5 rather than an application of it. D63 is the precedent for how a rule-shaped
+   disagreement is treated here: **record it, do not edit the rule to fit.** Nothing needed
+   recording, because a step budget satisfies rule 5 literally.
+4. **Retraining moved off the rate group into a background task with a deadline**, so "per
+   cycle" stops being the unit. Rejected as an *answer*, and **its architecture is already
+   true**: D70 consequence 2 puts the retrainer in a separate process, and consequence 9 puts
+   it on exactly one domain. A deadline is a wall-clock stop condition, and a cycle that ends
+   when the clock says so does not give the same outputs for the same inputs -- it fails the
+   third clause of rule 5 while satisfying the second. **A step budget in a separate process
+   takes what candidate 4 offers without inheriting that.**
+
+**MEASURED, and `docs/PHASE5.md` 8 said this had not been.** That document recorded that
+under the current dimensionless rule *"the epoch count is data-dependent and has not been
+characterised"*, and warned that `lstm.py`'s own comment about epoch 11 is **the number the
+defect produced, not the number the recipe produces**. It is characterised now, from the
+committed artifacts and not from a new run:
+
+```
+  fits recorded                 47 distinct
+  excluded, defect signature     6   best_epoch 0 after more than 5 epochs, all
+                                     epochs_run 11 -- lstm.py:98-105's exact
+                                     signature, all from one threshold-diagnostics
+                                     artifact scored after the fix from weights
+                                     fitted before it
+  CHARACTERISATION SET          41
+
+  epochs run                    min 8   median 28   mean 25.6   max 35
+  reached the 35 ceiling        14 of 41
+  stopped early                 21 of 41
+  total optimiser steps         min 136   median 10,150   max 30,380
+```
+
+**The honest reading of that table is that the recipe usually runs long.** 14 of 41 never
+stopped early at all, and the median is 28 of a possible 35 -- so the early stopping the
+onboard rule drops was, on this data, deciding the length of a minority of fits. **That makes
+the divergence from the ground recipe smaller than `docs/PHASE5.md` 8 feared, and it does not
+make it zero**, and the comparison carries it either way.
+
+**CONSEQUENCE.**
+
+1. **The unit is the optimiser step.** A retraining cycle performs exactly `N` steps, `N`
+   fixed at build time, whatever the window holds.
+2. **Best-weights tracking is retained**, and costs a third weight buffer plus a validation
+   pass inside the budget. It is bookkeeping, not control flow: nothing about it can shorten
+   or lengthen the cycle.
+3. **(!) THIS DECOUPLES THE STOPPING RULE FROM WINDOW SELECTION**, which candidate 2 would
+   not have. Under a step budget the cycle costs the same whether `docs/PHASE5.md` question 4
+   yields a large window or a small one. Question 4 stays the hardest question and stays open;
+   it is no longer entangled with this one.
+4. **The number `N` is not set here.** The table above is the ground recipe's behaviour on
+   ESA-ADB training sets of up to 60,724 sequences. **The onboard training set is whatever
+   question 4's window selection yields and will be far smaller**, so these figures bound the
+   recipe and do not give the budget. `N` is pre-registered with its derivation in the section
+   that builds the cycle.
+5. **`Objective.md` is not edited, and nothing here needs it to be.** A step budget satisfies
+   rule 5 as written -- fixed memory, fixed compute per cycle, same inputs give same outputs.
+   Unlike candidates 3 and 4 this required no reading of the rule, which is the main reason it
+   was preferred.
+6. **`docs/PHASE5.md` sections 1 to 8 are not edited.** A rider at section 9 records the
+   answer where the question lives.
