@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`6733992`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`7caf509`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -65,8 +65,9 @@ make -C flight lint      # clang-tidy at -Werror
   trailing window       3 tiers, worst 3.738e-10
   dynamic threshold     2 tiers, worst eps 5.072e-06
   derivative stream     2 tiers, worst 2.899e-07
-  flight configuration  p1: 3 channels x 3,200 steps, fused score matched to
-                        3.098e-06, 85 of 85 emissions exact
+  flight configuration  2 tiers, both 3,200 steps: p1 at 3 channels and p2 at 1,
+                        fused score matched to 3.098e-06, 85 of 85 emissions
+                        exact on each
   round trip            2 committed model.bin files re-emitted byte-identically
 ```
 
