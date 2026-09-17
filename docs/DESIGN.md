@@ -100,7 +100,7 @@ reason Level 1 exists and the reason that re-check exists.
 ```
   Status.hpp            OK plus 12 refusal codes
   flight/test/          18 load cases, exercising all 12 plus the accept path
-  fprime/.../test/ut/   11 of the 12 proven to degrade to Level 1 with the code named
+  fprime/.../test/ut/   12 of the 12 proven to degrade to Level 1 with the code named
                         in the event, without failing the topology
 ```
 

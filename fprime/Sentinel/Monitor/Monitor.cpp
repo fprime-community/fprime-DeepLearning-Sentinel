@@ -47,6 +47,18 @@ static_assert(static_cast<U8>(ModelLoadStatus::T::TRUNCATED) ==
                   static_cast<U8>(LoadStatus::TRUNCATED), "TRUNCATED");
 static_assert(static_cast<U8>(ModelLoadStatus::T::BAD_NORM_POLICY) ==
                   static_cast<U8>(LoadStatus::BAD_NORM_POLICY), "BAD_NORM_POLICY");
+static_assert(static_cast<U8>(ModelLoadStatus::T::BAD_PARAM_VERSION) ==
+                  static_cast<U8>(LoadStatus::BAD_PARAM_VERSION), "BAD_PARAM_VERSION");
+
+//! (!) The one the per-code asserts above cannot make: NOT_LOADED is this enum's
+//! own sentinel and is NOT a core code, so nothing pairs it with a LoadStatus and
+//! nothing noticed when D68 gave the core a twelfth code at the value NOT_LOADED
+//! already held. `toFpp`'s cast is only checked where a pair exists. This asserts
+//! the sentinel stays clear of the core's range, so the thirteenth code fails the
+//! build instead of reporting a refusal to the ground as "never read".
+static_assert(static_cast<U8>(ModelLoadStatus::T::NOT_LOADED) >
+                  static_cast<U8>(LoadStatus::BAD_PARAM_VERSION),
+              "NOT_LOADED collides with a core LoadStatus code");
 
 ModelLoadStatus::T toFpp(LoadStatus status) {
     // A plain cast would be a silent bet on the two enums agreeing; the

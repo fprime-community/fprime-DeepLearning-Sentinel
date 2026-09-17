@@ -18,7 +18,7 @@ it no mission can use this.**
 | **The C++ inference core** | Built and green. GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader. Held to the NumPy reference at **1e-05** on every stream with the emission flag exact; determinism bit-identical in-process and across processes |
 | **The decision rule** | **Adopted 2026-09-11.** `max(z_residual, z_derivative)` against one calibrated cut, on a `param_version` 2 parameter block. A version-1 file still gets the earlier rule, so every previously committed vector still passes |
 | **The file format** | `format_version` **1, frozen**. `docs/MODEL_FILE.md` is normative. Both readers refuse an unknown `param_version` |
-| **The F' component** | `Sentinel::Monitor` builds in F' v4.3.0's own Ref. Warn-only by interface. Its unit tests pass, covering **11 of the 12** refusal codes degrading to Level 1 without failing the topology |
+| **The F' component** | `Sentinel::Monitor` builds in F' v4.3.0's own Ref. Warn-only by interface. Its unit tests pass, covering **12 of the 12** refusal codes degrading to Level 1 without failing the topology |
 | **Level 1, the safe failure mode** | Built and wired to the active-tier telemetry channel |
 | **The evidence** | `docs/EVIDENCE.md`. One arm, one dataset, UNDERPOWERED, and the caveats are stated with the number |
 
@@ -78,8 +78,6 @@ What the pre-registration commits to, so it can be held to it:
 
 ## 5. Open, and named
 
-- **The twelfth refusal code**, `BAD_PARAM_VERSION`, is covered by the C++ refusal suite and
-  is **not yet** in the F' component's degrade-to-Level-1 test.
 - **A float64 reference** for the dynamic threshold; without it the port's N2 prediction
   cannot be judged and is recorded as NO VERDICT.
 - **Levels 2 and 3 of the tier ladder.** Level 2 cannot be built before the architecture

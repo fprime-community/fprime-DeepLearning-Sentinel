@@ -2,7 +2,7 @@
 // \title  MonitorTester.hpp
 // \brief  Test harness for Sentinel::Monitor
 //
-// The matrix that matters here is Level 1: every one of the loader's eleven
+// The matrix that matters here is Level 1: every one of the loader's twelve
 // refusal codes must leave the component running the statistical baseline, with
 // an event that names the code, and must never fail the topology (D5,
 // Objective.md 14.10). The mutations are the same ones

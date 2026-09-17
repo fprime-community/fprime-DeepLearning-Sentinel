@@ -149,14 +149,17 @@ void MonitorTester ::testAGoodFileArmsTheModel() {
 void MonitorTester ::testEveryRefusalCodeDegradesToTheBaseline() {
     ASSERT_TRUE(m_haveVectors);
 
-    // The eleven refusal codes, each reached by the mutation
-    // flight/test/RefusalTests.cpp uses for it.
+    // The twelve refusal codes, each reached by the mutation
+    // flight/test/RefusalTests.cpp uses for it. BAD_PARAM_VERSION was added to
+    // Status.hpp by D68 and this loop was not extended with it, so the component
+    // covered 11 of 12 from D68 until 2026-09-17. The gap was never registered as
+    // owed on this branch; docs/MODELS.md 20.13 records it and this is its closure.
     struct Case {
         const char* what;
         ModelLoadStatus::T expected;
     };
 
-    for (U32 index = 0U; index < 11U; ++index) {
+    for (U32 index = 0U; index < 12U; ++index) {
         this->clearHistory();
         this->restore();
         Case c = {"", ModelLoadStatus::OK};
@@ -209,11 +212,20 @@ void MonitorTester ::testEveryRefusalCodeDegradesToTheBaseline() {
                 m_length = G1_BYTES - 1U;
                 c = {"a truncated file", ModelLoadStatus::TRUNCATED};
                 break;
-            default:
+            case 10U:
                 this->writeU16At(this->paramBlockOffset() + 2U, 1U);
                 this->resignParams();
                 c = {"a non-identity normalisation policy",
                      ModelLoadStatus::BAD_NORM_POLICY};
+                break;
+            default:
+                // param_version sits at PARAMS offset 0 (docs/MODEL_FILE.md 6.1).
+                // A generation no reader knows, not a corrupt one: the block is
+                // re-signed, so this reaches the version check rather than the CRC.
+                this->writeU16At(this->paramBlockOffset(), 3U);
+                this->resignParams();
+                c = {"a param_version this reader does not know",
+                     ModelLoadStatus::BAD_PARAM_VERSION};
                 break;
         }
 

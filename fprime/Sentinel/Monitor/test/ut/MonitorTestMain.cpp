@@ -35,7 +35,7 @@ TEST(Nominal, TheWarningNamesTheChannelFromTheModelFile) {
 // -- Level 1, the safe failure mode -----------------------------------------
 
 TEST(Level1, EveryRefusalCodeDegradesToTheBaseline) {
-    COMMENT("D5: all eleven refusal codes degrade with an event, none fails the topology.");
+    COMMENT("D5: all twelve refusal codes degrade with an event, none fails the topology.");
     Sentinel::MonitorTester tester;
     tester.testEveryRefusalCodeDegradesToTheBaseline();
 }
