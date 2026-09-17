@@ -488,6 +488,8 @@ prediction that failed and why. This document follows the same discipline.
   - [51.5 Falsification](#515-falsification)
   - [51.6 Reporting](#516-reporting)
   - [51.7 Cost, and stop and report](#517-cost-and-stop-and-report)
+  - [51.8 OBSERVED -- the criterion holds at every T, and the gradient was right all along](#518-observed----the-criterion-holds-at-every-t-and-the-gradient-was-right-all-along)
+  - [51.9 Owed](#519-owed)
 
 <!-- /toc -->
 
@@ -15961,3 +15963,109 @@ Stop and report, carrying 47.12's twelve, 48.7's two, 49.7's two and 50.7's one,
 
 18. **The sweep exceeds 30 minutes of wall clock.** Stop and report. The estimate above is
     measured and a large miss means the implementation is wrong, not the schedule.
+
+### 51.8 OBSERVED -- the criterion holds at every T, and the gradient was right all along
+
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host. Source
+`oxcaml/retrainer/gru_tol.ml` and `scripts/oxcaml_s51.sh`, in this commit. **`gru_cell.ml` and
+`gru_seq.ml` are not edited**, so this section measured the instrument and not a changed cell.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **TM1** | the derived criterion holds at `T` = 250 | **0 of 27,600 outside** | **HELD** |
+| **TM2** | it holds at every `T` in 50.8's sweep | **0 outside at all six** -- 1, 5, 25, 50, 125, 250 | **HELD** |
+| **TM3** | `T` = 1 reproduces 49's J1 bit-for-bit under the changed tolerance | **23,616 checked, worst absolute error 1.837013e-10, 0 outside**, worst margin -1.966888e-09 | **HELD** |
+| **TM4** | `S(T)/T` constant within 20% | **1.5501x** across all six. `abs(L)` spread **48.2x** for comparison; `S` monotonically increasing: **true** | **NO VERDICT**, and the band is not moved |
+| **TM5** | the looser criterion still fails on D26's `b_hn` defect | **27,600 of 27,600 outside.** Worst absolute error **1.382975e+01**, worst margin **1.382974e+01** | **HELD** |
+
+```
+    T    S             abs(L)        S/abs(L)   atol_new      worst_abs     outside
+    1    1.353221e+01  3.268255e-01      41.4   1.984825e-09  1.837013e-10       0
+    5    4.708629e+01  1.185597e+00      39.7   6.906339e-09  4.267928e-10       0
+   25    2.275590e+02  8.755092e+00      26.0   3.337701e-08  4.863635e-09       0
+   50    4.364889e+02  7.676611e+00      56.9   6.402163e-08  9.353135e-09       0
+  125    1.130981e+03  1.817650e-01    6222.2   1.658857e-07  1.358832e-08       0
+  250    2.245127e+03  4.905589e+00     457.7   3.293021e-07  2.457976e-08       0
+```
+
+**(!) THE HEADLINE: 50's U3 FAILED BECAUSE OF THE INSTRUMENT, AND TM3 IS THE PROOF.** At
+`T` = 1 the gradient figures are **identical to 49's J1 in every digit** -- 23,616 checked,
+worst absolute error **1.837013e-10** -- while the tolerance underneath them changed. **A
+criterion change that moves the verdict and not the arithmetic is the definition of an
+instrument fault**, and 51.1's derivation predicted exactly where it was.
+
+**And the `S/abs(L)` column is the defect made visible.** The two scales differ by **26x to
+6,222x** across the sweep, and the worst case is `T` = 125 -- the row that put 208 entries
+outside at 50.8 -- where the signed total nearly cancels. **They are never equal, at any `T`,
+including 1**, which is what 51.1 corrected 50.8 about.
+
+**(!) 50's VERDICTS ARE NOT AMENDED.** U3 stands at **FAIL** and U1, U2 and U6 stay
+**withdrawn**, by 50.9a's decision, which was settled and is not revisited here. This section
+is **a new record, not a revision of 50's** (51.6).
+
+**(!) AND ONE OBSERVATION IS REPORTED AS AN OBSERVATION RATHER THAN SMUGGLED IN AS A CLAIM.**
+Building this section compiled `gru_cell.ml` and `gru_seq.ml` unchanged under
+`-zero-alloc-check all -warn-error +a -alert @all`, **clean**. That is consistent with 50's
+U1 and U2 -- but **51 did not pre-register it as a prediction**, so it discharges nothing and
+**U2 stays withdrawn.** It is recorded because a reader will otherwise wonder whether the
+build still passes, and the answer is yes.
+
+**(!) TM4 IS A LOSER AND THE BAND IS NOT MOVED.** `S(T)/T` came out
+**13.5322, 9.4173, 9.1024, 8.7298, 9.0478, 8.9805** -- a spread of **1.5501x** against a
+20% band. **`T` = 1 is the whole of the miss.** From `T` = 5 onward the spread is **1.0788x**,
+comfortably inside the band, and the cause is a transient rather than a defect in the model:
+at `T` = 1 the only output is the first step's, which still carries the magnitude of the
+**filled** initial state `h0` -- drawn uniform on [-1, 1] -- while later steps settle toward
+the cell's own narrower output distribution.
+
+**Excluding the first step after seeing that it is the outlier would be choosing the test
+after the answer**, which is stop 15's subject, so the verdict is **NO VERDICT** and the
+band stands. **What TM4 does establish is the comparison it was written for**: 1.55x against
+`abs(L)`'s 48.2x, and `S` monotonically increasing in `T` where `abs(L)` is not monotonic at
+all. **51.1's derivation is not refuted; its band was drawn tighter than the transient
+allows**, and 51.9 registers the re-run.
+
+**Cost, and a second timing miss worth carrying.** The sweep ran **468 s** against 51.7's
+estimate of **390 s -- a 20% miss**, after 50's **11%** miss. **The 66,800 cell-forwards/second
+figure from 49 is optimistic for tape-carrying code by 10 to 20%**, and any later estimate
+built on it should carry that. **Stop 18 did not fire.** TM5 added about 230 s.
+
+**The tape stayed five wide** -- 50.8's figure of record, `T` x 5 x 80 = 100,000 floats,
+781 KiB at F64.
+
+**(!) One build command was fixed mid-section and no constant was touched.** TM5's variant link
+failed with `Unbound module "Gru_seq"`; the fix copies all three sources into the variant
+directory so that `-I vb` is unambiguous. **Stop 15 is about the test, not the build**, and
+`h_rel`, `rtol`, `K` and the scale were not altered. This is the second time an `-I` on a
+variant link has cost a run (49.8 records the first) and it is noted so a third is avoided.
+
+**What this establishes.** The correctness instrument now works across two and a half orders of
+magnitude in `T`, with the scale **derived from the summation error bound before the data was
+consulted**, and **watched failing** on a genuinely wrong cell at TM5 by the widest margin any
+section has recorded -- every one of 27,600 entries outside.
+
+**What it does not.** It measures the instrument, not the model: one layer, no head, no
+optimiser, F64, one draw, no timing figure quoted as a budget. **`docs/PHASE5.md` 8 is
+untouched.** **47.14's ordering is unchanged and E5 has not started.** **Nothing here touches
+47.7's C3 or C5.**
+
+### 51.9 Owed
+
+**TM4 re-run with the transient's treatment declared first.** The band was drawn over all six
+`T` and the first step is a transient the model does not claim to cover. What would settle it
+is a band stated in advance as either excluding `T` = 1, or defining `S(T)/T` over the steady
+part of the sequence -- **declared before the run, never selected after it.** Not taken here.
+
+**The rest of the ladder, unchanged.** A second layer and the head; the optimiser, where Adam's
+`sqrt` and division meet 47.13.4's boxing finding; float32; determinism and the stopping rule,
+which is where `docs/PHASE5.md` 8 finally has to be answered rather than avoided; and window
+selection, `docs/PHASE5.md` 5 question 4.
+
+**Everything 49.9 still owes**, none of it touched: a float32 cell, more than one draw, and the
+update-form debt.
+
+**And a note for whoever writes the next section.** 51 spent its whole length on an instrument
+because 50 found the instrument was wrong. **That is the ladder working rather than the ladder
+stalling** -- a single E5 pre-registration would have carried this defect into a two-layer
+model with an optimiser attached, and the failure would have been attributed to the model.
