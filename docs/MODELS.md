@@ -568,6 +568,15 @@ prediction that failed and why. This document follows the same discipline.
   - [58.7 Cost, and stop and report](#587-cost-and-stop-and-report)
   - [58.8 OBSERVED -- TM4's NO VERDICT was the transient, and excluding it the spread falls from 1.5501 to 1.0788](#588-observed----tm4s-no-verdict-was-the-transient-and-excluding-it-the-spread-falls-from-15501-to-10788)
   - [58.9 Owed](#589-owed)
+- [59 Pre-registration: E5-a, where the shadow's weights live (`docs/PHASE5.md` question 6, Phase 5)](#59-pre-registration-e5-a-where-the-shadows-weights-live-docsphase5md-question-6-phase-5)
+  - [59.1 REQUIREMENTS DERIVED FROM:](#591-requirements-derived-from)
+  - [59.2 (!) What the derivation settles, before anything is run](#592-what-the-derivation-settles-before-anything-is-run)
+  - [59.3 Predictions](#593-predictions)
+  - [59.4 T1, adjudicated rather than left open](#594-t1-adjudicated-rather-than-left-open)
+  - [59.5 Falsification](#595-falsification)
+  - [59.6 Cost, and stop and report](#596-cost-and-stop-and-report)
+  - [59.7 OBSERVED -- the shadow is the flying file with new weights, and T1 is adjudicated at last](#597-observed----the-shadow-is-the-flying-file-with-new-weights-and-t1-is-adjudicated-at-last)
+  - [59.8 Owed](#598-owed)
 
 <!-- /toc -->
 
@@ -18046,3 +18055,191 @@ wall-clock claim.
 
 **Nothing new.** 51.9's re-run is taken and its terms were met. **Everything 57.9 owes**,
 unchanged.
+
+---
+
+## 59. Pre-registration: E5-a, where the shadow's weights live (`docs/PHASE5.md` question 6, Phase 5)
+
+**E5's first rung.** `docs/PHASE5.md` question 6: *"`model.bin` version 1 has no room for two
+models, and D30 froze it. A second file, a second slot, or a `format_version` 2 are three
+different answers with three different review costs."*
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 is UNVERIFIED and deferred to E4; C5 is
+UNVERIFIED and open. Nothing in this section touches either.
+
+### 59.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/PHASE5.md 5 q6                          the three options
+  docs/DECISIONS.md D30                        the format freeze
+  flight/include/sentinel/ModelFile.hpp:17-23  FORMAT_VERSION 1, and the PARAM_VERSION
+                                               precedent: the LAYOUT is identical across
+                                               both generations, "no field is added, moved
+                                               or resized, so FORMAT_VERSION stays 1 and
+                                               D30's freeze holds"
+  flight/include/sentinel/ModelFile.hpp:13-14  HEADER_BYTES 64, HEADER_CRC_OFFSET 60
+  src/sentinel_export/writer.py:124-179        the normative assembly and its three CRCs
+  src/sentinel_export/writer.py:185-208        replace_params: rewrite ONE block in place,
+                                               patch its CRC and the header CRC, leave the
+                                               others untouched. The shape this rung copies.
+  docs/MODEL_FILE.md 6.1                       the in-orbit recalibration property
+  docs/PHASE5.md 2 property 1                  the flying model is never modified in place
+```
+
+### 59.2 (!) What the derivation settles, before anything is run
+
+**The three options are not equally costly and the format says which.** `ModelFile.hpp:17-23`
+records the precedent exactly: `PARAM_VERSION` went 1 to 2 **without** `FORMAT_VERSION` moving,
+because **no field was added, moved or resized**. So the test for breaking D30's freeze is not
+"does anything change" but **"does the byte layout change"**.
+
+```
+  a second slot          ADDS FIELDS to the header. Breaks the layout, so format_version 2,
+                         so D30's freeze. Refused.
+  format_version 2       Refused for the same reason, more directly.
+  a SECOND FILE          Changes NOTHING about the format. Adopted.
+```
+
+**(!) AND THE SECOND FILE IS NOT AN ARBITRARY FILE. IT IS THE FLYING FILE WITH NEW WEIGHTS.**
+The retrainer trains **the same architecture at the same shapes** -- that is what a shadow model
+is -- so every header field except two is already correct in the flying file. The write is
+therefore `replace_params`' shape with the weights block substituted for the parameter block:
+
+```
+  copy the flying file's bytes
+  overwrite the WEIGHTS payload
+  patch static_crc32  (offset 44) and header_crc32 (offset 60)
+  leave the header's shapes, the channel records and the PARAMS block untouched
+```
+
+**Three things follow that are worth stating before they are measured.** The shapes cannot
+disagree, because they are not rewritten. The flying model is never modified in place, because
+the target is a different file. And the operation is **fixed-size and allocation-free**, because
+it is a copy and two CRCs over known extents.
+
+### 59.3 Predictions
+
+The prefix is `MW`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **MW1** | **The writer holds `[@zero_alloc strict]`**, no `assume` | clean, **0** | holds with an inlining hint, itemised | needs `assume` |
+| **MW2** | **`Sentinel::Detector` loads the OxCaml-written file**, unaided | `LoadStatus::OK` | -- | any refusal |
+| **MW3** | **`RoundTripDump` re-emits it byte-identically** | `cmp` clean | -- | bytes differ |
+| **MW4** | **Only the weights and two CRCs differ** from the flying file | the differing byte ranges are exactly the weights payload, offset 44-47 and 60-63 | -- | any other byte differs |
+| **MW5** | **The static CRC still guards.** One weights byte flipped after the write | `BAD_STATIC_CRC` | -- | loads, or refuses with another code |
+| **MW6** | **D30's freeze holds.** The written file's `format_version` | **1**, and `flight/`'s reader accepts it without a new code path | -- | anything else |
+
+### 59.4 T1, adjudicated rather than left open
+
+**40's T1 is NOT ADJUDICATED** and has been since 40.14: *"its round-trip half holds ... but the
+1e-5 comparison needs a vector tier generated from that model and stepped through the C++, and
+no such tier was built."*
+
+**(!) SUCH A TIER WAS BUILT LATER, BY D68, AND NOBODY WENT BACK.** `scripts/make_fused_vectors.py`
+writes a real `model.bin` with the toolkit's own `write_model`, computes the expected fused
+score and flags from the **NumPy reference path**, and `flight/test/ThresholdVectors.cpp` loads
+that file into a `Detector` and compares. That is T1's contract word for word. **MW7 adjudicates
+it on the evidence that exists**, and MW8 closes the one arm it does not cover:
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **MW7** | **T1's accuracy half holds at the fixture's full width**, on the p1 tier already committed | worst `<= 1e-5` and flags exact | worst in `(1e-5, 1e-4]`, flags exact | worst `> 1e-4`, or any flag differing |
+| **MW8** | **And at `n_channels` 1**, which T1 also asks for and no tier covers | a p2 tier at 1 channel, same bands | as MW7 | as MW7 |
+
+### 59.5 Falsification
+
+**If MW4 fails, the shadow file is not the flying file with new weights** and the derivation at
+59.2 is wrong; the finding is that a second file costs more than a copy and two CRCs, and the
+three options are re-costed rather than the band widened.
+
+**If MW5 fails, nothing else is reported.** A file whose corruption is not caught is not a
+flight artefact, and MW1 to MW4 would be describing something that must not fly.
+
+**If MW7 fails, T1 FAILS** -- and it fails against evidence that has been committed and green
+for weeks, which would be a worse finding than an unadjudicated prediction. Reported as that.
+
+### 59.6 Cost, and stop and report
+
+**Zero bucket operations.** MW8 adds a committed vector tier, so **`flight/` moves and `master`
+moves with it in the same series.** Tracked content is reported against D71's 7.5 MiB stop.
+
+Stop and report, carrying every stop from 47.12 through 58.7, and adding:
+
+29. **The header's shape fields are rewritten by the retrainer.** Stop. The shadow is the same
+    architecture at the same shapes; a write that changes them is not a shadow model and the
+    reader's refusals are not a design for catching it.
+30. **`format_version` is incremented anywhere in E5.** Stop, and take it to D30.
+
+### 59.7 OBSERVED -- the shadow is the flying file with new weights, and T1 is adjudicated at last
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. **MW8
+commits a vector tier, so `flight/` moves and `master` moves with it in this series.** Source
+`oxcaml/retrainer/shadow59.ml`, `shadow59_check.ml`, `shadow59_load.cpp`,
+`scripts/oxcaml_s59.sh`, and the `p2` tier.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **MW1** | the writer holds `strict` | clean under `-zero-alloc-check all`; **0** `assume`, **0** hints, **0 C externals called** | **HELD** |
+| **MW2** | `Detector` loads it unaided | `LoadStatus::OK` | **HELD** |
+| **MW3** | `RoundTripDump` re-emits byte-identically | `cmp` clean | **HELD** |
+| **MW4** | only the weights and two CRCs differ | **0** bytes differing outside `{weights, 44-47, 60-63}` | **HELD** |
+| **MW5** | the static CRC still guards | one weights byte flipped -> **`BAD_STATIC_CRC`** | **HELD** |
+| **MW6** | D30's freeze holds | `format_version` **1**, no new reader path | **HELD** |
+| **MW7** | T1's accuracy half at full width | `p1`: 3 ch x 3,200 steps, worst **3.098e-06**, **emitted 85 of 85** | **HELD** |
+| **MW8** | and at `n_channels` 1 | `p2`: 1 ch x 3,200 steps, worst **3.098e-06**, **emitted 85 of 85** | **HELD** |
+
+**(!) 40's T1 IS ADJUDICATED AND IT HOLDS.** It has stood NOT ADJUDICATED since 40.14, whose
+reason was *"the 1e-5 comparison needs a vector tier generated from that model and stepped
+through the C++, and no such tier was built."* **One was built later, by D68, and nobody went
+back to say so** -- `make_fused_vectors.py` writes a real `model.bin` with the toolkit's own
+`write_model` and pins what a `Detector` loaded from it emits, step by step, against the NumPy
+reference. That is T1's contract word for word. **The narrow arm T1 also asks for did not
+exist**, and `p2` is it. Both arms are inside the 1e-5 band with flags exact.
+
+**(!) AND THE HONEST PART OF THAT IS THAT MOST OF IT WAS SITTING THERE.** MW7 required no work
+at all: the evidence had been committed and green for weeks, and what was missing was somebody
+reading 40's owed list against it. **That is a failure of bookkeeping, not of engineering**, and
+it is the second one this track has found -- 57's HL2 discharged 52's owed item the same way.
+
+**The shadow file, and what the derivation bought.** 59.2 predicted the write would be a copy
+and two CRCs. Measured on `p1.bin`: 1,396 B total, 60 B of channel records, 1,152 B of weights,
+**0 bytes differing outside the weights payload and offsets 44-47 and 60-63.** The shapes cannot
+disagree because they are not rewritten, the flying model is untouched because the target is a
+different file, and `format_version` stays 1 because no field moved. **`docs/PHASE5.md` question
+6 is answered: a second file, and it costs nothing in format.**
+
+**Disclosures, volunteered.**
+
+**The shadow's weights are the flying weights plus a constant**, not a fit. **E5-b trains; this
+rung writes.** Nothing here is evidence that a trained shadow is writable, only that a
+weight-for-weight substitution is, and those differ only in where the numbers come from.
+
+**354 of the 1,152 weight bytes were unchanged by the write**, because a small delta leaves many
+float32 bytes identical. **MW4 counted that and reports it** rather than letting "0 outside" be
+read as "every weights byte moved".
+
+**`p1` and `p2` report the same worst difference, 3.098e-06, at different steps.** Reported as
+observed. It is not claimed to mean anything; two tiers sharing a numerical ceiling is as likely
+an artefact of the fixture's construction as a property of the core.
+
+**This is `p1.bin`'s shape, not the flown model's.** 288 float32 against the flown 71,160
+(`ModelFile.hpp:35`). The write is O(weights) and nothing about it is shape-dependent, but the
+figure above is the small tier's.
+
+**E5 is host-verified pending target.** C4 UNVERIFIED and deferred to E4; C5 UNVERIFIED and
+open. **Nothing in this rung touches either** -- no cross-compilation, no deployment, no hub.
+
+**Cost.** **2 seconds**, plus the vector regeneration. Compute time on this host; no wall-clock
+claim.
+
+### 59.8 Owed
+
+**A shadow written from a TRAINED model**, which is E5-b's output and E5-a's input. The two
+meet at E5-b.
+
+**The handoff.** A candidate file that is written and never downlinked is not a handoff; E5-e is
+that, and it is where `docs/PHASE5.md` 2's human approval becomes a command rather than a
+diagram.
+
+**Everything 58.9 owes**, unchanged.

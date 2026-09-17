@@ -12,5 +12,19 @@
     "threshold": 1.9245322067878337,
     "vector_bytes": 70420,
     "warmup_steps": 2350
+  },
+  "p2": {
+    "crossings": 343,
+    "emitted": 85,
+    "model_bytes": 1084,
+    "n_channels": 1,
+    "param_version": 2,
+    "provenance": "scripts/make_fused_vectors.py; D68's flight configuration",
+    "seed": 69,
+    "span": 2100,
+    "steps": 3200,
+    "threshold": 1.4596173863437778,
+    "vector_bytes": 44820,
+    "warmup_steps": 2350
   }
 }

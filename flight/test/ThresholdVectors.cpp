@@ -236,10 +236,11 @@ void checkFusionAndThatItDoesNotEmit() {
 //! Not the streams in isolation -- `t*.tvec`, `d*.dvec` and `f*.fvec` already
 //! cover those -- but a real `model.bin` at `param_version` 2 loaded into a
 //! `Detector`, stepped, and checked step by step.
-F64 runFusedTier(const char* path, const char* modelPath, U32& tiersRun) {
+F64 runFusedTier(const char* label, const char* path, const char* modelPath,
+                 U32& tiersRun) {
     std::FILE* handle = std::fopen(path, "rb");
     if (handle == nullptr) {
-        std::printf("    p1   SKIPPED -- %s absent\n", path);
+        std::printf("    %-4s SKIPPED -- %s absent\n", label, path);
         return 0.0;
     }
     U8 head[20];
@@ -304,8 +305,8 @@ F64 runFusedTier(const char* path, const char* modelPath, U32& tiersRun) {
     (void)std::fclose(handle);
 
     SentinelTest::checkEqualU32(read, steps, "every step in the file was read");
-    std::printf("    p1   %2u ch x %4u steps   fused max |diff| %.3e (step %u)   "
-                "emitted %u of %u\n",
+    std::printf("    %-4s %2u ch x %4u steps   fused max |diff| %.3e (step %u)   "
+                "emitted %u of %u\n", label,
                 static_cast<unsigned>(channels), static_cast<unsigned>(read),
                 worst, static_cast<unsigned>(worstStep),
                 static_cast<unsigned>(emitted),
@@ -474,8 +475,11 @@ int main() {
 
     std::printf("== D68 flight configuration ==\n");
     U32 pTiers = 0U;
-    (void)runFusedTier("test/vectors/p1.pvec", "test/vectors/p1.bin", pTiers);
-    SentinelTest::check(pTiers == 1U, "the D68 tier ran; it was not skipped");
+    (void)runFusedTier("p1", "test/vectors/p1.pvec", "test/vectors/p1.bin", pTiers);
+    // 59's MW8. 40's T1 asks for n_channels 1 as well as the fixture's full
+    // width, and until this tier no committed vector covered the narrow arm.
+    (void)runFusedTier("p2", "test/vectors/p2.pvec", "test/vectors/p2.bin", pTiers);
+    SentinelTest::check(pTiers == 2U, "both D68 tiers ran; neither was skipped");
     checkTheVersionChangesTheDecision();
 
     checkSilence();

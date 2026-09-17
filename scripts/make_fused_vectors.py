@@ -88,15 +88,12 @@ def fused_trace(weights, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return smoothed, fused
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out", type=Path, default=VECTORS)
-    args = ap.parse_args()
-    args.out.mkdir(parents=True, exist_ok=True)
-
-    channels, hidden, predictions = 3, [4, 4], 4
-    weights = GV.seeded_weights(channels, hidden, predictions, seed=68)
-    x = GV.seeded_input(STEPS, channels, seed=68)
+def build_tier(out: Path, label: str, channels: int, seed: int) -> dict:
+    """One tier. `p1` is the fixture's full width; `p2` is `n_channels` 1, which
+    40's T1 asks for and which no tier covered until 59 (MW8)."""
+    hidden, predictions = [4, 4], 4
+    weights = GV.seeded_weights(channels, hidden, predictions, seed=seed)
+    x = GV.seeded_input(STEPS, channels, seed=seed)
 
     _, fused = fused_trace(weights, x)
     score = fused.max(axis=1)
@@ -113,9 +110,9 @@ def main() -> int:
     # writer defaults it to 1, and a fused z-score cut in a version-1 file is
     # the silent drift `docs/MODEL_FILE.md` 6.2 forbids (`docs/MODELS.md` 40.6).
     spec = GV.to_spec(weights, threshold, WARMUP,
-                      "D68 fused max(z_residual, z_derivative); seeded tier P1",
+                      f"D68 fused max(z_residual, z_derivative); seeded tier {label.upper()}",
                       param_version=fmt.PARAM_VERSION_FUSED)
-    (args.out / "p1.bin").write_bytes(write_model(spec))
+    (out / f"{label}.bin").write_bytes(write_model(spec))
 
     blob = bytearray(MAGIC + struct.pack("<HHI", VERSION, channels, STEPS)
                      + struct.pack("<d", threshold))
@@ -123,22 +120,36 @@ def main() -> int:
         blob += x[t].astype("<f4").tobytes()
         blob += struct.pack("<d", float(score[t]))
         blob += struct.pack("<BB", int(crossing[t]), int(emitted[t]))
-    (args.out / "p1.pvec").write_bytes(bytes(blob))
+    (out / f"{label}.pvec").write_bytes(bytes(blob))
 
-    manifest = {"p1": {
-        "n_channels": channels, "steps": STEPS, "span": SPAN, "seed": 68,
+    entry = {
+        "n_channels": channels, "steps": STEPS, "span": SPAN, "seed": seed,
         "param_version": fmt.PARAM_VERSION_FUSED, "threshold": threshold,
         "warmup_steps": WARMUP, "crossings": int(crossing.sum()),
         "emitted": int(emitted.sum()), "vector_bytes": len(blob),
-        "model_bytes": len((args.out / "p1.bin").read_bytes()),
+        "model_bytes": len((out / f"{label}.bin").read_bytes()),
         "provenance": "scripts/make_fused_vectors.py; D68's flight configuration",
-    }}
+    }
+    print(f"  {label}: {channels} ch x {STEPS} steps  threshold {threshold:.6f}  "
+          f"{int(crossing.sum())} crossings, {int(emitted.sum())} emitted  "
+          f"{len(blob):,} B + {entry['model_bytes']:,} B model")
+    return entry
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--out", type=Path, default=VECTORS)
+    args = ap.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+
+    manifest = {
+        "p1": build_tier(args.out, "p1", 3, 68),
+        "p2": build_tier(args.out, "p2", 1, 69),
+    }
     (args.out / "fused_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    print(f"  p1: {channels} ch x {STEPS} steps  threshold {threshold:.6f}  "
-          f"{int(crossing.sum())} crossings, {int(emitted.sum())} emitted  "
-          f"{len(blob):,} B + {manifest['p1']['model_bytes']:,} B model")
     return 0
+
 
 
 if __name__ == "__main__":
