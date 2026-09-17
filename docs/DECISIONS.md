@@ -99,6 +99,8 @@ STATUS. Updated in the same commit as the decision it records
 - [D71 The N8 stop moves to 7.5 MiB and D64's cap does not, because documentation is what moves the number and D64 already adjudicated what a byte count guards](#d71-the-n8-stop-moves-to-75-mib-and-d64s-cap-does-not-because-documentation-is-what-moves-the-number-and-d64-already-adjudicated-what-a-byte-count-guards)
 - [D72 A pre-registration states where its requirements came from, and a guard enforces it. Promotes `docs/MODELS.md` 54.2b from a section rider to a standing rule](#d72-a-pre-registration-states-where-its-requirements-came-from-and-a-guard-enforces-it-promotes-docsmodelsmd-542b-from-a-section-rider-to-a-standing-rule)
 - [D73 The retraining cycle runs a fixed STEP budget, not a fixed epoch count. Answers `docs/PHASE5.md` question 8](#d73-the-retraining-cycle-runs-a-fixed-step-budget-not-a-fixed-epoch-count-answers-docsphase5md-question-8)
+- [D74 OxCaml is permitted for the retrainer process and for nothing else, and `Objective.md` section 12's C++ gate is carried across unchanged](#d74-oxcaml-is-permitted-for-the-retrainer-process-and-for-nothing-else-and-objectivemd-section-12s-c-gate-is-carried-across-unchanged)
+- [D75 The interim flight target is declared: Raspberry Pi 4 Model B, 4 GB, aarch64, 64-bit Linux](#d75-the-interim-flight-target-is-declared-raspberry-pi-4-model-b-4-gb-aarch64-64-bit-linux)
 
 <!-- /toc -->
 
@@ -6090,3 +6092,152 @@ substituted probe. This one was found **before**, by the same drafting step, in 
 section that had to satisfy it. **That is the whole of what this entry claims**, and one
 instance is one instance -- it is recorded here so the claim has a case rather than an
 argument.
+
+---
+
+## D74. OxCaml is permitted for the retrainer process and for nothing else, and `Objective.md` section 12's C++ gate is carried across unchanged
+
+**DATE** 2026-09-17 | **STATUS** resolved as a scope decision. **`Objective.md` is not edited.**
+No figure moves, no capability is claimed, and **C4 and C5 remain UNVERIFIED** -- see
+consequence 5.
+
+**CONTEXT.** `Objective.md` section 12's Phase 5 block marks the phase **C++** and states its
+gate. D70 consequence 4 recorded the disagreement rather than resolving it:
+
+> *"**`Objective.md` is not edited.** Its section 12 marks Phase 5 as C++ and its gate as no
+> heap allocation after init, no exceptions, and the shadow measurably better on the pre-launch
+> sanity report. **A second language is not allowed for by that block**, and that disagreement
+> is recorded here rather than resolved by editing the governing document before a single
+> experiment has run -- the same treatment D63 gave it. If E1 to E4 pass, amending section 12
+> is a decision of its own."*
+
+**(!) AND THE CONDITION THAT SENTENCE SETS IS NOT MET.** *"If E1 to E4 pass"* -- **E4 has not
+run.** It is deferred to a hardware session with `docs/MODELS.md` 41 (47.13.6), and E2 is NO
+VERDICT. **E1 and E3 passed; E2 returned NO VERDICT; E4 is deferred.** So this entry is taken
+**with D70 c.4's precondition unsatisfied**, on the owner's direction, and says so rather than
+letting a later reader infer that the condition was met.
+
+**ALTERNATIVES.**
+
+1. **Wait for E4.** Refused by the owner: E4 needs hardware that is not available, and the
+   whole of E5 would wait behind a session that cannot be scheduled. The cost of refusing is
+   real and is consequence 5.
+2. **Edit `Objective.md` section 12 to say "C++ or OxCaml".** Refused. D63 is the precedent for
+   a rule-shaped disagreement in this project -- **record it, do not edit the rule to fit** --
+   and D70 c.4 chose that treatment deliberately. A governing document edited to match the work
+   stops being a check on the work.
+3. **Permit OxCaml generally for Phase 5.** Refused. The detector, the loader and the flight
+   core are C++ and stay C++; nothing in E1 to E3 bears on them, and a general permission would
+   licence a rewrite nobody has argued for.
+4. **Permit it for the retrainer process only, carrying the gate unchanged.** Adopted.
+
+**EVIDENCE.** E1 PASSED, E3 PASSED with C1 discharged, E2 NO VERDICT, E4 DEFERRED
+(`docs/MODELS.md` 47.13). Sections 48 to 58 add: a GRU cell forward and backward under
+`[@zero_alloc strict]` with zero `assume`; the flown two-layer shape and head; Adam; **a float32
+cell that is `flight/`'s cell bit for bit on all 80 outputs (54.8)**; a fixed-step training
+cycle deterministic across processes (55.9); and 51's tolerance model confirmed for the
+head-only loss (57.8). **None of that is a flight qualification and this entry does not treat
+it as one.**
+
+**CONSEQUENCE.**
+
+1. **OxCaml is permitted for the retrainer PROCESS and for nothing else.** Not the detector,
+   not the loader, not `flight/`, not `fprime/Sentinel/Monitor`. The boundary is D70
+   consequence 2's separate process, and it is also the boundary of this permission.
+2. **(!) THE C++ GATE IS CARRIED ACROSS UNCHANGED, ALL FOUR CLAUSES**, and it is quoted here
+   rather than summarised because the fourth is routinely dropped:
+
+   > **"GATE: no heap allocation after init, no exceptions, and the shadow measurably better
+   > on the pre-launch sanity report before any swap is offered"**
+
+   **"Before any swap is offered"** is part of the gate, not a gloss on it. The acceptance
+   criterion for an OxCaml retrainer is the criterion `Objective.md` set for a C++ one, met in
+   the same order.
+3. **`Objective.md` is not edited, and that means the file is not touched at all.** Section 12
+   still says C++, and a reader who reaches it without this entry is reading the governing
+   document correctly. **The rider on that block is D74.1 below**, recorded here rather than
+   appended there, because appending to a governing document to note that it has been departed
+   from is still writing in it.
+4. **D70 c.4 is not amended.** Its condition stands as written and is recorded here as
+   unsatisfied. **If E4 later fails, this entry is what has to be revisited**, and it is
+   findable because it says so.
+5. **(!) C4 AND C5 REMAIN OPEN AND ARE SAID TO BE OPEN WHEREVER E5 IS DESCRIBED.** C4 -- the
+   toolchain builds for the flight target -- is E4's and is deferred. C5 -- it links into a
+   deployment and the runtime starts inside one -- is untouched by everything from 48 to 58.
+   **E5 is host-verified pending target**, and `docs/MODELS.md` 47.14a carries that wording.
+
+---
+
+## D75. The interim flight target is declared: Raspberry Pi 4 Model B, 4 GB, aarch64, 64-bit Linux
+
+**DATE** 2026-09-17 | **STATUS** resolved as an interim declaration. **Marked interim in the
+title so that it cannot be quoted as a programme decision.**
+
+**CONTEXT.** This project has had **no declared flight target**, which is why D70's own
+against-case can say *"no 32-bit ARM, no musl, no documented cross-compile recipe"* without
+anybody being able to say whether that matters. E4 cannot be pre-registered meaningfully
+against an undeclared target, and E5 has to be built against some ABI's assumptions or against
+none.
+
+**`docs/MODELS.md` 41 already names a board** and gives the reason:
+
+> *"The board this is registered against is the **Raspberry Pi 4 Model B, 4 GB, 64-bit OS,
+> aarch64, no active cooling** -- named because a band without a target is not a prediction. It
+> is the conservative choice of the class: a Pi 5 is faster, so a Pi 4 result bounds it."*
+
+**ALTERNATIVES.**
+
+1. **Declare nothing.** Refused: it is the status quo and it is what leaves E4 unpreregisterable
+   and E5 built against assumptions nobody wrote down.
+2. **Declare a real flight processor** -- a LEON, a RAD750, a Cortex-R. Refused: **this project
+   has no such hardware and no mission**, and declaring a target that cannot be tested would be
+   worse than declaring none, because it would look like a decision.
+3. **Declare the Pi 4 as interim.** Adopted. It is the board 41 already registered against, it
+   is obtainable, and it bounds its own class.
+
+**CONSEQUENCE.**
+
+1. **The interim target is the Raspberry Pi 4 Model B, 4 GB, aarch64, 64-bit Linux, glibc.**
+   E5 is built against that ABI's assumptions: **64-bit, glibc, little-endian**.
+2. **It is INTERIM and every use of it says so.** It is not a mission's choice, no mission
+   exists, and nothing here claims the flight target will be this or resemble it.
+3. **(!) IF THE EVENTUAL TARGET IS 32-BIT OR AN RTOS, THIS ROUTE ENDS**, and E4's
+   pre-registration already says so. OxCaml supports x86-64 and arm64 Linux and arm64 macOS;
+   **no 32-bit ARM, no musl, no documented cross-compile recipe** (D70's table). A 32-bit or
+   RTOS target does not make the OxCaml work wrong, it makes it inapplicable, and that is a
+   different and worse outcome than a failed experiment.
+4. **E4 is unblocked as a pre-registration** and still blocked as a run: it needs the board.
+   The hardware session is the owner's.
+5. **No timing figure anywhere in this project is measured on this target.** Every one is this
+   host's -- arm64 macOS, 10 cores, 16 GiB -- and 41's envelope is registered and unrun.
+
+### D74.1 Rider, 2026-09-17: the block this entry departs from, quoted whole so the departure is legible
+
+**`Objective.md` is not touched.** Its Phase 5 block is reproduced here so that a reader of this
+entry sees exactly what it departs from, and so that a later reader comparing the two does not
+have to trust a summary:
+
+```
+  +------------------------------------------------------------------+
+  |  PHASE 5                                            C++          |
+  |  In-flight retraining under human approval - the flying model    |
+  |  stays frozen (section 11 rule 1) and a SHADOW model retrains    |
+  |  onboard on recent healthy telemetry, in statically allocated    |
+  |  memory, with ground comparing the two and a human-approved      |
+  |  command swapping them. Previous model kept for rollback.        |
+  |  GATE: no heap allocation after init, no exceptions, and the     |
+  |        shadow measurably better on the pre-launch sanity report  |
+  |        before any swap is offered                                |
+  |  Scoped in docs/PHASE5.md. Built after the toolkit, not before.  |
+  +------------------------------------------------------------------+
+```
+
+**One word is departed from and the rest is adopted.** The word is **C++**, and the departure
+is confined to the retrainer process by D74 consequence 1. **Everything else in the block is
+carried**: the flying model stays frozen, the shadow trains on recent healthy telemetry, memory
+is statically allocated, the ground compares, a human commands the swap, the previous model is
+kept for rollback, **and all four clauses of the gate hold in the order the gate sets them.**
+
+**(!) AND THE BLOCK IS STILL THE AUTHORITY.** If this entry and that block are ever read
+together and disagree about anything other than the language of the retrainer process, **the
+block wins** and this entry is the thing that was wrong.

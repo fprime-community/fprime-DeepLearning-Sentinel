@@ -449,6 +449,7 @@ prediction that failed and why. This document follows the same discipline.
   - [47.12 Cost, and stop and report](#4712-cost-and-stop-and-report)
   - [47.13 OBSERVED](#4713-observed)
   - [47.14 Deferred, with the slots registered so the gaps are visible](#4714-deferred-with-the-slots-registered-so-the-gaps-are-visible)
+  - [47.14a (!) Rider, 2026-09-17: E5 proceeds with E4 as the remaining gate, and is host-verified pending target](#4714a-rider-2026-09-17-e5-proceeds-with-e4-as-the-remaining-gate-and-is-host-verified-pending-target)
   - [47.15 (!) Rider, 2026-09-16: C3 is NOT discharged, and 47.13.1's omission of it is the part that needed recording](#4715-rider-2026-09-16-c3-is-not-discharged-and-47131s-omission-of-it-is-the-part-that-needed-recording)
   - [47.16 (!) Rider, 2026-09-16: four stale statements, corrected without overwriting them](#4716-rider-2026-09-16-four-stale-statements-corrected-without-overwriting-them)
 - [48 Pre-registration: one GRU cell, forward and backward, under `[@zero_alloc strict]` (Phase 5)](#48-pre-registration-one-gru-cell-forward-and-backward-under-zero-alloc-strict-phase-5)
@@ -14767,6 +14768,39 @@ ensmallen's optimisers allocate.
 section adds a 47. **Nothing guards it** -- it is prose describing a document, and no test
 re-derives it. Recorded here rather than extended silently, because a one-line fix made
 without the owner seeing the gap is how the gap comes back.
+
+### 47.14a (!) Rider, 2026-09-17: E5 proceeds with E4 as the remaining gate, and is host-verified pending target
+
+**47.14 registered E5 as built "only after E1 to E4 pass".** E1 and E3 passed, **E2 returned NO
+VERDICT**, and **E4 was deferred by decision to a hardware session with 41** (47.13.6). The
+ordering 47.14 set is therefore not satisfied and **this rider records that it is being
+departed from rather than letting the departure be inferred from E5 simply appearing.**
+
+**What the owner decided, and D74 is where it is argued.** E5 proceeds **on this host**, with
+**E4 as the remaining gate on flight status**. The reason is that E4 needs hardware that is not
+available and the whole of E5 would otherwise wait behind a session that cannot be scheduled.
+**The cost is real and is stated rather than discounted.**
+
+**(!) THE WORDING EVERY DESCRIPTION OF E5 CARRIES, and it is not optional:**
+
+```
+  E5 is HOST-VERIFIED PENDING TARGET.
+  C4 -- the toolchain builds for the flight target -- UNVERIFIED, E4, deferred.
+  C5 -- it links into an F' DEPLOYMENT and the runtime starts inside one -- UNVERIFIED, open.
+```
+
+**Neither is discharged by anything between 48 and 58.** Those sections ran OCaml on arm64
+macOS, in a unit-test process, with no deployment and no hub crossed. **A float32 cell that is
+bit-for-bit `flight/`'s cell is not a cross-compilation and is not a deployment**, and 54.8
+says so of itself.
+
+**What would discharge them.** C4: E4, on D75's interim target. C5: a retrainer deployment,
+which is E5-d's hub crossing and E5-e's handoff -- and **option (b), instancing `Retrainer` into
+`SentinelRef`, stays REJECTED on 47.15b's three grounds.** Nobody may cite E5's progress as
+evidence that (b) became safe.
+
+**47.14 is not edited.** Its ordering is the record of what was intended; this rider is the
+record of what was done instead, and of what is still owed because of it.
 
 ### 47.15 (!) Rider, 2026-09-16: C3 is NOT discharged, and 47.13.1's omission of it is the part that needed recording
 
