@@ -470,6 +470,14 @@ prediction that failed and why. This document follows the same discipline.
   - [49.7 Cost, and stop and report](#497-cost-and-stop-and-report)
   - [49.8 OBSERVED -- all six hold, and the one number that got worse is the one that had to be published](#498-observed----all-six-hold-and-the-one-number-that-got-worse-is-the-one-that-had-to-be-published)
   - [49.9 Owed](#499-owed)
+- [50 Pre-registration: backpropagation through time over a fixed tape, under `[@zero_alloc strict]` (Phase 5)](#50-pre-registration-backpropagation-through-time-over-a-fixed-tape-under-zero-alloc-strict-phase-5)
+  - [50.1 What is reused, and what is added](#501-what-is-reused-and-what-is-added)
+  - [50.2 (!) Two failure modes, predicted in advance so that neither is explained afterwards](#502-two-failure-modes-predicted-in-advance-so-that-neither-is-explained-afterwards)
+  - [50.3 (!) Departure -- the correctness criterion is 49's, reused unchanged, so there is nothing to choose](#503-departure----the-correctness-criterion-is-49s-reused-unchanged-so-there-is-nothing-to-choose)
+  - [50.4 Predictions](#504-predictions)
+  - [50.5 Falsification](#505-falsification)
+  - [50.6 Reporting](#506-reporting)
+  - [50.7 Cost, and stop and report](#507-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -15463,3 +15471,193 @@ compares against uses ATen's.
 **And what is NOT owed any more:** 48.9's first item, the G3 re-run with the step declared
 first, is discharged by J1 to J3; its second, the float64 comparison against `reference.py`,
 is discharged by J4.
+
+---
+
+## 50. Pre-registration: backpropagation through time over a fixed tape, under `[@zero_alloc strict]` (Phase 5)
+
+**Written before any of it exists.** `oxcaml/retrainer/` today holds E1's pipe, E3's four
+annotated arithmetic functions, and 48's and 49's single-timestep cell, checkers and dump.
+**Nothing recurrent over a sequence exists.** This section registers what will be built, what
+it predicts and what would falsify it, in the form every section from 19 onward uses. **No
+code is written until this is reviewed.**
+
+**(!) IT IS NOT E5, AND 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT. This is the **first rung of the ladder** that stands between 49 and E5, and it is
+**narrower than E5 by construction**: one layer, no head, no optimiser, no schedule, no window
+selection, no model file, no F' component, F64, and no timing figure quoted as a budget.
+
+**(!) AND IT DOES NOT ANSWER `docs/PHASE5.md` 8.** That rider registers the contradiction
+between the ground recipe's data-dependent epoch count and `Objective.md` 11 rule 5's fixed
+compute, and says **no pre-registration below it may quietly pick one.** This section runs a
+fixed `T` because **`T` is a window length, not an epoch count** -- the flown window at
+`src/sentinel_models/lstm.py:90` -- and it trains nothing, runs no epochs and has no stopping
+rule to choose. **Question 8 is untouched here and stays open.**
+
+**What it answers.** `docs/PHASE5.md` 5 question 2 **at sequence level**, which is where 48.8
+answered it only at cell level:
+
+> **"A fixed-memory recurrent cell.** ... Whether [they] can be instantiated at fixed size,
+> with fixed-size gradient buffers and **no allocation in the backward pass**, is unknown."
+
+48 and 49 answered that for **one timestep**. A sequence is the case the phrase *"the
+backward pass"* actually means for a recurrent model: the gradient flows backwards through
+time, every intermediate has to be on a tape claimed at init, and the weight gradients
+**accumulate across 250 steps** rather than being written once.
+
+**Why this rung first.** 48.9 named it *"the nearest thing to a successor experiment"*, and
+**48's `backward` was already built for it.** Its own comment records why:
+
+> *"Zeroing is the caller's, so that accumulation over a sequence is possible without this
+> function allocating or branching on a flag."*
+
+**The interface anticipated this section. This section finds out whether the anticipation was
+correct**, which is a cheaper thing to discover now than inside E5.
+
+### 50.1 What is reused, and what is added
+
+**The cell is 48's cell and is not edited.** `oxcaml/retrainer/gru_cell.ml`, the flown algebra
+from `flight/include/sentinel/Gru.hpp:22-40`, hidden **80**, inputs **16**, gate width **240**,
+one `[@inline]` on `sigmoid`, no `assume`. 49's J6 established that adding a module beside it
+does not disturb its verdict, and the same check is repeated here.
+
+**What is added is the sequence layer.** A tape, a forward that runs `T` steps writing into it,
+and a backward that sweeps `T` steps in reverse accumulating into 48's existing gradient
+buffers.
+
+```
+  T                250              the flown window, src/sentinel_models/lstm.py:90
+  tape             r, z, n, h per step, T x 4 x 80 = 80,000 floats = 625 KiB at F64
+  parameters       w_ih 3,840 + w_hh 19,200 + b_ih 240 + b_hh 240        = 23,520
+  inputs           x, now a sequence: T x 16                             =  4,000
+  initial state    h0                                                    =     80
+  checked by U3                                                          = 27,600
+```
+
+**The loss is summed over every timestep**, `L = sum_t sum_i coeff[t][i] * h_t[i]`, so
+**`dL/dh_t` enters at every step** rather than only the last. That is the case the accumulation
+path exists for, and a loss on the final state alone would exercise a fraction of it.
+
+### 50.2 (!) Two failure modes, predicted in advance so that neither is explained afterwards
+
+**Both are predictable from what 48 and 49 already found, and a prediction made after the
+compiler speaks is not a prediction.**
+
+**1. The tape's representation.** A tape held as `float array array` is an **array of
+pointers**, and indexing it is where `strict` is most likely to object. **The tape will be a
+single flat `float array` with computed indices** -- `tape.((t * 4 * h_size) + (k * h_size) +
+i)` -- claimed once at module level exactly as 48's buffers are. **Registered as a design
+constraint before the first compilation, not as a fix after one.** If the flat form also fails,
+that is a finding about `strict` and arrays and is reported as one.
+
+**2. A per-step helper returning a float will box.** 48's G1 established this and it cost one
+`[@inline]`: *"a float returned across a function boundary is boxed ... and flambda2 does not
+inline it unasked"*. **A BPTT loop naturally wants a per-step helper**, and the prediction is
+that **any such helper either returns `unit` and writes into a buffer, or carries `[@inline]`.**
+This is where U1 or U2 will spend a NO VERDICT if either does.
+
+**(!) Predicting them does not license them.** U2's band still treats an `assume` as a finding
+and two as a failure. What the prediction buys is that **an inlining hint, if one is needed,
+is an accommodation named in advance rather than a discovery narrated afterwards** -- which is
+the difference between 48's G1, whose band already carried the wording, and a section that
+would have had to invent it.
+
+### 50.3 (!) Departure -- the correctness criterion is 49's, reused unchanged, so there is nothing to choose
+
+**49 fixed the step rule, the step and the tolerance, and this section takes all three
+verbatim:**
+
+```
+  step rule   h(p) = h_rel * max(|p|, 1.0)          relative, per-parameter
+  step        h_rel = macheps^(1/3) = 6.055454e-06  derived, not selected
+  criterion   abs(fd - g) <= atol + rtol*abs(g)     rtol = 1e-6, K = 4
+                                                    atol = K * macheps * L_scale / h_rel
+```
+
+**`L_scale` is re-measured** at this section's own initial parameters, because the loss is now
+a sum over 250 steps and is a different quantity; **everything else is 49's and is not
+re-derived.** 49.8 published the sensitivity that makes this reuse safe -- `K = 2` is the
+smallest value that held there and `K = 1` would have failed -- so the constant is not being
+inherited blind.
+
+**The cost of the departure, stated.** A criterion chosen for a one-step loss is being applied
+to a 250-step one, and **the roundoff model behind `atol` scales with `L_scale` but not
+explicitly with `T`.** If U3 lands outside, **the first question is whether the model needs a
+`T` term, not whether the gradient is wrong** -- and that question is answered in a successor
+section with the term declared first, never by adjusting `K` here. **Stop 15 carries forward
+unchanged.**
+
+### 50.4 Predictions
+
+Numbered, with bands, **written before the code**. **The prefix is `U` because `K` is taken** -- 32's
+predictions are K1 to K5, and a second K-series in the same document would make every later
+citation ambiguous.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **U1** | **The sequence forward holds `strict`.** `T` = 250 over the flat tape, `[@zero_alloc strict]`, `-g`, backtraces enabled, **no `assume`** | clean build, no hint beyond 48's existing one on `sigmoid` | holds only with a further inlining hint, itemised with the call it covers | needs `assume`, or cannot be expressed without one |
+| **U2** | **THE BACKWARD SWEEP THROUGH TIME HOLDS `strict`.** 250 steps in reverse, accumulating into 48's existing gradient buffers, same flags, **no `assume`** | clean build | one `assume`, itemised with the call it covers | **two or more, or a restructuring that is no longer BPTT. This is the finding, and `docs/PHASE5.md` 5 question 2 is answered NO at sequence level** |
+| **U3** | **The gradients are right**, under 49's criterion, over all **27,600** parameters and inputs at `T` = 250 | **0 entries outside** | at most 10 outside, each itemised | more than 10, or any entry outside by more than 10x |
+| **U4** | **No `assume` anywhere in the sequence module**, counted mechanically | **0** | -- | any |
+| **U5** | **The check can fail.** A deliberate allocation **inside the backward-through-time loop** | compile error, rc != 0 | -- | it builds |
+| **U6** | **The sequence machinery did not change the cell underneath it.** `T` = 1, the same fill and loss coefficients 48 and 49 used | **checked count exactly 23,616 and worst absolute error exactly 1.837013e-10**, reproducing 49's J1 | differs in the last digit only | differs materially -- the sequence code has changed the arithmetic, and U1 to U3 are withdrawn rather than reported |
+
+### 50.5 Falsification
+
+**If U2 fails, `docs/PHASE5.md` 5 question 2 is answered NO at sequence level**, and 48.8's
+YES is re-scoped to say what it actually covered: one cell, one timestep. **A language whose
+allocation guarantee holds on a single cell and breaks once the cell is run in a loop over a
+tape does not deliver what a retraining engine needs**, and 47.7's C1 -- discharged at 47.13.4,
+extended at 48.8 -- would have to carry that boundary explicitly.
+
+**If U3 fails, nothing else in this section means anything**, and U1, U2 and U6 are withdrawn
+rather than reported. That is 48.5's rule and it is unchanged: a `strict` verdict on wrong
+arithmetic is worth nothing.
+
+**If U6 fails, the comparison to 48 and 49 is broken** and every figure here describes a
+different cell than the one those sections measured. Reported as that, and fixed before
+anything else is believed.
+
+**If U5 fails, the instrument is not known to work** and U1 to U3 are withdrawn. A gate nobody
+has watched fail is not a gate.
+
+### 50.6 Reporting
+
+**Losers in full**, with their bands. **Every `assume` and every inlining hint is itemised with
+the call site it covers and the reason**, because U2's band is a count and a count that is not
+enumerable is not a count.
+
+**The two predictions at 50.2 are reported as predictions**, whether they came true or not. A
+predicted failure mode that did not occur is as much a result as one that did.
+
+**No timing figure is reported as a budget.** The wall clock at 50.7 is a **cost estimate for
+running this section**, not a per-cycle training cost; that remains E5's to establish against
+`Objective.md` 11 rule 5, and `docs/PHASE5.md` 8 is open besides.
+
+**Float64 throughout** (48.3's departure, still owed), so **no figure here is quoted beside a
+flight-core figure.**
+
+### 50.7 Cost, and stop and report
+
+**Zero bucket operations.** The cell generates its own weights and inputs from a fixed seed; no
+dataset, no network, no R2. **No new host**: the arm64 macOS host E1 to E3, 48 and 49 ran on.
+**No hardware.**
+
+**The wall clock is estimated from a measurement rather than guessed.** 49's Arm A binary,
+timed on this host, ran **283,392 single-cell forwards in 4.24 s** -- about **66,800
+forwards/second**. U3 needs `27,600 x 2 x 250 = 13,800,000` cell-steps, so:
+
+```
+  13,800,000 / 66,800  =  207 s  =  about 3.5 minutes
+```
+
+**Call it under 10 minutes with the tape writes and the 250-step loss**, and no sweep is run --
+49's J3 established the U-shape and this section reuses the criterion rather than re-deriving
+it.
+
+Stop and report, carrying 47.12's twelve, 48.7's two and 49.7's two, and adding one:
+
+17. **U3 exceeds 20 minutes of wall clock.** Stop and report rather than running longer. The
+    estimate above is measured and a large miss against it means something is wrong with the
+    implementation, not with the schedule -- and a check that has to run overnight is the wrong
+    check for a rung that exists to be cheap.
