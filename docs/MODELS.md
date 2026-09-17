@@ -498,6 +498,8 @@ prediction that failed and why. This document follows the same discipline.
   - [52.5 Falsification](#525-falsification)
   - [52.6 Reporting](#526-reporting)
   - [52.7 Cost, and the compute plan, and stop and report](#527-cost-and-the-compute-plan-and-stop-and-report)
+  - [52.8 OBSERVED -- all seven hold, and it is the first rung where nothing broke](#528-observed----all-seven-hold-and-it-is-the-first-rung-where-nothing-broke)
+  - [52.9 Owed](#529-owed)
 
 <!-- /toc -->
 
@@ -16255,3 +16257,103 @@ and adding:
 19. **The run exceeds 45 minutes of wall clock**, whichever plan is chosen. Stop and report.
     50's estimate missed by 11% and 51's by 20%; **a miss beyond 45 minutes against a 35-minute
     serial estimate is not a schedule problem, it is a sign the implementation is wrong.**
+
+### 52.8 OBSERVED -- all seven hold, and it is the first rung where nothing broke
+
+**2026-09-16. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`flight/` and `fprime/` untouched, so `master` does not move. No new host. Source
+`oxcaml/retrainer/gru_deep.ml`, `gru_deep_check.ml`, `scripts/s52_reference_check.py` and
+`scripts/oxcaml_s52.sh`, in this commit. **`gru_cell.ml`, `gru_seq.ml` and
+`src/sentinel_models/reference.py` are all unedited** -- stop 16 did not fire.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **HD1** | the two-layer forward holds `strict` | **Clean on first compilation**, no hint beyond the `[@inline]` on `sigmoid` that 48 already carried | **HELD** |
+| **HD2** | **the two-layer backward through time holds `strict`** | **Clean.** `layer_fwd`, `layer_bwd`, `forward_deep`, `backward_deep` and `zero_grads_deep` all pass, with the gradient crossing the layer boundary and flowing back through time in both | **HELD** |
+| **HD3** | the head holds `strict` and produces its gradients | **Clean**, and `head_w` and `head_b` are checked by HD4 like any other parameter | **HELD** |
+| **HD4** | gradients right over all 79,520 at `T` = 250 | **0 entries outside.** `S` 2.106484e+03, `atol` 3.089667e-07, worst absolute error **2.747617e-08**, worst margin **-2.941951e-07** | **HELD** |
+| **HD5** | zero `assume` | **0** | **HELD** |
+| **HD6** | the check can fail, on two probes | allocation in `layer_bwd`: *"called function may allocate (external call to caml_array_make)"*. Mis-stacking: **46,800 entries outside** | **HELD** |
+| **HD7** | the forward is `reference.py`'s | **5.956755e-08** at index 49, against a 1e-5 contract | **HELD** |
+
+**(!) THIS IS THE FIRST RUNG ON WHICH EVERY PREDICTION HELD**, and the reason is worth stating
+rather than enjoying: **50 and 51 had already found and fixed the two things that would have
+broken it.** 50 found the tape's shape and 51 found the criterion. A section that had gone
+straight from 49 to two layers and a head would have hit both at once, with a wrong-looking
+model as the most obvious suspect.
+
+**(!) HD4 PASSED BY ABOUT A FACTOR OF TEN, WHICH IS REPORTED BECAUSE IT IS NOT A FORMALITY.**
+Worst absolute error **2.75e-08** against an `atol` of **3.09e-07**. **51's criterion, carried
+verbatim with no constant re-chosen, is comfortably adequate for a model 3.4x larger than the
+one it was derived on** -- and the margin is not so wide that the test would accept anything,
+as HD6's 46,800 shows.
+
+**(!) HD7 IS TIGHTER THAN G6 WAS FOR A SINGLE CELL** -- 5.96e-08 against 48.8's 5.199e-06 --
+**and no conclusion is drawn from that.** The two compare different quantities against
+differently-scaled outputs, and 52.6 forbids quoting either beside a flight-core figure.
+
+**(!) 52.4's SECOND HD6 PROBE CANNOT BE BUILT AS WORDED, AND A SUBSTITUTE WAS USED.** 52.4
+asks for *"a deliberately mis-stacked model that feeds layer 1 the input `x` instead of layer
+0's output"*. **Layer 1's input width is 80 and `x` is 16**, so that model does not typecheck
+and never could. The nearest valid mis-stacking was used instead -- **layer 1 fed layer 0's
+output from the previous timestep** -- and it is a defect in the same machinery. **The
+pre-registration was wrong and the substitution is recorded rather than quietly made.** This
+is the second time a pre-registration has specified something the arithmetic does not permit;
+50.1's four-wide tape was the first.
+
+**(!) THE INCLUDE-PATH MISTAKE HAPPENED A THIRD TIME, AND A NOTE WAS NOT ENOUGH.** 51.8
+recorded the second occurrence *"so a third is avoided"*. A third occurred anyway, while
+writing this section. **It is now fixed structurally rather than by warning**:
+`scripts/oxcaml_s52.sh` copies every source into a self-contained build directory, so no `-I`
+can resolve to the wrong module. **A note that asks a future reader to remember something is
+not a fix**, and the two runs 49 and 51 lost say so.
+
+**(!) AND THE HOST'S LOW-MEMORY KILLER STOPPED THE WRAPPER SHELL MID-RUN.** HD4's aggregate
+printed and the wall-clock line did not. **HD4 was re-run and reproduced BIT-IDENTICALLY** --
+79,520 checked, 0 outside, worst absolute error 2.747617e-08 to every digit -- which is what
+52.7's claim that slicing changes wall clock and nothing else predicted. **Recorded because
+eight processes on this host is evidently near a limit that has nothing to do with the
+arithmetic**, and because a result that survives its own harness being killed is worth more
+than one that was never tested that way.
+
+**Cost, and a third timing miss that is now a trend.** HD4 ran **359 s across 8 processes**
+against 52.7's **~270 s** estimate -- a **33% miss**, after 50's **11%** and 51's **20%**.
+**The 66,800 cell-forwards/second basis from 49 degrades as the working set grows**: 49
+measured a cell with a few hundred floats live, 50 carried a 0.78 MiB tape and 52 carries
+1.68 MiB, and the estimate has been optimistic by more each time. **Stop 19 did not fire**;
+the run was nowhere near 45 minutes. **No serial run was taken**, so the serial figure in
+52.7 stands as an estimate and is not converted into a measurement by multiplying.
+
+**The tape.** 52.1 declared 220,000 floats. The implementation uses **220,160** -- the extra
+160 being two 80-element running-state buffers, `h_cur1` and `h_final1`. Fixed either way,
+which is what CPP-1 asks.
+
+**What this establishes.** The flown model's **shape** -- two GRU layers at the budgeted
+maxima plus the output head, 75,360 parameters -- has a forward and a full backward pass that
+hold `[@zero_alloc strict]` with **zero `assume`**, compute gradients correct to a criterion
+fixed in advance, and match `reference.py`'s own forward inside the project's transcription
+contract.
+
+**What it does not.** **No optimiser, no epochs, no dropout, no stopping rule, F64, one
+draw, and the loss is 51's shape rather than the flown head-only one** (52.3, registered as
+owed). **No timing figure is a compute budget.** **`docs/PHASE5.md` 8 is untouched.**
+**47.14's ordering is unchanged and E5 has not started.** **Nothing here touches 47.7's C3 or
+C5.**
+
+### 52.9 Owed
+
+**The head-only loss**, registered at 52.3 and unchanged: 160 terms each carrying a 250-step
+recurrence, and **whether 51's roundoff model is adequate for it is established by nothing.**
+
+**51.9's TM4 re-run**, still open, with the transient's treatment declared first.
+
+**A re-derived timing basis.** 11%, 20%, 33%. **The next section that quotes a wall-clock
+estimate should measure its own rate on its own working set** rather than carrying 49's
+figure forward a fourth time, and should say which it did.
+
+**The rest of the ladder.** The optimiser, where Adam's `sqrt`, division and bias correction
+meet 47.13.4's boxing finding; float32; determinism and the stopping rule, which is where
+`docs/PHASE5.md` 8 has to be answered rather than avoided; and window selection,
+`docs/PHASE5.md` 5 question 4.
+
+**Everything 49.9 still owes**: a float32 cell, more than one draw, and the update-form debt.
