@@ -72,6 +72,11 @@ module Retrain {
         @ The OCaml side's last verdict
         telemetry LastStatus: RetrainerStatus
 
+        @ Optimiser steps the last retraining cycle took (docs/MODELS.md 61).
+        @ D73 fixes it per cycle, so a value other than the budget is a defect
+        @ and not a measurement.
+        telemetry CycleSteps: I32
+
         # ----------------------------------------------------------------------
         # Events
         # ----------------------------------------------------------------------

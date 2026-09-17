@@ -585,6 +585,14 @@ prediction that failed and why. This document follows the same discipline.
   - [60.5 Cost, and stop and report](#605-cost-and-stop-and-report)
   - [60.6 OBSERVED -- the whole cycle holds at float32, and the square root needed no primitive at all](#606-observed----the-whole-cycle-holds-at-float32-and-the-square-root-needed-no-primitive-at-all)
   - [60.7 Owed](#607-owed)
+- [61 Pre-registration: E5-c, the cycle driven through F' ports (Phase 5)](#61-pre-registration-e5-c-the-cycle-driven-through-f-ports-phase-5)
+  - [61.1 REQUIREMENTS DERIVED FROM:](#611-requirements-derived-from)
+  - [61.2 (!) What the derivation settles](#612-what-the-derivation-settles)
+  - [61.3 Predictions](#613-predictions)
+  - [61.4 Falsification](#614-falsification)
+  - [61.5 Cost, and stop and report](#615-cost-and-stop-and-report)
+  - [61.6 OBSERVED -- the cycle crosses into an F' component at the framework's own flag set](#616-observed----the-cycle-crosses-into-an-f-component-at-the-frameworks-own-flag-set)
+  - [61.7 Owed](#617-owed)
 
 <!-- /toc -->
 
@@ -18434,3 +18442,150 @@ entered no deployment.
 **An exhaustive gradient check**, if any later rung makes the 5.3x margin matter.
 
 **Everything 59.8 owes**, unchanged.
+
+---
+
+## 61. Pre-registration: E5-c, the cycle driven through F' ports (Phase 5)
+
+**E5's third rung.** 60 assembled the cycle and drove it from an OCaml driver. This rung puts
+an F' component in front of it, at F''s own flag set, with the boundary 47.6 specified.
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred; C5 UNVERIFIED
+and **open -- and this rung does not close it.** The component stays in the **unit-test
+executable**; `Retrainer` stays **uninstanced** in `Top/instances.fpp`, per 47.15b's rejection of
+reading (b). **Nobody may cite this rung as evidence that instancing became safe.**
+
+### 61.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 47.6                          two boundaries, not one: the hub boundary
+                                               carries serialized values, the C boundary
+                                               carries fixed-size scalars and Bigarray
+  docs/DECISIONS.md D70 c.2, c.9               separate process; exactly one domain
+  docs/MODELS.md 47.15b                        reading (b) rejected on three grounds
+  oxcaml/retrainer/sentinel_retrainer.h:44-51  every entry point returns int32_t
+  oxcaml/retrainer/retrainer_stubs.c:3-9       hand-written stubs, and why not CAMLprim
+  oxcaml/retrainer/retrainer_stubs.c:33-40     caml_startup once, then a liveness check
+  fprime/lib/fprime/cmake/flags.cmake:46-60    the validation flag set, OPT-IN not inherited
+  fprime/.../SKILL.md:41-50, :114-124, :151-156, :185-189, :279-293
+                                               CPP-1, CPP-3, CPP-21, CPP-5, CPP-25
+  fprime/SentinelRef/Retrainer/CMakeLists.txt:21-27, :39, :54-56
+                                               OX_OBJ, and that it is linked PUBLIC as well
+                                               as into the UT executable
+```
+
+### 61.2 (!) What the derivation settles
+
+**`flight/Makefile:25` is not F''s flag set.** It carries `-Wall -Wextra -Wpedantic -Wconversion
+-Wshadow -Werror` and **lacks `-Wold-style-cast` and `-Wdouble-promotion`**, which
+`flags.cmake:46-60` adds. This rung is built at the **framework's** set, which is stricter, and
+`-Wdouble-promotion` is the one that bites: **a float32 boundary that silently promotes to
+double is exactly the defect it exists to catch**, and 60's cycle is float32 throughout.
+
+**The buffer is the caller's, and `CAML_BA_EXTERNAL` is how that is stated to the runtime.** The
+C++ side owns the window and the export buffer; the OCaml side receives a Bigarray that wraps
+them and **must not outlive the call**. CPP-1 is satisfied because nothing is allocated after
+init on either side; CPP-21 is satisfied because the pair is always (pointer, length).
+
+### 61.3 Predictions
+
+The prefix is `FC`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **FC1** | **The cycle's OCaml entry points hold `[@zero_alloc strict]`** where they do arithmetic, no `assume` | clean, **0** | holds with hints, itemised | needs `assume` |
+| **FC2** | **The boundary is fixed-size scalars and caller-owned Bigarray only.** Counted mechanically | every entry point returns `int32_t`; every array crossing is `CAML_BA_EXTERNAL`; **no OCaml value stored in C++** | -- | any float/double in a signature, or a retained value |
+| **FC3** | **It builds at F''s full validation set**, `-Wold-style-cast -Wdouble-promotion` included, at `-Werror` | clean | warnings that are not errors | any error |
+| **FC4** | **ASan and UBSan are clean** over a full cycle through the component | no report | -- | any report |
+| **FC5** | **The component drives a full cycle and its telemetry says so** | the step count telemetered equals the budget | -- | anything else |
+| **FC6** | **`Retrainer` stays uninstanced** | `grep Retrainer Top/` returns nothing | -- | any instance |
+| **FC7** | **No exception crosses and a refusal is a status.** The runtime made unavailable on purpose | a status code, component inert, event raised | -- | a throw, an abort, or a silent success |
+
+### 61.4 Falsification
+
+**If FC3 fails on `-Wdouble-promotion`, the float32 boundary is promoting somewhere**, and that
+is a real defect in the crossing rather than a flag to drop. **The flag is not removed.**
+
+**If FC4 fails, nothing else is reported.** A boundary that ASan objects to is not a boundary.
+
+**If FC7 fails, the C boundary does not satisfy CPP-25** and the design is wrong, not the test.
+
+### 61.5 Cost, and stop and report
+
+**Zero bucket operations.** **`fprime/` moves, so `master` moves in the same series.**
+
+Stop and report, carrying every stop from 47.12 through 60.5, and adding:
+
+32. **`Retrainer` is instanced into any topology.** Stop. 47.15b rejected it on three grounds
+    and this rung is not an argument against any of them.
+33. **A `float` or `double` appears in a C boundary signature.** Stop. CPP-3, and the boundary
+    carries `F32`/`F64` through Bigarray or fixed-size integers, never a bare C floating type.
+
+### 61.6 OBSERVED -- the cycle crosses into an F' component at the framework's own flag set
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+**`fprime/` moves, so `master` moves in this series.** Source `oxcaml/retrainer/cycle_c.ml`,
+`sentinel_cycle.h`, `cycle_stubs.c`, `cycle_harness.cpp`, `scripts/oxcaml_s61.sh`, and the
+`Retrain::Retrainer` changes.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **FC1** | the OCaml surface holds `strict` | clean under `-zero-alloc-check all`; **0** `assume` | **HELD** |
+| **FC2** | fixed-size scalars and caller-owned Bigarray only | **6 entry points, all `int32_t`**; **0** bare `float`/`double` in a signature; **3** `CAML_BA_EXTERNAL` crossings; no OCaml value stored | **HELD** |
+| **FC3** | builds at F''s full validation set | clean at `-Wold-style-cast -pedantic -Wall -Wextra -Wconversion -Wdouble-promotion -Wshadow -Werror`, **both in the harness and in the component's own CMake build** | **HELD** |
+| **FC4** | ASan and UBSan clean | no report from the harness; and the component's UT is **built with `-fsanitize=address,undefined` by default** and passes | **HELD** |
+| **FC5** | the component drives a cycle and telemeters it | `ASSERT_TLM_CycleSteps(0, CYCLE_BUDGET)` and again at tick 2; UT **1 of 1** | **HELD** |
+| **FC6** | `Retrainer` stays uninstanced | no reference to it anywhere in `Top/` | **HELD** |
+| **FC7** | a refusal is a status, not a throw | wrong window extent, zero budget, over-long sequence and wrong export extent each return their code; the component stays live | **HELD** |
+
+**(!) `-Wdouble-promotion` AND `-Wenum-enum-conversion` BOTH BIT, AND THE SECOND IS THE
+FINDING.** 61.2 expected `-Wdouble-promotion` to be the flag that mattered; it passed. What
+failed was `-Wenum-enum-conversion`: **OCaml's own Bigarray API asks the caller to OR values
+from two different enums** -- `caml_ba_kind` and `caml_ba_layout` -- and clang rejects that at
+`-Werror`. **The framework's flag set was not relaxed.** Each flag is widened to `int`
+explicitly at one named macro, with the reason at the call site. **The runtime's API is not
+clean under the standard F' builds against**, and that is a cost of this route, recorded rather
+than smoothed over.
+
+**(!) AND THE ALERT E1 MET MET US AGAIN, IN THE SAME PLACE.** `Callback.register` is flagged
+multidomain-unsafe and `-alert @all` makes it an error. **E1 took a narrow, documented opt-out
+at `retrainer.ml:102-114` and this module takes the same one, citing it rather than re-arguing
+it**: the process is single-domain because D70 consequences 2 and 9 make it so, `Domain.spawn`
+is never called, and if that ever stops being true the opt-out is wrong. **One exception per
+module and every other alert is still a build failure.**
+
+**The component's object is a superset, and E1's is untouched.** Two `-output-complete-obj`
+objects cannot be linked into one binary -- each carries its own runtime -- so
+`cycle_complete.o` carries **E1's five entry points and the cycle's five**, 1,191,324 B.
+`scripts/oxcaml_e1.sh` still builds `retrainer_complete.o` from `retrainer.ml` and
+`retrainer_stubs.c` alone, and **47.13.1's figures still refer to that object.** The CMake
+module prefers the superset and falls back.
+
+**Disclosures, volunteered.**
+
+**(!) C5 IS NOT CLOSED AND THIS RUNG IS NOT AN ARGUMENT THAT IT IS.** C5 is *"links into an F'
+DEPLOYMENT and the runtime starts inside one"*. This is the **unit-test executable**, which is
+where E1 already was; 47.13.1 was careful about the same distinction and 47.15 had to correct a
+reading of it. **`Retrainer` remains uninstanced, option (b) remains rejected on 47.15b's three
+grounds, and nothing here bears on them.**
+
+**`CYCLE_BUDGET` is 1 and `CYCLE_T` is 8**, chosen so a unit-test tick is cheap. **Stop 23
+still reserves the flight budget.** FC5 tests that the count is *fixed*, not that it is right.
+
+**The window is a seeded drive filled in the constructor**, not telemetry and not a window 56's
+gate admitted. **The two are wired together nowhere yet** -- 56 scored a gate, 60 takes an
+`admit` flag, and no component computes one.
+
+**E5 is host-verified pending target.** C4 UNVERIFIED and deferred to E4.
+
+**Cost.** **1 second** for the harness; the component UT is 8 ms. Compute time on this host; no
+wall-clock claim.
+
+### 61.7 Owed
+
+**A hub crossing**, which is E5-d and the first use of `Svc/GenericHub` in this repository.
+
+**The gate wired to the cycle.** 56's window selection and 60's `admit` argument are not
+connected to each other by anything.
+
+**Everything 60.7 owes**, unchanged.
