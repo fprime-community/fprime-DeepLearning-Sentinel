@@ -490,6 +490,14 @@ prediction that failed and why. This document follows the same discipline.
   - [51.7 Cost, and stop and report](#517-cost-and-stop-and-report)
   - [51.8 OBSERVED -- the criterion holds at every T, and the gradient was right all along](#518-observed----the-criterion-holds-at-every-t-and-the-gradient-was-right-all-along)
   - [51.9 Owed](#519-owed)
+- [52 Pre-registration: the second layer and the output head (Phase 5)](#52-pre-registration-the-second-layer-and-the-output-head-phase-5)
+  - [52.1 What is reused, and the shape](#521-what-is-reused-and-the-shape)
+  - [52.2 (!) Departure 1 -- `reference.py`'s LAYER forces float32, so HD7 cannot be 49's float64 comparison](#522-departure-1----referencepys-layer-forces-float32-so-hd7-cannot-be-49s-float64-comparison)
+  - [52.3 (!) Departure 2 -- the loss keeps 51's shape, and the flown head-only loss is registered as owed](#523-departure-2----the-loss-keeps-51s-shape-and-the-flown-head-only-loss-is-registered-as-owed)
+  - [52.4 Predictions](#524-predictions)
+  - [52.5 Falsification](#525-falsification)
+  - [52.6 Reporting](#526-reporting)
+  - [52.7 Cost, and the compute plan, and stop and report](#527-cost-and-the-compute-plan-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -16069,3 +16077,181 @@ update-form debt.
 because 50 found the instrument was wrong. **That is the ladder working rather than the ladder
 stalling** -- a single E5 pre-registration would have carried this defect into a two-layer
 model with an optimiser attached, and the failure would have been attributed to the model.
+
+---
+
+## 52. Pre-registration: the second layer and the output head (Phase 5)
+
+**Written before any of it exists**, in the form every section from 19 onward uses. **No code
+is written until this is reviewed.** It is the next rung after 51: 50 and 51 established that a
+**one-layer** recurrent backward pass holds `[@zero_alloc strict]` and computes the right
+gradients. **The flown model is two layers and a head**, and neither has been touched.
+
+**(!) IT IS NOT E5 AND 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT. **And it does not answer `docs/PHASE5.md` 8**: it trains nothing, runs no epochs and
+chooses no stopping rule. **Nothing here touches 47.7's C3 or C5.**
+
+**What it adds over 50 and 51.** Three things that do not exist anywhere in 48 to 51:
+
+1. **A second GRU layer**, whose input at each step is layer 0's output rather than `x`. The
+   gradient has to cross the layer boundary **and** flow back through time in both layers.
+2. **The output head**, `h_last @ head_w.T + head_b` (`flight/include/sentinel/Gru.hpp:44`),
+   which is the first non-recurrent parameter block this line of work has carried.
+3. **A gradient path that forks**: layer 0's weights receive gradient only through layer 1,
+   and layer 1's inputs are activations rather than data, so `g_x` for layer 1 becomes
+   `g_h` for layer 0 at every step.
+
+### 52.1 What is reused, and the shape
+
+**`gru_cell.ml` and `gru_seq.ml` are not edited.** 51's `gru_tol.ml` criterion is reused. What
+is added is a two-layer driver and a head.
+
+**The shape is `Config.hpp`'s maxima, as 48.1 chose**, and the parameter count is confirmed
+independently by `flight/include/sentinel/ModelFile.hpp:34-49`, which derives it rather than
+typing it:
+
+```
+  layer 0   w_ih 240 x 16 = 3,840   w_hh 240 x 80 = 19,200   b_ih 240   b_hh 240   = 23,520
+  layer 1   w_ih 240 x 80 = 19,200  w_hh 240 x 80 = 19,200   b_ih 240   b_hh 240   = 38,880
+  head      head_w 160 x 80 = 12,800                         head_b 160            = 12,960
+                                                                         model     = 75,360
+  inputs    x_seq 250 x 16 = 4,000      h0 for BOTH layers 2 x 80 = 160            =  4,160
+                                                                         CHECKED   = 79,520
+```
+
+**(!) 75,360 IS THE BUDGETED MAXIMUM AND NOT THE FLOWN MODEL.** `ModelFile.hpp:34` records
+that **71,160 is what the flown model uses**, the difference being 12 channels rather than
+`MAX_CHANNELS` 16. **This section measures the budgeted maximum**, which is the harder case and
+the one CPP-1 has to hold for; no figure here describes the flown model's size.
+
+**The tape.** Five wide per layer -- 50.8's figure of record -- **plus layer 0's output per
+step**, which is layer 1's input and which its backward needs:
+
+```
+  2 layers x 250 steps x 5 x 80  =  200,000
+  layer 0 outputs, 250 x 80      =   20,000
+                                    220,000 floats = 1.68 MiB at F64
+```
+
+### 52.2 (!) Departure 1 -- `reference.py`'s LAYER forces float32, so HD7 cannot be 49's float64 comparison
+
+**49.3 found that `reference.gru_cell` propagates float64 because it never mentions `DTYPE`.
+The layer above it does mention it.** `src/sentinel_models/reference.py:497` is
+`out = np.empty((batch, steps, layer.hidden), dtype=DTYPE)`, and
+`src/sentinel_models/reference.py:533` is `x = np.ascontiguousarray(x, dtype=DTYPE)`, with
+`DTYPE = np.float32` at `src/sentinel_models/reference.py:68`.
+
+**So the comparison that matters here -- against `reference.py`'s own stacking and its own
+head, rather than against a composition of my making -- is a float32 comparison, and its
+tolerance is correspondingly looser than J4's 1e-12.** Comparing at float64 against a loop I
+wrote over `gru_cell` would test my composition rather than the reference's, which is the
+thing HD7 exists to check.
+
+**Stop 16 is not triggered and `reference.py` is not edited.** The departure is accepted and
+its cost stated: **HD7's band is the project's own transcription contract of 1e-5**
+(`flight/include/sentinel/Gru.hpp:1-5`, D15) rather than machine precision.
+
+### 52.3 (!) Departure 2 -- the loss keeps 51's shape, and the flown head-only loss is registered as owed
+
+**The flown training loss is over the head's outputs alone**: one window in, one block of
+future values out (`last_only`, `src/sentinel_models/reference.py:507`). **This section does
+not use that loss**, and the reason is that it would move two things at once.
+
+51 validated its criterion for a loss whose terms are **`T` x 80 hidden-state contributions**,
+and TM2 showed it holds across `T`. **A head-only loss has 160 terms, each of which carries a
+250-step recurrence**, so `S` would no longer carry `T` and 51.1's derivation would be
+operating outside what TM1 to TM3 tested. **Changing the model and the loss in the same
+section would make a failure unattributable** -- which is the whole reason the ladder exists.
+
+**So the loss here is `51`'s shape extended by the head**: every timestep's layer-1 hidden
+state, **plus** the head's 160 outputs. Gradient enters at every step, `S` still carries `T`,
+and the criterion is 51's, carried verbatim with no constant re-chosen.
+
+**Registered as owed: the head-only loss.** Its `S` is over 160 terms each carrying a 250-step
+recurrence, and **whether 51's roundoff model is adequate for it is not established by
+anything.** That is a section of its own and is named here so it is not slid into.
+
+**And TM4's open status is carried, not hidden.** 51's TM4 is NO VERDICT on `S(T)/T`
+constancy. **Nothing here depends on that constancy** -- `S` is computed at the `T` actually
+used -- but the criterion this section inherits has one unadjudicated prediction behind it,
+and a reader should know that without digging.
+
+### 52.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `HD` because K, U, TM, V and
+most single letters are taken.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **HD1** | **The two-layer sequence forward holds `strict`** at `T` = 250 | clean build, no hint beyond 48's existing one on `sigmoid` | holds only with a further inlining hint, itemised | needs `assume` |
+| **HD2** | **THE TWO-LAYER BACKWARD THROUGH TIME HOLDS `strict`.** The gradient crosses the layer boundary and flows back through time in both, with layer 1's `g_x` becoming layer 0's `g_h` at every step | clean build | one `assume`, itemised with the call it covers | **two or more, or a restructuring that is no longer BPTT. This is the finding** |
+| **HD3** | **The head holds `strict`**, forward and backward, and produces gradients for `head_w` and `head_b` | clean build, gradients produced | holds only with a hint | needs `assume` |
+| **HD4** | **The gradients are right**, under 51's criterion carried verbatim, over all **79,520** at `T` = 250 | **0 entries outside** | at most 10 outside, each itemised | more than 10 |
+| **HD5** | **No `assume` anywhere in the new modules**, counted mechanically | **0** | -- | any |
+| **HD6** | **The check can fail.** Two probes: an allocation inside **layer 1's** backward, and a deliberately mis-stacked model that feeds layer 1 the input `x` instead of layer 0's output | allocation rejected at build, **and** the mis-stacking gives more than 10 entries outside | one of the two catches it | neither -- HD1 to HD4 are **withdrawn**, not reported |
+| **HD7** | **The forward is `reference.py`'s**, two layers and head, against `reference.forward` at its own float32 | **max abs difference `<= 1e-5`**, the project's transcription contract | `(1e-5, 1e-3]`, consistent with F32-vs-F64 | `> 1e-3`, or a structural mismatch -- a transcription defect, reported and not tuned away |
+
+### 52.5 Falsification
+
+**If HD2 fails, `docs/PHASE5.md` 5 question 2 is answered NO for a stacked model**, and 50's
+and 51's result is re-scoped to one layer. A retraining engine for this project's model needs
+two.
+
+**If HD6 fails, nothing else in this section is reported** and HD1 to HD4 are withdrawn.
+**This is the only clause that withdraws the others**, and it is written that way deliberately:
+50.9a records that 50 carried two clauses from two precedents that prescribed different things
+on a correctness failure. **A HD4 failure does not withdraw anything.** It is a finding about
+either the gradients or the criterion, and 52.3 already names which question is asked first.
+
+**If HD7 fails, the stacking or the head is not this project's**, and the transcription is
+fixed before any `strict` or gradient result here is believed.
+
+**If HD4 fails, the first question is the gradients and the second is the criterion** -- the
+reverse of 50's order, because 51 validated this criterion for this loss shape across two and
+a half orders of magnitude in `T`. **Neither is adjusted inside this section**: stop 15
+carries forward.
+
+### 52.6 Reporting
+
+**Losers in full**, every entry outside itemised with parameter, index, analytic value,
+finite-difference value and margin. **Every `assume` and every inlining hint itemised with its
+call site.**
+
+**`S` is reported**, and so is the wall clock **against the estimate**, because 50 missed by
+11% and 51 by 20% and a third data point makes that correction usable rather than anecdotal.
+
+**Float64 throughout except HD7**, which is float32 by `reference.py`'s declaration; **no
+figure here is quoted beside a flight-core figure**, and 75,360 is not quoted as the flown
+model's size.
+
+### 52.7 Cost, and the compute plan, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. **No new host, no
+hardware.**
+
+**(!) THIS IS THE FIRST RUNG THAT DOES NOT COMFORTABLY FIT A SINGLE SERIAL RUN, AND THE PLAN
+IS PUT BEFORE THE OWNER RATHER THAN CHOSEN HERE.** The arithmetic, from 50's measured rate of
+**1.382e9 multiplies/second** on this host:
+
+```
+  work      79,520 params x 2 evaluations x 250 steps x 61,440 mults   =  2.443e12 mults
+  serial    2.443e12 / 1.382e9                                          =  29.5 min
+  with the 10-20% correction 50 and 51 both measured                    =  ~35 min
+```
+
+| plan | wall clock | processes | RAM | notes |
+|---|---|---|---|---|
+| **serial** | **~35 min** | 1 | ~12 MiB | simplest; exceeds 50.7's 20-minute stop, so a new stop is set below |
+| **parallel, 8 processes** | **~4.5 min** | 8 | ~100 MiB | **the numbers are bit-identical**: each process re-fills deterministically, computes the same analytic gradient, and checks a disjoint slice of the parameter index space. Splitting changes wall clock and nothing else |
+| reduced `T` | ~3.5 min at `T` = 25 | 1 | ~12 MiB | tests less; 51's TM2 makes a smaller `T` defensible but it is a weaker HD4 |
+
+**The recommendation is the parallel plan**, because the work is embarrassingly parallel over
+parameter index, RAM is not close to a constraint, and **it buys the full 79,520-parameter
+check at `T` = 250 rather than a reduced one.** It is not taken here; the owner chooses.
+
+Stop and report, carrying 47.12's twelve, 48.7's two, 49.7's two, 50.7's one and 51.7's one,
+and adding:
+
+19. **The run exceeds 45 minutes of wall clock**, whichever plan is chosen. Stop and report.
+    50's estimate missed by 11% and 51's by 20%; **a miss beyond 45 minutes against a 35-minute
+    serial estimate is not a schedule problem, it is a sign the implementation is wrong.**
