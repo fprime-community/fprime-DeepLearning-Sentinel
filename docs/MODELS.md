@@ -577,6 +577,14 @@ prediction that failed and why. This document follows the same discipline.
   - [59.6 Cost, and stop and report](#596-cost-and-stop-and-report)
   - [59.7 OBSERVED -- the shadow is the flying file with new weights, and T1 is adjudicated at last](#597-observed----the-shadow-is-the-flying-file-with-new-weights-and-t1-is-adjudicated-at-last)
   - [59.8 Owed](#598-owed)
+- [60 Pre-registration: E5-b, the training cycle assembled at float32 (Phase 5)](#60-pre-registration-e5-b-the-training-cycle-assembled-at-float32-phase-5)
+  - [60.1 REQUIREMENTS DERIVED FROM:](#601-requirements-derived-from)
+  - [60.2 (!) Departure -- Adam at float32 needs a square root, and no primitive provides one](#602-departure----adam-at-float32-needs-a-square-root-and-no-primitive-provides-one)
+  - [60.3 Predictions](#603-predictions)
+  - [60.4 Falsification](#604-falsification)
+  - [60.5 Cost, and stop and report](#605-cost-and-stop-and-report)
+  - [60.6 OBSERVED -- the whole cycle holds at float32, and the square root needed no primitive at all](#606-observed----the-whole-cycle-holds-at-float32-and-the-square-root-needed-no-primitive-at-all)
+  - [60.7 Owed](#607-owed)
 
 <!-- /toc -->
 
@@ -18243,3 +18251,186 @@ that, and it is where `docs/PHASE5.md` 2's human approval becomes a command rath
 diagram.
 
 **Everything 58.9 owes**, unchanged.
+
+---
+
+## 60. Pre-registration: E5-b, the training cycle assembled at float32 (Phase 5)
+
+**E5's second rung, and the one 54.9 named**: *"Float32 for everything above one cell. 50 and
+51's BPTT, 52's second layer and head, and 53's optimiser are all float64. Each is its own rung,
+and FT3's result says only that the first of them is reachable."* This rung is all of them at
+once, because a training cycle is not separable into them.
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred; C5 UNVERIFIED
+and open. Nothing here touches either.
+
+### 60.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 54.2a       the permitted float32 primitive set, and why division
+                             completed it
+  docs/MODELS.md 54.8, 54.9  the F32 cell, and what it does NOT establish
+  docs/MODELS.md 51.2        atol = K macheps S / h_rel, K = 4, and S's definition
+  docs/MODELS.md 57.3        M-flat and M-rec, registered and unused at float64
+  docs/DECISIONS.md D73      the unit is the optimiser STEP
+  docs/MODELS.md 56.8        the window gate, and that the limit gate does all the work
+  torch/optim/adam.py:456,475,530-546   the three details 53.2 pinned
+  src/sentinel_models/reference.py:507  forward, the 1e-5 comparison target
+  src/sentinel_models/lstm.py:90-96     window 250, hidden (80, 80), n_predictions 10
+  flight/include/sentinel/Config.hpp:28-43   the maxima the shapes come from
+```
+
+### 60.2 (!) Departure -- Adam at float32 needs a square root, and no primitive provides one
+
+**Derived, not discovered by probing.** `torch/optim/adam.py:530-546` is
+`denom = sqrt(v) / (1-b2^t)**0.5 + eps`, which 53.2 pinned as detail 3 and which the
+transcription must keep. **A float32 Adam therefore needs a float32 square root**, and 54.2
+already measured `%sqrtfloat32` as *"Unknown builtin primitive"*.
+
+**Probed, in the shape 54.2a set**: `%sqrtfloat32`, `%float32sqrt` and `%sqrt_float32` are all
+rejected. `%absfloat32` and `%negfloat32` exist; `%subfloat32` and `%divfloat32` exist as binary
+operators. **There is no float32 square root in this switch.**
+
+**THE THREE ROUTES, WITH THEIR COSTS:**
+
+```
+  1  a C external sqrtf, [@@unboxed] [@@noalloc]      exactly how expf and tanhf already
+                                                      arrive at 54.2. Cost: a third
+                                                      undocumented C boundary, and a
+                                                      dependency on the host libm.
+  2  float64 sqrt, rounded back to float32            Cost: it is a DOUBLE ROUNDING, which
+     of_f (sqrt (to_f v))                             is precisely what 54.2a rejected for
+                                                      division. Needs a reason it is
+                                                      different, not an assertion.
+  3  Newton-Raphson in float32                        Cost: more code inside strict, and no
+     from the permitted set alone                     guarantee of correct rounding at all.
+```
+
+**(!) ROUTE 2 IS TAKEN, AND THE REASON IT DIFFERS FROM DIVISION IS THE PRECISION RATIO.** A
+double rounding is only harmful when the wider format is not wide enough to make the second
+rounding faithful. For **square root** the classical condition is `p' >= 2p + 2`: float64's
+**53** significand bits against float32's 24 gives `2 x 24 + 2 = 50 <= 53`, so a float64 square
+root rounded to float32 **is** the correctly-rounded float32 square root. **Division has no such
+guarantee**, which is why 54.2a refused it and why `%divfloat32` was required there and nothing
+is required here.
+
+**And it is measured rather than cited.** `sqrtf(x)` against `(float)sqrt((double)x)` over
+**22,052,527 float32 values**, strided across the whole finite positive range: **0 differ**. The
+prediction below re-states it as a check rather than resting on this paragraph.
+
+**What route 2 buys.** No new primitive, **no new C external**, and the permitted set is
+unchanged from 54.2a. Stop 21 is satisfied without extending anything.
+
+### 60.3 Predictions
+
+The prefix is `AS`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **AS1** | **The whole cycle holds `[@zero_alloc strict]`** -- two layers, head, BPTT over 250 steps, Adam, the window gate and the budget -- **no `assume`** | clean, **0** | holds with inlining hints, itemised | needs `assume` |
+| **AS2** | **The float32 square root is exact.** Route 2 against a correctly-rounded reference, in-process | **0 differ** over the sampled range | -- | any differ, and route 1 is taken instead |
+| **AS3** | **The F32 forward matches `reference.forward`** at the flown shape | worst `<= 1e-5` | `(1e-5, 1e-4]` | `> 1e-4` |
+| **AS4** | **The F32 gradients pass 51's criterion**, `S` measured at F32 with F32's own macheps | **0** entries outside | 1 to 20 | **> 20** -- and 57's M-rec is the registered instrument to reach for |
+| **AS5** | **The budget is exact at F32 too.** D73's step count, two training-set sizes | exactly `N` and `N` | -- | any difference |
+| **AS6** | **The working set is what the arithmetic says.** Measured against the shapes | within 1% of the derived figure | 1 to 10% | > 10%, or the derivation is wrong |
+| **AS7** | **The check can fail.** A deliberate allocation, and a deliberately wrong gradient | both caught | -- | either passes |
+
+### 60.4 Falsification
+
+**If AS4 fails, 57's M-rec stops being registered-and-unused** and becomes the model of record
+for F32, with its own verdict. **The band is not widened and `K` is not raised** -- stop 26.
+
+**If AS3 fails, the F32 assembly is not computing the flown forward**, and that is a
+transcription defect reported as one. 54.8's bit-identical cell does not transfer to two layers
+and a head, and **nothing here may cite it as though it did**.
+
+**If AS7 fails, nothing else is reported.**
+
+### 60.5 Cost, and stop and report
+
+**Zero bucket operations.** `flight/` and `fprime/` are not touched, so `master` does not move.
+
+Stop and report, carrying every stop from 47.12 through 59.6, and adding:
+
+31. **A float32 operation is reached by a primitive or C external not in 54.2a's set as
+    extended by 60.2.** Stop 21, restated for this rung. **60.2 extends it by nothing**, which
+    is the point.
+
+### 60.6 OBSERVED -- the whole cycle holds at float32, and the square root needed no primitive at all
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No new
+host, no hardware, **no package installed**. `flight/` and `fprime/` untouched, so `master` does
+not move. Source `oxcaml/retrainer/deep_f32.ml`, `deep_f32_check.ml`, `sqrtf_ref.c` and
+`scripts/oxcaml_s60.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **AS1** | the whole cycle holds `strict` | clean under `-zero-alloc-check all`; **0** `assume`, **0** hints. Primitives used: `%addfloat32 %divfloat32 %float32offloat %floatoffloat32 %mulfloat32`. **C externals in the cycle: 2** -- `expf` and `tanhf`, 54.2's two | **HELD** |
+| **AS2** | route 2's square root is exact | **0 differ** over **270,122** float32 values in-process, against a correctly-rounded `sqrtf`; and **0 of 22,052,527** in the standalone sweep | **HELD** |
+| **AS3** | the F32 forward matches `reference.forward` | worst **4.470348e-08** at index 19, against a band of 1e-5 | **HELD** |
+| **AS4** | the F32 gradients pass 51's criterion | `S` = 4.707457e+00, `atol` = 2.873204e-04, `h_rel` = 3.906250e-03; **0 outside of 747** checked; worst `err/allowed` **0.1882** | **HELD** |
+| **AS5** | the budget is exact at F32 | **4 and 4** at `T` = 10 and `T` = 120; a refused window takes **0** steps | **HELD** |
+| **AS6** | the working set is what the arithmetic says | **596,800 floats = 2.2766 MiB at F32**, 4.5532 at F64 | **HELD** |
+| **AS7** | the check can fail | `Array.make` in the cycle: *"called function may allocate"*; a wrong `head_w[0]` gradient: caught | **HELD** |
+
+**(!) 54.9's FIRST OWED ITEM IS DISCHARGED.** It read: *"Float32 for everything above one cell.
+50 and 51's BPTT, 52's second layer and head, and 53's optimiser are all float64. Each is its
+own rung, and FT3's result says only that the first of them is reachable."* **All of them are at
+float32 here, in one cycle, under `strict` with zero `assume`.** What is discharged is
+**expressibility**. 50 to 53's *figures* are still float64 figures and 48.3's sentence still
+attaches to them; nothing here re-measures them.
+
+**(!) AND THE SQUARE ROOT COST NOTHING, WHICH IS THE OPPOSITE OF DIVISION.** 54.2a had to extend
+the permitted set by `%divfloat32` because computing `a/b` in float64 and rounding is a double
+rounding that is **not** bit-equivalent. For the square root it **is**: float64's 53 significand
+bits clear the classical `p' >= 2p + 2` condition against float32's 24, and `0 of 22,052,527`
+says so rather than the argument alone. **The permitted set is extended by nothing** and stop 31
+is satisfied without adding a name.
+
+**(!) AND 57.9's OWED ITEM IS ANSWERED IN THE SAME RUN.** 57 registered M-flat and M-rec as
+derived-and-unnecessary at float64, and said *"the case for it may arrive at F32, where the unit
+roundoff is about 6.0e-8 against float64's 1.1e-16."* **It did not arrive.** 51's model carries:
+headroom `err/allowed` **0.1882 at F32** against **0.1189 at float64** -- tighter, as expected,
+and still 5.3x clear. **M-rec stays registered and unused.**
+
+**(!) AND THE WORKING SET IS 60,000 FLOATS LARGER THAN THE FIGURE THIS TRACK WAS HANDED.** The
+commissioning instruction stated *"536,800 floats -- 2.05 MiB at F32, 4.10 MiB at F64"*. Derived
+and measured here from the shapes: **5 x 75,360 parameters** (weights, gradients, both Adam
+moments, the best-weights copy) **+ 200,000 tape + 20,000 layer-0 outputs = 596,800 floats**.
+The handed figure implies a **four-wide** tape with layer 0's outputs omitted, which is 50.1's
+defect. **2.2766 MiB at F32, not 2.05.**
+
+**Disclosures, volunteered.**
+
+**The comparator's own label is stale for this use, and it was not edited.**
+`scripts/s52_reference_check.py` prints *"worst |OCaml(F64) - reference(F32)|"* because 52's
+OCaml side was float64. **Here both sides are float32**, so the F64 in that line is wrong for
+this run. It is reused **verbatim** rather than corrected, because editing the comparator to
+suit a new caller would make the comparison a different one -- and 4.470348e-08 is about one
+F32 ulp at that magnitude, which is what two F32 computations of the same algebra should give.
+
+**747 of 75,360 parameters were checked**, at stride 101. **"0 outside" is 0 outside the
+sample.** Each central difference is two full 250-step forwards through two layers.
+
+**The budget was 4 and the sequence 10 or 120, neither of them flight values.** Stop 23 stands:
+`N` is derived in its own right and nothing here supplies it. AS5 tests that the count is
+**fixed**, not that it is right.
+
+**The drive is synthetic.** A seeded, bounded input sequence, not telemetry -- Rule 1 keeps
+telemetry off this machine and 56 is where real windows were scored.
+
+**E5 is host-verified pending target (47.14a).** **C4 UNVERIFIED and deferred to E4; C5
+UNVERIFIED and open.** This rung ran on arm64 macOS in a unit-test process, crossed no hub and
+entered no deployment.
+
+**Cost.** **19 seconds.** Compute time on this host; no wall-clock claim.
+
+### 60.7 Owed
+
+**A cycle driven by the F' component rather than by a driver**, which is E5-c.
+
+**The flight budget `N`**, still. 55.10 and D73 consequence 4 both reserve it.
+
+**An exhaustive gradient check**, if any later rung makes the 5.3x margin matter.
+
+**Everything 59.8 owes**, unchanged.
