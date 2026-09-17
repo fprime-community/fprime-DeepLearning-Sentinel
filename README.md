@@ -30,7 +30,7 @@ validated on an independent spacecraft (D29). What Phase 2 inherits is in
 [docs/MODEL_FILE.md](docs/MODEL_FILE.md)) and the C++ inference core in `flight/` matches the
 NumPy reference to **1.8e-07** at the flown shape, with the crossing flag exact
 (`docs/MODELS.md` 19.8). **The F' component is done** (tag `wi9`): `Sentinel::Monitor` builds in
-F' v4.3.0's own Ref and all **11/11** loader refusal codes degrade to the Level 1 statistical
+F' v4.3.0's own Ref and all **12/12** loader refusal codes degrade to the Level 1 statistical
 baseline without failing the topology (D32-D37). Work items 9.5 to 9.14 are the science that
 followed, and `docs/STATUS.md` section 7 is the ordered list of what remains.
 

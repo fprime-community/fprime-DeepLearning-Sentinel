@@ -111,6 +111,7 @@ prediction that failed and why. This document follows the same discipline.
   - [20.10 What F' decided that reading its documents had not](#2010-what-f-decided-that-reading-its-documents-had-not)
   - [20.11 The build proof](#2011-the-build-proof)
   - [20.12 Stop-and-report triggers: one fired, and it was not on the list](#2012-stop-and-report-triggers-one-fired-and-it-was-not-on-the-list)
+  - [20.13 (!) Rider, 2026-09-17: the twelfth refusal code was missing from the FPP enum, and 12 already meant something else](#2013-rider-2026-09-17-the-twelfth-refusal-code-was-missing-from-the-fpp-enum-and-12-already-meant-something-else)
 - [21 Scoping the `_rolling` correctness fix (work item 9.5; scope, not build)](#21-scoping-the-rolling-correctness-fix-work-item-95-scope-not-build)
   - [21.1 Why it cannot wait](#211-why-it-cannot-wait)
   - [21.2 What changes, and what is preserved](#212-what-changes-and-what-is-preserved)
@@ -3701,6 +3702,78 @@ clean on 68 files; `sentinel_eval selftest` 8/8; `make -C flight test` green on
 footprint, refusals, determinism twice, seven golden-vector tiers, four baseline
 tiers and seven byte-identical round trips; `make -C flight lint` clean on three
 configurations; `fprime-util check` 10/10.
+
+
+### 20.13 (!) Rider, 2026-09-17: the twelfth refusal code was missing from the FPP enum, and 12 already meant something else
+
+**This section's figures are not edited.** 20.2 row 1's *"11 refusal codes"* and 19.8's F7
+*"16 load cases"* were **true when they were written**, and D68 changed both afterwards by
+adding a twelfth code. What follows is what that change did to this component, found while
+closing it.
+
+**What was registered, and where.** `docs/STATUS.md` section 5 **on `master`** named it:
+*"The twelfth refusal code, `BAD_PARAM_VERSION`, is covered by the C++ refusal suite and is
+**not yet** in the F' component's degrade-to-Level-1 test."* **It was registered on the
+customer branch and nowhere on `dev`**, whose `docs/STATUS.md` and `README.md` both said
+`11/11` as though the matrix were complete. The honest statement was the one facing the
+customer, which is the opposite of the direction a gap usually drifts.
+
+**(!) AND THE REGISTERED ITEM UNDERSTATED IT.** The missing test was the visible half. The
+component's FPP enum `ModelLoadStatus` mirrors the core's `LoadStatus` one-to-one and then
+adds its own sentinel:
+
+```
+  core   Sentinel::LoadStatus            FPP   ModelLoadStatus
+  ...                                    ...
+  BAD_NORM_POLICY    = 11                BAD_NORM_POLICY = 11
+  BAD_PARAM_VERSION  = 12   (D68)        NOT_LOADED      = 12   <-- the same value
+```
+
+`Monitor.cpp`'s `toFpp` is a plain cast. **So a file refused because its `param_version`
+names a generation this reader does not know would have reached the ground as
+`NOT_LOADED`** -- whose own documentation reads *"Not a loader code: the file was never read,
+so nothing was refused."* **The inverse of what happened.** The file was read, and it was
+refused, and the telemetry channel and the `ModelRefused` event would both have said it was
+not.
+
+**Why nothing caught it, and it is not that nobody looked.** `Monitor.cpp` carries eleven
+`static_assert`s pairing each FPP code with its core code, under the comment *"A plain cast
+would be a silent bet on the two enums agreeing; the static_asserts above make it a checked
+one."* **The check is per-pair, and `NOT_LOADED` has no core counterpart to pair with**, so
+no assertion covered the one value that could collide. The bet was checked everywhere except
+where it could be lost.
+
+**The fix, and why this shape.** `BAD_PARAM_VERSION = 12` is mirrored into the FPP enum and
+`NOT_LOADED` moves to **13**. The alternative -- giving the code 13 in FPP and mapping it in
+`toFpp` -- was rejected: the one-to-one mirror is what makes the cast reviewable, and a
+mapping table would put the two enums permanently out of step. **The core owns 0 upward and
+the sentinel sits above whatever the core uses.** A twelfth `static_assert` pairs the new
+code, and a thirteenth asserts `NOT_LOADED` is strictly greater than the highest core code,
+so **the next code the core gains fails the build rather than the ground's reading of a
+refusal.** That is 52.8's rule: the comment explaining the cast was doing a guard's job.
+
+**Demonstrated, not asserted.** Both directions were run before either was believed:
+
+```
+  the collision      a static_assert pairing BAD_PARAM_VERSION compiled against the
+                     unfixed enum: "no member named 'BAD_PARAM_VERSION' in
+                     'Sentinel::ModelLoadStatus::T'" -- the code was absent entirely.
+  the new case       the twelfth loop case was made to expect BAD_MAGIC on purpose.
+                     gtest: "Expected: BAD_MAGIC (1) / Actual: BAD_PARAM_VERSION (12)".
+                     So the case reaches the loader and the component names the code.
+  after              Sentinel_Monitor_ut_exe, 10 of 10, the refusal loop over twelve.
+```
+
+**What moves.** The F' component covers **12 of 12** refusal codes. `docs/STATUS.md` and
+`README.md` on `dev` move from `11/11` to `12/12` and from `0/11` to `0/12`; `master`'s
+`docs/STATUS.md` moves from *"11 of the 12"* to all twelve and **loses its section 5 entry**,
+which is closed. `flight/` is untouched -- its own suite already covered the code at
+`flight/test/RefusalTests.cpp:176`, which is why the gap was in the component and not in the
+core.
+
+**What does not move.** 20.2 row 1, 19.8's F7, `docs/REORG_PLAN.md:483` and
+`docs/reorg_plan.json` keep their figures. They are records of what was true when written,
+and D68 is where the number changed.
 
 ---
 

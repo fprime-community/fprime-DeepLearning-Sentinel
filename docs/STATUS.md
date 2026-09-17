@@ -154,8 +154,8 @@ matched rate on both sets, and the forecaster never speaks first across 53 caugh
 
 **Flight.** `flight/`'s C++ core matches the NumPy reference at **1.8e-07** worst case over
 seven weight sets (D30). `Sentinel::Monitor` builds in this project's deployment and in F'
-v4.3.0's own Ref, and all **11/11** loader refusal codes degrade to the Level 1 statistical
-baseline with the code named in the event, **0/11** failing the topology (D32-D37).
+v4.3.0's own Ref, and all **12/12** loader refusal codes degrade to the Level 1 statistical
+baseline with the code named in the event, **0/12** failing the topology (D32-D37).
 
 **Operations.** 238 Class A and 5,740 Class B for 2026-09, of 50,000 each, read from the
 last artifact and never transcribed.

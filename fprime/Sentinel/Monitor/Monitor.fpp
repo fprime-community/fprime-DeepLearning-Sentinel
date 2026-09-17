@@ -59,8 +59,16 @@ module Sentinel {
         TOO_LARGE = 9
         TRUNCATED = 10
         BAD_NORM_POLICY = 11
-        @ Not a loader code: the file was never read, so nothing was refused
-        NOT_LOADED = 12
+        @ D68's code, mirrored here 2026-09-17. It was added to the core's
+        @ LoadStatus and not to this enum, where 12 already meant NOT_LOADED --
+        @ so a file refused for an unknown param_version would have been reported
+        @ to the ground as "never read, nothing refused". See docs/MODELS.md 20.13.
+        BAD_PARAM_VERSION = 12
+        @ Not a loader code: the file was never read, so nothing was refused.
+        @ (!) IT SITS ABOVE EVERY CORE CODE AND MUST STAY THERE. Monitor.cpp
+        @ asserts that at compile time, so the next code the core gains collides
+        @ with the build rather than with the ground's reading of a refusal.
+        NOT_LOADED = 13
     }
 
     @ Why the component is running the baseline instead of the model
@@ -127,9 +135,9 @@ module Sentinel {
             id 0 \
             format "Sentinel model loaded: {} channels, {} layers, tier {}, fitted {}"
 
-        @ The loader refused the file. One event over all 11 refusal codes,
-        @ because the code is data and eleven near-identical events would be
-        @ eleven places for the text to drift.
+        @ The loader refused the file. One event over all 12 refusal codes,
+        @ because the code is data and twelve near-identical events would be
+        @ twelve places for the text to drift.
         event ModelRefused(
                             reason: ModelLoadStatus
                             bytesRead: U32

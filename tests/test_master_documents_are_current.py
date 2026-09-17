@@ -119,11 +119,14 @@ def _load_cases() -> int:
 
 
 def _fprime_covered_codes() -> int:
-    """(!) The loop bound in the component's own test, which is 11 and not 12.
+    """The loop bound in the component's own test. **It is 12 since 2026-09-17.**
 
-    `BAD_PARAM_VERSION` arrived with the version-2 rule and was never added to
-    this loop. The customer documents say 11 of 12 because of this number, and if
-    somebody closes that gap the documents must move with it.
+    `BAD_PARAM_VERSION` arrived with the version-2 rule and was not added to this
+    loop, and this docstring used to end "if somebody closes that gap the documents
+    must move with it". It was closed at `docs/MODELS.md` 20.13 and they did -- this
+    figure is what made them, which is the whole point of deriving rather than
+    restating. 20.13 records the larger half: 12 was also `NOT_LOADED` in the FPP
+    enum, so the code the loop was missing would have reported as "never read".
     """
     text = _dev("fprime/Sentinel/Monitor/test/ut/MonitorTester.cpp")
     return int(re.search(r"index\s*<\s*(\d+)U", text).group(1))
