@@ -459,6 +459,7 @@ prediction that failed and why. This document follows the same discipline.
   - [48.6 Reporting](#486-reporting)
   - [48.7 Cost, and stop and report](#487-cost-and-stop-and-report)
   - [48.8 OBSERVED -- the backward pass holds clean, and the forward needs one hint](#488-observed----the-backward-pass-holds-clean-and-the-forward-needs-one-hint)
+  - [48.8a (!) Rider, 2026-09-16: G5's message invites a wrong reading, and 53 corrects it](#488a-rider-2026-09-16-g5s-message-invites-a-wrong-reading-and-53-corrects-it)
   - [48.9 Owed](#489-owed)
 - [49 Pre-registration: the gradient check specified before it runs, and the forward held to `reference.py` (Phase 5)](#49-pre-registration-the-gradient-check-specified-before-it-runs-and-the-forward-held-to-referencepy-phase-5)
   - [49.1 What is reused, and what is added](#491-what-is-reused-and-what-is-added)
@@ -511,6 +512,14 @@ prediction that failed and why. This document follows the same discipline.
   - [53.7 Cost, and stop and report](#537-cost-and-stop-and-report)
   - [53.8 OBSERVED -- all six hold, and the `[@@noalloc]` reading is confirmed in the same run that rejects `Array.make`](#538-observed----all-six-hold-and-the-noalloc-reading-is-confirmed-in-the-same-run-that-rejects-arraymake)
   - [53.9 Owed](#539-owed)
+- [54 Pre-registration: the cell in float32, and what representation `strict` requires (Phase 5)](#54-pre-registration-the-cell-in-float32-and-what-representation-strict-requires-phase-5)
+  - [54.1 What is reused, and what the reference is](#541-what-is-reused-and-what-the-reference-is)
+  - [54.2 (!) Departure 1 -- float32 arithmetic is reachable only through primitives this switch does not document](#542-departure-1----float32-arithmetic-is-reachable-only-through-primitives-this-switch-does-not-document)
+  - [54.3 (!) Departure 2 -- the boxed representation is ALREADY KNOWN to fail, and that is said before the predictions](#543-departure-2----the-boxed-representation-is-already-known-to-fail-and-that-is-said-before-the-predictions)
+  - [54.4 Predictions](#544-predictions)
+  - [54.5 Falsification](#545-falsification)
+  - [54.6 Reporting](#546-reporting)
+  - [54.7 Cost, and stop and report](#547-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -15153,6 +15162,32 @@ flight core is F32** (48.3), so no figure here is quoted beside a flight-core fi
 **47.14's ordering is unchanged and E5 has not started.** E4 has not run and E2 is NO
 VERDICT.
 
+### 48.8a (!) Rider, 2026-09-16: G5's message invites a wrong reading, and 53 corrects it
+
+**Added after 53, because the sentence above would otherwise propagate.** G5 is reported at
+48.8 as:
+
+> `Array.make` inside **`backward`**: `rc=2`, *"called function may allocate (external call to
+> caml_array_make)"*
+
+**That message can be read as "the checker rejects external calls". It does not.** It rejects
+external calls **not declared allocation-free**, and the difference is an annotation on the
+declaration rather than anything about the call being external.
+
+**53.3 read the declarations at source** in this switch's own
+`oxcaml/.opam/5.2.0+ox/lib/ocaml/stdlib.mli`: `( ** )` at `:479-480` and `sqrt` at `:485-486`
+both carry `[@@unboxed] [@@noalloc]`, as do `exp` at `:489` and `tanh` at `:560-561` -- **the
+two 48's own cell already depends on.** `Array.make` carries no such declaration.
+
+**53.8 then demonstrated both halves in one run**: the same build accepted `( ** )` and `sqrt`
+and rejected `Array.make` with this exact message. **48's G5 is unchanged and its verdict
+stands**; what changes is that a reader arriving at that message now has the rule beside it.
+
+**(!) And it matters beyond tidiness.** If external calls were rejected as a category, **48's
+cell could not have compiled at all** -- it calls `exp` and `tanh` on every timestep. The
+reading this rider corrects is contradicted by 48's own result, and nobody noticed for five
+sections.
+
 ### 48.9 Owed
 
 **A G3 re-run with `eps` declared before it.** The band was under-specified and the verdict
@@ -16645,3 +16680,144 @@ about torch would not survive it. Named here rather than buried.
 **Everything 52.9 owes**, unchanged: the head-only loss, 51.9's TM4 re-run, a re-derived timing
 basis, float32, determinism and the stopping rule where `docs/PHASE5.md` 8 must finally be
 answered, and window selection.
+
+---
+
+## 54. Pre-registration: the cell in float32, and what representation `strict` requires (Phase 5)
+
+**Written before any of it exists**, in the form every section from 19 onward uses. **No code
+is written until this is reviewed.** It discharges 48.3's departure and the *"a float32 cell"*
+item 48.9 and 49.9 both carry.
+
+**(!) IT IS NOT E5 AND 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT. **It does not answer `docs/PHASE5.md` 8** -- it trains nothing and runs no epochs.
+**Nothing here touches 47.7's C3 or C5.**
+
+**Why it matters more than a precision detail.** Every figure from 48 to 53 is float64, and
+every one carries 48.3's sentence that **no figure may be quoted beside a flight-core figure**.
+The flight core is F32 because `model.bin` stores F32 and D30 froze it. **Until a float32 cell
+exists, this entire line of work is measuring a model the spacecraft would not run**, and G6's
+comparison against `flight/` has been F64-against-F32 with the band widened to absorb the
+mismatch.
+
+### 54.1 What is reused, and what the reference is
+
+**48's cell, one layer, one timestep** -- the smallest thing that exercises both `exp` and
+`tanh`, which is where F32 is most likely to diverge. Hidden 80, inputs 16, gate width 240, the
+same fill.
+
+**The reference is `flight/`'s own `Gru::step`, and for the first time the comparison is
+like-for-like.** G6 compared an F64 OCaml cell against an F32 C++ one and got **5.199e-06**,
+inside a band 48.4 had to widen to *"consistent with F32-vs-F64"*. **Both sides are F32 here**,
+and `flight/src/Gru.cpp:31,33,53` uses `std::exp` and `std::tanh` on `F32` values, which
+resolve to the single-precision overloads on the same host and the same libm this OCaml would
+call.
+
+### 54.2 (!) Departure 1 -- float32 arithmetic is reachable only through primitives this switch does not document
+
+**Established by probing the switch before this section was written, and stated as probing
+rather than as reading:**
+
+```
+  float32 type and literals   EXIST.   `let x : float32 = 1.5s` compiles.
+  a Float32 module            ABSENT.  "Unbound module Float32".
+  ( +. ) on float32           REJECTED. "This expression has type float32".
+  %addfloat32, %mulfloat32,
+  %floatoffloat32,
+  %float32offloat             ACCEPTED as builtins, and MEASURED to do real F32
+                              arithmetic: 0.1 +. 0.2 gives 0.30000001192092896,
+                              the float32 value, against float64's 0.30000000000000004.
+  %sqrtfloat32                REJECTED: "Unknown builtin primitive". Which PROVES the
+                              compiler validates these names rather than passing them
+                              through, so the accepted ones are real.
+  expf / tanhf                REACHABLE as C externals at [@@unboxed] [@@noalloc]:
+                              expf 1 = 2.7182817459106445, tanhf 1 = 0.76159417629241943.
+```
+
+**(!) NONE OF THESE NAMES IS DOCUMENTED IN ANYTHING INSTALLED IN THIS SWITCH.** `stdlib.mli`
+does not mention `float32`; only `bigarray.mli`, `sys.mli` and `camlinternalQuote.mli` do, and
+`sys.mli:220-221` mentions `float32# array` only to bound its length. **They were found by
+trying them.** The cost is stated rather than waved away: **this is an undocumented interface
+on a language whose own stability statement, quoted in D70's table, is that it makes no
+promises of stability or backwards compatibility for its extensions.** A retraining engine
+resting on these primitives rests on something that could be renamed, and **that is a real
+mark against the approach, recorded here in the section that benefits from them.**
+
+**What would remove the objection:** the operations arriving through an installed, versioned
+library rather than hand-declared primitives. **No package is installed to get them**, because
+installing one would move 47.8's pin, and moving the pin is a decision rather than a step.
+
+### 54.3 (!) Departure 2 -- the boxed representation is ALREADY KNOWN to fail, and that is said before the predictions
+
+**A prediction made after the fact is not a prediction.** While establishing what was
+buildable, a boxed `float32 array` was measured to **fail** `[@zero_alloc strict]`:
+
+```
+  let a : float32 array = Array.make 4 (of_f 0.0)
+  let[@zero_alloc strict] bump () = ... Array.unsafe_set a i (add ...) ...
+
+  Error: Annotation check for zero_alloc strict failed on function Arr.bump
+```
+
+**`float32` is a boxed type, so every arithmetic result allocates a box**, exactly as 48's
+`checksum` finding predicted for a returned float. **So FT1 and FT2 below predict the UNBOXED
+representation only**, and the boxed result is **not claimed as a finding of this section** --
+it was known before the section was written, and it is recorded here so that no later reader
+mistakes it for one.
+
+### 54.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `FT`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **FT1** | **An unboxed float32 representation holds `strict` for the forward.** `float32#` arrays, or `Bigarray` float32 if those do not exist, `[@zero_alloc strict]`, **no `assume`** | clean build | holds only with an inlining hint, itemised | needs `assume`, **or no unboxed representation exists in this switch -- in which case a float32 cell is NOT expressible allocation-free here, and that is the finding** |
+| **FT2** | **It holds for the backward** as well | clean build | one `assume`, itemised | two or more |
+| **FT3** | **The F32 cell IS `flight/`'s cell.** Against `Gru::step` on the same weights, both at F32 | max abs difference **0 -- bit-identical on all 80 outputs** | `(0, 1.2e-07]`, within one F32 ulp | `> 1.2e-07` -- the two are not computing the same thing, and the transcription or the libm path differs |
+| **FT4** | **No `assume`**, counted mechanically | **0** | -- | any |
+| **FT5** | **The check can fail.** A deliberate allocation in the F32 forward | compile error, rc != 0 | -- | it builds |
+| **FT6** | **The F32 cell is the same algebra as 48's F64 cell**, run on the same inputs | max abs difference **`<= 1e-06`**, which is F32 rounding against F64 | `(1e-06, 1e-04]` | `> 1e-04` -- the F32 transcription has a defect the F32-to-F32 comparison at FT3 could not see |
+
+### 54.5 Falsification
+
+**If FT1 fails for want of an unboxed representation, the finding is that OxCaml cannot
+express a float32 flight model allocation-free**, and 48.3's departure becomes permanent rather
+than owed. **Every figure from 48 to 53 then stays float64 forever**, and a reader is owed that
+sentence plainly.
+
+**If FT3 fails, the OCaml cell and the flight core are not computing the same thing at the same
+precision**, which is a transcription defect or a difference in which libm each reaches.
+Reported as that and not tuned away; **the band is not widened to absorb it**, because widening
+it is what G6 had to do and what this section exists to stop doing.
+
+**If FT5 fails, nothing else is reported.** **FT5 is the only clause that withdraws the
+others** -- 50.9a's lesson, stated rather than inherited. An FT3 or FT6 failure is a
+transcription finding and withdraws nothing.
+
+### 54.6 Reporting
+
+**Losers in full**, with every `assume` and every hint itemised against its call site.
+
+**FT3 reports how many of the 80 outputs are bit-identical**, not only the worst difference,
+because "all 80 identical" and "79 identical and one off by an ulp" are different results and a
+maximum hides which.
+
+**(!) AND IF FT3 HOLDS, 48.3's SENTENCE IS DISCHARGED FOR THIS CELL AND FOR NOTHING ELSE.**
+Figures from 48 to 53 remain float64 and remain unquotable beside a flight-core figure. **One
+F32 cell does not make 52's two-layer model or 53's optimiser F32**, and neither is claimed.
+
+### 54.7 Cost, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. **No new host, no
+hardware, and no package installed** -- 54.2's objection is recorded, not resolved by
+installing something.
+
+**No wall-clock estimate is quoted**, on 53.7's reasoning: one cell and one timestep is
+roughly 23,000 multiplies, six orders of magnitude below 52's. The measured time is reported.
+
+Stop and report, carrying every stop from 47.12 through 53.7, and adding:
+
+21. **Any float32 operation is reached by a primitive name not already listed at 54.2.** Stop
+    and report. The four in that block and the two C externals are what this section may use;
+    **discovering a fifth by guessing is how an undocumented interface becomes a dependency
+    nobody wrote down.**
