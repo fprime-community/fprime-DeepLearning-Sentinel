@@ -39,6 +39,11 @@ void RetrainerTester::testTheWholeLifecycle()
     ASSERT_TLM_SampleCount(0, 10U);
     ASSERT_TLM_Sum(0, 55.0);
     ASSERT_TLM_Mean(0, 5.5);
+    // 61 / E5-c, FC5: the tick drove a float32 retraining cycle through this
+    // port, and the step count it telemeters is D73's budget EXACTLY. A value
+    // other than CYCLE_BUDGET is a defect, not a measurement.
+    ASSERT_TLM_CycleSteps_SIZE(1);
+    ASSERT_TLM_CycleSteps(0, Retrainer::CYCLE_BUDGET);
     ASSERT_EVENTS_StepComplete_SIZE(1);
     ASSERT_EVENTS_CallRefused_SIZE(0);
 
@@ -47,6 +52,8 @@ void RetrainerTester::testTheWholeLifecycle()
     this->invoke_to_schedIn(0, 0);
     ASSERT_TLM_SampleCount_SIZE(2);
     ASSERT_TLM_SampleCount(1, 20U);
+    ASSERT_TLM_CycleSteps_SIZE(2);
+    ASSERT_TLM_CycleSteps(1, Retrainer::CYCLE_BUDGET);
     ASSERT_TLM_Sum(1, 110.0);
     ASSERT_TLM_Mean(1, 5.5);
     ASSERT_EVENTS_CallRefused_SIZE(0);

@@ -18,7 +18,14 @@
 # this module skips itself with a message rather than failing the build -- the same posture
 # flight/Makefile's lint target takes towards an absent clang-tidy.
 ####
-set(OX_OBJ "${CMAKE_CURRENT_LIST_DIR}/../../../oxcaml/_build/retrainer_complete.o")
+# 61 / E5-c adds a superset object -- E1's five entry points plus the float32
+# cycle's five -- because two -output-complete-obj objects cannot be linked into
+# one binary, each carrying its own runtime. E1's own object is unchanged and
+# scripts/oxcaml_e1.sh still builds it; this prefers the superset when it exists.
+set(OX_OBJ "${CMAKE_CURRENT_LIST_DIR}/../../../oxcaml/_build/cycle_complete.o")
+if(NOT EXISTS "${OX_OBJ}")
+    set(OX_OBJ "${CMAKE_CURRENT_LIST_DIR}/../../../oxcaml/_build/retrainer_complete.o")
+endif()
 set(OX_SRC "${CMAKE_CURRENT_LIST_DIR}/../../../oxcaml/retrainer")
 
 if(NOT EXISTS "${OX_OBJ}")

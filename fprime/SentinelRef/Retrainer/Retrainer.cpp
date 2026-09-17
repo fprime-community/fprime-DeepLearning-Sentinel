@@ -6,6 +6,7 @@
 #include "SentinelRef/Retrainer/FppConstantsAc.hpp"
 
 #include "sentinel_retrainer.h"
+#include "sentinel_cycle.h"
 
 namespace Retrain {
 
@@ -31,13 +32,22 @@ RetrainerStatus toFpp(I32 status)
 }  // namespace
 
 Retrainer::Retrainer(const char* const compName)
-    : RetrainerComponentBase(compName), m_armed(false), m_refusals(0U)
+    : RetrainerComponentBase(compName), m_armed(false), m_refusals(0U),
+      m_cycleArmed(false)
 {
     for (U32 i = 0U; i < SAMPLES_PER_TICK; ++i) {
         m_samples[i] = static_cast<F64>(i + 1U);   // 1.0 .. 10.0; sum 55, mean 5.5
     }
     for (U32 i = 0U; i < EXPORT_WIDTH; ++i) {
         m_export[i] = 0.0;
+    }
+    // 61 / E5-c: a deterministic, bounded drive, filled once. Not telemetry --
+    // a real deployment writes this from the window 56's gate admitted.
+    for (U32 t = 0U; t < 250U; ++t) {
+        for (U32 c = 0U; c < CYCLE_INS; ++c) {
+            const U32 mix = ((t * 2654435761U) + (c * 40503U)) & 0xFFFFU;
+            m_window[(t * CYCLE_INS) + c] = static_cast<F32>(mix) / 65535.0F;
+        }
     }
 }
 
@@ -68,6 +78,11 @@ bool Retrainer::boot()
         return false;
     }
     m_armed = true;
+    // 61 / E5-c: the cycle's runtime boots alongside E1's pipe. Both call
+    // caml_startup, which runs at most once per process, so the second is a
+    // no-op -- and BOTH surfaces live in one object for exactly that reason.
+    m_cycleArmed = (sentinel_cycle_boot() == SENTINEL_CYC_OK)
+                   && (sentinel_cycle_init(7) == SENTINEL_CYC_OK);
     this->log_ACTIVITY_HI_RuntimeBooted(static_cast<U32>(RETRAINER_CAPACITY));
     this->tlmWrite_LastStatus(RetrainerStatus::OK);
     return true;
@@ -92,6 +107,14 @@ void Retrainer::schedIn_handler(FwIndexType portNum, U32 context)
     }
     if (!this->accept(sentinel_retrainer_export(m_export, EXPORT_WIDTH))) {
         return;
+    }
+
+    // 61 / E5-c: one retraining cycle per tick, at a FIXED step budget (D73).
+    if (m_cycleArmed) {
+        (void)sentinel_cycle_load(m_window, CYCLE_WINDOW);
+        const I32 rc = sentinel_cycle_run(CYCLE_BUDGET, static_cast<I32>(CYCLE_T), 1);
+        const I32 steps = (rc == SENTINEL_CYC_OK) ? sentinel_cycle_steps() : -1;
+        this->tlmWrite_CycleSteps(steps);
     }
 
     const U32 count = static_cast<U32>(m_export[0]);

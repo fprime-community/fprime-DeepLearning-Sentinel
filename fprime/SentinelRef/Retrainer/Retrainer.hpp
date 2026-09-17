@@ -39,6 +39,16 @@ class Retrainer final : public RetrainerComponentBase {
     //! The export buffer's width: count, sum, mean.
     static const U32 EXPORT_WIDTH = 3U;
 
+    // 61 / E5-c. The retraining cycle's fixed extents, claimed once (CPP-1).
+    //
+    // (!) CYCLE_BUDGET IS NOT THE FLIGHT BUDGET. docs/MODELS.md 55.4 stop 23
+    // reserves that derivation; this is a unit test's value, chosen so a tick is
+    // cheap. What is under test is that the count is FIXED, not that it is right.
+    static const U32 CYCLE_T = 8U;
+    static const U32 CYCLE_INS = 16U;
+    static const U32 CYCLE_WINDOW = 250U * 16U;   // the OCaml side's full extent
+    static const I32 CYCLE_BUDGET = 1;
+
     explicit Retrainer(const char* const compName);
     ~Retrainer();
 
@@ -62,6 +72,14 @@ class Retrainer final : public RetrainerComponentBase {
 
     bool m_armed;
     U32  m_refusals;
+
+    //! 61 / E5-c. The window the cycle reads. THIS COMPONENT OWNS IT; the OCaml
+    //! side sees a CAML_BA_EXTERNAL view that does not outlive the call.
+    F32  m_window[CYCLE_WINDOW];
+
+    //! Whether the cycle's runtime came up. Separate from m_armed: E1's pipe and
+    //! 61's cycle boot independently and either may be absent.
+    bool m_cycleArmed;
     //! Fixed-size, member-owned. The OCaml side wraps these in a Bigarray with
     //! CAML_BA_EXTERNAL, so their storage is never owned or moved by the GC.
     F64  m_samples[SAMPLES_PER_TICK];
