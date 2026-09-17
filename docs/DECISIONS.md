@@ -96,6 +96,8 @@ STATUS. Updated in the same commit as the decision it records
 - [D68 The flight configuration is adopted: the fused statistic emits, on a version-2 PARAMS block](#d68-the-flight-configuration-is-adopted-the-fused-statistic-emits-on-a-version-2-params-block)
 - [D69 The public branch carries customer documents; the laboratory record stays on `dev`. Supersedes D67 consequences 1 and 9](#d69-the-public-branch-carries-customer-documents-the-laboratory-record-stays-on-dev-supersedes-d67-consequences-1-and-9)
 - [D70 The retraining engine is where a second flight language is argued, and OxCaml is the candidate: registered, not adopted](#d70-the-retraining-engine-is-where-a-second-flight-language-is-argued-and-oxcaml-is-the-candidate-registered-not-adopted)
+- [D71 The N8 stop moves to 7.5 MiB and D64's cap does not, because documentation is what moves the number and D64 already adjudicated what a byte count guards](#d71-the-n8-stop-moves-to-75-mib-and-d64s-cap-does-not-because-documentation-is-what-moves-the-number-and-d64-already-adjudicated-what-a-byte-count-guards)
+- [D72 A pre-registration states where its requirements came from, and a guard enforces it. Promotes `docs/MODELS.md` 54.2b from a section rider to a standing rule](#d72-a-pre-registration-states-where-its-requirements-came-from-and-a-guard-enforces-it-promotes-docsmodelsmd-542b-from-a-section-rider-to-a-standing-rule)
 
 <!-- /toc -->
 
@@ -5807,3 +5809,148 @@ records what it cost the last time a claim was carried without its source. **Ove
 row would delete the evidence that the rule caught something**, which is the opposite of what
 the rule is for. The same correction is recorded at `docs/MODELS.md` 47.16 item 2, where
 47.1 row 21 carries the same stale figure.
+
+---
+
+## D71. The N8 stop moves to 7.5 MiB and D64's cap does not, because documentation is what moves the number and D64 already adjudicated what a byte count guards
+
+**DATE** 2026-09-17 | **STATUS** resolved as an infrastructure decision, **taken before the
+stop fired rather than under it**. No format refusal changes, no cap changes, and no evidence
+is deleted or trimmed.
+
+**CONTEXT.** `docs/MODELS.md` 39's N8 predicted that the golden vectors would fit: under
+6 MiB holds, 6 to 7 MiB is no verdict, **above 7 MiB is a stop -- report rather than trimming
+coverage to fit under the cap**. It held at the time, at 5.53 MiB.
+`tests/test_standing_figures_are_guarded.py` later made that stop a guard, so that it fires
+rather than being noticed.
+
+**Tracked content is 6,989,420 B -- 6.6656 MiB -- measured this day by the guard's own
+method.** That is already inside N8's no-verdict band, with **350,612 B to the stop**. The
+figure of record was stale: `docs/STATUS.md:482` says 6.48 MiB and D64 above says 3.67 MiB.
+
+**The OxCaml track has roughly twelve to fifteen commits left** -- four ladder sections, five
+decision entries, six E5 rungs and the owed items. Section 54's commit added about 28 KB
+across eight files, which projects to **340 to 420 KB** and crosses the stop somewhere around
+E5-b. The stop was therefore going to fire mid-ladder, at the least convenient point to think
+about it.
+
+**(!) AND IT IS DOCUMENTATION, NOT VECTORS, THAT MOVES THE NUMBER.** N8 was a prediction about
+committed test vectors. The vectors have not grown since 39. What has grown is prose --
+the three largest tracked files are all documents:
+
+```
+  docs/MODELS.md      1,117,687 B
+  docs/DECISIONS.md     355,794 B
+  CHANGELOG.md          202,544 B
+```
+
+**The guard generalised a vectors prediction to all tracked content**, which is why it is
+about to fire on something N8 was not measuring.
+
+**ALTERNATIVES.**
+
+1. **Trim coverage to fit.** Refused, and N8 refuses it in its own text. Deleting evidence to
+   get back under a line is the failure mode the stop exists to prevent.
+2. **Accept it and halt when it fires.** Considered. It is the most literal reading of N8 and
+   it costs a mid-ladder halt with the suite red and no commit able to pass the gates.
+   Refused because the decision is available now, on better information, and taking it now is
+   not taking it under pressure.
+3. **Re-derive N8 as a vectors-only figure**, guarding vectors against N8's bands and total
+   tracked content against D64's cap. **CONSIDERED AND PARKED, NOT REJECTED.** It is the more
+   honest reading of what N8 measured, and it is the right answer if the **cap** is ever
+   approached, because at that point the question is which kind of content is growing. It is
+   not taken today because it re-derives a standing figure to make room, and raising a stop by
+   an amount that is stated and argued is the smaller act.
+4. **Raise the stop to 7.5 MiB.** Adopted.
+
+**EVIDENCE, and it is D64's reason rather than new arithmetic.** D64 raised the cap to 8 MiB
+on the finding that **"the byte count was never the guard"**: a byte count cannot distinguish
+a dataset from a document, a suffix can, and every real instance this project has had to
+reason about was caught by kind. That finding applies to N8's stop exactly as it applied to
+the cap. The guard against data is `DATASET_SUFFIXES` and `ARRAY_SUFFIXES`, scanning the
+whole tree including gitignored files; N8's stop is a coarse backstop against bulk, and the
+bulk in question is prose this project deliberately writes.
+
+**CONSEQUENCE.**
+
+1. **`N8_STOP_MIB` becomes 7.5.** `tests/test_standing_figures_are_guarded.py` is the only
+   site. Headroom at this decision: **874,900 B**.
+2. **D64's 8 MiB cap does not move**, and `tests/test_no_local_persistence.py:175` is
+   untouched. Headroom to the cap: **1,399,188 B**. D64 consequence 5 stands -- if tracked
+   content reaches 8 MiB the question is asked again, and the answer may then be that prose
+   belongs somewhere else.
+3. **N8 keeps its message.** The guard still says report rather than trimming coverage to fit.
+   Only the number it says it at moves.
+4. **`docs/MODELS.md` 39's N8 is not edited.** It is a record and it held when it was written.
+   This entry is where the band moved, and the guard's docstring cites this entry.
+5. **(!) THE NEW VALUE IS NOT ACCEPTED UNTIL THE GUARD HAS BEEN SEEN TO FAIL ABOVE IT.** The
+   precedent is `flight/Makefile:85-89`: a lint target ran three times, checked no exit status
+   and echoed "clean" unconditionally, so it could not fail, and nobody knew. **A gate nobody
+   has seen fail is not known to work.** The band comparison is extracted into a helper the
+   real test calls with real bytes, and a second test asserts that helper fails above
+   7.5 MiB -- which demonstrates the stop without committing a large file to prove it.
+6. **Alternative 3 is parked and citable.** A later section that needs room may take it, and
+   the reasoning is here rather than re-derived.
+
+---
+
+## D72. A pre-registration states where its requirements came from, and a guard enforces it. Promotes `docs/MODELS.md` 54.2b from a section rider to a standing rule
+
+**DATE** 2026-09-17 | **STATUS** resolved as a process decision. **It changes no figure, no
+band and no verdict**, and it is not retrospective -- see consequence 3.
+
+**CONTEXT.** Three pre-registrations in this project specified something the flight target
+does not permit, and the cause is identical in all three:
+
+```
+  50.1   declared a four-wide tape; Gru_cell.backward reads rec_ as well, so five are
+         needed. Cost: 50's tolerance defect was found on a tape that had to be widened
+         mid-section.
+  52.4   declared a probe feeding layer 1 the input x; layer 1's input width is 80 and x
+         is 16, so that model never typechecked. Cost: a substitute probe.
+  54.2   listed the four primitives that had been probed, not the set
+         flight/src/Gru.cpp:31,34 requires. Cost: stop 21 fired.
+```
+
+**(!) EACH WAS WRITTEN FROM WHAT HAD BEEN EXPLORED RATHER THAN FROM WHAT THE FLIGHT TARGET
+REQUIRES.** That is one fault occurring three times, not three unrelated slips, and by the
+third it had cost a substitution, a correction and a fired stop.
+
+**ALTERNATIVES.**
+
+1. **A note asking a future author to remember.** Refused, and `docs/MODELS.md` 52.8 is why:
+   **a note asking a future reader to remember something is not a fix.**
+   `tests/test_standing_figures_are_guarded.py` exists because three standing figures were
+   protected by prose and by nothing else, and each had already drifted when it was found.
+2. **A rider on D70.** Refused. D70 is where OxCaml is argued, and **this fault is not
+   OxCaml-specific** -- 52.4's probe was a modelling error and 50.1's tape was a transcription
+   error. Filing a general drafting rule under a language candidacy would hide it from every
+   pre-registration that is not about OxCaml.
+3. **A citation count** -- require N citations per pre-registration. Refused: it measures the
+   wrong thing. 51's tolerance model is derived from the summation error bound and **has no
+   flight source at all**, and a rule that forced it to invent one would be worse than no
+   rule.
+4. **A drafting step, enforced by a guard.** Adopted, and registered at `docs/MODELS.md`
+   54.2b on 2026-09-17. This entry promotes it.
+
+**EVIDENCE.** The guard is `test_new_pre_registrations_state_where_their_requirements_came_from`.
+It parses `docs/MODELS.md` for `## N. Pre-registration:` headings, and fails the suite for any
+at or above the threshold whose body carries no `REQUIREMENTS DERIVED FROM:` line. It was
+committed with section 54 and the suite has run green with it since.
+
+**CONSEQUENCE.**
+
+1. **Before a pre-registration is committed, its requirements are derived from the source of
+   record, and the section states where from.** Every `## N. Pre-registration:` section
+   carries a `REQUIREMENTS DERIVED FROM:` line giving either `file:line` citations or the word
+   `none` **with a reason**.
+2. **The honest `none` is part of the rule, not an escape from it.** 51 is the worked example.
+   A section whose requirements come from an error bound rather than from `flight/` says so.
+3. **(!) THE THRESHOLD IS SECTION 55 AND THE REASON IS NOT CONVENIENCE.** Sections 13 to 54
+   were written before this rule existed, and **judging them by a rule they did not have would
+   be rewriting the record rather than improving it**. `DERIVATION_RULE_FROM = 55` in the
+   guard, with that reason in its docstring.
+4. **It is a drafting step, not a citation count.** What it asks is that the author read the
+   target before writing the band, and leave the evidence that they did.
+5. **`docs/MODELS.md` 54.2b is not edited.** It is the record of where the rule was taken.
+   This entry is where it became general.

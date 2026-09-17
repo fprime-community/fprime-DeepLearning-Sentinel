@@ -18,9 +18,13 @@ recorded as unguarded when it was found:
 Each test below states the decision it enforces, so that a failure sends the
 reader to the entry rather than to this file.
 """
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,10 +35,15 @@ WEIGHT_STORE = 1313
 #: D64. The hard cap on tracked content.
 CAP_MIB = 8.0
 
-#: `docs/MODELS.md` 39's N8: under 6 MiB holds, 6 to 7 is no verdict, above 7 is
-#: **a stop -- report rather than trimming coverage to fit**. This test is that
-#: stop, so that it fires rather than being noticed.
-N8_STOP_MIB = 7.0
+#: `docs/MODELS.md` 39's N8: under 6 MiB holds, 6 to 7 is no verdict, above the
+#: stop is **a stop -- report rather than trimming coverage to fit**. This test
+#: is that stop, so that it fires rather than being noticed.
+#:
+#: **D71 moved it from 7.0 to 7.5**, on D64's own finding that the byte count was
+#: never the guard, and because it is documentation rather than vectors that moves
+#: the number -- N8 predicted the vectors would fit, and they still do. D64's 8 MiB
+#: cap did not move with it.
+N8_STOP_MIB = 7.5
 
 
 def _tracked_bytes() -> int:
@@ -53,15 +62,44 @@ def test_the_weight_store_is_the_size_every_figure_was_measured_against() -> Non
         "against this store, and a run that moved it has invalidated them.")
 
 
-def test_tracked_content_is_inside_the_cap_and_below_39s_N8_stop() -> None:
-    mib = _tracked_bytes() / (1024 * 1024)
+def _check_size_bands(total_bytes: int) -> None:
+    """D64's cap and `docs/MODELS.md` 39's N8 stop, as a pure function.
+
+    Separated from the measurement so that the stop can be exercised on a
+    synthetic byte count. **D71 consequence 5: a gate nobody has seen fail is not
+    known to work**, and proving this one by committing 7.5 MiB of anything would
+    be the exact opposite of what N8 asks for.
+    """
+    mib = total_bytes / (1024 * 1024)
     assert mib < CAP_MIB, (
         f"tracked content is {mib:.2f} MiB, over D64's {CAP_MIB} MiB cap.")
     assert mib < N8_STOP_MIB, (
         f"tracked content is {mib:.2f} MiB, past docs/MODELS.md 39's N8 stop at "
-        f"{N8_STOP_MIB} MiB. N8 says report rather than trimming coverage to fit: "
-        "bring it to the owner and take a decision (raise the stop, split the "
+        f"{N8_STOP_MIB} MiB (D71). N8 says report rather than trimming coverage to "
+        "fit: bring it to the owner and take a decision (raise the stop, split the "
         "bands, or accept it), do not delete evidence to get back under the line.")
+
+
+def test_tracked_content_is_inside_the_cap_and_below_39s_N8_stop() -> None:
+    _check_size_bands(_tracked_bytes())
+
+
+def test_the_N8_stop_and_the_cap_both_still_fire_above_their_bands() -> None:
+    """D71 consequence 5. The stop is demonstrated rather than assumed.
+
+    `flight/Makefile:85-89` is the precedent this exists against: a lint target
+    ran three times, checked no exit status and echoed "clean" unconditionally,
+    so it could not fail and nobody knew for months. When a band moves, the guard
+    is re-run at the new value in both directions.
+    """
+    stop = int(N8_STOP_MIB * 1024 * 1024)
+    _check_size_bands(stop - 1)                      # just inside: passes, as it must
+
+    with pytest.raises(AssertionError, match="N8 stop"):
+        _check_size_bands(stop + 1)
+
+    with pytest.raises(AssertionError, match="cap"):
+        _check_size_bands(int(CAP_MIB * 1024 * 1024) + 1)
 
 
 def test_the_index_row_for_models_reaches_the_highest_section() -> None:
@@ -77,13 +115,14 @@ def test_the_index_row_for_models_reaches_the_highest_section() -> None:
         "the section.")
 
 
-#: `docs/MODELS.md` 54.2b. Sections below this were written before the rule existed;
-#: judging them by it would rewrite the record rather than improve it.
+#: `docs/MODELS.md` 54.2b, made a standing rule by D72. Sections below this were
+#: written before the rule existed; judging them by it would rewrite the record
+#: rather than improve it (D72 consequence 3).
 DERIVATION_RULE_FROM = 55
 
 
 def test_new_pre_registrations_state_where_their_requirements_came_from() -> None:
-    """`docs/MODELS.md` 54.2b, and it is a drafting step rather than a citation count.
+    """`docs/MODELS.md` 54.2b and D72, and it is a drafting step rather than a citation count.
 
     Three pre-registrations specified something the target does not permit -- 50.1's
     four-wide tape, 52.4's undimensionable probe, 54.2's incomplete primitive list --
@@ -108,3 +147,57 @@ def test_new_pre_registrations_state_where_their_requirements_came_from() -> Non
         "docs/MODELS.md 54.2b: derive the section's requirements from the source of record "
         "before committing it, and state where from -- or write 'none' with a reason, which "
         "51's tolerance model would legitimately do.")
+
+
+#: `docs/MODELS.md` 47.1 row 31 named three figures in `docs/STATUS.md`'s gate
+#: block that are "re-derived by **nothing**": the `check_no_list` file count, the
+#: selftest ratio, and the three lint configurations. It observed that all three
+#: "happen to be correct today" and left them. **The file count then drifted from
+#: 104 to 107**, found 2026-09-17 -- which is the failure mode 52.8 names and this
+#: module exists for. Two of the three are guarded below.
+#:
+#: The third, the lint configurations, is deliberately not: `flight/Makefile:90-94`
+#: skips the target entirely when `clang-tidy` is absent, so a test asserting three
+#: configurations would fail on a machine where the gate itself correctly passes.
+GATE_BLOCK = "docs/STATUS.md"
+
+
+def _gate_block_line(fragment: str) -> str:
+    text = (ROOT / GATE_BLOCK).read_text(encoding="utf-8")
+    line = next((ln for ln in text.splitlines() if fragment in ln), None)
+    assert line is not None, (
+        f"{GATE_BLOCK} no longer carries a gate line containing {fragment!r}; "
+        "this test is stale, not the document.")
+    return line
+
+
+def test_the_gate_block_states_the_file_count_check_no_list_reports() -> None:
+    """`docs/MODELS.md` 47.1 row 31, closed. The figure is re-derived, not recalled."""
+    proc = subprocess.run([sys.executable, "scripts/check_no_list.py"],
+                          cwd=ROOT, capture_output=True, text=True)
+    assert proc.returncode == 0, f"check_no_list is not clean:\n{proc.stdout}{proc.stderr}"
+    reported = re.search(r"check_no_list: (\d+) files clean", proc.stdout)
+    assert reported, f"could not read a file count from check_no_list:\n{proc.stdout}"
+
+    stated = re.search(r"#\s*(\d+) files", _gate_block_line("check_no_list.py"))
+    assert stated, f"{GATE_BLOCK}'s check_no_list gate line states no file count"
+    assert int(stated.group(1)) == int(reported.group(1)), (
+        f"check_no_list reports {reported.group(1)} files; {GATE_BLOCK} says "
+        f"{stated.group(1)}. It drifted from 104 to 107 unguarded once already.")
+
+
+def test_the_gate_block_states_the_ratio_the_selftest_reports() -> None:
+    """The second of 47.1 row 31's three. The oracle's 1.0 is asserted by the selftest
+    itself; what was unguarded is the ratio the document quotes back."""
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    proc = subprocess.run([sys.executable, "-m", "sentinel_eval", "selftest"],
+                          cwd=ROOT, capture_output=True, text=True, env=env)
+    assert proc.returncode == 0, f"the selftest did not pass:\n{proc.stdout}{proc.stderr}"
+    reported = re.search(r"(\d+)/(\d+) checks passed", proc.stdout)
+    assert reported, f"could not read a ratio from the selftest:\n{proc.stdout}"
+
+    stated = re.search(r"#\s*(\d+)\s*/\s*(\d+)", _gate_block_line("sentinel_eval selftest"))
+    assert stated, f"{GATE_BLOCK}'s selftest gate line states no ratio"
+    assert stated.groups() == reported.groups(), (
+        f"the selftest reports {reported.group(0)}; {GATE_BLOCK} says "
+        f"{stated.group(1)}/{stated.group(2)}.")
