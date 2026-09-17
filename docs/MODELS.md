@@ -537,6 +537,16 @@ prediction that failed and why. This document follows the same discipline.
   - [55.8 Cost, and stop and report](#558-cost-and-stop-and-report)
   - [55.9 OBSERVED -- the wrapped window is deterministic, and the budget is exact at a 292x change of set size](#559-observed----the-wrapped-window-is-deterministic-and-the-budget-is-exact-at-a-292x-change-of-set-size)
   - [55.10 Owed](#5510-owed)
+- [56 Pre-registration: what counts as recent healthy telemetry, decided onboard (`docs/PHASE5.md` question 4, Phase 5)](#56-pre-registration-what-counts-as-recent-healthy-telemetry-decided-onboard-docsphase5md-question-4-phase-5)
+  - [56.1 What is reused, and the reference is](#561-what-is-reused-and-the-reference-is)
+  - [56.2 REQUIREMENTS DERIVED FROM:](#562-requirements-derived-from)
+  - [56.3 (!) What the derivation settles before anything is run](#563-what-the-derivation-settles-before-anything-is-run)
+  - [56.4 Predictions](#564-predictions)
+  - [56.5 Falsification](#565-falsification)
+  - [56.6 Reporting](#566-reporting)
+  - [56.7 Cost, and stop and report](#567-cost-and-stop-and-report)
+  - [56.8 OBSERVED -- the limit gate does all of the work, and it admits 11,225 ticks of a degrading spacecraft](#568-observed----the-limit-gate-does-all-of-the-work-and-it-admits-11225-ticks-of-a-degrading-spacecraft)
+  - [56.9 Owed](#569-owed)
 
 <!-- /toc -->
 
@@ -17340,3 +17350,269 @@ to make a gradient, not the head-only loss 52 registered as owed. 57 is that sec
 it. The derivation belongs to the section that assembles the cycle.
 
 **Everything 54.9 owes**, unchanged.
+
+---
+
+## 56. Pre-registration: what counts as recent healthy telemetry, decided onboard (`docs/PHASE5.md` question 4, Phase 5)
+
+**`docs/PHASE5.md` 5 calls question 4 the hardest of the seven and says the choice is "a
+pre-registration of its own". This is it.** D73 removed the entanglement this question had with
+question 8 -- under a fixed step budget the cycle costs the same whatever the window yields --
+so what is left is the question in its own terms.
+
+**The rule 1 failure mode this exists to prevent**, quoted rather than paraphrased
+(`docs/PHASE5.md` 5 question 4): *"Training the shadow on a window that silently contains the
+degradation is exactly how rule 1's failure mode arrives by another route."*
+
+### 56.1 What is reused, and the reference is
+
+**42's testbed, and nothing is generated for this section.** `runs/testbed/` already holds
+**ten seeded runs and ten healthy controls, seeds 1 to 10, 22,000 ticks each**, scored by
+`fprime/SentinelRef/PowerSim/TestbedRun.cpp` -- which links `Sentinel::Detector` itself, not a
+restatement of it -- plus `testbed.bin`, the model the toolkit fitted on **seed 7's healthy
+run**, a seed none of the scored runs use.
+
+**Ground truth exists by construction, which is why this section can be run at all.** A seeded
+run and its healthy control share a seed and a plant and differ in one scalar, so a tick's
+contamination is known rather than inferred. **No dataset is read, no bucket is touched, and
+nothing is fitted.**
+
+### 56.2 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/PHASE5.md 5 q4                        the three candidates, and the failure mode
+  Objective.md:982                           rule 1: retraining explicit and human-approved
+  Objective.md:986                           rule 5: fixed memory, fixed compute per cycle
+  Objective.md 6.1                           normal-only training; no failure examples exist
+  Objective.md 10.2 fix 1                    grade the data and REFUSE rather than overstate
+  docs/HARNESS.md 1                          causal only: no lookahead, no centred windows
+  docs/MODELS.md 42.8.2                      healthy 20,000 ticks, zero crossings of any
+                                             colour; seeded 11,225 ticks FULLY IN LIMITS
+                                             between injection and the first yellow
+  docs/MODELS.md 42.9.1                      seeded 40 warnings, healthy 30, fault-attributable
+                                             10, first at tick 8,100 -- so injection is 8,000
+  docs/MODELS.md 42.9                        the fitted model's held-out sanity rate 0.1830%,
+                                             against a calibration half of 0.1046%
+  docs/MODELS.md 42.3 departure 2            the 6,550-tick data floor
+  fprime/SentinelRef/PowerSim/TestbedRun.cpp:41-43   the YELLOW bands, per channel
+  fprime/SentinelRef/PowerSim/PowerPlant.hpp:51      the RED bands
+  src/sentinel_models/lstm.py:90             window 250, so a sequence needs 250 + 10 ticks
+```
+
+### 56.3 (!) What the derivation settles before anything is run
+
+**The three candidates `docs/PHASE5.md` q4 lists are not three rules. They are one rule, one
+non-starter, and one grading step.**
+
+```
+  (a) windows the flying detector was quiet through   -> CIRCULAR, see below
+  (b) windows the ground has cleared                  -> NOT AN ONBOARD RULE. It is a
+                                                         ground authorisation, and a
+                                                         retrainer that waits for one is
+                                                         not deciding anything onboard.
+                                                         Kept as an OUTER gate, not tested
+                                                         here: rule 1 already requires a
+                                                         human to approve the swap.
+  (c) a data-sufficiency-graded window                -> not a selector at all. Grading
+                                                         says whether there is ENOUGH, not
+                                                         whether it is HEALTHY. Objective.md
+                                                         10.2 fix 1 is a refusal, and it is
+                                                         adopted as one.
+```
+
+**(!) AND (a) IS CIRCULAR IN A WAY THE TESTBED CAN MEASURE.** Selecting training data by the
+frozen model's own verdict uses the drifted judge to choose the evidence that would correct it.
+42.9.1 already makes the shape visible: **the healthy control warns at tick 2,700 and so does
+the seeded run**, and of the seeded run's 40 warnings **30 are the plant's and not the fault's.**
+A rule reading "the detector was quiet" cannot tell those apart, and **11,225 of the
+contaminated ticks are fully inside every limit band** (42.8.2) with the detector mostly silent
+through them.
+
+**So the rule under test is three gates over a trailing window, all causal:**
+
+```
+  G-limit   no tick in the window had any channel outside any band, of any colour.
+            Model-INDEPENDENT -- the bands are the spacecraft's engineering dictionary,
+            not the detector's opinion. This is what breaks (a)'s circularity, as far as
+            it can be broken.
+  G-rate    the window's emission count is at most k x the model's own calibrated
+            nominal rate x W. k = 2 and the rate is 42.9's held-out 0.1830%. NEITHER IS
+            FITTED HERE: 0.1830% is the model's own pre-launch sanity figure and k = 2
+            is chosen because calibration to held-out already moved the rate by 1.75x
+            (0.1046 -> 0.1830), so k = 2 is "beyond the spread the ground already saw".
+  G-suff    W >= 6,550, 42.3 departure 2's floor. A refusal, per Objective.md 10.2 fix 1.
+```
+
+`W = 6,550`, the floor itself. State is two ring counters, so the rule is O(1) per tick in
+fixed memory and reads no tick later than the one it is deciding.
+
+**(!) AND THE HONEST EXPECTATION IS STATED BEFORE THE RUN: THIS RULE MAY NOT SEPARATE THEM.**
+The contaminated interval is 14,000 ticks and only 10 warnings in the whole seeded run are the
+fault's. Over a 6,550-tick window, G-rate's ceiling is `ceil(2 x 0.001830 x 6550)` = **24**
+emissions, and a window spanning the degradation plausibly holds far fewer. **If the rule
+cannot separate them, that is the answer to question 4 and it is reported as the answer** --
+that the three signals available onboard are insufficient and the choice falls back to (b), a
+ground-cleared window. **k is not tuned afterwards. The band is not moved.** 54.5's rule, and
+stop 15's.
+
+### 56.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `WS`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **WS1** | **The rule is fixed-memory and allocation-free.** Implemented under `[@zero_alloc strict]`, no `assume` | clean build, **0** `assume` | holds only with an inlining hint, itemised | needs `assume` |
+| **WS2** | **It is causal.** The verdict at tick `t` is unchanged by anything after `t`: run on a prefix, compare | every verdict identical on every prefix tested | -- | any differs -- the rule looks ahead and is not implementable onboard |
+| **WS3** | **It admits enough on healthy data to train.** Every one of the ten healthy controls | **>= 6,550** ticks admitted on all ten | 6,550 on some, fewer on others | any control admits **< 260**, one sequence's worth -- the rule is vacuous |
+| **WS4** | **It admits less of the degradation than (a) alone.** Contaminated ticks (>= 8,000) admitted, three gates against G-rate-only | strictly fewer on **all ten** seeds | fewer on some, equal on others | more on any seed |
+| **WS5** | **(a) alone is insufficient, measured rather than argued.** Contaminated ticks admitted by a detector-quiet rule alone | **> 5,000** on all ten seeds | 1 to 5,000 | **0** on any seed -- the circularity is not real on this testbed and 56.3 overstated it |
+| **WS6** | **It refuses rather than overstating.** A candidate shorter than the floor | returns INSUFFICIENT, admits nothing | -- | admits anything |
+| **WS7** | **The check can fail.** The limit gate disabled on purpose | WS4's comparison changes | -- | unchanged -- the gate was doing nothing |
+
+### 56.5 Falsification
+
+**If WS4 fails, the limit gate adds nothing over the frozen model's own verdict**, and the
+finding is that onboard signals cannot break (a)'s circularity on this testbed. **Reported as
+that.** `docs/PHASE5.md` question 4 then resolves to candidate (b) -- a ground-cleared window --
+and the honest statement is that the hardest question's answer is "a human decides", which is
+a real answer and not a failure to find one.
+
+**If WS5 fails**, 56.3's circularity argument is wrong on this testbed and **the paragraph
+stands with its refutation beside it**, per house form. It is not deleted.
+
+**If WS3 fails**, the rule is too strict to be usable whatever else it does, and nothing else
+is worth reporting about it.
+
+**If WS7 fails, WS4 is withdrawn.** A comparison whose control arm changes nothing is not a
+comparison. WS7 is the only clause that withdraws another.
+
+### 56.6 Reporting
+
+**Losers in full**, and the admitted-tick counts are reported **per seed**, not pooled -- ten
+correlated seeds are not ten independent samples and 42.9 already says so of this testbed.
+
+**Every figure is `n/N` with its denominator**, and **`n = 10` is UNDERPOWERED** by
+`docs/HARNESS.md` 1, stamped wherever it is quoted.
+
+**(!) AND THE SCOPE IS ONE TESTBED, ONE FAULT MODE, TEN CORRELATED SEEDS.** 42.9's own heading
+says it. **No figure here transfers to a spacecraft**, and a rule that works on a ramping cell
+resistance is not thereby a rule that works.
+
+### 56.7 Cost, and stop and report
+
+**Zero bucket operations.** No dataset, no bucket, no network, no fit, no new host, no package.
+**The artifacts already exist** in `runs/testbed/` from 42 and are committed by citation.
+
+Stop and report, carrying every stop from 47.12 through 55.8, and adding:
+
+24. **`k` or `W` is changed after any number has been seen.** Stop. That is stop 15's shape
+    applied to this section's two constants, and 56.3 states their derivation precisely so that
+    moving them later is visible.
+25. **A label, a fault time or a healthy/seeded distinction reaches the rule itself.** Stop.
+    Ground truth is the SCORER's, never the selector's. A selector that reads it has answered
+    the question by being told the answer.
+
+### 56.8 OBSERVED -- the limit gate does all of the work, and it admits 11,225 ticks of a degrading spacecraft
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+Nothing was generated and nothing was fitted: 42's twenty traces and `testbed.bin` were read
+from `runs/testbed/`. `flight/` and `fprime/` untouched, so `master` does not move. Source
+`oxcaml/retrainer/window56.ml`, `window56_check.ml` and `scripts/oxcaml_s56.sh`, in this
+commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **WS1** | fixed-memory, allocation-free | clean under `-zero-alloc-check all`; **0** `assume`, **0** hints | **HELD** |
+| **WS2** | causal | prefixes at 1,000 / 7,000 / 12,000 / 19,000 agree with the full run on every verdict | **HELD** |
+| **WS3** | admits enough on healthy data | **15,451 of 22,000 on all ten controls** -- every tick after the window fills -- against a floor of 6,550 | **HELD** |
+| **WS4** | admits less of the degradation than rate-only | **11,224 or 11,225 against 14,000**, strictly fewer on all ten | **HELD** |
+| **WS5** | quiet-only admits > 5,000 contaminated ticks | **0 on all ten seeds** | **FAIL** |
+| **WS6** | refuses below the floor | at `W-1` admits 0 and reports insufficient; at `W` admits 1 | **HELD** |
+| **WS7** | the check can fail | with G-limit removed, WS4's comparison flips from YES to NO | **HELD** |
+
+**(!) WS5 FAILED, AND 56.3's ARGUMENT WAS WRONG IN ITS MECHANISM.** 56.3 argued candidate (a)
+is **circular** -- that selecting on the frozen model's own silence would admit the degradation.
+Measured, a literal reading of (a) admits **zero contaminated ticks**. It also admits **zero
+ticks on the ten healthy controls**, which is the diagnostic that says what is really wrong:
+
+```
+  quiet-only, ticks admitted     healthy controls   0 of 22,000, all ten
+                                 seeded runs        0 of 22,000, all ten
+```
+
+**Candidate (a) is not circular. It is VACUOUS.** Every run in this testbed carries about
+thirty nominal warnings spread over 22,000 ticks, so **no 6,550-tick window is ever
+emission-free**, and a rule reading "the detector was quiet through it" admits nothing at all,
+healthy or not. **56.3's paragraph stands unedited with this beside it**, per 56.5 -- the
+conclusion that (a) cannot be used survives, and the reason it gave for that conclusion does
+not.
+
+**(!) AND THE SECOND GATE DID NOTHING WHATSOEVER.** G-rate refused **not one full window on any
+of the twenty runs**. Its ceiling is 24 emissions in 6,550 ticks and the worst window never
+approached it. **The three-gate rule and a limit check alone are the same rule on this
+testbed**, and WS4's whole margin is G-limit's.
+
+**(!) THE RESULT THAT MATTERS IS THE ONE NO PREDICTION ASKED FOR.** The rule's last admitted
+tick on the seeded runs is **19,223 or 19,224** -- exactly one tick before the first yellow
+crossing at 19,224 or 19,225. So:
+
+```
+  admitted on a seeded run, total            12,675 or 12,676
+  of those, CONTAMINATED (tick >= 8,000)     11,224 or 11,225      89%
+```
+
+**The rule trains on 11,225 ticks of a degrading spacecraft and calls them healthy**, and that
+is not a defect in the implementation -- **it is 42.8.2's 11,225 in-limits ticks, re-derived
+here from the other end.** The fault is injected at 8,000 and nothing in the spacecraft's
+engineering dictionary knows until 19,225. **Between those two the degradation is invisible to
+every signal this rule is allowed to see.**
+
+**What that answers.** `docs/PHASE5.md` question 4 asked what counts as recent healthy
+telemetry decided **onboard**. On this testbed the answer is that **the onboard signals do not
+identify the degradation before the limits do, and by the time the limits do, the ground sees
+it too.** Candidate (a) is vacuous, (c) is a refusal and not a selector, and what is left is
+**(b), a window the ground has cleared.** That is a real answer to the hardest question and not
+a failure to find one -- and it is consistent with rule 1, which already requires a human to
+approve the swap.
+
+**(!) AND IT IS ONE TESTBED, ONE FAULT MODE, TEN CORRELATED SEEDS.** `n = 10`, **UNDERPOWERED**
+by `docs/HARNESS.md` 1. The seeds share a plant and differ in one scalar, so they are not ten
+independent samples, and 42.9 says so of this testbed already. **A ramping cell resistance that
+stays inside its bands for 11,225 ticks is one fault mode.** Nothing here transfers to a
+spacecraft, and a fault that left its bands earlier would be caught earlier by the same rule
+without the rule being any better.
+
+**Disclosures, volunteered.**
+
+**G-rate's constants were derived and are untouched**, and stop 24 is why they stay: `k = 2`
+and `W = 6,550` were fixed at 56.3 with their derivation, and a `k` chosen after seeing that
+the gate never fires would be stop 15's shape. **The honest report is that the gate as derived
+does nothing, not that a different gate might.**
+
+**The selector never saw ground truth**, and the split between `window56.ml` and
+`window56_check.ml` is the enforcement rather than the promise: `Window56.push` takes two
+integers, and every seed, fault time and healthy/seeded distinction lives in the scorer. Stop
+25 held.
+
+**89% is a ratio of admitted ticks, not of training sequences.** Sequences are 250 ticks
+(`lstm.py:90`), so the count of usable sequences is not the count of ticks and no sequence
+figure is claimed here.
+
+**Cost.** **2 seconds.** Compute time on this host; no wall-clock claim.
+
+### 56.9 Owed
+
+**The rule is not adopted.** It is measured. Adopting a window-selection rule needs a second
+fault mode at minimum -- one that leaves its bands early and one that never does -- and this
+testbed has one.
+
+**Candidate (b) has no mechanism yet.** "The ground has cleared this window" is a command, an
+uplinked interval and a check that the retrainer honours it. That is E5-e's handoff and is
+named here so it is not assumed to exist.
+
+**A non-vacuous reading of (a).** "Quiet" as zero emissions admits nothing. Whether some
+weaker reading -- a rate rather than a count, which is what G-rate was -- can be made to
+discriminate is **not** established, and this section's G-rate is evidence it is harder than it
+looks.
+
+**Everything 55.10 owes**, unchanged.

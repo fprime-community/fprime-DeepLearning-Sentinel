@@ -6063,3 +6063,30 @@ make it zero**, and the comparison carries it either way.
    was preferred.
 6. **`docs/PHASE5.md` sections 1 to 8 are not edited.** A rider at section 9 records the
    answer where the question lives.
+
+### D72.1 Rider, 2026-09-17: the first catch, and it was the section that introduced the rule
+
+**55 is the first pre-registration written under this entry, and the rule caught something in
+it.**
+
+55.2 derived the window's two eviction points from `flight/include/sentinel/Config.hpp` and
+stated them. **It still missed one requirement**: `flight/test/DeterminismTest.cpp:42-43`
+resets the detector at `steps / 2`, and `Detector::reset` zeroes the window's fill, so the
+longest uninterrupted segment in a run is **half of it**. The tick count had been **chosen**
+-- 3,500 -- and its segments would have been 1,750, short of both 2,100 and 2,170.
+
+**What that would have cost.** DT2 requires the run to reach what 400 ticks did not. It would
+have failed, DT1 was written to be withdrawn by it, and **the section would have produced no
+result at all** -- a run, a commit and a report, for nothing.
+
+**What it cost instead.** 55.3a, written before the code was run, deriving the count rather
+than choosing it: a segment must fill the ring (2,170) and then solve twelve times (840), so a
+segment is at least 3,010 ticks and a run at least 6,020. Registered at 6,400. **Measured: both
+segments wrapped, 2,202 moment evictions, 30 solves at capacity.**
+
+**(!) THE POINT IS THE ORDER, NOT THE CATCH.** 50.1's four-wide tape and 52.4's undimensionable
+probe were both found **after** their sections ran, and cost a widened tape mid-section and a
+substituted probe. This one was found **before**, by the same drafting step, in the first
+section that had to satisfy it. **That is the whole of what this entry claims**, and one
+instance is one instance -- it is recorded here so the claim has a case rather than an
+argument.
