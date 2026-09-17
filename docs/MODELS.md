@@ -601,6 +601,12 @@ prediction that failed and why. This document follows the same discipline.
   - [62.5 Cost, and stop and report](#625-cost-and-stop-and-report)
   - [62.6 OBSERVED -- the hub was not built, and the host cannot produce a clean idle control](#626-observed----the-hub-was-not-built-and-the-host-cannot-produce-a-clean-idle-control)
   - [62.7 Owed](#627-owed)
+- [63 Pre-registration: the owed sweep, and what a reading discharges (Phase 5)](#63-pre-registration-the-owed-sweep-and-what-a-reading-discharges-phase-5)
+  - [63.1 REQUIREMENTS DERIVED FROM:](#631-requirements-derived-from)
+  - [63.2 What is being closed, and what is deliberately not](#632-what-is-being-closed-and-what-is-deliberately-not)
+  - [63.3 Predictions](#633-predictions)
+  - [63.4 Falsification](#634-falsification)
+  - [63.5 Cost, and stop and report](#635-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -18772,3 +18778,122 @@ a host that does not downclock -- or E4's Pi, where the question is the one that
 **Until then C2 stays UNVERIFIED** and 47.7's wording does not move.
 
 **Everything 61.7 owes**, unchanged.
+
+---
+
+## 63. Pre-registration: the owed sweep, and what a reading discharges (Phase 5)
+
+**Not a rung of E5.** 62.7 owes the hub crossing and E5-e owes the handoff; both need a second
+deployment and neither is this. **This section closes the items the ladder accumulated and left
+behind**, and it is registered as its own stage because 57's HL2 and 59's MW7 both showed that an
+owed item can be discharged by *reading* rather than by work -- and that reading it first is
+cheaper than building the wrong thing.
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred; **C5 UNVERIFIED
+and open, and nothing in this section bears on either.** No deployment, no hub. `Retrainer` stays
+uninstanced.
+
+### 63.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 53.9              the torch-as-EXECUTED comparison, and the addcmul_
+                                   association "mirrored rather than resolved"
+  torch/optim/adam.py:456          exp_avg.lerp_(grad, 1 - device_beta1)  -- 53.2 detail 1
+  torch/optim/adam.py:475          exp_avg_sq.mul_(beta2).addcmul_(grad, grad,
+                                   value=1 - beta2)  -- 53.2 detail 2, and the association
+                                   the Python does not state
+  torch/optim/adam.py:937-968      the dispatch: _fused_adam :802, _multi_tensor_adam :553,
+                                   _single_tensor_adam :347. "torch's Adam" is three things
+  torch/optim/adam.py:708,721      the foreach path's mul_ then _foreach_addcmul_, the same
+                                   shape through a different kernel
+  scripts/s53_adam_reference.py:42 v = (v * B2) + ((1.0 - B2) * g * g) -- Python's * is
+                                   left-associative, so the reference writes ((1-b2)*g)*g
+  oxcaml/retrainer/adam.ml:72-73   ((1.0 -. beta2) *. gi *. gi) -- OCaml's *. is likewise
+                                   left-associative, so OxCaml writes the same
+  docs/MODELS.md 47.13.4           E3's ONE accommodation: "checksum returned its float and
+                                   the checker refused it -- allocation of 16 bytes for
+                                   float". It writes into a preallocated slot instead
+  docs/MODELS.md 48 G1 (:15286)    the same finding for a returned float, needing [@inline]
+  docs/MODELS.md 57 HL2            the head-only loss is SHALLOWER than 52's, 8.4x headroom
+                                   at F64, and nothing says it survives F32
+  docs/MODELS.md 17895             "about 1.1e-16 at F64 ... about 6.0e-8 at F32"
+  oxcaml/retrainer/head57.ml       57's M-flat and M-rec, registered not adopted
+  oxcaml/retrainer/deep_f32.ml     60's F32 modules, which are what make the F32 question
+                                   answerable at all
+```
+
+### 63.2 What is being closed, and what is deliberately not
+
+**Five owed items. Three are measured here, one is a rider, and one is refused and said so.**
+
+```
+  1  AD3 as EXECUTED          measured   53.9's "more interesting of the two"
+  2  the addcmul_ association measured   53.9 named it rather than burying it
+  3  checksum unboxed         measured   a RIDER to 47.13.4, never an amendment
+  4  57's M-flat/M-rec at F32 measured   a finding for E5-b's tolerance either way
+  5  51's recompile under     REFUSED    see below
+     -zero-alloc-check all
+```
+
+**(!) ITEM 5 IS NOT ATTEMPTED, AND THAT IS A DECISION RATHER THAN AN OMISSION.** 50's U1, U2 and
+U6 were **withdrawn and stay withdrawn** (50.9a). Discharging U2 by recompiling 51's modules
+under `-zero-alloc-check all` would be re-opening a withdrawn prediction *after* seeing that the
+later sections held, which is the shape the unnumbered rule at `docs/MODELS.md` :14570-14574
+exists to prevent. **It stays an observation.** If it is ever to be discharged it needs its own
+pre-registration with its band declared first, and this section is not it.
+
+### 63.3 Predictions
+
+The prefix is `OW`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **OW1** | **`addcmul_` associates left**, as `(value * t1) * t2`. Probed on float64 values chosen so the two associations differ in the last bit | torch's result is **bit-identical** to `((1-b2)*g)*g` on every separating probe | no probe separates the two associations, so the question is not decidable this way | torch matches `(1-b2)*(g*g)` on any separating probe -- the transcription mirrored the wrong one |
+| **OW2** | **AD3 as executed agrees with AD3 as read.** `torch.optim.Adam` on its DEFAULT path, 20 updates, the same fixed gradient sequence, float64, against `scripts/s53_adam_reference.py` | max relative parameter difference **`<= 1e-12`**, AD3's own band | `(1e-12, 1e-9]` | `> 1e-9` -- and then AD3's one-ulp claim is about the algorithm alone and is said so |
+| **OW3** | **torch's paths agree with each other.** `_single_tensor_adam` and `_multi_tensor_adam` on identical inputs | **bit-identical**, every parameter | a path is unavailable on this host and is reported as unavailable | the two paths disagree -- and then "torch's Adam" is not one trajectory and AD3's reference is under-specified |
+| **OW4** | **An unboxed `checksum` holds `strict` with no preallocated slot**, so E3 reads four of four rather than three and an accommodation | it compiles under `[@zero_alloc strict]`, `-zero-alloc-check all`, no `assume`, returning its float, **and returns the same value** as the slot form | it needs an `[@inline]` hint, which 48's G1 band already calls NO VERDICT for a hint | it cannot be written without a slot, and 47.13.4's accommodation is structural rather than stylistic |
+| **OW5** | **57's 8.4x headroom survives float32.** M-flat and M-rec re-run at F32 against 60's modules | the margin at F32 is **`>= 1.0x`** -- the head-only loss is still inside the tolerance model | `(0.5x, 1.0x)` -- inside the model's own uncertainty, reported as neither | `<= 0.5x`, and that is **a finding for E5-b's tolerance, NOT a failure of 57** |
+
+**(!) OW5's FAIL BAND IS NOT A FAILURE AND THE WORDING IS DELIBERATE.** 57's HL2 already FAILED,
+meaning the section was not needed; 51's model was adequate. If the margin does not survive F32,
+what that says is that **E5-b's tolerance needs M-rec**, which 57 registered and did not adopt.
+Reported as a finding about 60, not as a defect in 57.
+
+### 63.4 Falsification
+
+**If OW1 FAILS**, the transcription at `s53_adam_reference.py:42` and `adam.ml:72-73` both mirror
+an association torch does not use. **AD3's verdict does not move** -- 53.9 already recorded that
+AD3's agreement is *insensitive* to the choice, and a prediction that was insensitive to a
+variable cannot be retro-fitted to depend on it. What moves is that the one-ulp claim becomes a
+claim about the algorithm as read, and the executed comparison is what carries it.
+
+**If OW2 FAILS**, torch as executed is not the algorithm as read, and **53.9's worry was the
+right one**. Reported as that, with the dispatched path named. **AD3 is not withdrawn** -- it
+measured what it said it measured.
+
+**If OW3 FAILS**, that is the most interesting outcome available here and it is reported first
+rather than last: it would mean the reference AD3 was written against is under-determined, and
+that *"agreement with torch"* needs a path named beside it everywhere it appears.
+
+**If OW4 FAILS**, 47.13.4's accommodation is structural, and that **strengthens** the E3 record
+rather than weakening it -- the checker's refusal was about the language and not about the
+writing. **The rider says so in that direction**, because a rider that only ever exonerates the
+earlier reading is not evidence.
+
+### 63.5 Cost, and stop and report
+
+**Zero bucket operations.** Month unmoved at 238 Class A / 5,740 Class B (`docs/STATUS.md:160-161`).
+**`flight/` and `fprime/` are NOT touched, so `master` does not move in this series.**
+
+Compute is small and local: OW2 and OW3 are 20 updates over 75,360 float64 parameters, twice;
+OW1 is a handful of scalars; OW4 is a compile; OW5 re-runs 57's check against 60's modules.
+**No fit, no `runs/_weights/` write, no dataset.** The 1,313 gate must read 1,313 before and
+after.
+
+Stop and report, carrying every stop from 47.12 through 62.5, and adding:
+
+36. **`torch` acquires a path into `src/` or the retraining chain.** Stop. 53.2 said torch is
+    not on the retraining path and is not being added; this section reads it as a reference and
+    that is the only thing it may ever be.
+37. **An owed item is discharged by asserting that it was already fine.** Stop. 57's HL2 and
+    59's MW7 were discharged by reading *evidence*, not by reasoning that evidence must exist.
