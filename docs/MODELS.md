@@ -500,6 +500,7 @@ prediction that failed and why. This document follows the same discipline.
   - [52.7 Cost, and the compute plan, and stop and report](#527-cost-and-the-compute-plan-and-stop-and-report)
   - [52.8 OBSERVED -- all seven hold, and it is the first rung where nothing broke](#528-observed----all-seven-hold-and-it-is-the-first-rung-where-nothing-broke)
   - [52.9 Owed](#529-owed)
+  - [52.10 (!) Rider, 2026-09-16: the guard lesson applied where other notes were doing a guard's job](#5210-rider-2026-09-16-the-guard-lesson-applied-where-other-notes-were-doing-a-guards-job)
 
 <!-- /toc -->
 
@@ -16357,3 +16358,42 @@ meet 47.13.4's boxing finding; float32; determinism and the stopping rule, which
 `docs/PHASE5.md` 5 question 4.
 
 **Everything 49.9 still owes**: a float32 cell, more than one draw, and the update-form debt.
+
+### 52.10 (!) Rider, 2026-09-16: the guard lesson applied where other notes were doing a guard's job
+
+**52.8 recorded that a note asking a future reader to remember something is not a fix**, after
+the same include-path mistake cost three runs despite 51.8 warning about it. **The same
+reasoning was then applied to every other place in this repository where prose was standing in
+for a guard**, and three were found. All three are now enforced by
+`tests/test_standing_figures_are_guarded.py`.
+
+```
+  the weight store, 1,313        10.7 calls it a standing gate that "the run asserts".
+                                 NO TEST under tests/ asserted it. Every figure in
+                                 docs/RESULTS.md was measured against this store.
+
+  tracked content                47.16a: "no guard re-derives any of these numbers".
+                                 By the time that was written the figure of record had
+                                 been stale since before 47. Now checked against D64's
+                                 8 MiB cap AND 39's N8 stop at 7 MiB, so the stop FIRES
+                                 rather than being noticed.
+
+  docs/INDEX.md's MODELS row     47.14: "Nothing guards it -- it is prose describing a
+                                 document, and no test re-derives it", and it declined to
+                                 close the gap. The row then fell THIRTEEN sections behind,
+                                 reaching 39 while the document reached 52.
+```
+
+**(!) THE THIRD ONE PROVES THE POINT ON ITSELF.** 47.14 saw the gap, wrote it down, and chose
+not to fix it on the grounds that *"a one-line fix made without the owner seeing the gap is how
+the gap comes back"*. **That was right about the fix and wrong about the record**: writing it
+down did not stop the row falling further behind, and the guard added here would have failed
+the suite the moment 40 was written.
+
+**Superseded, without editing either.** 47.14's *"nothing guards it"* and 47.16a's *"no guard
+re-derives any of these numbers"* were true when written and are false now. **The entries
+stand; this rider is the correction.**
+
+**What is NOT claimed.** These guards check three figures. **They do not establish that no
+other note is doing a guard's job** -- that was a search, not a proof, and a later reader who
+finds a fourth should add it here rather than assume the sweep was exhaustive.
