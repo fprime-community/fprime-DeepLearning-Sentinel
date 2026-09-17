@@ -557,6 +557,16 @@ prediction that failed and why. This document follows the same discipline.
   - [57.7 Cost, and stop and report](#577-cost-and-stop-and-report)
   - [57.8 OBSERVED -- 51's model is adequate for the head-only loss, and the reason is the opposite of what 52 feared](#578-observed----51s-model-is-adequate-for-the-head-only-loss-and-the-reason-is-the-opposite-of-what-52-feared)
   - [57.9 Owed](#579-owed)
+- [58 Pre-registration: TM4 re-run with the transient's treatment declared first (Phase 5)](#58-pre-registration-tm4-re-run-with-the-transients-treatment-declared-first-phase-5)
+  - [58.1 What is reused, and nothing is edited](#581-what-is-reused-and-nothing-is-edited)
+  - [58.2 REQUIREMENTS DERIVED FROM:](#582-requirements-derived-from)
+  - [58.3 (!) The treatment, declared before the run](#583-the-treatment-declared-before-the-run)
+  - [58.4 Predictions](#584-predictions)
+  - [58.5 Falsification](#585-falsification)
+  - [58.6 Reporting](#586-reporting)
+  - [58.7 Cost, and stop and report](#587-cost-and-stop-and-report)
+  - [58.8 OBSERVED -- TM4's NO VERDICT was the transient, and excluding it the spread falls from 1.5501 to 1.0788](#588-observed----tm4s-no-verdict-was-the-transient-and-excluding-it-the-spread-falls-from-15501-to-10788)
+  - [58.9 Owed](#589-owed)
 
 <!-- /toc -->
 
@@ -17837,3 +17847,168 @@ host; no wall-clock claim.
 matter. About 90 minutes at `T` = 250.
 
 **Everything 56.9 owes**, unchanged.
+
+---
+
+## 58. Pre-registration: TM4 re-run with the transient's treatment declared first (Phase 5)
+
+**51.9 registered this and did not take it**, quoted in full because the whole section is
+about honouring its terms:
+
+> *"TM4 re-run with the transient's treatment declared first. The band was drawn over all six
+> `T` and the first step is a transient the model does not claim to cover. What would settle it
+> is a band stated in advance as either excluding `T` = 1, or defining `S(T)/T` over the steady
+> part of the sequence -- declared before the run, never selected after it. Not taken here."*
+
+**(!) 51's VERDICTS ARE NOT AMENDED BY THIS SECTION.** TM4 stays **NO VERDICT** at 51, with its
+1.5501x beside it. 50's verdicts are not amended either. This section adds a measurement; it
+does not reach back.
+
+### 58.1 What is reused, and nothing is edited
+
+`gru_cell.ml`, `gru_seq.ml` and `gru_tol.ml` are **unchanged**, and the same six `T` are used --
+**1, 5, 25, 50, 125, 250** -- because changing the sweep would make this a different
+measurement rather than the registered re-run. `K` = 4, `h_rel` = `macheps^(1/3)`, `rtol` =
+1e-6, all carried verbatim.
+
+### 58.2 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 51.9        the registered re-run, and its two permitted treatments
+  docs/MODELS.md 51.1        the summation bound S = sum |a_i| the quantity comes from
+  docs/MODELS.md 51.2        the constants, carried verbatim
+  docs/MODELS.md 51 TM4      the band -- S(T)/T constant within 20%, S monotone -- and the
+                             1.5501x that earned NO VERDICT over all six T
+  oxcaml/retrainer/gru_tol.ml     S is computed here; the module is not edited
+  scripts/oxcaml_s51.sh:22        the six T of record
+```
+
+### 58.3 (!) The treatment, declared before the run
+
+51.9 permits **either** excluding `T` = 1 **or** defining `S(T)/T` over the steady part.
+**Both are declared here and both are run**, so that neither is selected after the fact:
+
+```
+  ARM A   S(T)/T over T in {5, 25, 50, 125, 250}.  T = 1 excluded as a point.
+          51.9's first permitted treatment, read literally.
+
+  ARM B   ( S(T) - S(1) ) / (T - 1), over the same five T.
+          51.9's second: the per-step magnitude of the STEADY part, with the
+          transient's fixed contribution subtracted rather than a point deleted.
+```
+
+**(!) ARM B IS THE ONE THE DERIVATION PREFERS, AND IT IS SAID NOW RATHER THAN AFTER.** 51.1's
+bound is about **per-addition** roundoff, so the quantity that should be constant is the
+magnitude a *marginal* step contributes. Arm A still divides the transient's contribution
+across `T` and so must drift toward Arm B from above as `T` grows. **If the two disagree, Arm
+B is the reading of record**, and that is a declaration, not a result.
+
+**The band is 20% for both, unchanged from TM4.** It is not widened, and 1.5501x is not used to
+set it.
+
+### 58.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `TR`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **TR1** | **Arm A: `S(T)/T` is constant within 20%** across the five `T` | max/min **<= 1.20** | 1.20 to 2.00 | > 2.00 |
+| **TR2** | **Arm B: the steady-part per-step magnitude is constant within 20%** | max/min **<= 1.20** | 1.20 to 2.00 | > 2.00 |
+| **TR3** | **Arm B is tighter than Arm A**, which is what 58.3 says the derivation predicts | B's spread **<** A's | equal | B looser -- 58.3's reading is wrong and is reported as wrong |
+| **TR4** | **`S` is monotonically increasing in `T`**, re-confirmed rather than assumed | true at all six | -- | any decrease |
+| **TR5** | **The re-run reproduces 51's `S`.** Same sources, same seed, same six `T` | `S(250)` matches 51's to the digits it published | -- | differs -- something moved under 51 and its figures are not reproducible |
+
+### 58.5 Falsification
+
+**If both TR1 and TR2 fail, `S` does not carry `T` even with the transient treated**, and
+51.1's derivation is weaker than 51 claimed. **Reported as that, and 51 is not edited** -- the
+NO VERDICT it recorded would then look generous rather than cautious, and a reader is owed that
+sentence.
+
+**If TR5 fails, nothing else is reported.** A re-run that does not reproduce the run it is
+re-doing is measuring something else.
+
+### 58.6 Reporting
+
+**Both arms in full, at every `T`**, with `abs(L)` beside `S` as 51.2 requires, so the quantity
+that was wrong stays visible next to the one that replaced it.
+
+**`n` is five points from one cell on one seed.** It is not a population, no spread here is a
+confidence interval, and **48.3's sentence attaches**: float64, not quotable beside a
+flight-core figure.
+
+### 58.7 Cost, and stop and report
+
+**Zero bucket operations.** No dataset, no network, no R2, no new host, no package. `flight/`
+and `fprime/` are not touched, so `master` does not move. 51's sweep ran inside its 30-minute
+stop and this is the same sweep.
+
+Stop and report, carrying every stop from 47.12 through 57.7, and adding:
+
+28. **The band moves off 20%, or a `T` is added to or removed from the six.** Stop. Either
+    would make this a different measurement wearing 51.9's name.
+
+### 58.8 OBSERVED -- TM4's NO VERDICT was the transient, and excluding it the spread falls from 1.5501 to 1.0788
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No new
+host, no hardware, no package. `flight/` and `fprime/` untouched, so `master` does not move.
+**`gru_cell.ml`, `gru_seq.ml` and `gru_tol.ml` are unedited** -- this is 51's sweep, re-run.
+Source `scripts/oxcaml_s58.sh`, in this commit.
+
+```
+      T   S                 abs(L)
+      1   1.353221e+01      3.268255e-01
+      5   4.708629e+01      1.185597e+00
+     25   2.275590e+02      8.755092e+00
+     50   4.364889e+02      7.676611e+00
+    125   1.130981e+03      1.817650e-01
+    250   2.245127e+03      4.905589e+00
+
+  ARM A   S(T)/T            5: 9.41726   25: 9.10236   50: 8.72978   125: 9.04785   250: 8.98051
+  ARM B   (S(T)-S(1))/(T-1) 5: 8.38852   25: 8.91778   50: 8.63177   125: 9.01168   250: 8.96223
+```
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **TR1** | arm A constant within 20% | spread **1.0788** | **HELD** |
+| **TR2** | arm B constant within 20% | spread **1.0743** | **HELD** |
+| **TR3** | arm B tighter than arm A | 1.0743 < 1.0788 | **HELD** |
+| **TR4** | `S` monotonically increasing | true at all six | **HELD** |
+| **TR5** | the re-run reproduces 51 | `S(T)/T` over all six spreads **1.5501x**, 51's figure exactly; `abs(L)` spreads **48.1671x** against 51's 48.2x | **HELD** |
+
+**(!) TM4's NO VERDICT WAS THE TRANSIENT, AND NOTHING ELSE.** The same sweep, the same sources,
+the same band: **1.5501x over all six, 1.0788x over five.** The single point at `T` = 1
+accounts for the entire gap between a NO VERDICT and a HELD, which is exactly what 51.9
+suspected when it registered this and declined to run it without declaring the treatment first.
+
+**(!) AND 51 IS NOT AMENDED.** TM4 stays **NO VERDICT** at 51, with its 1.5501x beside it. 51.9
+was right to refuse the band it could have drawn after the fact, and **the record of that
+refusal is worth more than a retrospective HELD**. What this section adds is a measurement
+taken under terms fixed in advance; what it does not do is reach back.
+
+**51.1's derivation is confirmed on its own terms.** `S` carries `T`: the per-step accumulated
+magnitude is flat to within 7.9% across a 50x range of sequence length, while `abs(L)` -- the
+quantity 49 and 50 used -- wanders over **48.2x** on the same six runs. That is the comparison
+51.2 required be reported at every `T`, and it is the whole case for the change 51 made.
+
+**Disclosures, volunteered.**
+
+**TR3 held by a very small margin and should not be leaned on.** 1.0743 against 1.0788 is a
+difference of **0.4%**, on five points. 58.3 declared arm B the reading of record **before** the
+run, so it stays the reading of record -- but the measurement does not distinguish the two arms
+in any meaningful way, and a later section that needs them distinguished will have to do better
+than this.
+
+**Five points, one cell, one seed.** Not a population; no spread here is a confidence interval.
+
+**The band was TM4's 20% and did not move**, and the six `T` are 51's. Stop 28 held.
+
+**48.3's sentence attaches.** float64, not quotable beside a flight-core figure.
+
+**Cost.** **370 seconds**, inside 51's own 30-minute stop. Compute time on this host; no
+wall-clock claim.
+
+### 58.9 Owed
+
+**Nothing new.** 51.9's re-run is taken and its terms were met. **Everything 57.9 owes**,
+unchanged.
