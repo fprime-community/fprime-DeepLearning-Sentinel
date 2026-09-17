@@ -607,6 +607,8 @@ prediction that failed and why. This document follows the same discipline.
   - [63.3 Predictions](#633-predictions)
   - [63.4 Falsification](#634-falsification)
   - [63.5 Cost, and stop and report](#635-cost-and-stop-and-report)
+  - [63.6 OBSERVED -- four owed items close, and the fifth closed itself weeks ago](#636-observed----four-owed-items-close-and-the-fifth-closed-itself-weeks-ago)
+  - [63.7 Owed](#637-owed)
 
 <!-- /toc -->
 
@@ -18897,3 +18899,127 @@ Stop and report, carrying every stop from 47.12 through 62.5, and adding:
     that is the only thing it may ever be.
 37. **An owed item is discharged by asserting that it was already fine.** Stop. 57's HL2 and
     59's MW7 were discharged by reading *evidence*, not by reasoning that evidence must exist.
+
+### 63.6 OBSERVED -- four owed items close, and the fifth closed itself weeks ago
+
+**2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No new
+host, no hardware. **`flight/` and `fprime/` untouched, so `master` does not move in this
+series.** `runs/_weights/` read **1,313** before and after. Source
+`scripts/s63_adam_executed.py`, `oxcaml/retrainer/zalloc_u.ml`, `zalloc_u_check.ml` and
+`scripts/oxcaml_s63.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **OW1** | `addcmul_` associates left | **12 of 12** separating probes **bit-identical** to `((1-b2)*g)*g`; **0 of 12** to `(1-b2)*(g*g)`; 0 neither | **HELD** |
+| **OW2** | AD3 as executed agrees with AD3 as read | worst relative **6.145903e-14**, worst absolute **1.110223e-16** -- one ulp. Path resolved: **`_single_tensor_adam`** (`adam.py:347`) | **HELD** |
+| **OW3** | torch's two named paths agree | `_single_tensor_adam` vs `_multi_tensor_adam`: **BIT-IDENTICAL**, max abs **0.000000e+00** | **HELD**, and see the disclosure on scope |
+| **OW4** | an unboxed `checksum` holds `strict` with no slot | compiles at `-zero-alloc-check all -warn-error +a -alert @all`, **0** `assume`, **returns its float**, and **bit-identical** to the slot form at `8.7360000000000078` | **HELD**, with two constraints disclosed below |
+| **OW5** | 57's 8.4x headroom survives F32 | **5.31x** at 60.6's stride, **5.02x** at the runner's default, against **8.41x** at F64. Band was `>= 1.0x` | **HELD** |
+
+**(!) OW1 SETTLES 53.9's OPEN ITEM, AND THE MIRRORED CHOICE WAS THE RIGHT ONE.** 53.9 recorded
+that `adam.py:475`'s `addcmul_(grad, grad, value=1 - beta2)` computes `value * t1 * t2`
+*"without the Python saying how it associates"*, and that both
+`scripts/s53_adam_reference.py:42` and `oxcaml/retrainer/adam.ml:72-73` write
+`((1-b2)*g)*g` because `*` and `*.` are each left-associative -- **mirroring a choice neither
+verified.** torch associates the same way. The probe isolates it exactly: `exp_avg_sq` starts at
+zero, so `.mul_(beta2)` leaves zero and `.addcmul_` alone produces the product.
+
+**(!) AND 53.9's WORRY DOES NOT SURVIVE CONTACT, WHICH IS WORTH SAYING PLAINLY.** 53.9 called
+the executed comparison *"the more interesting of the two"* and warned that *"a one-ulp claim
+about torch would not survive"* an unverified association. **It survives.** OW2's worst absolute
+difference is **1.110223e-16**, the same one ulp AD3 reported, and OW3 shows the two available
+paths are not merely close but **bit-identical** -- so on this host *"torch's Adam"* is one
+trajectory and not three.
+
+**Disclosures, volunteered.**
+
+**(!) OW3 IS ESTABLISHED FOR TWO PATHS OF THREE, AND MUST NOT BE READ AS COVERING THE THIRD.**
+`adam.py:964-968` dispatches to `_fused_adam` (`:802`), `_multi_tensor_adam` (`:553`) or
+`_single_tensor_adam` (`:347`). **`_fused_adam` was not exercised** -- it is CUDA-only and this
+host has no CUDA. OW3's prediction named only the other two and both were available, so the
+band's NO VERDICT clause for an unavailable path does not fire; **but the scope is stated here
+rather than left for a reader to infer from a verdict.** A claim that torch's paths agree is a
+claim about two of them.
+
+**(!) OW4 NEEDS AN INSTALLED LIBRARY, AND THAT CUTS BOTH WAYS.** The operations come from
+`Stdlib_upstream_compatible.Float_u` -- `float_u.mli:49` `type t = float#`, `:68-77`
+add/sub/mul/div, `:56` `to_float = "%box_float"`, `:59` `of_float = "%unbox_float"` -- at
+version **5.2.0+ox**. **That is exactly what 54.9 said would settle the undocumented-primitive
+dependency**: *"the operations arriving through an installed, versioned library"*. It is not an
+undeclared compiler primitive. **But it is still a dependency E3 did not have**, and E3's
+finding was about what plain OCaml costs under `strict`. **OW4 does not retract that finding; it
+answers the different question 47.14 registered.**
+
+**(!) AND A SECOND STRUCTURAL CONSTRAINT IS RECORDED RATHER THAN WORKED AROUND SILENTLY.**
+`float#` **cannot live in a `ref`** at this version. `let s = ref #0.0` is refused: *"This
+expression has type float# but an expression was expected of type ('a : value_or_null). The
+layout of float# is float64."* `float_u.mli:51-52` says why in its own words -- *"CR layouts v5:
+add back all the constants in this module (e.g., [zero] and [infinity]) when we we support
+[float64]s in structures."* So the accumulator is a tail-recursive parameter. That is the
+language-native shape for an unboxed accumulator, **but a reader weighing `float#` for flight
+should meet this constraint here rather than discover it.**
+
+**(!) THE BOXED FORM WAS DEMONSTRATED FAILING, NOT ASSUMED TO FAIL.** Both directions before
+belief. Written the obvious way, returning its float, the checker refuses it: *"Annotation check
+for zero_alloc strict failed on function B_boxed.checksum_boxed"*. 47.13.4's reading is
+reproduced, not recalled.
+
+**(!) OW5 WAS DISCHARGED BY READING, AND IT IS THE THIRD TIME THIS SESSION-LINE HAS HAPPENED.**
+57's HL2 found 51's model already adequate; 59's MW7 found T1's evidence committed and green for
+weeks with nobody having adjudicated it; and **60 had already measured OW5 and nobody connected
+it to 57's owed item.** `deep_f32.ml:200` carries the comment *"the head, and 57's head-only
+loss"* -- **60's cycle IS 57's loss at F32** -- and `deep_f32_check.ml:112-129` already computes
+`atol` at `macheps32` against `|fd - analytic|` and prints `worst err/allowed`. 60.6's AS4 row
+recorded **0.1882**, and 60.7 already called it *"the 5.3x margin"*. **No new module was
+written for OW5 and none was needed.** Stop 37 was honoured: the figure was **read from the
+artifact and re-run**, not asserted to exist.
+
+**(!) AND RE-RUNNING IT FOUND A REPRODUCIBILITY GAP IN 60's RECORD, WHICH IS REPORTED AGAINST MY
+OWN CONVENIENCE.** 60.6 records *"0 outside of 747 checked; worst err/allowed 0.1882"*.
+**`scripts/oxcaml_s60.sh` as committed does not reproduce that**: it passes no stride, so
+`deep_f32_check.ml:113` takes its default of **1021**, giving **74 checked and 0.1992**. The
+recorded figure needs `./s60 all 250 101` -- stride **101**, which yields exactly **747 checked
+and 0.1882**, confirmed here. **Both verdicts are the same and AS4 is unaffected**, but the
+recorded sample count and ratio are not the ones the committed runner produces.
+
+```
+  F64 (57.8)                        err/allowed 0.1189   margin 8.41x
+  F32, stride 101   (60.6's figure) err/allowed 0.1882   margin 5.31x
+  F32, stride 1021  (the default)   err/allowed 0.1992   margin 5.02x
+```
+
+**(!) AND THE SPARSER SAMPLE FOUND THE WORSE RATIO, WHICH IS THE POINT.** 74 samples gave
+**0.1992** where 747 gave **0.1882**. The two strides hit different index sets and neither is a
+superset of the other, so *"worst"* here is **sample-dependent, not a bound**. **60.7 already
+owes an exhaustive gradient check** *"if any later rung makes the 5.3x margin matter"*, and this
+is the first evidence that the sampled worst case moves with the sampling. **It does not change
+OW5's verdict** -- 5.02x and 5.31x are both far above the `>= 1.0x` band -- **but nobody should
+quote either number as a bound.**
+
+**(!) OW2's BAND WAS AD3's, RE-USED DELIBERATELY AND NOT NARROWED.** 63.3 set `<= 1e-12` because
+that is what AD3 used, so the two are comparable. The measured **6.145903e-14** is inside it by
+about 16x. **The band was not moved after the number was seen**, and it is recorded here that
+the margin was comfortable rather than marginal.
+
+**Item 5 was not attempted**, as 63.2 registered. 50's U1, U2 and U6 stay withdrawn.
+
+**Cost.** OW1-OW3 ran in **1.9 s**; OW4 is a compile and a run; OW5 re-ran `scripts/oxcaml_s60.sh`
+in **3 s**. No fit, no dataset, no `runs/_weights/` write, zero bucket operations. **E5 remains
+HOST-VERIFIED PENDING TARGET (47.14a); C4 UNVERIFIED and deferred, C5 UNVERIFIED and open, and
+nothing in this section bears on either.** `Retrainer` stays uninstanced.
+
+### 63.7 Owed
+
+**The hub crossing and the handoff**, unchanged: 62.7's HB1 and HB2, and E5-e. Both need the
+second deployment.
+
+**An exhaustive gradient check**, and this section strengthens 60.7's case for it: the sampled
+worst ratio moved from 0.1882 to 0.1992 on a different stride, so the margin is known only at
+the sampled indices.
+
+**`_fused_adam` against the other two**, which needs CUDA and is therefore in the same class as
+E4 -- a hardware dependency, registered rather than skipped.
+
+**50's U2**, still an observation and still withdrawn. 63.2 refused it deliberately.
+
+**Everything 62.7 owes**, unchanged.
