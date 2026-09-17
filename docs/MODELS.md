@@ -501,6 +501,14 @@ prediction that failed and why. This document follows the same discipline.
   - [52.8 OBSERVED -- all seven hold, and it is the first rung where nothing broke](#528-observed----all-seven-hold-and-it-is-the-first-rung-where-nothing-broke)
   - [52.9 Owed](#529-owed)
   - [52.10 (!) Rider, 2026-09-16: the guard lesson applied where other notes were doing a guard's job](#5210-rider-2026-09-16-the-guard-lesson-applied-where-other-notes-were-doing-a-guards-job)
+- [53 Pre-registration: the optimiser -- Adam under `[@zero_alloc strict]` (Phase 5)](#53-pre-registration-the-optimiser----adam-under-zero-alloc-strict-phase-5)
+  - [53.1 What is reused, and Adam as the flown recipe actually configures it](#531-what-is-reused-and-adam-as-the-flown-recipe-actually-configures-it)
+  - [53.2 (!) Three details torch's Adam has that a textbook does not, read at source](#532-three-details-torchs-adam-has-that-a-textbook-does-not-read-at-source)
+  - [53.3 (!) Not every external call is rejected, and AD2 rests on a declaration rather than a category](#533-not-every-external-call-is-rejected-and-ad2-rests-on-a-declaration-rather-than-a-category)
+  - [53.4 Predictions](#534-predictions)
+  - [53.5 Falsification](#535-falsification)
+  - [53.6 Reporting](#536-reporting)
+  - [53.7 Cost, and stop and report](#537-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -16397,3 +16405,169 @@ stand; this rider is the correction.**
 **What is NOT claimed.** These guards check three figures. **They do not establish that no
 other note is doing a guard's job** -- that was a search, not a proof, and a later reader who
 finds a fourth should add it here rather than assume the sweep was exhaustive.
+
+---
+
+## 53. Pre-registration: the optimiser -- Adam under `[@zero_alloc strict]` (Phase 5)
+
+**Written before any of it exists**, in the form every section from 19 onward uses. **No code
+is written until this is reviewed.** It is the next rung after 52: the flown model's forward
+and backward now hold `[@zero_alloc strict]` and compute correct gradients. **Nothing has yet
+turned a gradient into a weight update.**
+
+**(!) IT IS NOT E5 AND 47.14's ORDERING IS NOT OVERRIDDEN.** E4 has not run and E2 is NO
+VERDICT. **Nothing here touches 47.7's C3 or C5.**
+
+**(!) AND IT DOES NOT ANSWER `docs/PHASE5.md` 8.** That rider registers the contradiction
+between the ground recipe's data-dependent epoch count and `Objective.md` 11 rule 5's fixed
+compute, and forbids a section below it picking an answer by default. **This section applies a
+fixed, declared number of updates to a fixed, declared gradient sequence.** There are **no
+epochs, no validation split, no patience, no stopping rule and no convergence criterion** --
+so there is nothing here that could answer question 8, and it is not answered.
+
+### 53.1 What is reused, and Adam as the flown recipe actually configures it
+
+**52's model is reused unedited**: `gru_deep.ml`'s 75,360 parameters and their gradients, and
+51's correctness criterion where one is needed. What is added is the optimiser and its state.
+
+**The configuration is the flown one, read at source rather than assumed.**
+`src/sentinel_models/lstm.py:620` is `torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)`
+with every other argument left at its default, and `lstm.py:121` sets
+`learning_rate: float = 1e-3`. The defaults are `torch/optim/adam.py:39-42`:
+
+```
+  lr             1e-3          lstm.py:121, "Keras Adam default, which telemanom took"
+  betas          (0.9, 0.999)  adam.py:39
+  eps            1e-8          adam.py:40
+  weight_decay   0             adam.py:41   -- so no decay term is implemented
+  amsgrad        False         adam.py:42   -- so no max-of-v term is implemented
+```
+
+**Optimiser state is two buffers the size of the model** -- `exp_avg` and `exp_avg_sq`,
+**150,720 floats, 1.15 MiB at F64** -- claimed once at init, which is CPP-1's shape.
+
+### 53.2 (!) Three details torch's Adam has that a textbook does not, read at source
+
+**48.1 recorded two details a textbook GRU gets wrong. Adam has three**, and they are
+transcribed from `torch/optim/adam.py` in this switch's own `.venv` rather than recalled:
+
+```
+  1. THE FIRST MOMENT IS A LERP, NOT A WEIGHTED SUM.        adam.py:456
+       exp_avg.lerp_(grad, 1 - beta1)
+     which is  m += (1 - b1) * (g - m),  not  m = b1*m + (1 - b1)*g.
+     Algebraically identical, different in floating point.
+
+  2. THE SECOND MOMENT IS NOT A LERP.                        adam.py:475
+       exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+     which IS  v = b2*v + (1 - b2)*g*g,  the textbook form. The two moments are
+     updated in DIFFERENT forms in the same function, and a transcription that
+     made them consistent would be wrong on one of them.
+
+  3. THE BIAS CORRECTION DIVIDES TWO ROOTS.                  adam.py:530-546
+       bias_correction2_sqrt = bias_correction2 ** 0.5
+       denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
+       param.addcdiv_(exp_avg, denom, value=-step_size)
+     so it is  sqrt(v) / sqrt(1 - b2^t) + eps,  not  sqrt(v / (1 - b2^t)) + eps,
+     and eps is added AFTER that division rather than inside the root.
+```
+
+**This section transcribes all three**, because every measurement this project has taken of a
+trained model was taken against weights `torch.optim.Adam` produced. A retraining engine that
+used the textbook form would be optimising something adjacent to, and not identical to, what
+the ground toolkit produces.
+
+**(!) AND THE COST IS STATED: `torch` IS NOT ON THE RETRAINING PATH AND IS NOT BEING ADDED TO
+IT.** It was read here, at `.venv/lib/python3.14/site-packages/torch/optim/adam.py`, as a
+**source document**, the same way `domain.mli` was read at D70 consequence 9. **No comparison
+against a running torch is made**, and AD3's reference is a NumPy transcription of the three
+details above -- which proves agreement with the algorithm as read, and **cannot prove
+agreement with torch as executed.** Registered as owed, the same shape as 48.9's reference
+debt.
+
+### 53.3 (!) Not every external call is rejected, and AD2 rests on a declaration rather than a category
+
+**48.8's G5 rejected an allocation with *"called function may allocate (external call to
+caml_array_make)"*, and that message can be read as "the checker rejects external calls".** It
+does not. It rejects external calls **that are not declared allocation-free**, and Adam needs
+two that are.
+
+Read at source in this switch's own stdlib, `oxcaml/.opam/5.2.0+ox/lib/ocaml/stdlib.mli`:
+
+```
+  external ( ** ) : float -> float -> float = "caml_power_float" "pow"
+    [@@unboxed] [@@noalloc]                                       stdlib.mli:479-480
+
+  external sqrt : float -> float = "caml_sqrt_float" "sqrt"
+    [@@unboxed] [@@noalloc]                                       stdlib.mli:485-486
+```
+
+**`Array.make` carries no such declaration and that is the whole difference.** So **AD2
+predicts that both the `**` bias correction and a running-product one hold**, and the
+prediction is made from the declaration rather than from a guess about categories. **If `**`
+is nevertheless rejected, the finding is about the checker's treatment of `[@@noalloc]` and is
+worth more than the optimiser result**, because it would mean `tanh` and `exp` -- which 48's
+cell already depends on, and which carry the same declaration at `stdlib.mli:489` and
+`:560-561` -- hold for some reason other than their annotation.
+
+### 53.4 Predictions
+
+Numbered, with bands, **written before the code**. The prefix is `AD`.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **AD1** | **The Adam update holds `strict`** over all 75,360 parameters, `[@zero_alloc strict]`, `-g`, **no `assume`** | clean build, no inlining hint | holds only with a hint, itemised | needs `assume` |
+| **AD2** | **Both bias-correction forms hold**, `**` and a running product, for 53.3's reason | both clean | one holds, one does not -- itemised with the message | neither -- and 53.3's reading of `[@@noalloc]` is wrong, which is the more important finding |
+| **AD3** | **The trajectory is torch's Adam as read.** 20 updates on a fixed synthetic gradient sequence, against a NumPy transcription of 53.2's three details, at float64 | max relative parameter difference **`<= 1e-12`** | `(1e-12, 1e-9]` | `> 1e-9` -- a transcription defect, reported and not tuned away |
+| **AD4** | **No `assume` anywhere in the optimiser**, counted mechanically | **0** | -- | any |
+| **AD5** | **The check can fail.** A deliberate allocation inside the update loop | compile error, rc != 0 | -- | it builds |
+| **AD6** | **One full training step runs**: 52's forward, 52's backward, and the update, all under `strict`, and **every one of the 75,360 parameters moves** | clean build and 75,360 parameters changed | clean build, **1 to 100** parameters unmoved, itemised by block | more than 100 unmoved -- a gradient is not reaching them and 52's HD4 needs re-reading |
+
+### 53.5 Falsification
+
+**If AD1 fails, an allocation-free training step is not expressible** and the strategic case at
+D70 loses the thing it rests on for the one operation a retraining engine cannot do without.
+
+**If AD3 fails, the optimiser is not the flown one** and any model it produced would be
+optimising something adjacent to what the ground toolkit produces. Reported as a transcription
+defect and fixed before anything else here is believed.
+
+**If AD5 fails, nothing else in this section is reported.** **AD5 is the only clause that
+withdraws the others** -- 50.9a's lesson, stated plainly rather than inherited. An AD3 failure
+is a transcription finding and withdraws nothing; an AD6 failure is a finding about 52's
+gradients and withdraws nothing.
+
+### 53.6 Reporting
+
+**Losers in full.** Every `assume`, every inlining hint, and for AD6 every unmoved parameter
+itemised by block, since a whole block unmoved and a scatter of individual parameters unmoved
+are different defects.
+
+**Both bias-correction forms are reported** whatever AD2 finds, with the checker's exact
+message for any that is rejected.
+
+**Float64 throughout**, so no figure here is quoted beside a flight-core figure. **No timing
+figure is a compute budget**, and `docs/PHASE5.md` 8 stays open.
+
+### 53.7 Cost, and stop and report
+
+**Zero bucket operations**, fixed seed, no dataset, no network, no R2. **No new host, no
+hardware.**
+
+**(!) NO WALL-CLOCK ESTIMATE IS QUOTED, AND THAT IS THE POINT.** 52.9 asked that the next
+section quoting one measure its own rate rather than carry 49's forward a fourth time. **This
+section's work is small enough that an estimate would be theatre**: AD3 is 20 updates over
+75,360 parameters, about **1.5e6 float operations**, and AD6 is a single forward and backward
+at `T` = 250, about **3e7 multiplies** -- together roughly **five orders of magnitude** below
+52's 2.4e12. **The measured wall clock is reported in the OBSERVED**, and no estimate is
+offered against it because none is needed.
+
+**Four processes, not eight**, if any parallelism is used at all -- 52.8 recorded the host's
+low-memory killer stopping a run at eight, and nothing here needs more than one.
+
+Stop and report, carrying 47.12's twelve, 48.7's two, 49.7's two, 50.7's one, 51.7's one and
+52.7's one, and adding:
+
+20. **Anything here starts training.** A second epoch, a validation split, a stopping rule or a
+    learning-rate schedule is **out of scope by construction** and would answer
+    `docs/PHASE5.md` 8 by default, which that rider forbids. Reaching for one means the
+    ladder's next rung has been started without being pre-registered.

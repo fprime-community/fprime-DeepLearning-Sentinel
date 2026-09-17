@@ -8,8 +8,8 @@ recorded as unguarded when it was found:
 - The weight store's size. `docs/MODELS.md` 10.7 calls it a standing gate that
   "the run asserts", but no test under `tests/` asserted it.
 - Tracked content, against D64's cap and `docs/MODELS.md` 39's N8 stop.
-  `docs/MODELS.md` 47.16a records that "no guard re-derives any of these
-  numbers", and by then the figure of record had been stale for two sections.
+  `docs/MODELS.md` 47.16's rider records that "no guard re-derives any of
+  these numbers", and by then the figure of record had been stale for two sections.
 - `docs/INDEX.md`'s row for `docs/MODELS.md`. 47.14 recorded that "nothing
   guards it -- it is prose describing a document, and no test re-derives it",
   declined to close the gap, and the row went on to fall thirteen sections
