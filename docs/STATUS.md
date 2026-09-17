@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`e8e3d3f`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`6733992`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -15,7 +15,7 @@ it no mission can use this.**
 
 | | State |
 |---|---|
-| **The C++ inference core** | Built and green. GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader. Held to the NumPy reference at **1e-05** on every stream with the emission flag exact; determinism bit-identical in-process and across processes |
+| **The C++ inference core** | Built and green. GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader. Held to the NumPy reference at **1e-05** on every stream with the emission flag exact; determinism bit-identical in-process and across processes, over a run that wraps the window |
 | **The decision rule** | **Adopted 2026-09-11.** `max(z_residual, z_derivative)` against one calibrated cut, on a `param_version` 2 parameter block. A version-1 file still gets the earlier rule, so every previously committed vector still passes |
 | **The file format** | `format_version` **1, frozen**. `docs/MODEL_FILE.md` is normative. Both readers refuse an unknown `param_version` |
 | **The F' component** | `Sentinel::Monitor` builds in F' v4.3.0's own Ref. Warn-only by interface. Its unit tests pass, covering **12 of the 12** refusal codes degrading to Level 1 without failing the topology |

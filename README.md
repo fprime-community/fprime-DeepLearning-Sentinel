@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`e8e3d3f`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`6733992`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -58,7 +58,8 @@ make -C flight lint      # clang-tidy at -Werror
   footprint             sizeof(Detector) asserted exactly, 603,032 B
   refusals              18 load cases, exercising all 12 refusal codes plus the
                         accept path; CRC check value 0xCBF43926
-  determinism           bit-identical in-process and across two processes
+  determinism           bit-identical in-process and across two processes, over
+                        a 6,400-tick run that wraps the window twice
   golden vectors        2 tiers: g1 at 3 channels, g2 at 7
   baseline vectors      4 tiers, max |diff| 0.000e+00
   trailing window       3 tiers, worst 3.738e-10
