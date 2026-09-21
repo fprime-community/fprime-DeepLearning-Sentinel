@@ -27,3 +27,9 @@ add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib/fprime" "F-Prime")
 # only reference modules already defined.
 include("${CMAKE_CURRENT_LIST_DIR}/library.cmake")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SentinelRef/")
+
+# The retrainer's own deployment (docs/MODELS.md 65, 47.15b's named discharger for
+# C5). AFTER SentinelRef, and the order is load-bearing: SentinelRef registers the
+# Retrainer module and an F' module may be registered once, so the target must
+# already exist when this deployment's topology names Retrain.Retrainer.
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SentinelRetrain/")

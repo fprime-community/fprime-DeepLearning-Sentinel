@@ -66,6 +66,7 @@ bool Retrainer::accept(I32 status)
 
 bool Retrainer::boot()
 {
+    m_bootAttempted = true;
     // (!) A runtime that did not start is not a transient fault, so this does not
     // retry and the component goes inert rather than failing the topology.
     if (sentinel_retrainer_boot() != SENTINEL_RT_OK) {
@@ -92,6 +93,19 @@ void Retrainer::schedIn_handler(FwIndexType portNum, U32 context)
 {
     (void)portNum;
     (void)context;
+
+    // (!) THE RUNTIME STARTS HERE, ON THIS THREAD, AND THE REASON IS OCaml 5's
+    // domain lock. caml_startup grants the lock to its CALLER; an ActiveRateGroup
+    // runs this handler on its own task, so a runtime started in the topology's
+    // configureTopology() aborts the process with "Fatal error: no domain lock
+    // held" on the first call in. Deferring the boot to the first tick makes the
+    // thread that owns the domain the same one that uses it, for the life of the
+    // process -- and D70 consequence 9's "exactly one domain, never Domain.spawn"
+    // is unchanged. Found at docs/MODELS.md 65; E1 and 61 never saw it because a
+    // unit-test process does all of this on one thread.
+    if (!m_bootAttempted) {
+        static_cast<void>(this->boot());
+    }
 
     if (!m_armed) {
         return;   // inert, and silent: RuntimeUnavailable was raised once at boot

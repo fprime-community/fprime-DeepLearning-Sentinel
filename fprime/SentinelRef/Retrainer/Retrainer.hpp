@@ -71,7 +71,15 @@ class Retrainer final : public RetrainerComponentBase {
     bool accept(I32 status);
 
     bool m_armed;
-    U32  m_refusals;
+
+    //! (!) OCaml 5 grants the domain lock to the thread that calls caml_startup,
+    //! and an ActiveRateGroup runs schedIn on its OWN task. Starting the runtime
+    //! from the topology's main thread and then calling in from the rate group
+    //! aborts the process with "Fatal error: no domain lock held". So the boot is
+    //! deferred to the first tick, on the thread that will own the domain for the
+    //! life of the process. An explicit boot() sets this too, so a unit test that
+    //! boots on its own thread is unaffected. docs/MODELS.md 65.
+    bool m_bootAttempted = false;    U32  m_refusals;
 
     //! 61 / E5-c. The window the cycle reads. THIS COMPONENT OWNS IT; the OCaml
     //! side sees a CAML_BA_EXTERNAL view that does not outlive the call.
