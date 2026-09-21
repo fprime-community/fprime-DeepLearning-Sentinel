@@ -186,6 +186,23 @@ def _alarm_rate_x10000() -> int:
     return int(round(float(_d65_row("frozen (stage 4)")[0]) * 10000))
 
 
+def _cycle_parameters() -> int:
+    """The retraining cycle's parameter count, from the module that declares it.
+
+    `master` states that EX1's gradients were checked at every one of 75,360 indices,
+    and that number is the extent of `Deep_f32`'s parameter vector -- the thing the
+    exhaustive check ranged over. It was on `master` unguarded until Section 72; a
+    number that appears in a customer document and nothing re-derives is exactly the
+    condition D69 was written about.
+
+    Read from `oxcaml/retrainer/deep_f32.ml`, which is where the extent is declared,
+    rather than from `ModelFile.hpp`'s `maxParameters()`, which is a constexpr
+    function this test would have to evaluate rather than read.
+    """
+    text = _dev("oxcaml/retrainer/deep_f32.ml")
+    return int(re.search(r"^let n_params\s*=\s*(\d+)", text, re.M).group(1))
+
+
 def _ex1_margin_x100() -> int:
     """EX1's EXHAUSTIVE gradient margin, x100, re-derived from the worst ratio.
 
@@ -231,6 +248,9 @@ FIGURES = (
     Figure("n3_predicted/EVIDENCE", "docs/EVIDENCE.md",
            r"= ([\d,]+) B \+/- 64",
            _n3_predicted_bytes, "N3's predicted footprint"),
+    Figure("cycle_parameters/DESIGN", "docs/DESIGN.md",
+           r"checked at every one of ([\d,]+) indices",
+           _cycle_parameters, "Deep_f32's parameter extent"),
     Figure("ex1_margin/DESIGN", "docs/DESIGN.md",
            r"margin of ([\d.]+)x over the tolerance model",
            _ex1_margin_x100, "EX1's exhaustive gradient margin", scale=100),
