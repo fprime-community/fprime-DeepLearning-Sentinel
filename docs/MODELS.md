@@ -640,6 +640,14 @@ prediction that failed and why. This document follows the same discipline.
   - [66.6 Cost](#666-cost)
   - [66.7 OBSERVED -- the floor is measured, and the prediction that failed is the one worth reading](#667-observed----the-floor-is-measured-and-the-prediction-that-failed-is-the-one-worth-reading)
   - [66.8 Owed](#668-owed)
+- [67 Pre-registration: the sanity band re-run, with a margin derived rather than declared (Phase 5)](#67-pre-registration-the-sanity-band-re-run-with-a-margin-derived-rather-than-declared-phase-5)
+  - [67.1 REQUIREMENTS DERIVED FROM:](#671-requirements-derived-from)
+  - [67.2 Part (ii) is replaced, and the three routes are costed](#672-part-ii-is-replaced-and-the-three-routes-are-costed)
+  - [67.3 The constants, derived from 66.7 and declared before these arms run](#673-the-constants-derived-from-667-and-declared-before-these-arms-run)
+  - [67.4 (!) SB1 IS ALREADY DETERMINED BY 66, AND SAYING SO IS THE POINT](#674-sb1-is-already-determined-by-66-and-saying-so-is-the-point)
+  - [67.5 Predictions](#675-predictions)
+  - [67.6 Falsification, and what this section already expects to find](#676-falsification-and-what-this-section-already-expects-to-find)
+  - [67.7 Cost](#677-cost)
 
 <!-- /toc -->
 
@@ -20099,3 +20107,160 @@ above and is separable by a convergence curve nobody has run.
 
 **A stationarity test with more than six segments.** NF4 held on a band stated in p, and did
 not clear the generator.
+
+## 67. Pre-registration: the sanity band re-run, with a margin derived rather than declared (Phase 5)
+
+**64.7 recorded the pre-launch sanity criterion failing its own test**, for two reasons.
+Part (i)'s 2.0% margin was *"declared here, before the run, and is not derived from a
+number"* and sat below the noise. Part (ii) was **inert**: `src/sentinel_toolkit/statistic.py:65`
+fuses `max(z_residual, z_derivative)` and at the top quantile the derivative set the maximum
+in **7 of 7** steps, so flying and shadow returned cuts and ratios *"identical to six
+figures"*.
+
+**Both are replaced here. 64.3's constants are not touched, read or moved** -- stop 39 binds
+section 64, and is honoured by leaving that section alone rather than by reinterpreting it.
+D74.2 and D74.3 stay exactly as written.
+
+### 67.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 66.7           F = 29.8606%, the measured noise floor, and NF1's
+                                failure: the SEED spread (29.8606%) exceeds the
+                                SEGMENT spread (22.5745%), so the margin is derived
+                                from the larger, as 66.3 declared before either ran
+  docs/MODELS.md 66.3           N, L, HELD and the segmentation, used unchanged
+  docs/MODELS.md 64.7           part (ii) inert, 7 of 7; and "a 6% terminal gain on
+                                2 of 7 channels is averaged across all seven",
+                                moving the held-out residual by 0.03%
+  docs/MODELS.md 64.8           "a future arm needs its drift sized against the
+                                residual it is meant to move, which is a measurement
+                                nobody has made"
+  docs/HARNESS.md:110, :129     a floor is measured and never chosen from results
+  docs/DECISIONS.md D74.2       the two-part reading, REGISTERED, not adopted
+  docs/DECISIONS.md D74.3       and refused by the test D74.2 asked for
+  Objective.md:1065-1067        the gate this criterion is supposed to enforce
+  src/sentinel_toolkit/statistic.py:65
+                                out[:, c] = np.maximum(z_residual, z_derivative) --
+                                the fuse that made part (ii) inert
+  src/sentinel_toolkit/limits.py:28
+                                FLIGHT_ERROR_WINDOW = 2100 -> WARMUP 2,350
+  src/sentinel_toolkit/fit.py:102-104
+                                reuse_weights=False; runs/_weights/ reads 1,313
+  scripts/s64_sanity_band.py:71-87, :90-100
+                                forecast_residual and the two-half calibration,
+                                loaded rather than copied
+```
+
+### 67.2 Part (ii) is replaced, and the three routes are costed
+
+| Route | What it measures | Cost | |
+|---|---|---|---|
+| **(a)** calibration on the **residual channel alone** | `\|1 - holdout/fit\|` with `zstat(smoothed_error)` in place of the fused max | ~zero; `_smoothed_errors` is already computed | **Refused as the gate, kept as a report.** It repairs the inertness, but the stream it calibrates is **not the one the flown rule decides on** -- the flown rule fuses. A gate reporting the calibration of a statistic the component does not use is neither the flown behaviour nor an independent signal. |
+| **(b)** a **one-part gate**, stated as one-part, with the inertness disclosed | part (i) alone | zero | **Refused.** Honest, and it throws away the second signal `Objective.md:1065-1067` asks for. A gate with one term cannot distinguish "predicts better" from "predicts better because it overfits the segment it was handed". |
+| **(c)** the **generalisation gap on the forecast residual** | `\|res_held - res_fit\| / res_fit`, required no larger for the shadow | one extra forecast pass per model over its own fit segment, ~3,650 settled steps | **ADOPTED.** |
+
+**Why (c).** It is **model-dependent by construction**, which is precisely what part (ii) was
+not: no term in it is computed from the telemetry alone, so the 7-of-7 mechanism cannot
+recur. It is label-free. And it tests a **different failure** from part (i) -- part (i) asks
+whether the model predicts well, (c) asks whether it predicts as well on data it never saw as
+on data it fitted, which is the failure mode "fit a fresh segment and swap it in" actually
+has.
+
+**Route (a) is computed anyway and printed REPORTED, NEVER TARGETED.** It costs one call on
+data already in hand, and 64.7's finding deserves a number beside it. **Nothing in the
+criterion reads it.**
+
+### 67.3 The constants, derived from 66.7 and declared before these arms run
+
+```
+  F          29.8606%        66.7's floor, as committed. Not recomputed here.
+  K          2.0330          = 2 * 2.5758 / 2.534
+  margin m   60.71%          = K * F. The shadow's held-out residual must be
+                             <= 0.3929x the flying model's.
+  drift      T = 3.0539x     = 1.2 / (1 - m). The smallest ladder rung whose
+  target                     DRIFTED flying residual reaches T times its clean one.
+  ladder     terminal gains 0.060, 0.25, 0.50, 1.00, 2.00, 4.00, 8.00, on ALL
+             SEVEN channels
+  FLYING     segment 1 [0:6,000]        SHADOW  segment 6 [30,000:36,000]
+  HELD       [36,000:45,000]            seed 0 throughout
+```
+
+**Where K comes from, and it is a derivation and not a preference.** F is the **range of six
+samples**, and the range of a small sample systematically under-estimates the range of the
+thing sampled. For six draws from a normal distribution the expected range is `2.534` standard
+deviations, while a two-sided 99% interval is `2 * 2.5758 = 5.1517` of them. `K = 5.1517 /
+2.534 = 2.0330` is the factor that inflates an observed six-sample range to that interval.
+**The normal assumption is an assumption**, stated here and not tested -- six points cannot
+test it -- and it is the one substantive thing in this section that is argued rather than
+measured.
+
+**Where the drift target comes from.** For the shadow to be able to clear an `m` improvement
+at all, the flying model's drifted residual must reach `1 / (1 - m) = 2.545x` its clean value,
+since the shadow's own residual cannot fall below roughly its clean baseline. `1.2` is a
+stated 20% headroom over that arithmetic bound. **The ladder is searched with the flying model
+only, on HELD, with no fit involved**, so the sizing cannot tune the comparison it feeds.
+
+**All seven channels, and the reason is 64.7's own**: *"a 6% terminal gain on 2 of 7 channels
+is averaged across all seven"*, which moved the held-out residual by **0.03%** and is why SR2
+never reached its question.
+
+**The shadow's segment is the one immediately before HELD**, and the flying model's is the
+oldest, which is 64.3's EARLY/LATE/HELD shape at 66's segment length. The drift ramps from the
+start of the shadow's segment through the end of HELD, so the shadow trains on drifted data
+and the flying model never saw any.
+
+### 67.4 (!) SB1 IS ALREADY DETERMINED BY 66, AND SAYING SO IS THE POINT
+
+Arm A's part (i) can be computed **right now**, from numbers committed in 66.7 before this
+section was written. 66's Arm G fitted every segment at seed 0 and scored it on this same
+HELD:
+
+```
+  flying  segment 1  0.05708135        shadow  segment 6  0.04854805
+  ratio 0.85051 -> a 14.95% improvement, against a required 60.71%
+  -> part (i) FAILS -> Arm A is NOT certified -> SB1 HOLDS
+```
+
+**So SB1 is a consistency check and not a discovery, and it is registered as one.** If the run
+reports anything else, the apparatus has a defect and the defect is the result. Pretending SB1
+is an open question when its inputs are already on the record would be the same error 64.2
+made in a different costume.
+
+**The informative predictions are SB2, SB4 and SB5.**
+
+### 67.5 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **SB1** | **Arm A is NOT certified.** Stationary data, nothing to track | at least one part fails | -- | **both parts pass** -- and then a 60.71% margin certifies noise, which would mean F is not a floor at all |
+| **SB2** | **Arm B IS certified**, at a drift sized to make it possible | **both** parts pass | exactly one passes, and the report names which | neither passes -- **the criterion refuses a drift built to be detectable**, and the gate is unusable at this training length whatever the margin |
+| **SB3** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences reaching any choice | -- | any rate steers any choice |
+| **SB4** | **part (ii) is NOT inert** -- flying and shadow differ on it -- and the two parts agree within each arm | they differ, and agree in verdict in both arms | they differ but disagree in an arm, **which is a result about the criterion and not a failure** | -- |
+| **SB5** | **the ladder reaches its target** | some rung reaches `3.0539x` | -- | the ladder is exhausted -- **no declared drift moves the residual far enough for the criterion to be satisfiable**, and that is the finding |
+
+**SB4 returns NO VERDICT, not HOLD, if flying and shadow agree to within `1e-6` on part (ii)**
+-- that is 64.7's inertness arriving in a new place and must be reported as such rather than
+counted as agreement.
+
+### 67.6 Falsification, and what this section already expects to find
+
+**66.7 said it before this section was written and it is repeated here rather than
+softened**: a gate built on `F = 29.8606%` demands the shadow beat the flying model by tens of
+percent, which no honest retraining run on healthy telemetry will produce. **If SB2 FAILS, the
+finding is about the gate's feasibility at L = 6,000 and NOT about any shadow model**, and it
+does not license moving `m`. Stop 44.
+
+**If SB2 HOLDS it is because the drift was sized to make it possible**, and that is a
+statement about the sizing procedure as much as about the criterion. The report says so.
+
+**`Objective.md` is not edited**, and nothing here is adopted. This produces a candidate
+criterion and a measurement of how it behaves, not a gate.
+
+Stop and report, carrying every stop from 47.12 through 66.5.
+
+### 67.7 Cost
+
+**Four fits at 35 epochs on 6,000 timesteps** -- flying, Arm A's shadow, Arm B's shadow, and
+nothing else re-fitted -- plus the ladder, which is **forecast passes only**. 66 measured
+twelve fits in 2 minutes 1 second. **Zero bucket operations.** `runs/_weights/` must read
+**1,313** before and after. Runner `scripts/s67_sanity_rerun.py`.
