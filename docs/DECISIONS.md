@@ -103,6 +103,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D75 The interim flight target is declared: Raspberry Pi 4 Model B, 4 GB, aarch64, 64-bit Linux](#d75-the-interim-flight-target-is-declared-raspberry-pi-4-model-b-4-gb-aarch64-64-bit-linux)
 - [D76 The flown retrainer warm-starts the shadow from the flying model's weights. There is no random initialisation on the flight path](#d76-the-flown-retrainer-warm-starts-the-shadow-from-the-flying-models-weights-there-is-no-random-initialisation-on-the-flight-path)
 - [D77 N8 is re-derived as a vectors-only figure, which is what it measured. Takes D71 alternative 3, which D71 parked rather than rejected](#d77-n8-is-re-derived-as-a-vectors-only-figure-which-is-what-it-measured-takes-d71-alternative-3-which-d71-parked-rather-than-rejected)
+- [D78 Part (i) of the sanity criterion compares the candidate against a CONTROL SHADOW, not against the flying model. Supersedes D74.4's part (i)](#d78-part-i-of-the-sanity-criterion-compares-the-candidate-against-a-control-shadow-not-against-the-flying-model-supersedes-d744s-part-i)
 
 <!-- /toc -->
 
@@ -6622,3 +6623,130 @@ actually about.
    **244,332 B**. **It is not licence to grow prose**: D64 consequence 5 stands unchanged --
    if tracked content reaches 8 MiB the question is asked again, and the answer may then be
    that prose belongs somewhere else.
+
+---
+
+## D78. Part (i) of the sanity criterion compares the candidate against a CONTROL SHADOW, not against the flying model. Supersedes D74.4's part (i)
+
+**DATE** 2026-09-21 | **STATUS** resolved by the owner as a design decision, after
+`docs/MODELS.md` 74 measured that the term it replaces cannot work. **D74.4's part (ii) is
+unchanged. D76 and D76.1 stand. `Objective.md` is not edited.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** D76's subject is *where the shadow starts*; this is
+about *what the criterion compares*, which is D74's. It is written as a decision rather than as
+D74.5 because it **supersedes** part of an earlier reading rather than extending it, and D69
+superseding D67's consequences 1 and 9 is the house precedent for that shape.
+
+**CONTEXT.** `docs/MODELS.md` 74.7 measured six shadows warm-started from the flying model's
+weights and retrained, one per segment of healthy data. **All six beat the flying model** --
+by between **52.5689%** and **60.9861%** -- **including the one retrained on the flying model's
+own training segment**, where there is no drift, no new data and no later window. The
+improvement is the retraining, not the drift.
+
+So part (i) as D74.4 left it -- the candidate's held-out residual against the **flying
+model's** -- is satisfied unconditionally by any warm-started shadow, and 74.7 showed that no
+choice of floor repairs it: at the largest floor the same measurement implies (27.3251%, margin
+55.5519%) a stationary candidate still clears it.
+
+**THIS IS 74.8's FIRST SHAPE, TAKEN.** 74.8 registered three and argued none: *"compare the
+shadow against the flying model refit on the same segment (which cancels the training advantage
+and measures drift alone)"*, or compare on a window the shadow did not train on, or drop part
+(i) entirely. **The first is adopted.** It is made precise in two ways that shape left open,
+and both are load-bearing rather than editorial:
+
+```
+  the refit is WARM-STARTED    a cold refit would reintroduce the cold/warm asymmetry
+                               that 74.7 measured, and the control would then be worse
+                               than the candidate for the same reason the flying model is
+  the margin has its own floor the control-vs-control spread, measured first, over N
+                               controls on one segment differing only in seed
+```
+
+74.8 stated the three as prose without cost columns. 72.4's three-route table is the form that
+should have been used and is used here.
+
+**DECISION.** Part (i) certifies on the comparison below.
+
+```
+  control   C   warm-started from the flying model's weights, retrained on the FLYING
+                MODEL'S OWN training segment, at the SAME step budget as the candidate
+  candidate S   warm-started from the same weights, retrained on the new segment, same
+                step budget
+  floor     F   the control-vs-control spread: N controls on the flying model's segment,
+                differing only in SEED, measured BEFORE any margin is named (stop 46)
+  margin    m   = K * F, K = 2.0330 from 67.3, imported and not recomputed
+  part (i)      certifies iff  (res_held(C) - res_held(S)) / res_held(C)  >=  m
+```
+
+**C and S differ in exactly one thing: the data they were retrained on.** Same starting
+weights, same budget, same architecture, same scoring window. That is the whole point --
+"the new data changed the answer" is what the criterion is for, and "more training helped" is
+what 74.7 proved the old term was measuring instead.
+
+**ALTERNATIVES, AND WHAT EACH COSTS.**
+
+```
+  1  candidate vs CONTROL SHADOW            TAKEN. Cancels the training advantage by
+     (74.8 shape 1, made precise)           construction. Costs a second trained model
+                                            per certification -- see consequence 3.
+  2  score on a window NEITHER trained on   REFUSED for now. It does not cancel the
+     (74.8 shape 2)                         training advantage: a better-fitted model is
+                                            better on an unseen window too, which is what
+                                            74.7's segment-1 result already showed.
+  3  drop part (i); part (ii) alone         REFUSED. It is what is happening by accident
+     (74.8 shape 3)                         today and 74.7 said so, but Objective.md 12
+                                            asks for "measurably better" and a
+                                            generalisation-gap check is not that. Dropping
+                                            it would be a silent narrowing of the gate.
+```
+
+**CONSEQUENCES.**
+
+1. **D74.4's part (i) is superseded. Its part (ii) is not.** The generalisation gap
+   `|res_held - res_fit| / res_fit` stands exactly as D74.4 wrote it, and it is the term that
+   refused 74.7's stationary arm when part (i) did not.
+
+2. **The floor arc of 66, 67, 69 and 74 measures floors this criterion no longer uses.** Arm G's
+   **6.5687%** and Arm W's **27.3251%** are spreads of shadows compared against the *flying
+   model*, and the comparison has moved. **They are retired as floors, not as measurements** --
+   the same move D76 consequence 2 made -- and 66.7, 69.7 and 74.7 keep them exactly as
+   recorded. **74.8's open question about which of them is operative is dissolved rather than
+   answered: neither is.**
+
+3. **(!) AND THE FLIGHT COST IS REAL, AND IS STATED HERE RATHER THAN DISCOVERED AT
+   INTEGRATION. CERTIFICATION NOW NEEDS TWO TRAINED MODELS, NOT ONE.** There are two routes and
+   neither is free:
+
+   - **The retrainer trains the control too**, which **doubles the training work per
+     certification**. `Objective.md` 11 rule 5 is fixed compute per cycle, and doubling a fixed
+     number is still fixed -- but D73's step budget was derived for one model and would have to
+     be re-derived, or the cycle would take twice as long.
+   - **The ground reproduces the control**, which requires the ground to hold **the flying
+     model's weights** (it does -- it uplinked them) **and the flying model's original training
+     segment** (it may not -- that is mission telemetry from before launch, and nothing in this
+     design has ever required keeping it).
+
+   **Neither route is chosen here.** It is a separate decision and it belongs to whoever costs
+   the downlink and the onboard budget together. **What is refused is pretending the choice
+   does not exist.**
+
+4. **The margin is not a dial and its floor is measured first.** Stop 46 governs: `F` is
+   measured before `m` is named, and `K` is 67.3's, imported. **Nothing about this decision
+   chooses a number.**
+
+5. **It does not make the gate enforceable and that claim is not made.** D76 consequence 7 said
+   the same thing about warm start and was right. What is owed is the arm: the floor measured,
+   then a stationary candidate that must not certify and a drifted one that must. Until that
+   runs, `Objective.md` section 12's gate remains unenforceable and no shadow model may be
+   swapped in.
+
+6. **(!) AND THE WAY THIS CAN FAIL IS NAMED BEFORE IT IS RUN.** The control trains on the
+   flying model's segment and the candidate on a later one. **If the series is non-stationary
+   at all, the candidate is scored on a window nearer its own training data than the control's**
+   -- and it would beat the control for that reason, with no drift present. **If the stationary
+   arm certifies again, the finding is that the gate cannot be built from held-out residuals
+   alone**, and it is reported as that, with the margin untouched. That is the owner's
+   falsification and it is recorded before the arm exists so it cannot be softened afterwards.
+
+7. **Rule 1 is untouched.** The flying model stays frozen, a human still commands any swap, the
+   previous model is retained, and this changes only which comparison a human is shown.

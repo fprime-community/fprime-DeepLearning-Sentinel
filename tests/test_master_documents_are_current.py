@@ -203,6 +203,27 @@ def _cycle_parameters() -> int:
     return int(re.search(r"^let n_params\s*=\s*(\d+)", text, re.M).group(1))
 
 
+def _stationary_vs_control_x10000() -> int:
+    """How much WORSE the stationary candidate is than its control, x10000.
+
+    `docs/MODELS.md` 76.7. This is the number that says the criterion stopped
+    measuring the retraining: against the flying model the same candidate looked
+    +59.9633% better, and against a control that had exactly as much training it
+    is on the wrong side of zero. `master` states it, so `master` has to be able
+    to be wrong about it.
+    """
+    text = _dev("docs/MODELS.md")
+    return round(float(re.search(
+        r"part \(i\) \*\*-([\d.]+)%\*\*, part \(ii\) FAILED", text).group(1)) * 10000)
+
+
+def _drifted_vs_control_x10000() -> int:
+    """How much better the drifted candidate is than its control, x10000. 76.7."""
+    text = _dev("docs/MODELS.md")
+    return round(float(re.search(
+        r"part \(i\) \*\*\+([\d.]+)%\*\* against", text).group(1)) * 10000)
+
+
 def _command_path_chars() -> int:
     """How many characters the reload command's path argument can carry.
 
@@ -264,6 +285,14 @@ FIGURES = (
     Figure("n3_predicted/EVIDENCE", "docs/EVIDENCE.md",
            r"= ([\d,]+) B \+/- 64",
            _n3_predicted_bytes, "N3's predicted footprint"),
+    Figure("stationary_vs_control/DESIGN", "docs/DESIGN.md",
+           r"([\d.]+)% worse than its control",
+           _stationary_vs_control_x10000,
+           "the stationary candidate against its control", scale=10000),
+    Figure("drifted_vs_control/DESIGN", "docs/DESIGN.md",
+           r"([\d.]+)% better than its control",
+           _drifted_vs_control_x10000,
+           "the drifted candidate against its control", scale=10000),
     Figure("command_path_chars/DESIGN", "docs/DESIGN.md",
            r"FW_CMD_STRING_MAX_SIZE, which is (\d+) characters",
            _command_path_chars, "the reload command's path bound"),

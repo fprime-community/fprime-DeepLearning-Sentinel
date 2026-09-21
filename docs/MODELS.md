@@ -718,6 +718,15 @@ prediction that failed and why. This document follows the same discipline.
   - [75.3 (!) `fprime/README.md` NEEDED A `MASTER_PREFIXES` ENTRY, AND THE GUARD WAS BLIND WITHOUT IT](#753-fprimereadmemd-needed-a-master-prefixes-entry-and-the-guard-was-blind-without-it)
   - [75.4 `ExampleSource`, and why it is not instanced](#754-examplesource-and-why-it-is-not-instanced)
   - [75.5 What is NOT claimed](#755-what-is-not-claimed)
+- [76 Pre-registration: part (i) against a control shadow, and the floor it needs (Phase 5)](#76-pre-registration-part-i-against-a-control-shadow-and-the-floor-it-needs-phase-5)
+  - [76.1 REQUIREMENTS DERIVED FROM:](#761-requirements-derived-from)
+  - [76.2 The constants, and the one thing that is measured](#762-the-constants-and-the-one-thing-that-is-measured)
+  - [76.3 The apparatus](#763-the-apparatus)
+  - [76.4 Predictions](#764-predictions)
+  - [76.5 Falsification, and the way this is allowed to fail](#765-falsification-and-the-way-this-is-allowed-to-fail)
+  - [76.6 Cost](#766-cost)
+  - [76.7 OBSERVED -- all six held, and part (i) discriminates for the first time](#767-observed----all-six-held-and-part-i-discriminates-for-the-first-time)
+  - [76.8 Owed](#768-owed)
 
 <!-- /toc -->
 
@@ -21745,10 +21754,38 @@ Carrying every stop through 72, and adding:
 - **The reload was commanded on a host with no link budget, no contention and no radiation.**
 - **No timing figure.** Stop 35.
 
+#### 73.8a Rider, 2026-09-21: the uplink half was run, and HO3's band is now met in the words 65.3 used
+
+**73.8 is not edited.** It recorded HO3 as HELD and said plainly what had not been done:
+*"FileUplink was not exercised. HO3's band names 'FileUplink then a commanded reload', and what
+ran is the commanded reload against a file already on the host... the uplink half is NOT RUN
+and is owed at 73.9."*
+
+**It has now been run.** `fprime-cli file-uplink` sent the approved file to `SentinelRef` over
+the same ground link the candidate downlinks on, and the reload was commanded against **the
+file the uplink produced** rather than one already on disk:
+
+```
+  FileHandling.fileUplink   FileReceived : Received file uplinked.bin      268,224 B
+  sentinelMonitor           ModelLoaded : 8 channels, 2 layers, tier 3
+  sentinelMonitor           ModelReloadAccepted : Model reloaded from uplinked.bin
+```
+
+**So 65.3's wording -- "FileUplink then a commanded reload" -- is met literally**, and HO3's
+HOLD no longer rests on a file that was already there.
+
+**What is still true from 73.8, and is not improved by this**: the file uplinked is a copy of
+the flying model, because 72.4's shape mismatch means this deployment's retrainer cannot build
+a candidate the reload would accept. **The accepting arm tests the command and transport path,
+not the handoff end to end**, and that limitation is unchanged. The candidate the retrainer
+actually writes still downlinks (73.8's HO2) and still cannot come back.
+
 ### 73.9 Owed
 
 **FileUplink, exercised.** The mechanism is present in `SentinelRef` and the ground tool
 (`fprime-cli file-uplink`) exists; what is missing is a run. It is small and it is not done.
+**DISCHARGED 2026-09-21 at 73.8a**, and the sentence stays as written rather than being
+removed.
 
 **A candidate the reload can actually accept.** 72.4's shape mismatch means this deployment's
 retrainer cannot produce one, so HO3's accepting arm had to use a copy of the flying model.
@@ -22083,3 +22120,221 @@ count and not as the event.
 **Nothing moved.** The library stays at `fprime/` under its namespace directory, per F's own
 `docs/how-to/develop/develop-fprime-libraries.md` quoted at `fprime/library.cmake:10-13`, so
 every citation and the cross-branch tree assertion stay valid.
+
+## 76. Pre-registration: part (i) against a control shadow, and the floor it needs (Phase 5)
+
+**D78 is a ruling and it has not been measured.** 74.7 showed that part (i) as D74.4 left it --
+the candidate's held-out residual against the **flying model's** -- is satisfied by any
+warm-started shadow, including one retrained on the flying model's own segment. D78 replaces
+the comparison with one that cancels the training advantage by construction, and says in its
+own consequence 5 that taking it *"does not make the gate enforceable and that claim is not
+made"*. This is the arm.
+
+### 76.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D78         part (i) compares the candidate against a CONTROL SHADOW;
+                                control and candidate differ in exactly one thing, the data
+                                they were retrained on. Supersedes D74.4's part (i).
+  D78, the DECISION block       the floor is the control-vs-control spread, measured FIRST;
+                                m = K * F; part (i) certifies iff
+                                (res_held(C) - res_held(S)) / res_held(C) >= m
+  D78 consequence 1             part (ii) is D74.4's and is UNCHANGED
+  D78 consequence 2             Arm G's 6.5687% and Arm W's 27.3251% are retired AS FLOORS,
+                                not as measurements; neither is operative here
+  D78 consequence 6             the named way this fails: the candidate is scored on a window
+                                nearer its own training data than the control's
+  docs/DECISIONS.md D74.4       part (ii): |res_held - res_fit| / res_fit
+  docs/MODELS.md 66.3           F is a range_rel over N fits; the definition does not move
+  docs/MODELS.md 67.3           K = 2.0330, and the drift ladder and target, all imported
+  docs/MODELS.md 68.2           the plateau geometry: ramp over the segment BEFORE the
+                                shadow's, then FLAT
+  docs/MODELS.md 69.7           Arm S = 31.9283%, the MATCHED comparison done cold -- one
+                                segment, seeds differing, nothing else
+  docs/MODELS.md 74.7           every warm fit beat the flying model by 52.5689% to 60.9861%
+  scripts/s69_floor_and_band.py:42-49
+                                the geometry: 780,000 -> 117,000, L 18,000, N 6, HELD 9,000
+  src/sentinel_models/lstm.py   load_rnn_weights and train(init_weights=...), built at 74.3
+```
+
+### 76.2 The constants, and the one thing that is measured
+
+```
+  K          2.0330       67.3, IMPORTED. Not recomputed.
+  F          MEASURED     the control-vs-control spread. Stop 46: measured BEFORE m is named.
+  m = K * F  follows      nothing in this section chooses a number.
+  drift      T = 3.0539x  67.3's target; the ladder is 67.3's
+```
+
+**Stop 45**: `N`, `L`, `HELD` and the segmentation are 69's. **Stop 44**: the drift multiple is
+67.3's, imported, not chosen after an arm is seen.
+
+### 76.3 The apparatus
+
+```
+  flying      cold fit, segment 1, seed 0                       69's, unchanged
+  ARM C       6 CONTROLS on segment 1, warm from the flying     THE FLOOR
+              weights, seeds 0..5 -- differing in the
+              stochastic order of training and nothing else
+  control     Arm C's seed-0 member, the control of record
+  ARM A       candidate warm on segment 6, NO drift             must NOT certify
+  ARM B       candidate warm on the DRIFTED segment 6           must certify
+```
+
+**Arm B gets its own control**, trained identically on the flying model's segment, so both arms
+compare like with like.
+
+**Part (ii) is D74.4's and is not touched**: candidate against flying. The
+candidate-against-control form is **printed REPORTED, NEVER TARGETED**, so whoever takes the
+next decision has the number and this section does not take it for them.
+
+### 76.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **CT1** | **the warm control-vs-control spread is smaller than the same experiment done cold** -- 69.7's Arm S, one segment, seeds differing | `<` **31.9283%** | -- | `>=` -- and then warm-starting does not reduce seed sensitivity, and the floor this criterion rests on is no tighter than the one it replaced |
+| **CT2** | **Arm A -- a candidate on a later HEALTHY segment -- is NOT certified** | at least one part fails | -- | both parts pass |
+| **CT3** | **Arm B -- a candidate on the drifted segment -- IS certified** | **both** parts pass | exactly one passes, and the report names which | neither passes |
+| **CT4** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences | -- | any rate steers any choice |
+| **CT5** | **the shadow trains on what HELD is scored at** (68.2's geometry) | `\|difference\| <= 1e-4` | -- | anything larger |
+| **CT6** | **the control cancels the training advantage** | Arm A's improvement over the CONTROL is smaller in magnitude than **52.5689%**, 74.7's *smallest* improvement over the flying model | -- | `>=` it -- and the control has cancelled nothing |
+
+### 76.5 Falsification, and the way this is allowed to fail
+
+**If Arm A certifies again, the finding is that the gate cannot be built from held-out
+residuals alone**, and it is reported as that, **with the margin untouched**. That is D78
+consequence 6, stated before this arm existed, and it is the owner's falsification rather than
+one chosen afterwards.
+
+**The mechanism by which it would fail is named in advance**: the control trains on the flying
+model's segment and the candidate on a later one, so the candidate is scored on a window nearer
+its own training data. If the fixture is non-stationary at all, the candidate beats the control
+for that reason and no drift is needed.
+
+**If CT1 fails**, the control-vs-control floor is no tighter than the cold seed floor, and the
+margin D78 derives is correspondingly wide. That is a result about warm-starting, not about the
+criterion, and it does not by itself refuse D78.
+
+### 76.6 Cost
+
+**Ten fits at `L` = 18,000**: one flying model, six controls, one Arm B control, one Arm A
+candidate, one Arm B candidate, plus the ladder (forecast passes only). **Zero bucket
+operations.** `runs/_weights/` reads **1,313** before and after. Runner
+`scripts/s76_control_shadow.py`.
+
+### 76.7 OBSERVED -- all six held, and part (i) discriminates for the first time
+
+**CT1 to CT6 all HELD.** This is the first time in the 64-67-69-74 arc that the criterion has
+been near zero on a stationary arm and large on a drifted one.
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **CT1** | the warm control-vs-control spread is smaller than the same experiment done cold | **8.5234%** against 69.7 Arm S's **31.9283%** -- **3.75x tighter** | **HELD** |
+| **CT2** | Arm A is NOT certified | part (i) **-2.6217%**, part (ii) FAILED. Not certified | **HELD** |
+| **CT3** | Arm B IS certified | part (i) **+42.8489%** against `m` = **17.3281%**, part (ii) PASSED | **HELD** |
+| **CT4** | no target rate is an input | **0** occurrences | **HELD** |
+| **CT5** | the shadow trains on what HELD is scored at | **2.000000** and **2.000000**, difference **0** | **HELD** |
+| **CT6** | the control cancels the training advantage | Arm A improves **2.6217%** over the control against **52.5689%**, 74.7's smallest over the flying model | **HELD** |
+
+#### (!) THE COMPARISON THAT WAS MEASURING TRAINING NOW MEASURES DRIFT
+
+```
+                        vs the FLYING MODEL      vs the CONTROL      m = 17.3281%
+  ARM A  stationary           +59.9633%             -2.6217%         must not certify
+  ARM B  drifted              +73.4794%            +42.8489%         must certify
+```
+
+**The left column is what 74.7 refused and D78 superseded.** It cannot tell the two arms
+apart: 59.96% and 73.48% are the same order of magnitude, and both clear any margin this
+project has derived. **The right column separates them by 45 points**, and the stationary arm
+lands **on the wrong side of zero** -- the candidate is marginally *worse* than a control that
+had exactly as much training on the flying model's own data.
+
+**That is what the gate was supposed to do and had never done.** 64.7 certified a shadow with
+nothing to learn; 69.7's Arm A came out at -0.4102% but on a comparison 74.7 then showed was
+measuring the wrong thing; 74.7's Arm A passed part (i) at +59.9633%. This one is -2.6217%,
+and it is that because the control removed the only thing the candidate had that the flying
+model did not.
+
+#### The floor, and Arm C's six residuals recorded rather than summarised
+
+74.8 owed *"Arm G's six residuals, recorded"* -- 69 kept the spread and not the values, so no
+absolute comparison could be made from the record. **The lesson is applied here.**
+
+```
+  ARM C, six controls on the flying model's own segment, seeds 0..5
+    seed 0  0.02162470      seed 3  0.02123757
+    seed 1  0.02159728      seed 4  0.02262220
+    seed 2  0.02094097      seed 5  0.02079228
+
+  F = range_rel = 8.5234%   std_rel 3.0621%   ->   m = K * F = 17.3281%
+```
+
+**Warm-starting cuts seed sensitivity by 3.75x**: 8.5234% here against 69.7's cold **31.9283%**
+on the same segment with only the seed differing. 69.7 found the cold seed spread *irreducible
+at roughly 30%* and *"no amount of training data touches it"*. **Warm-starting does touch it**,
+because there is no random initialisation left to vary -- only the order of the batches.
+
+#### (!) D78 CONSEQUENCE 6'S NAMED FAILURE DID NOT OCCUR, AND THAT IS WORTH SAYING
+
+D78 c.6 named the way this could fail in advance: the control trains on the flying model's
+segment and the candidate on a later one, so **if the fixture is non-stationary at all the
+candidate would beat the control from window proximity alone**.
+
+**It did not.** Arm A's candidate came out **-2.6217%**, on the wrong side of zero. On this
+fixture, proximity to HELD is worth less than the noise between two controls. **That is a
+property of this fixture and not a general result** -- a mission's telemetry with real seasonal
+structure could still fail exactly this way, and D78 c.6 remains the thing to check first on
+real data.
+
+#### (!) AND THE TWO PARTS NOW DISAGREE ABOUT WHICH BASELINE THEY USE
+
+Part (i) moved to the control. **Part (ii) did not** -- D78 consequence 1 kept D74.4's form
+exactly, candidate against flying -- so the criterion now compares against two different
+baselines in its two terms. The control form was printed REPORTED, NEVER TARGETED:
+
+```
+  ARM A   part (ii) vs FLYING   candidate 0.099544  flying 0.024966   FAIL (refuses)
+          part (ii) vs CONTROL  candidate 0.099544  control 0.177903  would PASS
+  ARM B   part (ii) vs FLYING   candidate 0.065325  flying 2.429212   PASS
+          part (ii) vs CONTROL  candidate 0.065325  control 3.687415  would PASS
+```
+
+**Arm A is refused either way** -- part (i) alone refuses it at -2.6217% -- so nothing in this
+section turns on the choice. **But the two forms disagree on Arm A**, and a criterion whose two
+terms use different baselines is one nobody should have to explain. It is owed at 76.8 and this
+section does not take it.
+
+#### What this does NOT establish
+
+- **The gate is not enforceable.** `Objective.md` section 12 asks for no heap allocation after
+  init, no exceptions, **and** the shadow measurably better on a pre-launch sanity report. The
+  criterion now discriminates **on one synthetic fixture**; nothing about a mission follows.
+- **One fixture, one seed for each candidate, seven synthetic channels.**
+- **The drift is still a sensor doubling its output** -- gain 2.000, 3.3457x. Owed since 68.7.
+- **Nothing here is onboard.** D78 consequence 3's cost stands in full: certification needs
+  **two trained models**, and either the retrainer trains the control -- doubling the training
+  work per cycle, which D73's step budget was not derived for -- or the ground reproduces it,
+  which needs the flying model's original training segment kept somewhere. **Neither route is
+  chosen and this arm does not choose one**; it ran both models on the ground, in a fixture,
+  where the question does not arise.
+- **No timing figure.** Stop 35.
+
+### 76.8 Owed
+
+**(!) WHICH BASELINE PART (ii) USES.** Part (i) now compares against the control and part (ii)
+against the flying model. The two forms disagree on Arm A, and although nothing here turns on
+it, a two-term criterion measuring against two baselines needs one decision, not an accident.
+D78 consequence 1 kept D74.4's form deliberately; changing it is a decision entry's business.
+
+**Which of D78 consequence 3's two routes the flown design takes**, and what it costs. Doubling
+the onboard training work, or keeping the flying model's original training segment where the
+ground can reach it. **Neither is free and neither is chosen.**
+
+**A realistic drift magnitude.** Unchanged from 68.7, 69.8, D76 c.7 and 74.8.
+
+**The same arm on data with real seasonal structure**, because D78 consequence 6's failure mode
+is a property of the data and this fixture happens not to have it.
+
+**A control trained at a different step budget from the candidate**, to check that the
+cancellation is the *data* and not an artefact of the budgets matching exactly.

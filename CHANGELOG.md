@@ -14,6 +14,65 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.74] - 2026-09-21 - Part (i) is rebuilt against a control shadow, and the gate discriminates for the first time
+
+**`docs/DECISIONS.md` D78, `docs/MODELS.md` 76, rider 73.8a.** CT1 to CT6 **all HELD**.
+
+74.7 measured that part (i) was satisfied by the retraining rather than by the drift: every
+warm-started shadow beat the flying model, including one retrained on the flying model's own
+segment. **D78 replaces the comparison.** The candidate is measured against a **control** that
+differs from it in exactly one thing -- the data it was retrained on. Both warm-start from the
+flying model's weights, both train at the same step budget; the control on the flying model's
+own segment, the candidate on the new one.
+
+**It is 74.8's first shape, taken**, made precise in two ways that shape left open: the refit is
+**warm-started** (a cold one would reintroduce the asymmetry 74.7 measured), and the margin gets
+**its own floor** -- the control-vs-control spread, measured before any margin is named.
+
+### The comparison that was measuring training now measures drift
+
+```
+                        vs the FLYING MODEL      vs the CONTROL      m = 17.3281%
+  ARM A  stationary           +59.9633%             -2.6217%         must not certify
+  ARM B  drifted              +73.4794%            +42.8489%         must certify
+```
+
+**The left column cannot tell the arms apart**; the right separates them by 45 points and puts
+the stationary arm on the wrong side of zero. **That is what the gate was supposed to do and had
+never done** -- 64.7 certified a shadow with nothing to learn, and 74.7's stationary arm passed
+part (i) at +59.9633%.
+
+**The floor: F = 8.5234%**, from six controls on one segment differing only in seed, against
+69.7's cold **31.9283%** on the same experiment. **Warm-starting cuts seed sensitivity 3.75x**,
+because there is no random initialisation left to vary. Arm C's six residuals are recorded, not
+summarised -- 74.8 owed exactly that lesson from 69.
+
+**D78 consequence 6's named failure did not occur.** It said in advance that the candidate might
+beat the control from window proximity alone. It came out **-2.6217%**. That is a property of
+this fixture and not a general result, and a mission with real seasonal structure could still
+fail exactly that way.
+
+### And what it costs, stated rather than discovered
+**Certification now needs two trained models.** Either the retrainer trains the control too --
+doubling the training work per cycle, which D73's step budget was not derived for -- or the
+ground reproduces it, which needs the flying model's original training segment kept where the
+ground can reach it. **Neither route is chosen. What is refused is pretending the choice does
+not exist.**
+
+**The two parts now use different baselines**: part (i) against the control, part (ii) against
+the flying model, because D78 c.1 kept D74.4's form deliberately. They disagree on Arm A, which
+is refused either way. Owed at 76.8.
+
+### 73.8a: the uplink half was run
+73.8 said plainly that FileUplink was not exercised. It has been:
+`FileUplink.FileReceived` then `ModelReloadAccepted` on the uplinked file, so 65.3's wording --
+*"FileUplink then a commanded reload"* -- is met literally. What is unchanged is that the file
+uplinked is a copy of the flying model, because 72.4's shape mismatch means the retrainer cannot
+build one the reload would accept.
+
+**The gate is still not enforceable and that claim is not made.** The criterion discriminates on
+one synthetic fixture. Zero bucket operations; `runs/_weights/` reads **1,313** before and after.
+
 ## [0.6.73] - 2026-09-21 - The stale-figure sweep, and the tracked-size figure that three documents disagreed about
 
 **Live prose only. No record is edited.**

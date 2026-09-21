@@ -172,7 +172,7 @@ does not do.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
   `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
   linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
-  in `CHANGELOG.md` 0.6.1 to 0.6.72 with the artifact behind every figure.
+  in `CHANGELOG.md` 0.6.1 to 0.6.74 with the artifact behind every figure.
 - **Branches, and there are two.** `dev` carries the complete development history, decision
   by decision, with tags `wi1`-`wi9` and their Releases; all work lands there and it is
   **never rewritten**. `master` is the public branch and the repository default - the
@@ -213,7 +213,7 @@ Training runs in PyTorch; scoring and the Phase 2 C++ run from the plain-NumPy r
 | `src/sentinel_export/` | the `model.bin` writer and the reader that mirrors the flight one; format frozen at version 1 (D30), specified in `docs/MODEL_FILE.md` |
 | `scripts/` | analysis and pod scripts; every one that touches R2 refuses the held-back sets and writes its artifact before the ledger |
 | `flight/` | the C++ inference core: the GRU forward pass and the frozen decision layer, the `model.bin` reader, and the golden vectors. No exceptions, no STL, no allocation |
-| `tests/` | 769 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
+| `tests/` | 770 tests at zero R2 operations, including the layering rule, the reference-equivalence assertion and the C++ suite |
 | `docs/` | the documents - see `docs/INDEX.md` |
 | `third_party/` | telemanom's published source, pinned at commit `2e6c5b6c`, **vendored as evidence and never a dependency** (D53). Nothing imports it and nothing executes it; `docs/TELEMANOM_EXCERPTS.md` indexes every citation into it |
 | `runs/` | weights and scorecards, gitignored outputs; never data |
