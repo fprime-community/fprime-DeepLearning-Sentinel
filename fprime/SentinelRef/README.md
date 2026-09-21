@@ -34,13 +34,21 @@ when one is there.
 | `PowerSim/` | the physics testbed -- coupled current, heat, temperature and voltage with declared limits, wired to the component's input port (`docs/MODELS.md` 42) |
 | `Retrainer/` | **the OxCaml retrainer component.** It lives here and is registered here (`CMakeLists.txt:27`), but it is **instanced only by `SentinelRetrain`** |
 | `ExampleAdapter/` | the forty-line Passive Adapter Pattern example a mission copies to wire its own channels in (`ExampleAdapter/ChannelAdapter.cpp`). The pattern itself is written up on `master` in its `docs/DESIGN.md` section 8 |
+| `ExampleSource/` | a deterministic synthetic feed -- **not a sensor and not a model of one** -- so the adoption chain source -> adapter -> Monitor can be read in one place without reading `PowerSim/` (`docs/MODELS.md` 75) |
 | `HubCounter/` | the tap that counts the hub crossing where the hub emits, so a delivery rate is not taken from the ground (`docs/MODELS.md` 70.6, 71). FPP module `HubTap` |
 | `Main.cpp` | the deployment entry point |
 
-`PowerSim/`, `Retrainer/`, `ExampleAdapter/` and `HubCounter/` are registered in this
-deployment's own `CMakeLists.txt` rather than in `fprime/library.cmake`, and the reason is the
-same for all four: that file exports what a mission adopting Sentinel consumes, and a simulated
-battery, an OCaml runtime, example code and a test instrument are none of them.
+`PowerSim/`, `Retrainer/`, `ExampleAdapter/`, `ExampleSource/` and `HubCounter/` are registered
+in this deployment's own `CMakeLists.txt` rather than in `fprime/library.cmake`, and the reason
+is the same for all five: that file exports what a mission adopting Sentinel consumes, and a
+simulated battery, an OCaml runtime, example code and a test instrument are none of them.
+
+**(!) `ExampleAdapter/` and `ExampleSource/` are registered but NOT instanced.** This
+deployment feeds `sentinelMonitor.channelsIn` from `powerSim`, and that is a single `sync`
+input port -- a second producer on it would make the testbed's recorded run
+(`docs/MODELS.md` 42.9) non-deterministic, and instancing would move `connections RateGroups`,
+which 65's DP3 recorded byte-identical. They are example code to read and copy, and
+`fprime-util build -p ./SentinelRef` does not build either: build them by their own paths.
 
 ## The instances, and the base-id convention
 

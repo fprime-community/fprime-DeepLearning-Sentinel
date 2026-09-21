@@ -35,6 +35,7 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ExampleAdapter/")
 # The hub tap (docs/MODELS.md 70.6). Registered HERE for the same reason the
 # other three are: fprime/library.cmake exports what a mission adopting Sentinel
 # consumes, and measurement apparatus is not that.
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ExampleSource/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/HubCounter/")
 
 register_fprime_deployment(

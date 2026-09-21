@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`14807b4`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`8a35810`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -86,13 +86,15 @@ What the pre-registration commits to, so it can be held to it:
   dictionary limits and an anonymised clock. It is item B's, on a real clock.
 - Three improvement arms unrun and three predictions unadjudicated, named in
   `docs/EVIDENCE.md` section 9.
-- **The pre-launch sanity gate is unenforceable.** The design decision it was blocked on has
-  been taken -- the shadow is initialised from the flying model's weights, so there is no
-  random initialisation on the flight path and the smaller of the two measured noise floors
-  is the operative one. **Taking it removed the blocker and did not make the gate usable**,
-  and that claim is not made: every arm run so far was a cold fit, and what is owed is an arm
-  in which the shadow is actually warm-started, at a drift magnitude more realistic than a
-  sensor doubling its output. `docs/DESIGN.md` 9.
+- **The pre-launch sanity gate is unenforceable, and the arm that was owed to show it has now
+  been run.** It found that **a warm-started shadow beats the flying model whether or not
+  anything has drifted** -- including one retrained on the flying model's own training data.
+  The gate's first term is therefore satisfied by the retraining itself and cannot tell *the
+  spacecraft changed* from *the shadow ran for longer*; no threshold repairs a term that passes
+  unconditionally. **What is owed is a decision about what that term should compare**, with
+  three shapes costed on `dev` and none argued. `docs/DESIGN.md` 9.
+- **A drift magnitude that is operationally realistic**, rather than a sensor doubling its
+  output. Unchanged.
 - **Nothing onboard scores a candidate model.** The retraining process can write one, this
   branch's loader accepts it, the file downlink carries it to the ground and a command reloads
   an approved one -- but both parts of the sanity criterion are computed on the ground from

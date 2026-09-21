@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`14807b4`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`8a35810`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -367,11 +367,31 @@ a regime absent from the original training set -- is inherited by every shadow t
 produce. It buys adaptation and gives up correction, and a mission whose problem is the second
 one is not served by it.
 
-**Taking that decision removes the blocker; it does not make the gate enforceable, and that
-claim is not made.** What is still owed is an arm in which the shadow is actually warm-started
--- every arm run so far was a cold fit -- and a drift magnitude that is operationally realistic
-rather than a sensor doubling its output. Until those exist, **`Objective.md` section 12's gate
-remains unenforceable**, and no shadow model may be swapped in.
+**Taking that decision removed the blocker and did not make the gate usable, and the arm that
+was owed to show it has now been run.** It found something worse than a missing measurement.
+
+**(!) A warm-started shadow is better than the flying model whether or not anything has
+drifted.** Six shadows were warm-started from the flying model's weights and retrained, one on
+each segment of healthy data -- and **every one of them beat the flying model by a wide margin,
+including the one retrained on the flying model's own training data.** No drift. No new data.
+No later segment. Just more training.
+
+**So the gate's first term -- "the shadow is measurably better" -- is satisfied by the
+retraining itself.** It cannot distinguish *the spacecraft changed* from *the shadow ran for
+longer*, and no choice of threshold repairs a term that passes unconditionally: the arm's own
+arithmetic shows a stationary shadow clearing even the larger margin the same measurement would
+imply. The second term -- a generalisation-gap check -- refused the stationary arm, and it was
+the only thing that did.
+
+**That is the earlier failure in mirror image.** The first version of this criterion had an
+inert second term and a first term carrying the gate, and it certified a shadow with nothing to
+learn. This version has an inert *first* term and a second one carrying the gate alone. **Until
+a decision is taken about what the first term should compare** -- three shapes are costed on
+`dev` and none has been argued -- **`Objective.md` section 12's gate remains unenforceable**,
+and no shadow model may be swapped in.
+
+Still owed alongside it: a drift magnitude that is operationally realistic rather than a sensor
+doubling its output.
 
 **The candidate reaches the ground and a reload can be commanded.** The file downlink carries
 it, a single command loads an approved model into the running detector, and the model it
