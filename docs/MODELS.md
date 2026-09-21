@@ -658,6 +658,13 @@ prediction that failed and why. This document follows the same discipline.
   - [68.5 Cost](#685-cost)
   - [68.6 OBSERVED -- the fix worked as a fix, and the criterion still refuses the arm](#686-observed----the-fix-worked-as-a-fix-and-the-criterion-still-refuses-the-arm)
   - [68.7 Owed, and the one item that now blocks the rest](#687-owed-and-the-one-item-that-now-blocks-the-rest)
+- [69 Pre-registration: the floor and the band at the flown training length (Phase 5)](#69-pre-registration-the-floor-and-the-band-at-the-flown-training-length-phase-5)
+  - [69.1 REQUIREMENTS DERIVED FROM:](#691-requirements-derived-from)
+  - [69.2 (!) THE MARGIN FORMULA IS FIXED BEFORE ANYTHING RUNS, AND ONLY F IS MEASURED](#692-the-margin-formula-is-fixed-before-anything-runs-and-only-f-is-measured)
+  - [69.3 The apparatus](#693-the-apparatus)
+  - [69.4 Predictions](#694-predictions)
+  - [69.5 Falsification, and what each outcome is allowed to mean](#695-falsification-and-what-each-outcome-is-allowed-to-mean)
+  - [69.6 Cost](#696-cost)
 
 <!-- /toc -->
 
@@ -20563,3 +20570,109 @@ still the thing that selects which of the two spreads is the operative floor.
 **A drift magnitude that is operationally realistic.** The gain taken here is **1.000 ->
 2.000 on all seven channels**, which is a sensor doubling its output. Nothing here says the
 criterion can see the drifts that matter, and the arm was never built to.
+
+## 69. Pre-registration: the floor and the band at the flown training length (Phase 5)
+
+**68.7 promoted one owed item to blocking.** 66.7 measured `F = 29.8606%` at `L = 6,000` and
+left two readings open -- either residual noise scales that steeply with training length, or
+*"6,000 timesteps is below the length at which this architecture fits stably at all and the
+spread is mostly a failure to converge."* 68.6 measured the consequence: the margin derived
+from that floor refuses the most favourable arm this project can honestly build, by **10.59
+percentage points**, and for Arm B to clear part (i) `F` would have to be **24.6504%**.
+
+**This section separates the two readings by measuring the floor where the fits have
+converged, and then runs the band there.**
+
+### 69.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 68.6, 68.7     the shortfall of 10.59 points, F <= 24.6504% required,
+                                and "a floor measured on fits that have converged" as
+                                the blocking item
+  docs/MODELS.md 68.2           the plateau drift geometry, which SC6 confirmed took
+  docs/MODELS.md 67.3           K = 2.0330, the drift target 3.0539x and the ladder --
+                                IMPORTED from that runner, never restated
+  docs/MODELS.md 66.3, 66.7     the two-arm floor design, and F = 29.8606% at L = 6,000
+                                as the figure NG1 tests against
+  docs/MODELS.md 64.3           L = 18,000, this project's own flown training length,
+                                which this section restores
+  src/sentinel_toolkit/selftest.py:42-66
+                                healthy_run returns the LONGEST CONTIGUOUS anomaly-free
+                                run. Measured 2026-09-21: 45,000 at n=300,000, 90,000 at
+                                n=600,000, 180,000 at n=1,200,000 -- linear at 15.0%, so
+                                n=780,000 gives 117,000 = 6*18,000 + 9,000 exactly
+  src/sentinel_toolkit/fit.py:102-104
+                                reuse_weights=False; runs/_weights/ reads 1,313
+```
+
+### 69.2 (!) THE MARGIN FORMULA IS FIXED BEFORE ANYTHING RUNS, AND ONLY F IS MEASURED
+
+`m = K * F`, with `K = 2.0330` imported from 67's runner. **Nothing in this section chooses a
+number.** F is measured by the same two-arm procedure 66.3 declared, at the new length; `m`
+follows from it arithmetically. **If `F` comes out larger than 66.7's, `m` gets larger and the
+band gets harder** -- the formula is not permitted to know which direction is convenient.
+
+**66.7's `F = 29.8606%` is not superseded and not moved.** It is the floor at `L = 6,000` and
+remains exactly that. This measures a **different floor at a different training length**, and
+the two are reported side by side.
+
+### 69.3 The apparatus
+
+```
+  fixture    synthetic.build(seed=0, n=780_000) -> healthy_run -> 117,000 expected
+  L          18,000        64.3's own training length, restored
+  segments   6 x 18,000 over [0:108,000), disjoint, in time order
+  HELD       last 9,000 = [108,000:117,000], settled 6,650
+  FLYING     segment 1     SHADOW  segment 6 [90,000:108,000]
+  drift      ramp over segment 5 [72,000:90,000), then FLAT from 90,000 to the end --
+             68.2's geometry, so the shadow's whole segment and all of HELD sit at one
+             constant gain
+  ladder     0.060, 0.25, 0.50, 1.00, 2.00, 4.00, 8.00 on ALL SEVEN channels
+  criterion  part (i) residual <= (1 - m) x flying; part (ii) 67.2's route (c)
+```
+
+**If the healthy run is shorter than `6 * 18,000 + 9,000`, the section STOPS and reports
+rather than re-shaping the segmentation to fit** -- re-shaping after seeing what is available
+is how a floor becomes a dial.
+
+### 69.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **NG1** | **`F` falls at the longer training length** -- 66.7's second reading, that `L = 6,000` was undertrained | `F < 29.8606%` | -- | `F >= 29.8606%` -- **then residual noise really is that large and the first reading is right**, and no margin derived this way can ever be cleared. That is a finding about the criterion's whole shape |
+| **NG2** | **the seed spread is smaller than the segment spread at this length** -- 66's NF1, re-asked where the fits converge | Arm S's range `<` Arm G's | -- | Arm S's range `>=` Arm G's, as at `L = 6,000` -- and then **NF1's failure was not an artefact of undertraining** and the seed question of 66.8 becomes urgent rather than open |
+| **SD1** | **Arm A is NOT certified** | at least one part fails | -- | both parts pass |
+| **SD2** | **Arm B IS certified** | **both** parts pass | exactly one passes, and the report names which | neither passes |
+| **SD3** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences | -- | any rate steers any choice |
+| **SD4** | **part (ii) is not inert, and the parts agree within each arm** | they differ and agree in verdict | they differ but disagree in an arm | -- |
+| **SD5** | **the ladder reaches its target** | some rung reaches `3.0539x` | -- | the ladder is exhausted |
+| **SD6** | **the shadow trains on what HELD is scored at** | `\|difference\| <= 1e-4` | -- | anything larger -- the geometry regressed and SD2 means nothing |
+
+### 69.5 Falsification, and what each outcome is allowed to mean
+
+**NG1 is the load-bearing one.** If `F` falls sharply, 66.7's *"failure to converge"* reading
+is supported and `F = 29.8606%` is retired as a property of an undertrained configuration --
+**not as an error, and 66.7 is not amended.** If `F` does not fall, the criterion's first part
+cannot be satisfied by any shadow at any training length this project can reach, and **that is
+the result**, reported as the end of this line of work rather than as a setback.
+
+**SD2 HOLDING does not make the criterion safe, and the report will say so.** It would show
+that a margin derived from a converged floor can distinguish a shadow that tracked a large
+declared drift from one that did not. It would **not** show that the criterion catches
+operationally realistic drifts, that `Objective.md:1065-1067`'s gate is enforceable, or that
+anything should be adopted. **`Objective.md` is not edited and nothing is adopted.**
+
+**SD2 FAILING after NG1 HOLDS would be the most informative outcome of the three sections**,
+because it would rule out training length as the explanation and leave the criterion's shape
+as the only remaining suspect.
+
+Stop and report, carrying every stop from 47.12 through 68.
+
+### 69.6 Cost
+
+**Fifteen fits at 35 epochs on 18,000 timesteps** -- twelve for the floor, three for the arms
+-- plus the ladder, which is forecast passes only, and a fixture build at `n = 780,000`.
+64 measured four fits at this length at **80 s**, so fifteen is about **5 minutes**; the
+fixture build is about **25 s**, interpolated from the three measured above. **Zero bucket
+operations.** `runs/_weights/` must read **1,313** before and after. Runner
+`scripts/s69_floor_and_band.py`.
