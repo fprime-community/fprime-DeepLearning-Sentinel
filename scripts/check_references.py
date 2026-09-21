@@ -69,10 +69,20 @@ MASTER_PREFIXES = (
 MASTER_ONLY_PREFIXES = ("LICENSE", "docs/DESIGN.md", "docs/EVIDENCE.md")
 
 #: Documents whose citations are checked. Source files cite too, and are included.
+#:
+#: (!) UNTRACKED-BUT-NOT-IGNORED FILES ARE INCLUDED, AND THE REASON IS A REAL MISS.
+#: This used to be `git ls-files` alone, which meant a brand-new document was not
+#: scanned at all until the commit that added it -- so the checker reported "every
+#: citation resolves" on a working tree containing two broken ones, and both were
+#: found only afterwards. That is the worst possible moment for a guard to be quiet:
+#: the commit adding a document is exactly the one a reader would trust. `--others
+#: --exclude-standard` adds what a human would call "the new files" and nothing
+#: `.gitignore` excludes, so `runs/` and the build trees stay out.
 def tracked() -> list[str]:
-    out = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True,
-                         capture_output=True, text=True).stdout.split()
-    return out
+    def ls(*args: str) -> list[str]:
+        return subprocess.run(["git", "ls-files", *args], cwd=ROOT, check=True,
+                              capture_output=True, text=True).stdout.split()
+    return ls() + ls("--others", "--exclude-standard")
 
 
 #: Files that quote citation forms in order to TALK about them rather than to
