@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`8851e35`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`5f0e382`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -108,9 +108,15 @@ path performs no allocation is a candidate for onboard model retraining. It bega
 computing a sum and a mean, to prove a chain -- compile, link, runtime startup, the C
 boundary, F' integration -- and it proved it. It now drives a **real float32 training cycle**
 at a fixed step budget, in **its own deployment and its own OS process**
-(`fprime/SentinelRetrain/`), and a full cycle crosses from that process to this one over an
-F' hub. `docs/DESIGN.md` 9 says why the process must be separate, what is proven and what is
-not, with the case against OxCaml stated in the same passage.
+(`fprime/SentinelRetrain/`), a full cycle crosses from that process to this one over an F'
+hub with every tick delivered, and that process now **writes a candidate model file this
+branch's own loader accepts**. `docs/DESIGN.md` 9 says why the process must be separate, what
+is proven and what is not, with the case against OxCaml stated in the same passage.
+
+**The candidate is not a replacement for the model this deployment flies**, and the reason is
+a shape mismatch rather than a bug: the training cycle is fixed at the configuration maxima
+and the reference deployment's model is narrower, so the writer refuses to put one
+architecture's weights into the other's container. `docs/DESIGN.md` 9 carries it.
 
 **What it is not.** Not adopted, not flown, not on any path the detector takes, and not
 exported: `fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so a mission

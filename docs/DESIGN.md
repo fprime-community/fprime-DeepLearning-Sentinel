@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`8851e35`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`5f0e382`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -307,22 +307,64 @@ starts inside a real F' deployment binary and runs a cycle per tick. Two deploym
 across a `Svc::GenericHub`, carrying **serialized values only**, and a full cycle crosses
 from the retrainer's process into the detector's and on to the ground.
 
+**The crossing is not lossy, and that is now measured rather than owed.** A passive tap inside
+the deployment counts what the hub emits, because the ground is downstream of the telemetry
+database and the decoder and cannot see the crossing at all. Over `Drv.Udp` **every tick
+delivered every channel and the event**; over a stream transport **none did**, because the hub
+dispatches on an exact size match and drops anything else silently, so two messages that
+coalesce into one read are both lost. The substitution to a datagram transport was registered
+before the number that forced it.
+
+**And the retrainer's process now writes a candidate model file that this branch's own loader
+accepts.** The retraining process builds it as the flying file with new weights -- copying the
+bytes, overwriting the weights payload and patching the two CRCs, touching no shape field and
+leaving `format_version` at 1 -- and `Detector::load` returns `OK` on the result. One flipped
+weights byte still returns `BAD_STATIC_CRC`. The file's own static CRC is reported in an event
+that travels by a different path from the file, so the ground checks the bytes it received
+against a number that did not arrive with them.
+
 ### What is not
 **The pre-launch sanity report is not a usable gate yet, and that is measured rather than
 suspected.** A criterion was built, tested against a model that had nothing to learn, and
 **certified it** -- so it was rebuilt from a measured noise floor instead of a chosen margin.
-The rebuilt second term works and discriminates strongly; the first term is now blocked on a
-design decision nobody has taken -- whether the onboard retrainer reproduces the flying
-model's random seed -- because that decision selects between two noise floors whose margins
-differ by a factor of nearly five. Until it is taken, **`Objective.md` section 12's gate
+The rebuilt second term works and discriminates strongly. The first term was blocked on a
+design decision nobody had taken -- whether the onboard retrainer reproduces the flying model's
+random seed -- because that decision selected between two noise floors whose margins differ by
+a factor of nearly five.
+
+**That decision has since been taken: the shadow is initialised from the flying model's
+weights and fine-tuned, so there is no random initialisation on the flight path and no seed to
+reproduce.** The smaller floor is the operative one and the margin follows from a factor fixed
+before any floor was measured. **The trade-off is real and is stated rather than discovered
+later: a warm-started shadow tracks drift, it does not re-learn.** It begins at the flying
+model's answer, so a systematic error in the flown weights -- a channel it never modelled well,
+a regime absent from the original training set -- is inherited by every shadow this design will
+produce. It buys adaptation and gives up correction, and a mission whose problem is the second
+one is not served by it.
+
+**Taking that decision removes the blocker; it does not make the gate enforceable, and that
+claim is not made.** What is still owed is an arm in which the shadow is actually warm-started
+-- every arm run so far was a cold fit -- and a drift magnitude that is operationally realistic
+rather than a sensor doubling its output. Until those exist, **`Objective.md` section 12's gate
 remains unenforceable**, and no shadow model may be swapped in.
 
-**Also not proven:** that the crossing is lossless -- half that measurement needs a counter
-inside the deployment that does not exist yet; that any of this runs on flight hardware
+**And the candidate the retrainer writes is not a replacement for the model this deployment
+flies.** The training cycle is fixed at the configuration maxima and the reference deployment's
+model is narrower, so the two weight blocks are different sizes and the writer refuses the
+mismatch -- correctly, because writing one architecture's numbers into another's container
+produces a file that loads and means nothing. **The retraining engine can produce a candidate;
+it cannot yet produce a candidate for this mission.**
+
+**Also not proven:** that any of this runs on flight hardware
 (**E5 is HOST-VERIFIED PENDING TARGET**); that the separate process actually isolates the
 detector's timing (**C2**, unverified -- this host's power management downclocks an idle core
 and the confound exceeds the effect); and that the toolchain builds for the flight target at
 all (**C4**, unverified). **No timing figure from any of this work should be quoted.**
 
-The full record is on `dev`: `docs/DECISIONS.md` D70, D73 and D74 with its riders, and
-`docs/MODELS.md` sections 47 through 70.
+**Nothing onboard scores a candidate.** The metrics that cross with it are the cycle's own --
+the file's length and CRC, the step count, the loss, the sample count -- and none of them is
+either part of the sanity criterion. **Both parts are computed on the ground from the
+downlinked candidate.** Onboard held-out scoring does not exist and is owed.
+
+The full record is on `dev`: `docs/DECISIONS.md` D70, D73, D74 with its riders, D76 and D77,
+and `docs/MODELS.md` sections 47 through 72.
