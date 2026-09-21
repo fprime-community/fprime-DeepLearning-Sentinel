@@ -186,6 +186,25 @@ def _alarm_rate_x10000() -> int:
     return int(round(float(_d65_row("frozen (stage 4)")[0]) * 10000))
 
 
+def _ex1_margin_x100() -> int:
+    """EX1's EXHAUSTIVE gradient margin, x100, re-derived from the worst ratio.
+
+    `docs/MODELS.md` 64.7 records the exhaustive worst `err/allowed` over all 75,360
+    indices and states the margin that follows from it. The margin is `1 / ratio`, so
+    this reads the ratio -- the measured quantity -- and does the arithmetic, rather
+    than reading back the number the document states about itself.
+
+    It exists because `master` now quotes the margin, and 60.7's sampled **5.3x** was
+    wrong by 1.63x for two months before 64 checked every index (`docs/MODELS.md` 60.6b,
+    63.6a). A figure that moved once should not be stated anywhere unguarded.
+    """
+    text = _dev("docs/MODELS.md")
+    m = re.search(r"is (0\.\d+), so the margin is [\d.]+x, not", text)
+    assert m, ("docs/MODELS.md no longer states EX1's exhaustive worst ratio in the form "
+               "this guard reads; either 64.7 was reworded or the figure moved")
+    return int(round(100.0 / float(m.group(1))))
+
+
 @dataclass(frozen=True)
 class Figure:
     key: str
@@ -212,6 +231,9 @@ FIGURES = (
     Figure("n3_predicted/EVIDENCE", "docs/EVIDENCE.md",
            r"= ([\d,]+) B \+/- 64",
            _n3_predicted_bytes, "N3's predicted footprint"),
+    Figure("ex1_margin/DESIGN", "docs/DESIGN.md",
+           r"margin of ([\d.]+)x over the tolerance model",
+           _ex1_margin_x100, "EX1's exhaustive gradient margin", scale=100),
     Figure("refusal_codes/README", "README.md",
            r"exercising all (\d+) refusal codes",
            _refusal_codes, "refusal codes in Status.hpp"),

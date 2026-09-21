@@ -14,6 +14,36 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.66] - 2026-09-21 - The customer branch says what the retrainer is, and the 3.26x margin gets a guard and two riders
+
+**`master` gains `docs/DESIGN.md` section 9.** The branch has shipped a retrainer since
+2026-09-15 while section 3 said *"No online learning. Ever."* four lines under a rule that
+permits exactly this, and a reader could not tell which half was true. The two are reconciled
+where the contradiction is: **online learning means the FLYING model updates itself from the
+telemetry it is judging**, which stays forbidden; the retrainer trains a **shadow** model in a
+separate process from a frozen snapshot and only **offers** a swap. Rule 1's own words --
+*retraining is explicit and human-approved* -- are what make both sentences true.
+
+The case **against** OxCaml is stated in the same passage as the case for it, including the
+two findings that were discovered rather than anticipated, the second of which a reader should
+weigh most: **the runtime's thread affinity is a deployment constraint unit-test evidence
+cannot show.** "What is not proven" is the longer subsection.
+
+**`master:README.md` is corrected twice**: the engine no longer *"computes a sum and a mean
+and contains no machine learning"*, and *"the experiment that would decide whether the
+approach survives has not been run"* stopped being true when the runtime booted inside a real
+deployment. The "What is here" table gains the second deployment, which it had never listed.
+
+### The 3.26x margin is guarded and the two live 5.3x sites get riders
+`master` now quotes the gradient margin, so
+`tests/test_master_documents_are_current.py` re-derives it on `dev` **from the exhaustive
+worst ratio**, doing the arithmetic rather than reading back a number the document states
+about itself. It is guarded because the sampled **5.3x** that preceded it was wrong by
+**1.63x** for two months. **60.6b** and **63.6a** are riders on the two places that still
+asserted it as live -- 60.6's *"still 5.3x clear"* and OW5's headroom row -- and **neither
+verdict moves**: 3.26x clears the `>= 1.0x` band both were judged against. The remaining
+mentions on `dev` are correct quotations of 60.7 and stay.
+
 ## [0.6.65] - 2026-09-21 - The hub is built and a cycle crosses two processes, and the half of the band the apparatus could not measure is said to be unmeasured
 
 **`docs/MODELS.md` 70.** 65's bands are quoted, not re-registered; what 70 registers is the

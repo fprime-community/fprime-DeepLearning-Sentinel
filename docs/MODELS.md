@@ -585,6 +585,7 @@ prediction that failed and why. This document follows the same discipline.
   - [60.5 Cost, and stop and report](#605-cost-and-stop-and-report)
   - [60.6 OBSERVED -- the whole cycle holds at float32, and the square root needed no primitive at all](#606-observed----the-whole-cycle-holds-at-float32-and-the-square-root-needed-no-primitive-at-all)
   - [60.6a (!) Rider, 2026-09-20: the recorded AS4 figure needs an argument the runner does not pass, and neither figure is a bound](#606a-rider-2026-09-20-the-recorded-as4-figure-needs-an-argument-the-runner-does-not-pass-and-neither-figure-is-a-bound)
+  - [60.6b (!) Rider, 2026-09-21: "still 5.3x clear" is a sampled figure and the exhaustive one is 3.26x](#606b-rider-2026-09-21-still-53x-clear-is-a-sampled-figure-and-the-exhaustive-one-is-326x)
   - [60.7 Owed](#607-owed)
 - [61 Pre-registration: E5-c, the cycle driven through F' ports (Phase 5)](#61-pre-registration-e5-c-the-cycle-driven-through-f-ports-phase-5)
   - [61.1 REQUIREMENTS DERIVED FROM:](#611-requirements-derived-from)
@@ -610,6 +611,7 @@ prediction that failed and why. This document follows the same discipline.
   - [63.4 Falsification](#634-falsification)
   - [63.5 Cost, and stop and report](#635-cost-and-stop-and-report)
   - [63.6 OBSERVED -- four owed items close, and the fifth closed itself weeks ago](#636-observed----four-owed-items-close-and-the-fifth-closed-itself-weeks-ago)
+  - [63.6a (!) Rider, 2026-09-21: OW5's headroom figures are the sampled ones, and the exhaustive margin is 3.26x](#636a-rider-2026-09-21-ow5s-headroom-figures-are-the-sampled-ones-and-the-exhaustive-margin-is-326x)
   - [63.7 Owed](#637-owed)
 - [64 Pre-registration: E5-f, the pre-launch sanity band, and 60's gradients exhaustively (Phase 5)](#64-pre-registration-e5-f-the-pre-launch-sanity-band-and-60s-gradients-exhaustively-phase-5)
   - [64.1 REQUIREMENTS DERIVED FROM:](#641-requirements-derived-from)
@@ -18555,6 +18557,23 @@ the 5.3x margin matter"*. **This is the first evidence that the sampled worst ca
 the sampling**, which is the condition that clause names. It is discharged at Stage 64, prediction **EX1**.
 
 
+### 60.6b (!) Rider, 2026-09-21: "still 5.3x clear" is a sampled figure and the exhaustive one is 3.26x
+
+**60.6 is not edited.** It states, of 51's tolerance model at float32:
+
+> *"headroom `err/allowed` 0.1882 at F32 against 0.1189 at float64 -- tighter, as expected,
+> and still 5.3x clear."*
+
+**That reads as a bound and it is a sample.** 60.6a already recorded that neither AS4 stride
+is a bound. 64's EX1 then checked **every one of the 75,360 indices** and found the worst
+`err/allowed` is **0.306952**, so **the margin is 3.26x, not 5.3x** (64.7). The 0.1882 above
+is stride 101's 747-index sample, which **understated the exhaustive worst case by 1.63x**.
+
+**Nothing about 60.6's verdict moves.** 3.26x is still far above the `>= 1.0x` band AS7 was
+judged against, and the F32-against-F64 comparison the sentence is making is unaffected.
+What moves is only what may be quoted: **the margin is 3.26x, and "5.3x" is a sampled figure
+that survives here as the sentence 60.7 built an owed item on.**
+
 ### 60.7 Owed
 
 **A cycle driven by the F' component rather than by a driver**, which is E5-c.
@@ -19163,6 +19182,22 @@ the margin was comfortable rather than marginal.
 in **3 s**. No fit, no dataset, no `runs/_weights/` write, zero bucket operations. **E5 remains
 HOST-VERIFIED PENDING TARGET (47.14a); C4 UNVERIFIED and deferred, C5 UNVERIFIED and open, and
 nothing in this section bears on either.** `Retrainer` stays uninstanced.
+
+### 63.6a (!) Rider, 2026-09-21: OW5's headroom figures are the sampled ones, and the exhaustive margin is 3.26x
+
+**63.6 is not edited.** OW5's row reports **5.31x** at stride 101 and **5.02x** at the
+runner's default against **8.41x** at float64, band `>= 1.0x`, **HELD**. 63.6 was already
+careful -- *"nobody should quote either number as a bound"* -- but it could not point at a
+bound, because none existed when it was written.
+
+**One exists now.** 64's EX1 checked all **75,360** indices exhaustively: worst
+`err/allowed` **0.306952**, a margin of **3.26x** (64.7). Both sampled figures understated it,
+by **1.63x** and **1.54x** respectively.
+
+**OW5's verdict is unchanged and is not re-adjudicated**: 3.26x clears the `>= 1.0x` band it
+was judged against, so the owed item 60.7 registered -- *"an exhaustive gradient check, if any
+later rung makes the 5.3x margin matter"* -- was discharged by 64 without changing any verdict
+it was owed to. **The figure to quote is 3.26x.**
 
 ### 63.7 Owed
 
