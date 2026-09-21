@@ -59,7 +59,7 @@ have told a reader the opposite of what D80 established. `src/sentinel_data/` an
   covers `oxcaml/` by tree SHA, and the partly-carried `src/` and `scripts/` file by file,
   because a directory that is a subset by design cannot be checked by a tree SHA.
 
-**Gates.** 794 tests, of which 787 pass and 6 skip without the build trees, against 788 and
+**Gates.** 795 tests, of which 788 pass and 6 skip without the build trees, against 788 and
 782 before. `check_no_list` 117 files, unchanged. R2: **zero operations.**
 
 ## [0.6.75] - 2026-09-21 - A skip stops being able to hide inside a green gate, and four stale claims are corrected

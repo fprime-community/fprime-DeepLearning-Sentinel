@@ -20,7 +20,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | Command | What it proves | Measured |
 |---|---|---|
-| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **787 passed, 6 skipped** on a tree without the F' and OxCaml build trees -- each skip names the script that would satisfy it; **794 passed** once they are built |
+| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **788 passed, 6 skipped** on a tree without the F' and OxCaml build trees -- each skip names the script that would satisfy it; **795 passed** once they are built |
 | `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **117 files clean** |
 | `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 775 / 742 / 512 / 39 / 4, all resolving, plus **1 citation into the absent `fprime/lib/` announced as SKIPPED** rather than broken (D79) |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest` | The referee scores a known-answer oracle correctly and a silent detector at zero | **8/8, oracle 1.0** |
