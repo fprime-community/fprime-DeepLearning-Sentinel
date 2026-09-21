@@ -24,7 +24,8 @@
  * @param app: name of application
  */
 void print_usage(const char* app) {
-    Fw::Logger::log("Usage: ./%s [options]\n-a\thostname/IP address\n-p\tport_number\n", app);
+    Fw::Logger::log("Usage: ./%s [options]\n-a\thostname/IP address\n-p\tport_number\n"
+                    "-H\thub server port; 0 or absent runs the detector with no hub\n", app);
 }
 
 /**
@@ -53,11 +54,12 @@ int main(int argc, char* argv[]) {
     I32 option = 0;
     CHAR* hostname = nullptr;
     U16 port_number = 0;
+    U16 hub_port = 0;
 
     Os::init();
 
     // Loop while reading the getopt supplied options
-    while ((option = getopt(argc, argv, "hp:a:")) != -1) {
+    while ((option = getopt(argc, argv, "hp:a:H:")) != -1) {
         switch (option) {
             // Handle the -a argument for address/hostname
             case 'a':
@@ -66,6 +68,13 @@ int main(int argc, char* argv[]) {
             // Handle the -p port number argument
             case 'p':
                 port_number = static_cast<U16>(atoi(optarg));
+                break;
+            // (!) The HUB's port, separate from the GDS port on purpose: the
+            // detector's downlink and the crossing must be able to fail
+            // independently, because the downlink is how the crossing is
+            // observed (docs/MODELS.md 70).
+            case 'H':
+                hub_port = static_cast<U16>(atoi(optarg));
                 break;
             // Cascade intended: help output
             case 'h':
@@ -81,6 +90,7 @@ int main(int argc, char* argv[]) {
     SentinelRef::TopologyState inputs;
     inputs.hostname = hostname;
     inputs.port = port_number;
+    inputs.hubPort = hub_port;
 
     // Setup program shutdown via Ctrl-C
     signal(SIGINT, signalHandler);

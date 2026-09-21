@@ -11,6 +11,10 @@ module SentinelRetrain {
     instance timer
     instance textLogger
     instance retrainer
+    instance hub
+    instance hubAdapter
+    instance hubComm
+    instance hubBufferManager
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -40,6 +44,45 @@ module SentinelRetrain {
       timer.CycleOut -> rateGroupDriver.CycleIn
       rateGroupDriver.CycleOut[0] -> rateGroup_1Hz.CycleIn
       rateGroup_1Hz.RateGroupMemberOut[0] -> retrainer.schedIn
+    }
+
+  # (!) THE HUB IS WIRED EXPLICITLY AND `event connections instance hub` IS NOT
+  # USED, WHICH IS WHAT Svc/GenericHub/docs/sdd.md:260 RECOMMENDS.
+  #
+  # Under that pattern EVERY component's events go to hub.eventIn, the adapter
+  # included. ByteStreamBufferAdapter.cpp:31 logs DriverNotReady when the driver
+  # is not ready, so the event would go hub.eventIn -> send_data ->
+  # toBufferDriver -> hubAdapter.bufferIn_handler -> still not ready -> log
+  # again. Every component on that path is passive and every port is sync, so it
+  # is direct recursion on one stack, and the driver IS not-ready at startup.
+  #
+  # So the retrainer's two ports are wired by hand and the adapter's and pool's
+  # event ports are left unconnected. That is safe because every autocoded
+  # emission is isConnected-guarded.
+
+    connections Hub {
+      retrainer.logOut -> hub.eventIn
+      retrainer.tlmOut -> hub.tlmIn
+    }
+
+    connections HubTransport {
+      # hub <-> adapter: PassiveBufferDriverClient against PassiveBufferDriver
+      hub.toBufferDriver -> hubAdapter.bufferIn
+      hubAdapter.bufferInReturn -> hub.toBufferDriverReturn
+      hubAdapter.bufferOut -> hub.fromBufferDriver
+      hub.fromBufferDriverReturn -> hubAdapter.bufferOutReturn
+
+      # adapter <-> byte stream driver
+      hubAdapter.toByteStreamDriver -> hubComm.$send
+      hubComm.ready -> hubAdapter.byteStreamDriverReady
+      hubComm.$recv -> hubAdapter.fromByteStreamDriver
+      hubAdapter.fromByteStreamDriverReturn -> hubComm.recvReturnIn
+
+      # allocation. Both the hub and the driver allocate; one pool serves both.
+      hub.allocate -> hubBufferManager.bufferGetCallee
+      hub.deallocate -> hubBufferManager.bufferSendIn
+      hubComm.allocate -> hubBufferManager.bufferGetCallee
+      hubComm.deallocate -> hubBufferManager.bufferSendIn
     }
 
   }

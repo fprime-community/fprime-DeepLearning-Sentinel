@@ -14,6 +14,47 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.65] - 2026-09-21 - The hub is built and a cycle crosses two processes, and the half of the band the apparatus could not measure is said to be unmeasured
+
+**`docs/MODELS.md` 70.** 65's bands are quoted, not re-registered; what 70 registers is the
+apparatus, which 65 left open -- no instance names, no base ids, no wiring.
+
+**HB1 HELD**, counted mechanically: **0** `Fw::Buffer` and **0** pointer crossings, only
+`Fw.Log` and `Fw.Tlm`, and `hub.bufferIn`/`bufferOut` unconnected at both ends.
+**HB2 HELD**: `SentinelRetrain` boots the OCaml runtime and a full cycle is reported across
+the hub into `SentinelRef` and on to the ground. **HB2b NO VERDICT.**
+
+### Four traps, and two of them bit
+**Trap 3 settled in one build**: `fpp-check` **accepts** `retrainer.logOut -> hub.eventIn`, a
+special event port into an ordinary typed `Fw.Log` input -- documented at
+`GenericHub.fpp:58-59` and never done in this tree. **Trap 2 refused**:
+`Svc/GenericHub/docs/sdd.md:260`'s `event connections instance hub` would make the adapter's
+own `DriverNotReady` recurse on one stack, so the retrainer's two ports are wired by hand.
+**Trap 4's preferred fix did not exist**: `retrainer.ml:50` returns `err_already_init`, so the
+accumulator cannot be reset per tick; the bound is configured before boot instead, which
+allocates nothing because `capacity` sizes no array, and the unit test keeps its refusal at
+tick seven.
+
+### (!) The first reading of HB2b was wrong and the error was mine
+The ground received **1** `StepComplete` in 355 ticks and it was nearly written up as trap B
+firing. **`Retrainer.fpp:109` declares `throttle 10`** -- the component emits it ten times by
+design. The denominator is 10, not 355. Measured like-for-like, same sink and decoder, only
+the driver instance moved: **TCP 1 of 10, UDP 10 of 10.**
+
+### And the other half is reported as unmeasured rather than as a number
+`Svc.TlmChan` packetises channels and the GDS distributor **aborts a packet at its first
+unknown id**, so per-channel arrival counts reflect packet composition, not hub delivery.
+**Stop 42 is honoured by reporting NO VERDICT rather than a figure the apparatus cannot
+support**, and 70.6 owes a counter at the hub's output inside `SentinelRef`.
+
+**`Drv.Udp` was substituted under stop 43** on HB2b's event clause -- the only clause that
+could be measured -- with the disclosure that if a proper counter later shows the channel
+crossing was never lossy over TCP, the substitution was unnecessary and was still correctly
+taken. **The `queued` change 65.10 anticipated was NOT made**: `Retrainer.fpp:55` declares one
+input port, nothing crosses into the retrainer, and no OCaml entry point leaves the rate
+group's thread. Stop 41 re-checked with the hub wired in: **0** OCaml symbols in the detector,
+**2,928** in the retrainer. Zero bucket operations.
+
 ## [0.6.64] - 2026-09-21 - The sanity margin is derived from a measured floor, part (ii) is replaced, and one undecided design question now decides the gate
 
 **`docs/MODELS.md` 66 to 69**, four pre-registrations and four runs. **D74.4** records the

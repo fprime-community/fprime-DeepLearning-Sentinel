@@ -33,7 +33,7 @@ RetrainerStatus toFpp(I32 status)
 
 Retrainer::Retrainer(const char* const compName)
     : RetrainerComponentBase(compName), m_armed(false), m_refusals(0U),
-      m_cycleArmed(false)
+      m_cycleArmed(false), m_capacity(static_cast<U32>(RETRAINER_CAPACITY))
 {
     for (U32 i = 0U; i < SAMPLES_PER_TICK; ++i) {
         m_samples[i] = static_cast<F64>(i + 1U);   // 1.0 .. 10.0; sum 55, mean 5.5
@@ -52,6 +52,13 @@ Retrainer::Retrainer(const char* const compName)
 }
 
 Retrainer::~Retrainer() {}
+
+void Retrainer::configure(U32 capacity)
+{
+    if (capacity > 0U) {
+        m_capacity = capacity;
+    }
+}
 
 bool Retrainer::accept(I32 status)
 {
@@ -74,7 +81,7 @@ bool Retrainer::boot()
         m_armed = false;
         return false;
     }
-    if (!this->accept(sentinel_retrainer_init(static_cast<U32>(RETRAINER_CAPACITY)))) {
+    if (!this->accept(sentinel_retrainer_init(m_capacity))) {
         m_armed = false;
         return false;
     }
@@ -84,7 +91,7 @@ bool Retrainer::boot()
     // no-op -- and BOTH surfaces live in one object for exactly that reason.
     m_cycleArmed = (sentinel_cycle_boot() == SENTINEL_CYC_OK)
                    && (sentinel_cycle_init(7) == SENTINEL_CYC_OK);
-    this->log_ACTIVITY_HI_RuntimeBooted(static_cast<U32>(RETRAINER_CAPACITY));
+    this->log_ACTIVITY_HI_RuntimeBooted(m_capacity);
     this->tlmWrite_LastStatus(RetrainerStatus::OK);
     return true;
 }

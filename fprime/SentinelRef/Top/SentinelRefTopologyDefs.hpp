@@ -7,6 +7,7 @@
 #define SENTINELREF_SENTINELREFTOPOLOGYDEFS_HPP
 
 // Subtopology PingEntries includes
+#include <Fw/Types/MallocAllocator.hpp>
 #include "Svc/Subtopologies/CdhCore/PingEntries.hpp"
 #include "Svc/Subtopologies/ComCcsds/PingEntries.hpp"
 #include "Svc/Subtopologies/DataProducts/PingEntries.hpp"
@@ -61,9 +62,15 @@ namespace SentinelRef {
  * definition is required by the autocoder and the contents of this object are otherwise opaque to the autocoder. The
  * contents are entirely up to the definition of the project. This deployment uses subtopologies.
  */
+//! The hub pool's backing allocator. Declared here because the AUTOCODED
+//! topology is where Svc::BufferManager::setup is called from, and that file
+//! sees this header and not SentinelRefTopology.cpp.
+extern Fw::MallocAllocator hubAllocator;
+
 struct TopologyState {
     const char* hostname;   //!< Hostname for TCP communication
     U16 port;              //!< Port for TCP communication
+    U16 hubPort;           //!< Port the hub SERVER listens on; 0 means no hub
     CdhCore::SubtopologyState cdhCore;           //!< Subtopology state for CdhCore
     ComCcsds::SubtopologyState comCcsds;         //!< Subtopology state for ComCcsds 
     DataProducts::SubtopologyState dataProducts; //!< Subtopology state for DataProducts

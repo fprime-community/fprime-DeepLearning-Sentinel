@@ -667,6 +667,13 @@ prediction that failed and why. This document follows the same discipline.
   - [69.6 Cost](#696-cost)
   - [69.7 OBSERVED -- NG1 and NG2 both failed, and the failure separates 66.7's two readings exactly](#697-observed----ng1-and-ng2-both-failed-and-the-failure-separates-667s-two-readings-exactly)
   - [69.8 Owed](#698-owed)
+- [70 Pre-registration: the hub crossing, built (Phase 5)](#70-pre-registration-the-hub-crossing-built-phase-5)
+  - [70.1 REQUIREMENTS DERIVED FROM:](#701-requirements-derived-from)
+  - [70.2 The apparatus, and the four traps handled before anything was wired](#702-the-apparatus-and-the-four-traps-handled-before-anything-was-wired)
+  - [70.3 (!) THE QUEUED CHANGE IS NOT MADE, AND THE REASON IS THAT NOTHING CROSSES INTO THE RETRAINER](#703-the-queued-change-is-not-made-and-the-reason-is-that-nothing-crosses-into-the-retrainer)
+  - [70.4 Cost and stops](#704-cost-and-stops)
+  - [70.5 OBSERVED -- HB1 and HB2 hold, and HB2b is half measurable and half not](#705-observed----hb1-and-hb2-hold-and-hb2b-is-half-measurable-and-half-not)
+  - [70.6 Owed](#706-owed)
 
 <!-- /toc -->
 
@@ -20797,3 +20804,240 @@ still a sensor doubling its output.
 
 **Whether 6.5687% is itself converged**, or would fall further at `L = 36,000`. One more
 doubling is affordable -- `n = 1,560,000` yields 234,000 -- and nobody has run it.
+
+## 70. Pre-registration: the hub crossing, built (Phase 5)
+
+**65's bands for HB1, HB2 and HB2b are quoted here verbatim and are NOT re-registered.** They
+were committed at `docs/MODELS.md` 65.3 and 65.7 recorded them NOT RUN. The precedent for
+re-running a band in a later section rather than re-wording it is 65 itself, which did exactly
+that with 62.3's HB1 and HB2.
+
+> | **HB1** | **serialized values only across the hub**, counted mechanically | **0** `Fw::Buffer` and **0** pointer crossings; the hub's own `bufferIn`/`bufferOut` unconnected | -- | any crossing carries one |
+> | **HB2** | **two processes, one hub, and the OCaml runtime starts in the second** -- **C5** | the retrainer deployment boots its runtime and a full cycle is reported across the hub | the transport stands up but no cycle crosses | no crossing at all |
+> | **HB2b** | **and the crossing is not lossy**, which HB2 alone cannot see | **>= 99%** of ticks deliver all five channels and the event | `[90%, 99%)`, reported as a lossy crossing with the figure | **< 90%** -- trap B fired, and the transport is reported as unsuitable rather than the design |
+
+**What this section registers is the apparatus**, which 65 did not: 65 named component types
+and no instance names, no base ids and no port wiring.
+
+### 70.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 65.3           HB1, HB2, HB2b, quoted above, not re-registered
+  docs/MODELS.md 65.4           Drv.Udp registered as the route BEFORE the number,
+                                conditional on HB2b's band and nothing else
+  docs/MODELS.md 65.5 stop 41   SentinelRef's binary must link no ${OX_OBJ}
+  docs/MODELS.md 65.5 stop 42   a crossing figure without its loss rate is a stop
+  docs/MODELS.md 65.5 stop 43   Drv.Udp for any reason other than HB2b's band is a stop
+  docs/MODELS.md 65.10          the domain lock is pinned to the thread that called
+                                caml_startup, and route (b) is not self-enforcing
+  hub-pattern.md:50-55          "Do not pass an Fw::Buffer across a hub"
+  hub-pattern.md:64-66          received events and telemetry wire to the deployment's
+                                event manager and telemetry database
+  hub-pattern.md:67-69          a buffer driver at each end; ByteStreamBufferAdapter
+                                pairs a byte-stream driver with the buffer-driver
+                                interface GenericHub expects
+  Svc/GenericHub/GenericHub.cpp:128-130, :249-252
+                                dispatch only on an exact size match; otherwise the
+                                buffer is returned and DROPPED, with no event and no
+                                counter
+  Svc/GenericHub/GenericHub.fpp:58-59, :77-78
+                                producer.eventOut -> genericHub.eventIn, where eventIn
+                                is an ordinary `sync input port eventIn: Fw.Log`
+  Svc/GenericHub/docs/sdd.md:260
+                                "event connections instance hub", which 70.2 refuses
+  Drv/ByteStreamBufferAdapter/ByteStreamBufferAdapter.cpp:24-35
+                                bufferIn_handler logs DriverNotReady and does NO framing
+  Drv/Interfaces/ByteStreamDriver.fpp:6-19
+                                the interface Drv.TcpServer, Drv.TcpClient and Drv.Udp
+                                all import, so only the driver instance moves
+  Drv/TcpServer/TcpServer.fpp:7 `allocate` is an Fw.BufferGet OUTPUT port, so it must
+                                terminate on a component: Fw::MallocAllocator cannot
+                                substitute for Svc.BufferManager
+  default/config/GenericHubCfg.fpp:9-12
+                                every port array defaults to 10, so no override
+  fprime/SentinelRef/Retrainer/Retrainer.fpp:15, :109
+                                RETRAINER_CAPACITY = 64, and StepComplete is declared
+                                `throttle 10`
+  oxcaml/retrainer/retrainer.ml:32, :46-53
+                                `capacity` is a scalar field sizing no array, and `init`
+                                returns err_already_init on a second call
+```
+
+### 70.2 The apparatus, and the four traps handled before anything was wired
+
+**Instances.** Four at each end. `SentinelRef` is the **server**, because the detector must
+come up whether or not a retrainer exists: `hub` (`Svc.GenericHub`) `0x10015000`,
+`hubAdapter` (`Drv.ByteStreamBufferAdapter`) `0x10016000`, `hubServer` `0x10017000`,
+`hubBufferManager` (`Svc.BufferManager`) `0x10018000`. `SentinelRetrain` carries the same
+four at `0x30014000`-`0x30017000` with the client driver. **A dedicated pool at each end, not
+`ComCcsds.commsBufferManager`**: a hub that exhausts the pool must not starve the downlink,
+and the downlink is how the hub is observed.
+
+**Trap 1 -- the OCaml runtime reaching the detector at link time.** `stop 41`.
+`tests/test_detector_binary_has_no_ocaml_runtime.py` re-run with the hub wired into
+`SentinelRef`: **0** OCaml symbols in the detector, **2,928** in `SentinelRetrain`, **2,928**
+in the UT executable -- the same three figures 65.6 recorded, now with four more instances in
+the detector's topology.
+
+**Trap 2 -- the recursion `Svc/GenericHub/docs/sdd.md:260` recommends.** Under
+`event connections instance hub`, the adapter's own `DriverNotReady`
+(`ByteStreamBufferAdapter.cpp:31`) would go `hub.eventIn -> send_data -> toBufferDriver ->
+bufferIn_handler`, still not ready, log again -- all passive, all sync, so direct recursion on
+one stack, and the driver **is** not-ready at startup. **Refused.** `retrainer.logOut ->
+hub.eventIn` and `retrainer.tlmOut -> hub.tlmIn` are wired by hand and the adapter's and
+pool's event ports are left unconnected, which is safe because every autocoded emission is
+`isConnected`-guarded. On the `SentinelRef` side the pattern **is** used and is safe, because
+there it targets `CdhCore.events` -- an event manager, not a hub.
+
+**Trap 3 -- and it was the highest-uncertainty item, settled in one build.** `fpp-check`
+**ACCEPTS** `retrainer.logOut -> hub.eventIn`, a special event port connected to an ordinary
+typed `Fw.Log` input. `GenericHub.fpp:58-59` documents that exact shape and nothing in this
+tree had done it. The generated topology carries
+`SentinelRetrain::hub.get_eventIn_InputPort(0)` and both deployments build.
+
+**Trap 4 -- the six-tick ceiling, and the plan's preferred fix was refuted at source.**
+`RETRAINER_CAPACITY` is 64 and a tick feeds 10 samples, so the seventh refuses. The route
+costed first was to re-call `sentinel_retrainer_init` each tick; **`oxcaml/retrainer/retrainer.ml:50`
+returns `err_already_init` on a second call**, so the accumulator cannot be reset and that
+route does not exist. Three routes remained:
+
+```
+  raise RETRAINER_CAPACITY outright    REFUSED. The unit test's refusal at tick seven
+                                       (RetrainerTester.cpp:75) is E1's X3 evidence that
+                                       an OCaml error crosses as a status and not as an
+                                       exception, and raising the constant destroys it.
+  wire window56.ml's ring              REFUSED for this stage. It changes proven OCaml
+                                       source to serve a measurement.
+  configure the bound before boot      TAKEN. Retrainer::configure(U32) raises m_capacity
+                                       before the runtime starts; the deployment asks for
+                                       4,096 and the unit test keeps the default 64.
+```
+
+**It allocates nothing, and that is why it is allowed.** `retrainer.ml:32` makes `capacity`
+a scalar field of a record, compared against in `feed` and sizing no array; the sample and
+export buffers are members of the C++ class, sized by `SAMPLES_PER_TICK` and `EXPORT_WIDTH`.
+CPP-1 is untouched and the footprint does not move.
+
+### 70.3 (!) THE QUEUED CHANGE IS NOT MADE, AND THE REASON IS THAT NOTHING CROSSES INTO THE RETRAINER
+
+65.10 warned that route (b) -- boot on the ticking thread -- is not self-enforcing, and named
+the hub's socket read task as the second caller that would break it. **Measured before
+acting: `Retrainer.fpp:55` declares exactly one input port, `sync input port schedIn`.**
+Nothing is wired into the retrainer from the hub; the crossing is outbound only, events and
+telemetry from process 2 to process 1. **So no port handler runs on the socket task, no OCaml
+entry point moves off the rate group's thread, and the `queued` change is not needed.**
+
+It is recorded rather than made, because making a change that is not needed is how a topology
+acquires a queue nobody can later justify. **65.10's structural guard is what stands between
+this and the next session**: it asserts that every OCaml entry point sits in `boot` or
+`schedIn_handler`, and it will fail the moment an inbound port is added and wired in.
+
+### 70.4 Cost and stops
+
+Carrying every stop from 47.12 through 69. **No new stop.** No bucket operations; no fit;
+`runs/_weights/` unmoved at **1,313**. **No timing figure is produced and none may be quoted
+from this section**: 62.6 stands and stop 35 governs. The wall-clock figures below are
+**durations of an observation window**, not measurements of the crossing's latency, and are
+reported only so the tick counts can be checked against them.
+
+### 70.5 OBSERVED -- HB1 and HB2 hold, and HB2b is half measurable and half not
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **HB1** | serialized values only across the hub | **0** `Fw::Buffer` and **0** pointer crossings. Only `Fw.Log` and `Fw.Tlm` cross, both serialized by value; `hub.bufferIn` and `hub.bufferOut` are unconnected at **both** ends | **HELD** |
+| **HB2** | two processes, one hub, the runtime starts in the second | `SentinelRetrain` boots the OCaml runtime and a full cycle is reported across the hub: `RuntimeBooted`, `StepComplete` and telemetry from process 2 reach the ground through process 1 | **HELD** |
+| **HB2b** | the crossing is not lossy | **the event half is 100%** and **the five-channel half is not measurable at the observation point used.** See below | **NO VERDICT** |
+
+#### HB1, counted mechanically rather than observed
+
+`retrainer.logOut -> hub.eventIn` and `retrainer.tlmOut -> hub.tlmIn` are the only
+application connections into a hub in either topology, and `Fw.Log` and `Fw.Tlm` are
+serialized by value. The hub's own `toBufferDriver` / `fromBufferDriver` pairs **are**
+connected, and that is the transport rather than application data -- `hub-pattern.md:50-55`
+forbids passing an `Fw::Buffer` **across** a hub, which is the application-facing
+`bufferIn`/`bufferOut` arrays, and those are unconnected at both ends.
+
+#### (!) THE FIRST READING OF HB2b WAS WRONG, AND THE ERROR WAS MINE
+
+The first arm ran over TCP for **355 ticks** and the ground received **1** `StepComplete`.
+Read as a delivery rate that is 0.3%, and it was very nearly written up as trap B firing. It
+is not a delivery rate. **`Retrainer.fpp:109` declares `StepComplete` with `throttle 10`**,
+so the component emits it at most ten times by design. The source log shows exactly **10**
+locally, in both arms. The denominator is 10 and not 355.
+
+**Corrected, and measured like-for-like -- same sink, same downlink, same GDS decoder, only
+the hub's driver instance changed:**
+
+```
+                         emitted   delivered   rate
+  TCP   StepComplete        10          1      10%
+        RuntimeBooted        1          1     100%
+  UDP   StepComplete        10         10     100%
+        RuntimeBooted        1          1     100%
+```
+
+**The event half of HB2b's band is 100% under UDP and 10% under TCP.**
+
+#### Why the five-channel half is NOT reported as a number
+
+The per-channel arrival counts at the ground are **not** a per-channel delivery measure, and
+saying so is worth more than the figures. The GDS holds `SentinelRef`'s dictionary only, so
+every `SentinelRetrain` message arrives as a `Decoding error: ... not found in dictionary`
+line -- which is what made counting possible at all -- but `Svc.TlmChan` packetises several
+channels into one downlink packet and the distributor **aborts a packet at its first unknown
+id**. So a channel's count reflects packet composition and decoder behaviour, not whether the
+hub delivered it. The figures, reported as what they are:
+
+```
+  TCP,  355 ticks   CycleSteps 355   LastStatus   1   SampleCount 0   Sum 0   Mean 0
+  UDP,  173 ticks   CycleSteps 173   LastStatus 173   SampleCount 4   Sum 1   Mean 0
+```
+
+**`CycleSteps` and `LastStatus` at exactly 100% of ticks under UDP is consistent with the
+crossing working and the decoder truncating**, and it is not evidence that the other three
+were dropped by the hub. **Stop 42 says a crossing figure without its loss rate is a stop, and
+that is honoured by reporting NO VERDICT rather than a figure the apparatus cannot support.**
+
+#### The `Drv.Udp` substitution, and why stop 43 permits it
+
+65.4 registered `Drv.Udp` **before any number**, conditional on HB2b's band and nothing else,
+and stop 43 forbids it for any other reason. **The reason taken is HB2b's event clause,
+measured in a controlled comparison**: 10% over TCP against 100% over UDP, with the sink, the
+downlink and the decoder identical and only the driver instance moved. The mechanism is the
+one 65.2's trap B named -- the hub emits six messages back to back, TCP coalesces them into
+one segment, `GenericHub.cpp:128-130` rejects the combined frame on an exact-size check and
+`:249-252` drops it silently -- and **UDP preserves message boundaries, which is the property
+TCP lacks.** `Drv.Udp` imports the same `ByteStreamDriver` interface, so the hub and adapter
+wiring is unchanged and only the instance moved, exactly as 65.4 said it would be.
+
+**The disclosure that goes with it**: the substitution is justified on the event half alone,
+because the five-channel half has no verdict. If a counter at the hub's output later shows
+the channel crossing was never lossy over TCP, this substitution was unnecessary -- and it
+would still have been correctly taken, because it was taken on the only clause that could be
+measured.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`runs/_weights/` **1,313** before and after; nothing here fits anything. Two observation
+windows of **5 min 58 s** and **5 min 48 s**. **No timing figure** is produced or implied;
+stop 35 and 62.6 govern, and the durations above exist only so the tick counts can be
+checked.
+
+### 70.6 Owed
+
+**(!) A COUNTER AT THE HUB'S OUTPUT, INSIDE `SentinelRef`.** HB2b cannot be closed from the
+ground and this section should not have tried. `Svc.GenericHub` has no counter of its own and
+`GenericHub.cpp:249-252` drops silently, so the count has to be taken where the hub emits --
+a small passive component on `hub.eventOut` and `hub.tlmOut` that counts by id. Until that
+exists, **no five-channel delivery rate may be quoted from this section or any other.**
+
+**A merged ground dictionary.** `SentinelRetrain/Top/instances.fpp:9-13` already explains why
+the two deployments' base ids cannot collide, and names `fprime-merge-dictionary` as the
+reason. Merging it would let the GDS decode the retrainer's telemetry instead of logging it
+as unknown -- and would remove the very artifact this section had to reason around.
+
+**HO1, HO2 and HO3 remain NOT RUN.** 62.4's distinction governs and they are not verdicts.
+
+**Whether the TCP result would survive a proper counter**, which is the honest residue of the
+substitution above.

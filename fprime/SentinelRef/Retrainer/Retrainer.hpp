@@ -39,6 +39,23 @@ class Retrainer final : public RetrainerComponentBase {
     //! The export buffer's width: count, sum, mean.
     static const U32 EXPORT_WIDTH = 3U;
 
+    //! Raise the E1 accumulator's bound above RETRAINER_CAPACITY, before boot.
+    //!
+    //! (!) THIS ALLOCATES NOTHING AND THE REASON MATTERS. `capacity` is a scalar
+    //! field of a record on the OCaml side (`oxcaml/retrainer/retrainer.ml:32`),
+    //! compared against in `feed` and sizing no array at all; the sample and
+    //! export buffers are members of this class, sized by SAMPLES_PER_TICK and
+    //! EXPORT_WIDTH. So a larger bound costs zero bytes and CPP-1 is untouched.
+    //!
+    //! It exists because a crossing measurement needs more than the six ticks
+    //! RETRAINER_CAPACITY allows, and because `init` REFUSES a second call --
+    //! `retrainer.ml:50` returns `err_already_init` -- so the accumulator cannot
+    //! be reset per tick. Configuring before boot is the only route that changes
+    //! no OCaml source and keeps the unit test's refusal at tick seven intact.
+    //!
+    //! Has no effect once the runtime has booted.
+    void configure(U32 capacity);
+
     // 61 / E5-c. The retraining cycle's fixed extents, claimed once (CPP-1).
     //
     // (!) CYCLE_BUDGET IS NOT THE FLIGHT BUDGET. docs/MODELS.md 55.4 stop 23
@@ -90,6 +107,9 @@ class Retrainer final : public RetrainerComponentBase {
     bool m_cycleArmed;
     //! Fixed-size, member-owned. The OCaml side wraps these in a Bigarray with
     //! CAML_BA_EXTERNAL, so their storage is never owned or moved by the GC.
+    //! The accumulator bound passed to the OCaml side at boot.
+    U32  m_capacity;
+
     F64  m_samples[SAMPLES_PER_TICK];
     F64  m_export[EXPORT_WIDTH];
 };
