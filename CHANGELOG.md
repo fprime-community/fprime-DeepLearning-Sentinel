@@ -14,6 +14,67 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.75] - 2026-09-21 - A skip stops being able to hide inside a green gate, and four stale claims are corrected
+
+**`docs/DECISIONS.md` D79.** Five issues from the 2026-09-21 read-only inspection, each with
+the guard that stops it recurring, and every guard shown to fail on the wrong input first.
+
+**Two gates were wrong in opposite directions, and the rule behind both is now written down.**
+`scripts/check_references.py` FAILED on a citation into `fprime/lib/`, which is gitignored and
+rebuilt by `scripts/fprime_setup.sh` -- a correct citation, reported as a break, taking two
+tests down with it. `make -C flight lint` PASSED while running one of its three clang-tidy
+configurations, printing the skip **inside** a green result. D79 states the rule: a gate whose
+work depends on a rebuildable tree either ran everything, or says PARTIAL and names what it
+could not run, or fails. **A skip is not a pass and is never worded as one.**
+
+- `check_references` now SKIPS a citation under `fprime/lib/` when that directory is absent,
+  printing each one with its file and line, a count, and the script that would resolve it. The
+  skip is narrow -- only that prefix, only while it is missing -- and with the checkout present
+  a wrong citation into it still BREAKs, proved against a fixture checkout rather than assumed.
+- `make -C flight lint` prints `lint: clean` only when all three configurations ran. Otherwise
+  `lint: PARTIAL (N of 3 configs ran)`, naming what was skipped, and it **exits non-zero**.
+  `LINT_ALLOW_PARTIAL=1` accepts a partial run, which is a fresh clone's normal state, and
+  still says PARTIAL.
+
+**`Sentinel::Monitor`'s design document said it declared no command.** It has declared
+`RELOAD_MODEL` at `opcode 0x10` since work item 10, and the FPP comments, `README.md` and
+`fprime/SentinelRef/README.md` had all been corrected -- only the SDD was missed, and
+`fprime/` is byte-identical across branches, so the stale sentence shipped on `master` too.
+Section 3 now carries the command, its opcode, its argument and why `async` makes the
+component `queued`. `Monitor.hpp`'s header comment carried the same staleness and is
+corrected with it.
+
+**`master`'s omissions table claimed "Every omission is named" and did not name six.** The one
+that mattered was `oxcaml/` -- the whole retrainer source, 55 files -- on a branch that
+discusses OxCaml across six of its own files and tells a reader the retraining deployment
+needs the switch. Rows added for `oxcaml/`, `docs/manifest.snapshot.json`,
+`docs/reorg_plan.json`, `.env.example`, `conftest.py` and `requirements.txt`, and
+`fprime/SentinelRetrain/README.md` now says where the sources are.
+
+**The toolkit's data floor was confirmed at 6,550 and pinned.** A handover carried 6,650 and
+named 6,550 as the error; it is the other way round. **Nothing in the repository was wrong** --
+42.3 departure 2 derives `250 + 2,100 of warm-up plus 4,200 of calibration` and every document
+says 6,550. 6,650 is a different quantity, one study's scored length, and correct for what it
+measures. The figure is now re-derived from `fit.py`, `limits.py` and `validate.py` rather than
+recalled, and `oxcaml/retrainer/window56.ml`'s copy of it is held to the same derivation.
+
+### Guards added
+
+- `tests/test_fpp_commands_are_documented.py` -- every command an `.fpp` declares is named in
+  its component's SDD, no SDD denies a command its own `.fpp` declares, and a positive control
+  proves the parser can see one.
+- `tests/test_master_omissions_are_all_named.py` -- every tracked path absent from `master` is
+  named in its omissions table, comparing trees rather than ancestry.
+- `tests/test_flight_lint_reports_partial_honestly.py` -- a partial lint never calls itself
+  clean, exits non-zero without the opt-in, and `clean` is reachable only where nothing was
+  skipped.
+- `tests/test_references_resolve.py` -- three checks that the new skip stays loud and narrow.
+- `tests/test_standing_figures_are_guarded.py` -- three checks that pin the data floor.
+
+**Gates.** 788 tests, of which 782 pass and 6 skip on a tree without the build trees, against
+770 and 2 failures before. `check_no_list` 117 files, unchanged. `check_references` exits 0 in
+both modes with the skip announced. R2: **zero operations.**
+
 ## [0.6.74] - 2026-09-21 - Part (i) is rebuilt against a control shadow, and the gate discriminates for the first time
 
 **`docs/DECISIONS.md` D78, `docs/MODELS.md` 76, rider 73.8a.** CT1 to CT6 **all HELD**.

@@ -124,6 +124,39 @@ UPSTREAM_DOC_PREFIXES = ("docs/user-manual/", "docs/how-to/", "docs/reference/",
 #: that exists after a build and not in the tree.
 FPRIME_CHECKOUT_PATHS = {"fprime/requirements.txt"}
 
+#: (!) THE CHECKOUT ITSELF, WHICH IS GITIGNORED AND MAY SIMPLY NOT BE THERE.
+#: The build trees were deleted on 2026-09-21 to reclaim 3.6 GB, and this checker
+#: then FAILED on one citation -- `docs/PHASE5.md`'s pointer into F's own skills
+#: documentation -- for a reason that has nothing to do with whether the citation
+#: is right. It is right, and it resolves the moment the checkout is back.
+#:
+#: Every other guard that needs a build SKIPS with a message naming the script
+#: that would satisfy it. This one had no notion that `fprime/lib/` is rebuildable
+#: rather than missing content, so it went red instead, and **a gate that fails
+#: for a reason unrelated to what it guards trains people to ignore it**.
+#:
+#: The rule is deliberately narrow, and both halves matter:
+#:   - only paths under this prefix, and
+#:   - only while the directory is absent.
+#: With the checkout present these citations are checked exactly as before, so a
+#: wrong one still BREAKs. The cost is stated rather than hidden: while the
+#: checkout is absent, a citation into it that is WRONG is skipped too. That is
+#: the same trade every build-dependent skip in this repository already makes.
+FPRIME_CHECKOUT_DIR = "fprime/lib/"
+
+
+def checkout_absent() -> bool:
+    """True when the gitignored framework checkout is not on disk."""
+    return not (ROOT / FPRIME_CHECKOUT_DIR).is_dir()
+
+
+def _line_of(text: str, needle: str) -> int:
+    """1-based line of the first occurrence, so a skip can be acted on."""
+    for n, line in enumerate(text.splitlines(), 1):
+        if needle in line:
+            return n
+    return 0
+
 #: (!) Cited today, written by a later tranche of `docs/REORG_PLAN.md`. The debt
 #: is listed rather than hidden, and it shrinks as the tranches land -- a stale
 #: entry here fails `tests/test_references_resolve.py`, which asserts that nothing
@@ -188,6 +221,9 @@ class Report:
         self.checked = {k: 0 for k in ("section", "path", "line", "link", "node")}
         self.breaks: list[str] = []
         self.dev_resolving: list[str] = []
+        #: Citations into the absent framework checkout. Reported loudly, never
+        #: silently dropped, and they do not change the exit code.
+        self.skipped: list[str] = []
 
 
 def check(master: bool = False) -> Report:
@@ -195,6 +231,9 @@ def check(master: bool = False) -> Report:
     on_disk = set(files)
     report = Report()
     heading_cache: dict[str, set[str]] = {}
+    #: Read once: the answer cannot change inside a single run, and both modes
+    #: apply the same rule.
+    absent_checkout = checkout_absent()
 
     def resolves(path: str) -> tuple[bool, bool]:
         """`(exists_somewhere, on_this_branch)`.
@@ -228,6 +267,9 @@ def check(master: bool = False) -> Report:
             if path.startswith(UPSTREAM_DOC_PREFIXES) or path in FPRIME_CHECKOUT_PATHS:
                 continue
             if path in PLANNED:
+                continue
+            if path.startswith(FPRIME_CHECKOUT_DIR) and absent_checkout:
+                report.skipped.append(f"{name}:{_line_of(text, path)}: `{path}`")
                 continue
             report.checked["path"] += 1
             exists, here = resolves(path)
@@ -287,6 +329,12 @@ def main() -> int:
         if a.verbose:
             for line in report.dev_resolving[:20]:
                 print(f"    dev  {line}")
+    if report.skipped:
+        print(f"  {len(report.skipped)} citation(s) into `{FPRIME_CHECKOUT_DIR}` NOT "
+              f"CHECKED -- the framework checkout is absent. It is gitignored and "
+              f"rebuildable: run `scripts/fprime_setup.sh` and they are checked again.")
+        for line in report.skipped:
+            print(f"    SKIP   {line}")
     for line in report.breaks:
         print(f"  BREAK  {line}")
     if not report.breaks:

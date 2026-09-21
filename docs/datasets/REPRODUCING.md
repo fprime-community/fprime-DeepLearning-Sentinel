@@ -20,12 +20,12 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | Command | What it proves | Measured |
 |---|---|---|
-| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **770 passed** |
+| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **782 passed, 6 skipped** on a tree without the F' and OxCaml build trees -- each skip names the script that would satisfy it; **788 passed** once they are built |
 | `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **117 files clean** |
-| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 707 / 677 / 482 / 39 / 4, all resolving |
+| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 775 / 742 / 512 / 39 / 4, all resolving, plus **1 citation into the absent `fprime/lib/` announced as SKIPPED** rather than broken (D79) |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest` | The referee scores a known-answer oracle correctly and a silent detector at zero | **8/8, oracle 1.0** |
 | `make -C flight test` | The C++ core against its committed golden vectors | green: 7 categories, worst eps 5.072e-06 against a 1e-05 tolerance |
-| `make -C flight lint` | clang-tidy, F's own configuration, at `-Werror` | clean |
+| `make -C flight lint` | clang-tidy, three configurations, at `-Werror` | `clean (3 of 3)` with the F' checkout present; **`PARTIAL (1 of 3)` and non-zero** without it, which is a fresh clone's normal state -- `LINT_ALLOW_PARTIAL=1` accepts it (D79) |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep` | A **complete scoring run** -- fit, score, every metric, `k/n` throughout -- on a generated fixture | writes `runs/synthetic/...`, **zero operations** |
 
 **The golden vectors are in the repository**, which is the part people do not expect. A

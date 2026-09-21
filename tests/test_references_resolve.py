@@ -134,3 +134,57 @@ def test_the_checker_runs_clean_from_the_command_line() -> None:
                               cwd=ROOT, capture_output=True, text=True)
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert "every citation resolves" in proc.stdout
+
+
+# ----------------------------------------------------------------------------
+# (!) The framework checkout is gitignored, and this checker used to FAIL rather
+# than skip when it was absent. Decision 79. The skip has to stay LOUD and
+# NARROW, so both halves are asserted here rather than trusted.
+# ----------------------------------------------------------------------------
+
+def test_a_citation_into_the_absent_checkout_is_skipped_not_broken(report) -> None:
+    """The reason the suite went from 2 failed to 0 on an unbuilt tree.
+
+    `docs/PHASE5.md` cites F's own skills documentation inside `fprime/lib/`. The
+    citation is correct and resolves the moment `scripts/fprime_setup.sh` runs. It
+    is not a break, and reporting it as one taught readers to ignore a red gate.
+    """
+    if not CR.checkout_absent():
+        pytest.skip("the framework checkout is present; citations into it are checked")
+    assert report.skipped, (
+        "the checkout is absent but nothing was skipped -- either no citation "
+        "points into it any more, or the skip stopped working")
+    assert all("fprime/lib/" in line for line in report.skipped), report.skipped
+    assert not any("fprime/lib/" in b for b in report.breaks), (
+        "a citation into the absent checkout is still being reported as a break:\n  "
+        + "\n  ".join(report.breaks))
+
+
+def test_the_skip_is_narrow(report) -> None:
+    """Only `fprime/lib/`, and only while it is absent. Everything else still breaks.
+
+    This is the half that could rot quietly: a widened prefix would silence real
+    breaks and nothing would say so.
+    """
+    assert CR.FPRIME_CHECKOUT_DIR == "fprime/lib/", (
+        f"the skip now covers `{CR.FPRIME_CHECKOUT_DIR}`. Widening it silences "
+        "citations that no build would ever satisfy -- Decision 79 scoped it to "
+        "the rebuildable framework checkout and nothing else.")
+    assert CR.checkout_absent() is not (ROOT / "fprime" / "lib").is_dir()
+
+
+def test_the_skip_is_announced_on_the_command_line(report) -> None:
+    """A silent skip is not acceptable: it is the failure mode the symbol guard
+    had, where nobody knew a green run had checked nothing."""
+    if not CR.checkout_absent():
+        pytest.skip("the framework checkout is present; there is nothing to announce")
+    for args in ([], ["--master"]):
+        proc = subprocess.run([sys.executable, "scripts/check_references.py", *args],
+                              cwd=ROOT, capture_output=True, text=True)
+        out = proc.stdout
+        assert "NOT CHECKED" in out, f"the skip is not announced:\n{out}"
+        assert "scripts/fprime_setup.sh" in out, (
+            f"the announcement does not name the script that would resolve it:\n{out}")
+        assert "SKIP   docs/PHASE5.md:" in out, (
+            f"the announcement does not name the citation's file and line:\n{out}")
+        assert proc.returncode == 0, f"exit {proc.returncode} in mode {args}:\n{out}"

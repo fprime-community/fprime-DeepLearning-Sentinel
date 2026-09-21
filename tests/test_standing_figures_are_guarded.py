@@ -295,3 +295,91 @@ def test_no_unit_test_artifact_is_committed_outside_the_vector_directory() -> No
         f"committed binaries outside {VECTOR_ROOT}/: {strays}. A unit test that "
         "writes into the source tree is what this catches; give it an absolute "
         "path under the build cache, or move the process there first.")
+
+
+# ----------------------------------------------------------------------------
+# The toolkit's data floor. `docs/MODELS.md` 42.3 departure 2 derives it and
+# `docs/STATUS.md` states it; nothing re-derived it until 2026-09-21.
+#
+# (!) A handover dated 2026-09-21 carried **6,650** and named 6,550 as the
+# error. It is the other way round. The repository has said 6,550 since 42.3,
+# every figure below re-derives to 6,550, and **6,650 is a different quantity**
+# -- one study's SCORED length, 9,000 - 2,350, stated in three places in
+# `docs/MODELS.md`, which is correct for what it measures and is a record, not a
+# defect.
+# The two were conflated in prose that no test could contradict. This is the
+# test that contradicts it.
+# ----------------------------------------------------------------------------
+
+#: Where `docs/STATUS.md` states the floor, spelled out as its own arithmetic.
+FLOOR_SENTENCE = re.compile(
+    r"(\d[\d,]*) \+ (\d[\d,]*) of warm-up plus (\d[\d,]*) of calibration is "
+    r"\*\*(\d[\d,]*) ticks")
+
+
+def _derived_floor() -> dict[str, int]:
+    """The floor, from the toolkit source rather than from any document.
+
+    `src/sentinel_toolkit/fit.py:89` warms up for `window + FLIGHT_ERROR_WINDOW`,
+    and `src/sentinel_toolkit/validate.py:74-82` refuses unless BOTH halves of
+    what is left reach `FLIGHT_ERROR_WINDOW` -- so the calibration term is twice
+    the span, which is the `2 * span` its own refusal message quotes.
+    """
+    from sentinel_toolkit.fit import FLOWN
+    from sentinel_toolkit.limits import FLIGHT_ERROR_WINDOW as SPAN
+
+    warmup = FLOWN["window"] + SPAN
+    calibration = 2 * SPAN
+    return {"window": FLOWN["window"], "span": SPAN, "warmup": warmup,
+            "calibration": calibration, "floor": warmup + calibration}
+
+
+def test_the_toolkit_data_floor_is_re_derived_from_the_toolkit_source() -> None:
+    """42.3 departure 2's floor, pinned to the three files it comes from."""
+    d = _derived_floor()
+    status = (ROOT / "docs" / "STATUS.md").read_text(encoding="utf-8")
+
+    found = FLOOR_SENTENCE.search(status)
+    assert found, ("docs/STATUS.md no longer states the data floor as its own "
+                   "arithmetic; 42.3 departure 2 derives it and STATUS states it")
+    window, span, calibration, floor = (int(g.replace(",", "")) for g in found.groups())
+    assert (window, span, calibration, floor) == (
+        d["window"], d["span"], d["calibration"], d["floor"]), (
+        f"docs/STATUS.md states {window} + {span} + {calibration} = {floor}; the "
+        f"toolkit derives {d['window']} + {d['span']} + {d['calibration']} = "
+        f"{d['floor']} from fit.py FLOWN['window'], limits.py FLIGHT_ERROR_WINDOW "
+        f"and validate.py's 2 * span refusal")
+
+
+def test_no_document_states_the_floor_as_the_scored_length() -> None:
+    """(!) The conflation, caught by name.
+
+    6,650 is a real figure and a correct one -- a 9,000-tick run's SCORED length
+    after a 2,350 warm-up. It is not the floor. This fires only if a document
+    puts that number and the word `floor` on the same line, which is the mistake
+    the handover made and the one a reader would carry into a presentation.
+    """
+    d = _derived_floor()
+    scored = 9_000 - d["warmup"]
+    wrong = []
+    for doc in sorted((ROOT / "docs").rglob("*.md")) + [ROOT / "CHANGELOG.md",
+                                                        ROOT / "README.md"]:
+        for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
+            if "floor" in line.lower() and (f"{scored:,}" in line or str(scored) in line):
+                wrong.append(f"{doc.relative_to(ROOT)}:{n}: {line.strip()[:90]}")
+    assert wrong == [], (
+        f"{scored:,} is a scored length, not the {d['floor']:,}-tick floor:\n  "
+        + "\n  ".join(wrong))
+
+
+def test_the_onboard_window_rule_uses_the_same_floor() -> None:
+    """`oxcaml/retrainer/window56.ml:21` hardcodes the floor and cites 42.3
+    departure 2 for it. If the toolkit's window or span ever moves, that constant
+    goes stale silently -- the OCaml build has no idea the Python exists."""
+    d = _derived_floor()
+    src = (ROOT / "oxcaml" / "retrainer" / "window56.ml").read_text(encoding="utf-8")
+    found = re.search(r"^let w = (\d+)", src, re.MULTILINE)
+    assert found, "oxcaml/retrainer/window56.ml no longer defines `let w`"
+    assert int(found.group(1)) == d["floor"], (
+        f"window56.ml uses w = {found.group(1)}; 42.3 departure 2's floor now "
+        f"derives to {d['floor']} from the toolkit source")

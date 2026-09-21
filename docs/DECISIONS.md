@@ -104,6 +104,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D76 The flown retrainer warm-starts the shadow from the flying model's weights. There is no random initialisation on the flight path](#d76-the-flown-retrainer-warm-starts-the-shadow-from-the-flying-models-weights-there-is-no-random-initialisation-on-the-flight-path)
 - [D77 N8 is re-derived as a vectors-only figure, which is what it measured. Takes D71 alternative 3, which D71 parked rather than rejected](#d77-n8-is-re-derived-as-a-vectors-only-figure-which-is-what-it-measured-takes-d71-alternative-3-which-d71-parked-rather-than-rejected)
 - [D78 Part (i) of the sanity criterion compares the candidate against a CONTROL SHADOW, not against the flying model. Supersedes D74.4's part (i)](#d78-part-i-of-the-sanity-criterion-compares-the-candidate-against-a-control-shadow-not-against-the-flying-model-supersedes-d744s-part-i)
+- [D79 A build-dependent gate SKIPS loudly and never inside a green pass. `check_references` skips a citation into an absent `fprime/lib/`; `make -C flight lint` reports PARTIAL and exits non-zero](#d79-a-build-dependent-gate-skips-loudly-and-never-inside-a-green-pass-check-references-skips-a-citation-into-an-absent-fprimelib-make--c-flight-lint-reports-partial-and-exits-non-zero)
 
 <!-- /toc -->
 
@@ -6750,3 +6751,99 @@ what 74.7 proved the old term was measuring instead.
 
 7. **Rule 1 is untouched.** The flying model stays frozen, a human still commands any swap, the
    previous model is retained, and this changes only which comparison a human is shown.
+
+## D79. A build-dependent gate SKIPS loudly and never inside a green pass. `check_references` skips a citation into an absent `fprime/lib/`; `make -C flight lint` reports PARTIAL and exits non-zero
+
+**DATE** 2026-09-21 | **STATUS** resolved as a guard policy, from two defects of the same
+shape found by the 2026-09-21 inspection. It changes no result, no figure and no flown rule.
+**`Objective.md` is not edited.**
+
+**WHY IT IS A DECISION AND NOT TWO FIXES.** Separately they are a checker that failed for the
+wrong reason and a linter that passed for the wrong reason. Together they are one rule that
+this repository had followed everywhere except in these two places, and writing it down is
+what stops the third instance. Rule 6 already says a gate nobody has seen fail is not known to
+work; this is its other half.
+
+**CONTEXT.** The build trees were deleted on 2026-09-21 to reclaim 3.6 GB, all of them
+gitignored and rebuilt by `scripts/fprime_setup.sh` and `scripts/oxcaml_setup.sh`. Six tests
+then skipped, each naming the script that would satisfy it -- the designed behaviour. Two
+gates did not follow it:
+
+1. **`scripts/check_references.py` FAILED.** `docs/PHASE5.md` cites F's own skills
+   documentation inside `fprime/lib/`. The citation is correct and resolves the moment the
+   checkout is back. The checker had no notion that `fprime/lib/` is rebuildable rather than
+   missing content, so it exited 1 in both modes and took
+   `tests/test_references_resolve.py`'s two tests down with it. **A gate that fails for a
+   reason unrelated to what it guards trains people to ignore it.**
+
+2. **`make -C flight lint` PASSED.** It holds the flight core to three clang-tidy
+   configurations; two of them come from the absent checkout. It ran one, printed
+   `-- framework checkout absent; skipping its two configs`, then printed `lint: clean` and
+   exited 0. The skip was announced **inside a green result**, which is the form nobody
+   reads, and an inspection recorded the gate as passing. This target had already been
+   caught once, on 2026-09-11, echoing `clean` unconditionally while nine errors stood.
+
+**THE RULE.** A gate whose work depends on a rebuildable tree reports one of three states,
+never two:
+
+```
+  ran everything, all passed        say so plainly, exit 0
+  could not run part of it          say PARTIAL, name what was skipped and the script
+                                    that would supply it, and do NOT call it a pass
+  ran it and it failed              exit non-zero
+```
+
+**A skip is not a pass and is never worded as one.** "Clean", "green" and "every citation
+resolves" are reserved for a complete run.
+
+**CONSEQUENCES.**
+
+1. **`check_references.py` skips a citation under `fprime/lib/` when, and only when, that
+   directory is absent.** It prints each one with its file and line, a count, and
+   `scripts/fprime_setup.sh`, and it does not change the exit code. Both modes behave the
+   same way.
+
+2. **The skip is narrow, and the cost is stated rather than hidden.** Only that prefix, only
+   while the directory is missing. With the checkout present those citations are checked
+   exactly as before and a wrong one still BREAKs -- proved both ways against a fixture
+   checkout rather than assumed. While it is absent, a citation into it that is **wrong** is
+   skipped too. That is the same trade every build-dependent skip here already makes, and it
+   is the reason the prefix may not be widened.
+
+3. **`make -C flight lint` prints `lint: clean` only when all three configurations ran and
+   passed.** Anything less prints `lint: PARTIAL (N of 3 configs ran)`, names what was
+   skipped and why, and **exits non-zero**.
+
+4. **`LINT_ALLOW_PARTIAL=1` accepts a partial run deliberately.** A fresh clone has no
+   framework checkout, so a partial lint is its normal state; the opt-in makes that a choice
+   somebody made rather than a result nobody noticed. It still prints PARTIAL.
+
+5. **Exit status in that recipe is checked per invocation with `|| exit 1`, not with
+   `set -e`**, which is not in effect inside every compound command a portable shell may
+   choose. That property is the one the target exists for.
+
+6. **Three guards enforce this and each was shown to fail first.**
+   `tests/test_references_resolve.py` asserts the skip is announced, names its file and line,
+   and stays scoped to `fprime/lib/`.
+   `tests/test_flight_lint_reports_partial_honestly.py` asserts a partial run never calls
+   itself clean, exits non-zero without the opt-in, and that `clean` is reachable only inside
+   the branch that checks nothing was skipped.
+
+**ALTERNATIVES.**
+
+- **Run `scripts/fprime_setup.sh` and make both green.** Rejected: it restores 118 MB that
+  was deliberately removed, and it fixes the tree rather than the gate. The same two defects
+  would return the next time the trees are cleared.
+- **Let lint exit 0 on a partial run and only reword it.** Rejected as the weaker half of the
+  same lesson. A gate that cannot go red is not a gate, and this one had already spent weeks
+  unable to. The opt-in gives the escape hatch without giving up the red.
+- **Widen the `check_references` skip to every gitignored path.** Rejected. It would silence
+  citations no build would ever satisfy. See also the finding below, which is deliberately
+  left open rather than absorbed.
+
+**(!) FOUND WHILE PROVING THIS, AND NOT FIXED HERE.** Run in a clean worktree, where the
+gitignored golden vectors have never been generated, `check_references` also breaks on
+`docs/MODELS.md`'s citation of `flight/test/vectors/g3.bin` -- regenerated from a seed and
+never committed. It is the same shape as consequence 1 with a different directory, it is
+invisible on any machine that has run the generators once, and it is recorded here as owed
+rather than folded in, because the rule above says a skip must be narrow and chosen.
