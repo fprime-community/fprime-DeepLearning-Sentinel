@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`01e9492`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`5bafd74`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -154,6 +154,8 @@ uncurated one, because a reader cannot tell what they are not seeing.
 | `docs/DECISIONS.md` | Every decision with its alternatives and the evidence that settled it | The research record. **D69 removed it from this branch and it is kept whole on `dev`** -- `docs/EVIDENCE.md` cites the active entries by number |
 | `docs/NARRATIVE.md` | What happened in order, mistakes included | Same. The retractions bearing on the result are in `docs/EVIDENCE.md` |
 | `docs/HARNESS.md`, `docs/DATA.md`, `docs/RESEARCH.md`, `docs/THRESHOLD.md`, `docs/PHASE2.md`, `docs/PHASE5.md`, `docs/PHASE1_REPORT.md`, `docs/TELEMANOM_EXCERPTS.md`, `docs/REORG_PLAN.md`, `docs/INDEX.md` | The internal documents | Same |
+| `docs/RESULTS.md` | Every scored result, every sweep, and the tables the headline is read from | The research record. `docs/EVIDENCE.md` carries the result of record and its caveats |
+| `Objective.md` | What this project is for, its permanent rules and its four phase gates | The research record. `docs/DESIGN.md` states the rules that bind the component |
 | `CHANGELOG.md` | Version by version | Development history; `dev` has it |
 | `third_party/telemanom/` | The published source, vendored byte-identical at `2e6c5b6c` | Evidence for the research record. **This branch therefore does not redistribute it**, so BSD clauses 1 and 2 do not bind here -- clause 3 does, and is below |
 

@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`01e9492`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`5bafd74`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -103,11 +103,6 @@ reason Level 1 exists and the reason that re-check exists.
   fprime/.../test/ut/   12 of the 12 proven to degrade to Level 1 with the code named
                         in the event, without failing the topology
 ```
-
-**(!) The twelfth is not in that loop.** `BAD_PARAM_VERSION` was added on 2026-09-11 with
-the version-2 rule, and the F' component's unit test still iterates the eleven that existed
-before it. The C++ refusal suite covers it; the topology-level degradation test does not
-yet. **Stated rather than rounded up to twelve.**
 
 ## 5. The tier ladder
 

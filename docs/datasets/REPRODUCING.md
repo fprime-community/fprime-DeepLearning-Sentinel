@@ -20,18 +20,18 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | Command | What it proves | Measured |
 |---|---|---|
-| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **683 passed** |
-| `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **87 files clean** |
-| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 458 / 481 / 319 / 30 / 4, all resolving |
+| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **748 passed** |
+| `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **110 files clean** |
+| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 707 / 677 / 482 / 39 / 4, all resolving |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest` | The referee scores a known-answer oracle correctly and a silent detector at zero | **8/8, oracle 1.0** |
-| `make -C flight test` | The C++ core against its committed golden vectors | 16 checks green |
+| `make -C flight test` | The C++ core against its committed golden vectors | green: 7 categories, worst eps 5.072e-06 against a 1e-05 tolerance |
 | `make -C flight lint` | clang-tidy, F's own configuration, at `-Werror` | clean |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic --detector gru-smoke --detector rstd --no-sweep` | A **complete scoring run** -- fit, score, every metric, `k/n` throughout -- on a generated fixture | writes `runs/synthetic/...`, **zero operations** |
 
 **The golden vectors are in the repository**, which is the part people do not expect. A
 fresh clone gets `g1` and `g2` complete (vector **and** model file), `g3`'s vector,
 the four baseline tiers `b1`-`b4`, the three trailing tiers `t1`-`t3`, the two
-threshold tiers `d1`-`d2`, the two derivative tiers `f1`-`f2`, and **`p1`, D68's
+threshold tiers `d1`-`d2`, the two derivative tiers `f1`-`f2`, and **`p1` and `p2`, D68's
 flight configuration end to end** -- a real `model.bin` at `param_version` 2 with 3,200
 steps of expected output. Every generator that made them is committed too, and
 `tests/test_golden_vectors.py` regenerates each from its seed and compares **byte for
