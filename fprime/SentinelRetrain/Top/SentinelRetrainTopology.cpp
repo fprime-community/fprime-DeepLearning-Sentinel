@@ -7,8 +7,13 @@
 // and nothing else, per D70 consequence 2".
 // ======================================================================
 #include <SentinelRetrain/Top/SentinelRetrainTopologyAc.hpp>
+#include <Fw/Types/MallocAllocator.hpp>
+#include <cstring>
 
 namespace SentinelRetrain {
+
+//! Defined once here; declared in SentinelRetrainTopologyDefs.hpp.
+Fw::MallocAllocator hubAllocator;
 
 // 1 Hz base clock, one divisor. RateGroupDriver skips a zero divisor and guards
 // each output on isConnected, so one entry is enough for one rate group.

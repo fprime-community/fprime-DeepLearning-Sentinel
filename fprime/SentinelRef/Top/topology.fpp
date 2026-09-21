@@ -34,6 +34,10 @@ module SentinelRef {
     instance cmdSeq
     instance sentinelMonitor
     instance powerSim
+    instance hub
+    instance hubAdapter
+    instance hubServer
+    instance hubBufferManager
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -56,6 +60,41 @@ module SentinelRef {
   # ----------------------------------------------------------------------
   # Direct graph specifiers
   # ----------------------------------------------------------------------
+
+  # (!) THE HUB IS THE RECEIVING END HERE, and its events and telemetry go to
+  # this deployment's OWN event manager and telemetry database, which is what
+  # hub-pattern.md:64-66 requires: "A hub transports events and telemetry, but
+  # is not itself an event source or telemetry database."
+  #
+  # The `event connections instance CdhCore.events` pattern above sweeps the
+  # hub's, the adapter's and the pool's own events to CdhCore.events, NOT to the
+  # hub. That is why the recursion trap the retrainer side documents does not
+  # arise on this side: the pattern here targets an event manager, not a hub.
+
+    connections HubReceive {
+      hub.eventOut -> CdhCore.events.LogRecv
+      hub.tlmOut -> CdhCore.tlmSend.TlmRecv
+    }
+
+    connections HubTransport {
+      # hub <-> adapter: PassiveBufferDriverClient against PassiveBufferDriver
+      hub.toBufferDriver -> hubAdapter.bufferIn
+      hubAdapter.bufferInReturn -> hub.toBufferDriverReturn
+      hubAdapter.bufferOut -> hub.fromBufferDriver
+      hub.fromBufferDriverReturn -> hubAdapter.bufferOutReturn
+
+      # adapter <-> byte stream driver
+      hubAdapter.toByteStreamDriver -> hubServer.$send
+      hubServer.ready -> hubAdapter.byteStreamDriverReady
+      hubServer.$recv -> hubAdapter.fromByteStreamDriver
+      hubAdapter.fromByteStreamDriverReturn -> hubServer.recvReturnIn
+
+      # allocation, from the hub's OWN pool
+      hub.allocate -> hubBufferManager.bufferGetCallee
+      hub.deallocate -> hubBufferManager.bufferSendIn
+      hubServer.allocate -> hubBufferManager.bufferGetCallee
+      hubServer.deallocate -> hubBufferManager.bufferSendIn
+    }
 
     connections ComCcsds_CdhCore {
       # Core events and telemetry to communication queue

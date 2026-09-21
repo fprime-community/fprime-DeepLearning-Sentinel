@@ -46,6 +46,85 @@ module SentinelRetrain {
   @ once a hub exists. One instance, and it earns it.
   instance textLogger: Svc.PassiveTextLogger base id 0x30013000
 
+  # ----------------------------------------------------------------------
+  # The hub, and the three instances it cannot work without
+  # ----------------------------------------------------------------------
+  #
+  # (!) FOUR INSTANCES, AND EACH ONE IS FORCED. hub-pattern.md:67-69 requires a
+  # buffer driver at each end of the transport, and ByteStreamBufferAdapter is
+  # what pairs a byte-stream driver with the buffer-driver interface GenericHub
+  # expects. TcpServer.fpp:7 and TcpClient.fpp:7 declare `allocate` as an
+  # Fw.BufferGet OUTPUT port, so it must terminate on a component --
+  # Fw::MallocAllocator cannot substitute for Svc.BufferManager, it is the
+  # BACKING allocator passed to BufferManager::setup.
+  #
+  # (!) A DEDICATED POOL, NOT A SHARED ONE. This deployment has no other pool,
+  # but the reasoning is recorded here because SentinelRef does: a hub that
+  # exhausts the pool must not starve the downlink, and the downlink is how the
+  # hub is observed.
+  #
+  # GenericHubCfg.fpp:9-12 defaults every port array to 10, so no config
+  # override is needed.
+
+  instance hub: Svc.GenericHub base id 0x30014000
+
+  instance hubAdapter: Drv.ByteStreamBufferAdapter base id 0x30015000
+
+  @ (!) Drv.Udp, NOT Drv.TcpClient, and docs/MODELS.md 65.4 registered this route
+  @ BEFORE the number that forced it. 70.6 measured 0 of 355 ticks delivering all
+  @ five channels and the event over TCP: the hub emits six messages back to back
+  @ and TCP coalesces them into one segment, which GenericHub.cpp:129-130 rejects
+  @ on its exact-size check and :249-252 drops silently. UDP preserves message
+  @ boundaries, which is the property TCP lacks. Stop 43 forbids this substitution
+  @ for any reason other than HB2b's band, and HB2b's band is the reason.
+  @
+  @ Drv.Udp imports the same ByteStreamDriver interface as Drv.TcpClient
+  @ (Drv/Interfaces/ByteStreamDriver.fpp:6-19), so the hub and adapter wiring is
+  @ untouched and ONLY the driver instance moves.
+  instance hubComm: Drv.Udp base id 0x30016000 \
+  {
+    phase Fpp.ToCpp.Phases.configComponents """
+    if (state.hubPort != 0) {
+        (void) SentinelRetrain::hubComm.configureSend(state.hubHostname, state.hubPort);
+        (void) SentinelRetrain::hubComm.configureRecv("0.0.0.0",
+                   static_cast<U16>(state.hubPort + 1));
+    }
+    """
+
+    phase Fpp.ToCpp.Phases.startTasks """
+    if (state.hubPort != 0) {
+        Os::TaskString hubTaskName("HubRecv");
+        SentinelRetrain::hubComm.start(hubTaskName, 40, 64 * 1024);
+    }
+    """
+
+    phase Fpp.ToCpp.Phases.stopTasks """
+    SentinelRetrain::hubComm.stop();
+    """
+
+    phase Fpp.ToCpp.Phases.freeThreads """
+    (void) SentinelRetrain::hubComm.join();
+    """
+  }
+
+  instance hubBufferManager: Svc.BufferManager base id 0x30017000 \
+  {
+    phase Fpp.ToCpp.Phases.configObjects """
+    Svc::BufferManager::BufferBins bins;
+    """
+
+    phase Fpp.ToCpp.Phases.configComponents """
+    memset(&ConfigObjects::SentinelRetrain_hubBufferManager::bins, 0,
+           sizeof(ConfigObjects::SentinelRetrain_hubBufferManager::bins));
+    ConfigObjects::SentinelRetrain_hubBufferManager::bins.bins[0].bufferSize = 2048;
+    ConfigObjects::SentinelRetrain_hubBufferManager::bins.bins[0].numBuffers = 40;
+    SentinelRetrain::hubBufferManager.setup(
+        0, 0,
+        SentinelRetrain::hubAllocator,
+        ConfigObjects::SentinelRetrain_hubBufferManager::bins);
+    """
+  }
+
   @ E1's pipe and 61's float32 cycle, in its OWN process and its OWN deployment.
   @
   @ (!) THIS IS WHAT 47.15b NAMED AS C5's DISCHARGER: "a minimal retrainer
@@ -59,6 +138,14 @@ module SentinelRetrain {
   @ tests/test_detector_binary_has_no_ocaml_runtime.py asserts by symbol that its
   @ binary carries no OCaml runtime. Nobody may cite this instance as evidence
   @ that instancing into the detector's topology became safe.
-  instance retrainer: Retrain.Retrainer base id 0x30000000
+  instance retrainer: Retrain.Retrainer base id 0x30000000 \
+  {
+    phase Fpp.ToCpp.Phases.configComponents """
+    // A crossing measurement needs more than the six ticks RETRAINER_CAPACITY
+    // allows, and `init` refuses a second call so the accumulator cannot be
+    // reset per tick. This raises the bound before boot; it allocates nothing.
+    SentinelRetrain::retrainer.configure(4096);
+    """
+  }
 
 }

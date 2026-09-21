@@ -10,6 +10,7 @@
 
 // Necessary project-specified types
 #include <Fw/Types/MallocAllocator.hpp>
+#include <cstring>
 
 // Public functions for use in main program are namespaced with deployment module SentinelRef
 // This is also the namespace where the topology components are instantiated by FPP.
@@ -19,6 +20,9 @@ namespace SentinelRef {
 
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
+
+//! The hub pool's backing allocator; declared in SentinelRefTopologyDefs.hpp.
+Fw::MallocAllocator hubAllocator;
 
 // Rate group timing: base clock interval and divisors are coupled to rate group names
 const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
