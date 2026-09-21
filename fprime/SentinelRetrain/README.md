@@ -81,10 +81,13 @@ fprime-util build -p ./SentinelRetrain
 This deployment **needs the OxCaml switch**, unlike `SentinelRef`. Without it the `Retrainer`
 module skips itself and the deployment has nothing to instance.
 
-**(!) The OxCaml sources and the scripts that build the switch are on `dev`, not on
-`master`.** They live at `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh`, and `master`
-carries this deployment without them, because the retrainer is an experiment rather than a
-released feature. A reader on `master` who wants to build it needs `dev`.
+**The OxCaml sources and the scripts that build the switch are on both branches** since
+D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
+`scripts/oxcaml_s61.sh` to build the object this deployment links. **The retrainer is still
+an experiment rather than a released feature** -- it has never run on flight hardware,
+its sanity gate is not a usable gate yet, and it trains at the compile-time maxima rather
+than at `SentinelRef`'s flown shape. `docs/DESIGN.md` 9 states the case for it and the
+case against it in the same passage.
 
 ```
 ./SentinelRetrain -a 127.0.0.1 -p 0        # run the cycle with no hub
