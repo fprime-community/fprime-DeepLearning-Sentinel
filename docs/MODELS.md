@@ -648,6 +648,8 @@ prediction that failed and why. This document follows the same discipline.
   - [67.5 Predictions](#675-predictions)
   - [67.6 Falsification, and what this section already expects to find](#676-falsification-and-what-this-section-already-expects-to-find)
   - [67.7 Cost](#677-cost)
+  - [67.8 OBSERVED -- the criterion refuses both arms, and Arm B's drift geometry is the section's own defect](#678-observed----the-criterion-refuses-both-arms-and-arm-bs-drift-geometry-is-the-sections-own-defect)
+  - [67.9 Owed](#679-owed)
 
 <!-- /toc -->
 
@@ -20264,3 +20266,107 @@ Stop and report, carrying every stop from 47.12 through 66.5.
 nothing else re-fitted -- plus the ladder, which is **forecast passes only**. 66 measured
 twelve fits in 2 minutes 1 second. **Zero bucket operations.** `runs/_weights/` must read
 **1,313** before and after. Runner `scripts/s67_sanity_rerun.py`.
+
+### 67.8 OBSERVED -- the criterion refuses both arms, and Arm B's drift geometry is the section's own defect
+
+**SB1 HOLD, SB3 HOLD, SB5 HOLD. SB2 NO VERDICT. SB4 NO VERDICT. Neither arm certified.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **SB1** | Arm A is NOT certified | both parts failed. (i) **+14.9494%** against a required 60.7063%; (ii) shadow gap **0.071658** against flying **0.029642** | **HELD** |
+| **SB2** | Arm B IS certified | **exactly one part passed.** (i) **+19.7447%**, still far under 60.7063%; (ii) shadow **2.194813** against flying **4.400331**, PASS | **NO VERDICT** |
+| **SB3** | no target rate is an input | **0** occurrences; the criterion reads residuals and gaps only | **HELD** |
+| **SB4** | part (ii) is not inert, and the parts agree | **not inert** -- the two models differ on it in both arms, by a factor of 2.4 and 2.0. But the parts **disagree in Arm B** | **NO VERDICT** |
+| **SB5** | the ladder reaches its target | gain 1.000 -> 4.000 gives **5.2449x**, first rung past 3.0539x | **HELD** |
+
+```
+  DRIFT LADDER, flying model only, no fit involved
+    1.000 -> 1.060   residual 0.05973394    1.0465x
+    1.000 -> 1.250   residual 0.07223880    1.2655x
+    1.000 -> 1.500   residual 0.09539191    1.6712x
+    1.000 -> 2.000   residual 0.15483759    2.7126x
+    1.000 -> 3.000   residual 0.29938391    5.2449x   <- TAKEN
+    1.000 -> 5.000   residual 0.63848072   11.1855x
+    1.000 -> 9.000   residual 1.40992796   24.7003x
+```
+
+**SB1 reproduced 66.7's numbers exactly** -- flying `0.05708135`, shadow `0.04854805`, the
+same two fits 66's Arm G made -- which is the consistency check 67.4 registered it as, and
+it passed.
+
+#### (!) PART (ii) IS FIXED. THE 7-OF-7 MECHANISM CANNOT RECUR
+
+64.7's part (ii) returned values *"identical to six figures"* for flying and shadow. Route
+(c) returns **0.029642 against 0.071658** in Arm A and **4.400331 against 2.194813** in Arm B.
+**The inertness is gone**, and it is gone structurally rather than by luck: no term in
+`|res_held - res_fit| / res_fit` is computed from the telemetry alone, so the mechanism that
+let the derivative set the maximum in 7 of 7 steps has nothing to act on.
+
+**And route (a) is vindicated in its refusal.** Reported, never targeted: `|1 - holdout/fit|`
+on the residual channel alone returned **4.75 for flying and 116.75 for the shadow** in Arm A
+-- two models that differ by 15% in forecast error differ by a factor of **25** on that
+statistic. A gate built on it would be a random number generator. 67.2 refused it for being
+the wrong stream; this says it is also an unstable one.
+
+#### (!) ARM B's DRIFT RAMPS PAST THE SHADOW'S TRAINING WINDOW, AND THAT IS THIS SECTION'S OWN DEFECT
+
+Part (i) failed in Arm B with a drift that **quintupled** the flying model's residual. The
+shadow recovered only 19.7% of it. The reason is geometric and it is mine:
+
+```
+  gain 1.000 -> 3.000, ramped linearly from index 30,000 to 45,000
+    SHADOW trains on [30,000:36,000]   factors  1.0000 -> 1.7999
+    HELD is          [36,000:45,000]   factors  1.8001 -> 3.0000
+```
+
+**HELD reaches a gain the shadow never saw, 1.667 times the largest it trained on.** The
+shadow is not being asked to recognise a drift it learned; it is being asked to **extrapolate
+a trend from its first half**, and a windowed forecaster trained on `[t-250, t)` cannot do
+that. 67.3's arithmetic bound -- *"the shadow's own residual cannot fall below roughly its
+clean baseline"* -- silently assumed the shadow could reach its clean baseline on HELD, which
+requires HELD to be drawn from the distribution it trained on. It is not.
+
+**This is inherited from 64.3 and is not a new mistake.** `scripts/s64_sanity_band.py:44-56`
+ramps from the start of LATE through the end of HELD, so 64's shadow had the same handicap.
+**Nobody could see it there because the drift was too small to reveal it** -- 64.7 measured it
+moving the residual by 0.03%. Making the drift large enough to matter is what made the
+geometry visible. **So 64.3's drift design is wrong for testing a shadow model independently
+of its magnitude**, and that is a finding about section 64 that section 64 could not have
+reached.
+
+**Stop 44 is honoured. `m` is not moved and the ladder is not re-searched.** The defect is in
+the arm's geometry, not in a constant, and the fix is a new pre-registration rather than an
+edit here.
+
+#### What is licensed by this, and what is not
+
+**Licensed.** Part (ii) works. The margin is derived. The sizing procedure does what it says
+-- it found a rung and used the flying model only.
+
+**NOT licensed.** Nothing here says the criterion is usable, and nothing says it is unusable
+either: **Arm B never reached its question**, for the second time in this project and for a
+different reason than 64's. 64.7 said *"the arm that was supposed to supply a real signal
+supplied almost none"*; here the arm supplied a very large signal and then asked the shadow to
+extrapolate it.
+
+**The 60.71% margin is still untested against a shadow that could plausibly clear it**, and
+66.7's warning -- that a gate built on `F` will refuse everything -- is neither confirmed nor
+refuted by an arm whose shadow was handicapped.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. Four
+fits and seven forecast passes for the ladder, **36 seconds** wall clock. `runs/_weights/`
+**1,313 before and 1,313 after**.
+
+### 67.9 Owed
+
+**An arm whose shadow trains on the distribution it is tested on.** The drift must reach its
+terminal gain **within the shadow's training segment** and hold flat across HELD, so the
+shadow learns a level rather than extrapolates a slope. Pre-registered as section 68 rather
+than patched here.
+
+**Whether the 60.71% margin is reachable at all**, which only such an arm can answer.
+
+**Everything 66.8 owes**, unchanged -- in particular whether the flown retrainer reproduces
+the flying model's seed, which selects which floor is the operative one.
