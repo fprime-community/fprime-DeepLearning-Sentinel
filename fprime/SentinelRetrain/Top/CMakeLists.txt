@@ -1,0 +1,11 @@
+register_fprime_module(
+    AUTOCODER_INPUTS
+        "${CMAKE_CURRENT_LIST_DIR}/instances.fpp"
+        "${CMAKE_CURRENT_LIST_DIR}/system.fpp"
+        "${CMAKE_CURRENT_LIST_DIR}/topology.fpp"
+    SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/SentinelRetrainTopology.cpp"
+    DEPENDS
+        Fw_Logger
+        SentinelRef_Retrainer
+)

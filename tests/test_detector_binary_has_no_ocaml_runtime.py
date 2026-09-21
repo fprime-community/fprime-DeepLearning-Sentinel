@@ -11,7 +11,7 @@ links the runtime. `SentinelRef` is clean today only because its topology never 
 `Retrainer` and `register_fprime_deployment` depends on `_Top` alone.
 
 `docs/DECISIONS.md` D70 consequence 2 makes the separate process a **requirement**, and
-`docs/MODELS.md` 47.15b ground 1 refuses reading (b) precisely because it "puts the garbage
+`docs/MODELS.md`'s 47.15b ground 1 refuses reading (b) precisely because it "puts the garbage
 collector in the detector's process, on the process that owns the 1 Hz rate group".
 `docs/MODELS.md` 61.5a narrows stop 32 to permit a separate retrainer deployment -- and a
 narrowed stop that is only remembered is worse than one left too wide, so this is the guard
