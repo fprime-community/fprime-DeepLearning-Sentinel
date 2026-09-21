@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`7791419`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`4dff748`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -28,12 +28,11 @@ caveats.
 
 ## (!) What this is not, and what you cannot do with it yet
 
-- **The ground training toolkit is not released, and a mission cannot deploy this without
-  it.** The component *runs* a model; it does not *produce* one. Turning healthy telemetry
-  into a `model.bin` is the toolkit's job, the toolkit is `src/`, and `src/` is not on this
-  branch. **3 of its 3 acceptance-ladder rungs have run on `dev`**, the last of them on a real
-  mission (`docs/STATUS.md`), so it exists and is not yours yet. **What is here is the flight half
-  of a two-half product.** `docs/MODEL_FILE.md` specifies the file completely enough to
+- **The ground training toolkit is here since D80, and it is still one mission's worth of
+  evidence.** The component *runs* a model; the toolkit *produces* one, and both halves are
+  now on this branch. **3 of its 3 acceptance-ladder rungs have run on `dev`**, the last of
+  them on a real twelve-channel mission (`docs/STATUS.md`) -- **one mission and one split**,
+  which is what the evidence is, not what a release note would say. `docs/MODEL_FILE.md` specifies the file completely enough to
   write one independently, which is the honest answer available today.
 - **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any
   wall-clock figure. On real telemetry the rule this branch ships is **less late than the rule
@@ -55,6 +54,28 @@ make -C flight test      # the core against its committed vectors
 make -C flight lint      # clang-tidy at -Werror, three configs. PARTIAL and
                          # non-zero if any is missing; see below
 ```
+
+**Since D80 this branch also carries the two halves that were missing**, each with the
+scripts that build it:
+
+```bash
+# the ground toolkit: healthy telemetry in, a model.bin out. No bucket, no credential.
+python -m venv .venv && .venv/bin/pip install -r requirements-toolkit.txt
+PYTHONPATH=src .venv/bin/python -m sentinel_toolkit selftest
+PYTHONPATH=src .venv/bin/python -m sentinel_toolkit fit --telemetry healthy.npy --out model.bin
+
+# the F' half, and the retraining experiment
+scripts/fprime_setup.sh                      # F' v4.3.0, into the gitignored fprime/lib/
+scripts/oxcaml_setup.sh                      # the OxCaml switch. It compiles a compiler:
+                                             # under 90 minutes and under 12 GiB
+bash scripts/oxcaml_s61.sh                   # the object SentinelRetrain links
+```
+
+**`requirements-toolkit.txt` is `numpy`, `pyarrow`, `torch` and nothing else.** The
+repository-wide `requirements.txt` on `dev` installs a Cloudflare R2 client and a `.env`
+reader for the ingest apparatus; the toolkit needs neither and this branch ships neither.
+`docs/DECISIONS.md` D80 records how the import closure was cut so that is true of the
+closure and not merely of one directory.
 
 **What the green output proves here, measured on this branch:**
 
@@ -178,8 +199,8 @@ uncurated one, because a reader cannot tell what they are not seeing.
 
 | Absent | What it is | Why |
 |---|---|---|
-| `src/` | The ground toolkit: ingest, referee, models, the `model.bin` writer, and the toolkit itself, whose **3 of its 3 acceptance-ladder rungs have run** on `dev` | **Not released.** See the warning above |
-| `scripts/` | The guards, the vector generators, every study that produced a figure | Development apparatus, not product |
+| `src/` -- **in part** | **The ground toolkit and its import closure are HERE since D80**: `src/sentinel_toolkit/`, `src/sentinel_export/`, and the eight `src/sentinel_models/` and twelve `src/sentinel_eval/` modules they need. Absent: the scoring harness (`harness.py`, `scorecard.py`, `splits.py`, `ops.py`, `metrics/`), the detector registry and the baselines, and **all of `src/sentinel_data/`** | The absent half is the research apparatus. `src/sentinel_data/` is the R2 ingest package, and **D80 keeps it off this branch deliberately**: it holds the cloud client and the credential reader, and the toolkit reaches neither |
+| `scripts/` -- **in part** | **Six build scripts are HERE since D80**: `fprime_setup.sh` and `fprime_ref_patch.sh`, which this branch's own documents tell you to run, and `oxcaml_setup.sh`, `oxcaml_e1.sh`, `oxcaml_s61.sh` and `oxcaml_s72.sh`, which build the retrainer's object. Absent: the guards, the vector generators, and every study that produced a figure | The absent ones are development apparatus, not product |
 | `tests/` | The Python suite, which runs against `src/` | Runs against `src/`, which is not here |
 | `docs/MODELS.md` | Every pre-registration beside its outcome | The research record. Cited from here, resolves on `dev` |
 | `docs/DECISIONS.md` | Every decision with its alternatives and the evidence that settled it | The research record. **D69 removed it from this branch and it is kept whole on `dev`** -- `docs/EVIDENCE.md` cites the active entries by number |
@@ -189,9 +210,8 @@ uncurated one, because a reader cannot tell what they are not seeing.
 | `Objective.md` | What this project is for, its permanent rules and its four phase gates | The research record. `docs/DESIGN.md` states the rules that bind the component |
 | `CHANGELOG.md` | Version by version | Development history; `dev` has it |
 | `third_party/telemanom/` | The published source, vendored byte-identical at `2e6c5b6c` | Evidence for the research record. **This branch therefore does not redistribute it**, so BSD clauses 1 and 2 do not bind here -- clause 3 does, and is below |
-| `oxcaml/` | **The retraining engine's OxCaml source**: the training cycle, its C stubs, its checkers, and the script that builds the compiler switch | **Not on this branch.** `fprime/SentinelRetrain/` here is the deployment that hosts it; the sources are on `dev` at `oxcaml/retrainer/`, with `scripts/oxcaml_setup.sh`. The retrainer is an experiment and not a feature -- the section above says so, and `docs/DESIGN.md` 9 states the case for it and the case against it in the same passage |
 | `docs/manifest.snapshot.json`, `docs/reorg_plan.json` | Machine-readable companions to the research record: a reference snapshot of the data manifest, and the data behind `docs/REORG_PLAN.md` | The research record |
-| `.env.example`, `conftest.py`, `requirements.txt` | The Python development apparatus: a credential template, pytest's collection scope, and the dependency list | Development apparatus, not product. They serve `src/` and `tests/`, which are not here |
+| `.env.example`, `conftest.py`, `requirements.txt` | A credential template, pytest's collection scope, and the repository-wide dependency list | Development apparatus, not product. **`requirements.txt` is deliberately not here**: it installs `boto3`, `botocore`, `requests` and `python-dotenv` for the ingest apparatus, and a dependency list that installed a cloud client would contradict the row above. `requirements-toolkit.txt` is this branch's list -- `numpy`, `pyarrow`, `torch` |
 
 ## Branches
 

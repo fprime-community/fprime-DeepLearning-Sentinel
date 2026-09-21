@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`7791419`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`4dff748`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -276,9 +276,10 @@ this file and the SDDs cite -- `docs/user-manual/design-patterns/hub-pattern.md`
 `docs/user-manual/framework/component-and-port-selection.md` -- resolve only once you have
 your own F' v4.3.0 checkout. `docs/FPRIME.md` pins the version and the commit.
 
-**`scripts/`, `src/` and `tests/` are not on this branch** (see the omissions table in
-`README.md`). `scripts/fprime_ref_patch.sh` is cited above because it is the executable
-form of this recipe; it resolves on `dev` at the commit named at the top of this file.
+**`scripts/` and `src/` are on this branch in part, and `tests/` is not at all** (see the
+omissions table in `README.md`). **`scripts/fprime_ref_patch.sh` is here since D80**,
+because it is the executable form of this recipe and a branch that names a command should
+carry it. The guards that keep this document's figures true still run on `dev`.
 
 ## 9. Onboard retraining, and the language it is being tried in
 

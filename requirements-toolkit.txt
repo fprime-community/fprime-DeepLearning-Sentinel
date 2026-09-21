@@ -1,0 +1,17 @@
+# The ground toolkit's own dependency list -- `python -m sentinel_toolkit`.
+#
+# (!) THIS IS NOT A SUBSET OF `requirements.txt` BY ACCIDENT. The repository-wide
+# list carries `boto3`, `botocore`, `requests` and `python-dotenv` because the
+# research apparatus ingests telemetry from Cloudflare R2. The toolkit reaches no
+# bucket and reads no credential (`docs/DECISIONS.md` D80), and a dependency list
+# that installed a cloud client would say otherwise to anyone who read it.
+#
+# Versions are pinned exactly as `requirements.txt` pins them; the two are held
+# equal by `tests/test_toolkit_closure_is_offline.py`.
+#
+#   numpy    every module in the closure
+#   torch    the forecaster, `src/sentinel_models/lstm.py`
+#   pyarrow  the offline fixture the selftest scores, `src/sentinel_eval/synthetic.py`
+numpy==2.5.2
+pyarrow==25.0.1
+torch==2.13.0

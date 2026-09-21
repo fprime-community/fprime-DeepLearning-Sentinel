@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`7791419`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`4dff748`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -22,9 +22,11 @@ it no mission can use this.**
 | **Level 1, the safe failure mode** | Built and wired to the active-tier telemetry channel |
 | **The evidence** | `docs/EVIDENCE.md`. One arm, one dataset, UNDERPOWERED, and the caveats are stated with the number |
 
-## 3. (!) What is not done, and it is the blocking one
+## 3. (!) What is not done
 
-**The ground training toolkit is not released, and this branch does not carry it.**
+**The ground training toolkit is on this branch since D80** -- `src/sentinel_toolkit/` with
+its import closure, and `requirements-toolkit.txt`. **What is not done is the evidence
+behind it, not its availability.**
 **3 of its 3 acceptance-ladder rungs have run on `dev`** (`docs/MODELS.md` 40.14, on `dev`,
 2026-09-11): a generated fixture, a single channel, and **a real twelve-channel mission**.
 It trains, calibrates label-free, writes a `param_version` 2 `model.bin` and reads it back
