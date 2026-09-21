@@ -14,6 +14,75 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.72] - 2026-09-21 - The shadow is warm-started at last, and part (i) turns out to measure training rather than drift
+
+**`docs/MODELS.md` 74 and 75, and rider D76.1.** WS1, WS2, WS4 and WS5 HELD. **WS3 FAILED.**
+
+D76 ruled on warm start and D76 consequence 7 said plainly that it *"does not make the gate
+enforceable, and the claim is not made"*, leaving owed *"an arm in which the shadow is actually
+warm-started"*. Every arm in 67, 68 and 69 was a cold fit. **Warm start also existed nowhere in
+the code**: `lstm.train` took no weights argument and `reuse_weights` is a fit CACHE. D76 had
+been a ruling about code that did not exist.
+
+### (!) Every warm-started fit beats the flying model, including one retrained on the flying model's own segment
+
+```
+  flying model (cold, segment 1, seed 0)   held-out residual  0.05542821
+  six WARM starts from those weights       0.02016657 .. 0.02629022
+```
+
+**Segment 1 is the finding.** That shadow started from the flying model's weights and retrained
+on **the flying model's own training data** -- no drift, no new data, no later segment -- and is
+**60.9861% better** on HELD by part (i)'s measure. The worst of the six is **52.5689%** better.
+
+**So part (i) does not measure what `Objective.md` section 12 means by "the shadow measurably
+better". It measures that the shadow had more training.** A gate whose first term is satisfied
+by the retraining itself cannot distinguish *the spacecraft changed* from *the shadow ran for
+longer*.
+
+**64.7's failure has returned in mirror image.** There part (ii) was inert and part (i) carried
+the gate. Here **part (i) is the inert one** and part (ii) carried it alone -- Arm A was refused
+on the generalisation gap, 0.099544 against 0.024966, and that is the only thing that stopped a
+stationary arm certifying.
+
+### D76 consequence 6 is refuted, in the direction it named in advance
+*"Two fits that begin from the same weights should differ by less than two independent fits at
+a common seed, not more. That direction is stated before the arm is run so it cannot be claimed
+afterwards."*
+
+```
+  Arm G   cold, six segments   6.5687%   (69.7)
+  Arm W   WARM, same six      27.3251%   -- 4.16x LARGER
+```
+
+**And the floor is not the problem, which is why D76.1 does not move it.** At F = 27.3251% the
+margin would be 55.5519% and Arm A's stationary shadow clears that too. **No choice of F
+repairs a term that passes unconditionally.** What is owed instead is a decision on what part
+(i) should compare, registered at 74.8 with three shapes costed. `m` stays at 13.3542% for
+Section 74 -- stop 44 -- and 69's SD2 is not amended (D76 c.5).
+
+**D76 c.6's last clause was also not carried out**: `docs/MODELS.md` 70.6's owed list never
+gained the arm, and the document contained no occurrence of "warm start" at all until 74.
+**70.6a** is the rider saying where it was discharged.
+
+### Section 75: the library reads as a reference project
+`fprime/` had **no README at all** -- both deployments had one, the library's own front door did
+not. It now maps the layout to `fprime-sensors-reference`'s vocabulary, gives the four-edit
+adoption recipe, and names the one real departure: that project vendors F' as a submodule and
+**this repository has no submodules at all**.
+
+**It needed a `MASTER_PREFIXES` entry**, because `check_references.py` names
+`fprime/CMakeLists.txt`, `library.cmake` and `settings.ini` individually and `fprime/` is not a
+blanket prefix -- so a new document there was invisible to `--master` until named. **A guard
+that cannot see a file is not a guard, for the third time.**
+
+`ExampleSource/` completes the adoption chain source -> adapter -> Monitor without a reader
+having to read the physics testbed. Three channels, to match `p1.bin`. **Registered and not
+instanced**: `channelsIn` already has `powerSim` on it and it is a single `sync` port.
+
+Zero bucket operations. `runs/_weights/` reads **1,313** before and after. Wall clock for the
+arms: **3 min 50 s**, nine fits at L = 18,000.
+
 ## [0.6.71] - 2026-09-21 - The reload tests were dirtying the source tree, and now a guard says so
 
 **A correction to 0.6.70, as a follow-up rather than an amend.** Section 73's reload tests name

@@ -429,10 +429,18 @@ def test_a_commanded_model_survives_the_round_trip(tmp_path, monkeypatch):
     assert fitted.n_exogenous == 4, "two commands, two features each"
 
     D.clear_caches()
+    # (!) THIS MIRRORS `detectors.py`'s FIT KEY BY HAND, ON PURPOSE: the point is
+    # that the saved artifact is findable by an INDEPENDENT computation, not by
+    # calling the same function that stored it. The cost is that a term added
+    # there and not here makes this fail with "did not survive the round trip",
+    # which is exactly what happened when Section 74 added the initial-weights
+    # digest for D76's warm start. `None` is the cold-fit value and every caller
+    # in this file is a cold fit.
     reloaded = D._load_weights(D._digest(
         (detector.hyper.as_dict_key(), context.channels, context.fold, context.window,
          values[:3000].shape, D._sample_digest(values[:3000]),
-         D._digest(usable[:3000][::997]), D._sample_digest(commands[:3000]))))
+         D._digest(usable[:3000][::997]), D._sample_digest(commands[:3000]),
+         None)))
     assert reloaded is not None, "the commanded model did not survive the round trip"
     assert reloaded[0].n_exogenous == fitted.n_exogenous
     assert reloaded[0].n_inputs == fitted.n_inputs

@@ -6510,6 +6510,51 @@ recent healthy telemetry. **No random initialisation exists on the flight path.*
    and the previous model is retained. **Warm-starting changes where the shadow begins, not
    who decides whether it flies.**
 
+### D76.1 Rider, 2026-09-21: consequence 6's direction is refuted by the arm it named, and consequence 3's margin is not conservative
+
+**D76 is not edited. Consequences 1 to 5, 7 and 8 stand.** What follows is what happened when
+the arm consequence 7 owed was actually run, at `docs/MODELS.md` 74.
+
+**Consequence 6 said, in advance and on purpose:**
+
+> *"Arm G is an upper bound on the warm-start floor, so the derived margin is conservative. Two
+> fits that begin from the same weights should differ by less than two independent fits at a
+> common seed, not more. **That direction is stated before the arm is run so it cannot be
+> claimed afterwards**, and `docs/MODELS.md` 70.6's owed list gains the arm that would measure
+> it."*
+
+**Measured, at 74.7:**
+
+```
+  Arm G   cold fits, six segments of 18,000, one seed      6.5687%   (69.7)
+  Arm W   WARM fits, the same six segments, same weights  27.3251%   -- 4.16x LARGER
+```
+
+**So Arm G is a LOWER bound, not an upper one, and consequence 3's margin of 13.3542% is not
+conservative.** Stating the direction in advance is what makes this a refutation rather than a
+renegotiation, and it is recorded as one.
+
+**One qualification, because `F` has a denominator.** `F` is `range_rel = (max - min) / mean`
+(66.3) and the warm fits' mean fell by about 2.5x, which inflates a relative range on its own.
+69 recorded Arm G's *spread* and not its six residuals, so the absolute comparison cannot be
+made from the record. What is compared is what `F` is defined as.
+
+**AND THE FLOOR IS NOT THE PROBLEM, WHICH IS WHY THIS RIDER DOES NOT MOVE IT.** 74.7 states the
+arithmetic: at `F` = 27.3251% the margin would be 55.5519%, and **Arm A's stationary shadow
+clears that too**, because every warm-started fit beat the flying model by between 52.5689% and
+60.9861% -- including one retrained on **the flying model's own segment**, with no drift and no
+new data. **Part (i) is satisfied by the retraining itself.** No choice of `F` repairs a term
+that passes unconditionally, so moving the floor would be motion without effect.
+
+**What is owed instead is a decision on what part (i) should compare**, and 74.8 registers it
+with three shapes costed. Until that is taken, `Objective.md` section 12's gate is still not
+enforceable -- which is what consequence 7 already said, for a different reason than the one
+that turned out to matter.
+
+**Consequence 6's last clause was also not carried out**: `docs/MODELS.md` 70.6's owed list
+never gained the arm, and `docs/MODELS.md` contained no occurrence of "warm start" at all until
+74. 70.6 gains a rider saying where it was actually discharged.
+
 ---
 
 ## D77. N8 is re-derived as a vectors-only figure, which is what it measured. Takes D71 alternative 3, which D71 parked rather than rejected

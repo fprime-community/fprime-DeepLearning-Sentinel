@@ -58,6 +58,10 @@ MASTER_PREFIXES = (
     # runtime lives. D70 consequence 2 makes the separate process a requirement.
     "fprime/SentinelRetrain/",
     "fprime/CMakeLists.txt", "fprime/library.cmake", "fprime/settings.ini",
+    # docs/MODELS.md 75: the library's landing page, the one a reader who knows
+    # fprime-sensors-reference arrives at. Named individually like the three
+    # above, because `fprime/` is not a blanket prefix here.
+    "fprime/README.md",
     "README.md", "docs/STATUS.md", "docs/datasets/", "docs/MODEL_FILE.md",
     "docs/FPRIME.md", "docs/PI_ENVELOPE.md", "LICENSE",
     # D69, 2026-09-11: the customer documents. Neither is on `dev`.

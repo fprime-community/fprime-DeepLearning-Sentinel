@@ -538,6 +538,44 @@ def _rnn_weights(model: TelemanomRNN) -> Weights:
     )
 
 
+def load_rnn_weights(model: TelemanomRNN, weights: Weights) -> None:
+    """The inverse of :func:`_rnn_weights`: put plain arrays back into a module.
+
+    (!) THIS EXISTS FOR D76 AND FOR NOTHING ELSE. The flown retrainer initialises
+    the shadow from the flying model's weights and fine-tunes -- "there is no
+    random initialisation on the flight path" -- and that had no implementation
+    anywhere in this stack. A cold fit is unaffected: every caller defaults to
+    ``None`` and takes the path it always took.
+
+    Shapes are checked rather than broadcast. A silent reshape here would warm
+    start from something that is not the flying model, and the arm measuring how
+    far two warm starts diverge would be measuring the reshape.
+    """
+    if model.rnn.num_layers != len(weights.layers):
+        raise ValueError(
+            f"model has {model.rnn.num_layers} layers, weights have "
+            f"{len(weights.layers)}")
+    with torch.no_grad():
+        for i, layer in enumerate(weights.layers):
+            for name, array in (("weight_ih_l", layer.w_ih), ("weight_hh_l", layer.w_hh),
+                                ("bias_ih_l", layer.b_ih), ("bias_hh_l", layer.b_hh)):
+                target = getattr(model.rnn, f"{name}{i}")
+                source = np.asarray(array, dtype=DTYPE)
+                if tuple(target.shape) != source.shape:
+                    raise ValueError(
+                        f"{name}{i} is {tuple(target.shape)} in the model and "
+                        f"{source.shape} in the weights")
+                target.copy_(torch.from_numpy(source).to(target.device))
+        for target, source in ((model.head.weight, weights.head_w),
+                               (model.head.bias, weights.head_b)):
+            source = np.asarray(source, dtype=DTYPE)
+            if tuple(target.shape) != source.shape:
+                raise ValueError(
+                    f"head is {tuple(target.shape)} in the model and {source.shape} "
+                    f"in the weights")
+            target.copy_(torch.from_numpy(source).to(target.device))
+
+
 def configure_determinism(seed: int) -> None:
     """Same seed, same machine, same weights. Objective.md 11 rule 5 in spirit."""
     torch.manual_seed(seed)
@@ -547,7 +585,8 @@ def configure_determinism(seed: int) -> None:
 
 def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0,
           impulses: np.ndarray | None = None,
-          decay_steps: int = DEFAULT_DECAY_STEPS, log=None
+          decay_steps: int = DEFAULT_DECAY_STEPS, log=None,
+          init_weights: Weights | None = None
           ) -> tuple[Weights | ConvWeights, TrainingReport]:
     """Fit on nominal data only and return plain arrays plus what the fit did.
 
@@ -616,6 +655,14 @@ def train(values: np.ndarray, usable: np.ndarray, hyper: Hyper, *, fold: int = 0
     # scripts/fit_folds.py rebinds at run time, and the cell is read from `hyper`
     # so the LSTM and the GRU share every line of this function.
     model = build_model(values.shape[1], hyper, n_exogenous).to(DEVICE)
+    # D76: the shadow starts from the flying model's weights, not from a
+    # distribution. `configure_determinism` above has already seeded everything
+    # the fit uses -- batch order, dropout, validation sampling -- so a warm
+    # start replaces only the INITIALISATION and leaves the rest reproducible.
+    if init_weights is not None:
+        if not isinstance(model, TelemanomRNN):
+            raise TypeError("warm start is implemented for the GRU only (D28)")
+        load_rnn_weights(model, init_weights)
     report.n_exogenous = n_exogenous
     optimiser = torch.optim.Adam(model.parameters(), lr=hyper.learning_rate)
     loss_fn = gaussian_nll if hyper.head == "gaussian" else nn.MSELoss()

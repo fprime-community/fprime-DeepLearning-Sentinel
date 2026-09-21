@@ -703,6 +703,21 @@ prediction that failed and why. This document follows the same discipline.
   - [73.7 Cost and stops](#737-cost-and-stops)
   - [73.8 OBSERVED -- HO2 and HO3 both HOLD, and the width check is the section's finding](#738-observed----ho2-and-ho3-both-hold-and-the-width-check-is-the-sections-finding)
   - [73.9 Owed](#739-owed)
+- [74 Pre-registration: the sanity band with the shadow warm-started (Phase 5)](#74-pre-registration-the-sanity-band-with-the-shadow-warm-started-phase-5)
+  - [74.1 REQUIREMENTS DERIVED FROM:](#741-requirements-derived-from)
+  - [74.2 The constants are declared here, and this file measures none of them](#742-the-constants-are-declared-here-and-this-file-measures-none-of-them)
+  - [74.3 The mechanism, and why it needed its own check](#743-the-mechanism-and-why-it-needed-its-own-check)
+  - [74.4 Predictions](#744-predictions)
+  - [74.5 Falsification](#745-falsification)
+  - [74.6 Cost](#746-cost)
+  - [74.7 OBSERVED -- WS3 FAILED, and the reason it failed is the section's whole result](#747-observed----ws3-failed-and-the-reason-it-failed-is-the-sections-whole-result)
+  - [74.8 Owed](#748-owed)
+- [75 The library reads as a reference project, and the adoption chain is worked end to end (Phase 5)](#75-the-library-reads-as-a-reference-project-and-the-adoption-chain-is-worked-end-to-end-phase-5)
+  - [75.1 What prompted it](#751-what-prompted-it)
+  - [75.2 What was built](#752-what-was-built)
+  - [75.3 (!) `fprime/README.md` NEEDED A `MASTER_PREFIXES` ENTRY, AND THE GUARD WAS BLIND WITHOUT IT](#753-fprimereadmemd-needed-a-master-prefixes-entry-and-the-guard-was-blind-without-it)
+  - [75.4 `ExampleSource`, and why it is not instanced](#754-examplesource-and-why-it-is-not-instanced)
+  - [75.5 What is NOT claimed](#755-what-is-not-claimed)
 
 <!-- /toc -->
 
@@ -21104,6 +21119,16 @@ as unknown -- and would remove the very artifact this section had to reason arou
 **Whether the TCP result would survive a proper counter**, which is the honest residue of the
 substitution above.
 
+#### 70.6a Rider, 2026-09-21: the warm-start arm D76 consequence 6 assigned to this list
+
+**This list is not edited.** D76 consequence 6, written after this section, states that
+*"`docs/MODELS.md` 70.6's owed list gains the arm that would measure it"* -- the arm comparing
+how far two WARM-STARTED fits diverge against Arm G's cold-fit floor. **It never gained it**,
+and `docs/MODELS.md` carried no occurrence of "warm start" anywhere until Section 74.
+
+**The arm was built and run at 74, and it FAILED**: 27.3251% against Arm G's 6.5687%, refuting
+the direction D76 c.6 named in advance. D76.1 is the rider on the decision.
+
 ## 71. HB2b, measured where the hub emits (Phase 5)
 
 **70.5 returned NO VERDICT on HB2b and 70.6 said why**: the ground is downstream of
@@ -21737,3 +21762,324 @@ is what 73.5 measured; neither is obviously right and only one is currently impl
 
 **A second `Detector` for validate-then-swap**, at 603,032 B, which would let a candidate be
 checked without the running model ever being disturbed. 73.4 costs it and refuses it for now.
+
+## 74. Pre-registration: the sanity band with the shadow warm-started (Phase 5)
+
+**D76 is a ruling and it had never been measured.** D76 consequence 7 says so in its own words:
+taking the decision *"does not make the gate enforceable, and the claim is not made"*, and what
+remains owed is *"an arm in which the shadow is actually warm-started"*. **Every arm in 67, 68
+and 69 was a cold fit.** This is that arm.
+
+**It also needed the mechanism built.** Warm start existed nowhere in this stack: `lstm.train`
+took no weights argument and initialised unconditionally from the seed, and
+`GRUForecastDetector`'s `reuse_weights` is a fit **cache**, not a warm start. D76 had been a
+ruling about code that did not exist.
+
+### 74.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D76         the shadow is initialised from the flying model's weights and
+    (DECISIONS.md:6443)         fine-tuned; there is no random initialisation on the flight path
+  D76 consequence 2             the operative floor is the SEGMENT spread at the flown training
+                                length: 6.5687% (69.7, Arm G)
+  D76 consequence 3             m = K * F by 67.3's factor, which does not move. K = 2.0330
+  D76 consequence 5             69's SD2 is NOT amended and no arm there is retroactively
+                                certified
+  D76 consequence 6             "Arm G is an upper bound on the warm-start floor... Two fits
+                                that begin from the same weights should differ by LESS than two
+                                independent fits at a common seed, not more. That direction is
+                                stated before the arm is run so it cannot be claimed
+                                afterwards" -- which is WS3, and WS3 FAILED
+  D76 consequence 7             what is still owed: this arm, and a realistic drift magnitude
+  docs/DECISIONS.md D74.4       part (ii) is the generalisation gap |res_held - res_fit|/res_fit
+    (DECISIONS.md:6388-6390)
+  docs/MODELS.md 66.3           F is a range_rel over N fits; the definition does not move
+  docs/MODELS.md 67.3           K = 2.0330 = 2 * 2.5758 / 2.534, and the drift ladder
+    (MODELS.md:20244-20250)
+  docs/MODELS.md 68.2           the plateau: ramp over the segment BEFORE the shadow's, then
+    (MODELS.md:20474-20484)     FLAT, so the shadow trains on the distribution HELD is scored at
+  docs/MODELS.md 69.7           Arm G = 6.5687% at L = 18,000, and the geometry this reuses
+  scripts/s69_floor_and_band.py:42-49
+                                FIXTURE_STEPS 780,000, L 18,000, N 6, HELD_LEN 9,000,
+                                FLYING_SEG 0, SHADOW_SEG 5, RAMP_SEG 4
+  src/sentinel_models/lstm.py   train() took no weights argument; load_rnn_weights is new
+  src/sentinel_toolkit/fit.py:103
+                                reuse_weights=False -- runs/_weights/ reads 1,313 before and
+                                after, and the new init_weights path banks nothing either
+```
+
+### 74.2 The constants are declared here, and this file measures none of them
+
+```
+  K          2.0330       67.3, IMPORTED. Not recomputed.
+  F          6.5687%      69.7 Arm G, made operative by D76 consequence 2. NOT re-measured.
+  m = K * F  13.3542%     follows arithmetically. Nothing here chooses a number.
+  drift      T = 3.0539x  67.3's target; the ladder is 67.3's
+```
+
+**Stop 44 and stop 46 govern and are honoured**: the margin and the drift multiple are declared
+above, before any arm ran, and they are not moved afterwards. **Stop 45**: `N`, `L`, `HELD` and
+`F`'s definition are 69's and do not move.
+
+### 74.3 The mechanism, and why it needed its own check
+
+`lstm.load_rnn_weights` is the inverse of `_rnn_weights`: plain arrays back into a module, with
+shapes **checked rather than broadcast**. A silent reshape would warm-start from something that
+is not the flying model, and Arm W -- which measures how far two warm starts diverge -- would
+have been measuring the reshape and reporting it as a finding.
+
+`tests/test_warm_start_round_trip.py` asserts out-in-out is **bit-identical**, that a warm fit
+differs from the cold fit at the same seed (so `init_weights` reaches the optimiser rather than
+being accepted and ignored), and that the loader refuses weights for a different channel width.
+
+**A guard that is not mine is recorded rather than duplicated.** Planting the transpose a GRU's
+three stacked gate blocks invite does not reach the loader at all: `Weights` refuses to be
+constructed from it (`src/sentinel_models/reference.py`). That is a stronger position than a
+load-time check, and a second check that can never fire is not evidence of anything.
+
+**The fit cache key gains the initial weights' digest.** Without it a warm-started fit and a
+cold one on the same data would share an entry and the second to run would return the first's
+answer -- which is precisely the comparison this section makes. The sanity scripts all pass
+`reuse_weights=False`, so this is belt and braces; a cache key that does not name an input is a
+bug waiting for a caller.
+
+### 74.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **WS1** | **Arm A -- warm-started, later healthy segment, NO drift -- is NOT certified** against `m` | at least one part fails | -- | both parts pass |
+| **WS2** | **Arm B -- warm-started, drift-affected segment -- IS certified** | **both** parts pass | exactly one passes, and the report names which | neither passes |
+| **WS3** | **the warm-start spread is SMALLER than Arm G's cold-fit floor**, which is D76 consequence 6's direction, stated there before this arm existed | Arm W's `range_rel` `<` **6.5687%** | -- | `>=` -- and then D76 c.6's premise is refuted and the margin it called conservative is not |
+| **WS4** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences | -- | any rate steers any choice |
+| **WS5** | **the shadow trains on what HELD is scored at** (68.2's geometry, carried) | `\|difference\| <= 1e-4` | -- | anything larger |
+
+### 74.5 Falsification
+
+**If WS3 fails, that is a finding against D76's own premise and it is reported in full.** D76
+consequence 6 called Arm G *"an upper bound on the warm-start floor, so the derived margin is
+conservative"*, and stated the direction **before this arm was built precisely so it could not
+be claimed afterwards**. A failure means the margin D76 c.3 derived is not conservative, and
+whether the floor moves is then a **decision** -- it belongs in a decision entry, argued from
+flight consequences, not taken inside an OBSERVED block to make an arm pass. That is stop 44's
+subject and 69.7 is the precedent for how it is handled.
+
+### 74.6 Cost
+
+**Nine fits at `L` = 18,000**: one flying model, six for Arm W, one Arm A, one Arm B, plus the
+ladder (forecast passes only, no fit). **Zero bucket operations.** `runs/_weights/` reads
+**1,313** before and after. Runner `scripts/s74_warm_start.py`.
+
+### 74.7 OBSERVED -- WS3 FAILED, and the reason it failed is the section's whole result
+
+**WS1, WS2, WS4 and WS5 HELD. WS3 FAILED.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **WS1** | Arm A is NOT certified | part (i) **PASSED** at **+59.9633%**; part (ii) FAILED. Not certified | **HELD** |
+| **WS2** | Arm B IS certified | part (i) **+73.4794%**, part (ii) PASSED. Certified | **HELD** |
+| **WS3** | the warm spread is smaller than 6.5687% | **27.3251%** -- **4.16x LARGER** | **FAIL** |
+| **WS4** | no target rate is an input | **0** occurrences | **HELD** |
+| **WS5** | the shadow trains on what HELD is scored at | **2.000000** and **2.000000**, difference **0** | **HELD** |
+
+#### (!) EVERY WARM-STARTED FIT BEATS THE FLYING MODEL, INCLUDING THE ONE RETRAINED ON THE FLYING MODEL'S OWN SEGMENT
+
+```
+  flying model (cold, segment 1, seed 0)    held-out residual   0.05542821
+
+  ARM W, six warm starts from those weights
+    segment 1   0.02162470     <- the FLYING MODEL'S OWN SEGMENT
+    segment 2   0.02629022
+    segment 3   0.02038432
+    segment 4   0.02380438
+    segment 5   0.02016657
+    segment 6   0.02219163     <- this one is Arm A's shadow
+```
+
+**Segment 1 is the finding.** That shadow started from the flying model's weights and retrained
+on **the flying model's own training data**. No drift. No new data. No later segment. It is
+**60.9861% better** on HELD by part (i)'s measure. The worst of the six is **52.5689%** better.
+
+**So part (i) does not measure what `Objective.md` section 12 means by "the shadow measurably
+better".** It measures that the shadow had more training than the flying model. A warm start
+begins at a converged model and refines it, and on this fixture that is worth roughly a factor
+of 2.5 in held-out residual **whatever segment it refines on**. A gate whose first term is
+satisfied by the retraining itself cannot distinguish *the spacecraft changed* from *the shadow
+ran for longer*.
+
+**64.7's failure has returned in mirror image.** There, part (ii) was inert and part (i)
+carried the gate; SR1 certified a shadow with nothing to learn. Here **part (i) is the inert
+one** -- it passes for every warm-started shadow ever built -- and **part (ii) is carrying the
+gate alone**. It did its job: Arm A was refused on the generalisation gap, **0.099544 against
+the flying model's 0.024966**, and that is the only thing that stopped a stationary arm
+certifying.
+
+#### (!) AND D76 CONSEQUENCE 6 IS REFUTED, IN THE DIRECTION IT NAMED IN ADVANCE
+
+D76 c.6: *"Two fits that begin from the same weights should differ by less than two independent
+fits at a common seed, not more."*
+
+```
+  Arm G   cold fits, six segments, one seed     6.5687%   (69.7)
+  Arm W   WARM fits, same six segments          27.3251%  -- 4.16x LARGER
+```
+
+**The margin D76 consequence 3 derived is therefore not conservative, and D76 called it
+conservative on this premise.**
+
+**One honest qualification, because the statistic has a denominator.** `F` is
+`range_rel = (max - min) / mean` (66.3), and the warm fits' mean is **0.02241030** against a
+flying residual of 0.05542821 -- the mean fell by about 2.5x, which inflates a relative range
+on its own. Arm W's **absolute** range is **0.00612365**. **69 recorded Arm G's spread and not
+its six residuals**, so the absolute comparison cannot be made from the record, and re-running
+Arm G is not this section's business -- stop 45. What is compared is what `F` is defined as,
+and on that definition WS3 fails.
+
+#### The arithmetic of what was measured, stated and NOT taken
+
+69.7 is the precedent: the consequence is stated rather than withheld, and not acted on inside
+an OBSERVED block.
+
+```
+  IF the operative floor became the warm-start spread this arm measured
+     F  = 27.3251%
+     m  = K * F = 55.5519%          K unchanged at 2.0330
+     Arm A measured +59.9633%   ->  part (i) STILL PASSES
+     Arm B measured +73.4794%   ->  part (i) STILL PASSES
+```
+
+**Moving the floor does not fix it.** Arm A's part (i) clears the larger margin too, because
+the warm start's improvement is larger than any floor derived from the warm start's own spread.
+**The problem is not the size of the margin. It is that part (i) measures the wrong thing when
+the shadow is warm-started**, and no choice of `F` repairs a term that passes unconditionally.
+
+**`m` stays at 13.3542% for this section. Stop 44.** Whether it moves is a decision.
+
+#### What this does NOT establish
+
+- **It does not certify anything.** Arm B is certified *by this criterion at this margin on
+  this fixture*, and the criterion's first term has just been shown to pass unconditionally.
+- **One fixture, one seed, seven synthetic channels.** `synthetic.py`'s series are not a
+  spacecraft.
+- **The drift is still a sensor doubling its output** -- gain 2.000, 3.3457x on the flying
+  model's residual. 68.7 owed a realistic magnitude and it is still owed.
+- **`max_epochs` is the flown configuration's for both models.** The flying model is not
+  undertrained by construction; it is undertrained *relative to a warm start*, which is the
+  finding rather than a defect in the apparatus.
+
+### 74.8 Owed
+
+**(!) A DECISION ON WHAT PART (i) SHOULD COMPARE.** The shadow must not be compared to the
+flying model on held-out residual alone, because warm-starting improves that unconditionally.
+Three shapes exist and none has been argued: compare the shadow against **the flying model
+refit on the same segment** (which cancels the training advantage and measures drift alone);
+compare on a window the shadow did **not** train on and the flying model did; or drop part (i)
+and let part (ii) carry the gate explicitly rather than by accident. **It belongs in a decision
+entry** -- it is a design question, and 69.8's shape is the precedent.
+
+**Whether the operative floor moves to Arm W's 27.3251%.** D76 c.2 chose 6.5687% on c.6's
+premise, and c.6 is refuted. The arithmetic above shows the choice does not rescue part (i), so
+this is now a smaller question than it looks -- but D76 states something that is not true and a
+rider is owed on it either way.
+
+**Arm G's six residuals, recorded.** 69 kept the spread and not the values, so no absolute
+comparison against Arm W can be made from the record. Cheap to fix the next time either arm is
+run; not worth a run of its own.
+
+**A realistic drift magnitude.** Unchanged from 68.7, 69.8 and D76 c.7.
+
+**An arm where the shadow differs from the flying model in seed as well as segment.** Unchanged
+from 69.8, and now less urgent: D76 removed the seed from the flight path, so the arm measures
+a variance the flown comparison does not contain.
+
+## 75. The library reads as a reference project, and the adoption chain is worked end to end (Phase 5)
+
+**No predictions, and no pre-registration block, because nothing here is measured.** This
+section records what was built and why, so the citations in `fprime/README.md` and
+`fprime/SentinelRef/ExampleSource/ExampleSource.fpp` resolve to a reason rather than to an
+assertion.
+
+### 75.1 What prompted it
+
+The model is `fprime-community/fprime-sensors-reference`: a plain F' project that consumes a
+component library through `library_locations` and shows one working topology. A reviewer who
+knows that project arrives at `fprime/` -- and **there was no README there at all**.
+`SentinelRef/` and `SentinelRetrain/` each had one; the library's own front door did not.
+
+**An earlier reading of this item was that a second repository should be built in that shape.
+It was withdrawn.** What was wanted is *this* repository organised so it reads like that one,
+which costs one document, one component and one guard entry -- against a second repository, a
+second F' checkout and a 15-25 minute first build, for a consumer that would have added no
+evidence about the component.
+
+### 75.2 What was built
+
+```
+  fprime/README.md                     the landing page. NEW -- there was none.
+  fprime/SentinelRef/ExampleSource/    a deterministic synthetic feed, so the adoption
+                                       chain reads end to end in one place
+  scripts/check_references.py:55-66    fprime/README.md added to MASTER_PREFIXES
+```
+
+**The layout is mapped to that project's vocabulary rather than described in this one's**:
+`Sentinel/` is the library, `SentinelRef/` is its `ReferenceDeployment/`, the component
+directories beside that deployment's `Top/` are its `Components/`, and `CMakeLists.txt`,
+`library.cmake` and `settings.ini` are the same three files at the root.
+
+**One departure is named as one.** That project vendors F' as a git submodule; here `fprime/lib/`
+is gitignored and rebuilt by `scripts/fprime_setup.sh:17` at the same **v4.3.0** pin (D31).
+**This repository has no submodules at all** -- there is no `.gitmodules` -- and a reader who
+assumes otherwise will look for a framework that is not there.
+
+### 75.3 (!) `fprime/README.md` NEEDED A `MASTER_PREFIXES` ENTRY, AND THE GUARD WAS BLIND WITHOUT IT
+
+`scripts/check_references.py:55-66` lists `fprime/CMakeLists.txt`, `fprime/library.cmake` and
+`fprime/settings.ini` **individually**. `fprime/` is not a blanket prefix. So a new document
+there is **invisible to `check_references.py --master`** until it is named, and every citation
+in it would have resolved on `dev` and gone unchecked on the branch that actually ships it.
+
+**This is the same shape as 7's lesson and 65.8's, a third time: a guard that cannot see a file
+is not a guard.** The entry went in with the document, and the checker then reported a real
+break -- a forward citation to this section before it existed -- which is the guard working.
+
+### 75.4 `ExampleSource`, and why it is not instanced
+
+`ExampleAdapter/` has been the worked adapter since work item 11.3, and it converts channels
+that something else must produce. In this deployment that something is `PowerSim/`, the physics
+testbed -- so a reader following the adoption chain had to read a coupled power/thermal
+simulation to find the three lines that matter.
+
+`ExampleSource/` is those three lines: an integer recurrence, one value per channel per tick,
+out through `Example.ChannelValue`. **It is named and described as a synthetic feed and not as
+a sensor**, in the FPP, in the header and in both READMEs, because example code that looks like
+a model of something is example code somebody will cite.
+
+**It publishes three channels, to match `p1.bin`** -- the loadable example this branch ships --
+so a reader following the chain can load that file without the loader refusing it for a width
+mismatch. 73.5 is what that mismatch costs when nobody checks it.
+
+**It is registered and NOT instanced, and the reason is from source.**
+`sentinelMonitor.channelsIn` already has `powerSim.channelOut` on it
+(`SentinelRef/Top/topology.fpp:177`) and it is a single `sync` input port; a second producer
+would make 42.9's recorded run non-deterministic. Instancing would also move
+`connections RateGroups`, which 65's DP3 recorded byte-identical to `HEAD`. So it sits beside
+`ExampleAdapter/`, which is not instanced either, and both are built by their own paths --
+`fprime-util build -p ./SentinelRef` builds neither, and exits 0 having built nothing.
+
+**Built and verified**: `libSentinelRef_ExampleSource.a`, at the deployment's flag set.
+
+### 75.5 What is NOT claimed
+
+**No run.** `SentinelRef`'s recorded run is 42.9's -- T1 to T7, all HELD, on the physics
+testbed with a toolkit-fitted 8-channel model -- and it is cited rather than replaced. **No
+second run was built**, and `ExampleSource` has never driven the detector because it is not
+wired to anything.
+
+**Two corrections to how 42.9 gets described**, while it is being cited: the model it loads is
+a **toolkit-fitted 8-channel** file, **not `p1.bin`**, which is 3 channels and would be refused
+`BAD_SHAPE` in that deployment; and **`WarmupComplete` appears in no run record** -- what 42.9
+records is T5's **196,500 warmed healthy ticks**, which is warm-up having passed, stated as a
+count and not as the event.
+
+**Nothing moved.** The library stays at `fprime/` under its namespace directory, per F's own
+`docs/how-to/develop/develop-fprime-libraries.md` quoted at `fprime/library.cmake:10-13`, so
+every citation and the cross-branch tree assertion stay valid.

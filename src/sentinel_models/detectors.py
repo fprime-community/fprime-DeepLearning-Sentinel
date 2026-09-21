@@ -253,7 +253,10 @@ class ForecastDetector(Detector):
                  agreement: int = 1,
                  chunks: int = DEFAULT_CHUNKS, chunk_steps: int = DEFAULT_CHUNK_STEPS,
                  decay_steps: int = DEFAULT_DECAY_STEPS,
-                 reuse_weights: bool = True) -> None:
+                 reuse_weights: bool = True,
+                 init_weights=None) -> None:
+        # D76: initial weights for a WARM START. `None` is a cold fit and is
+        # every existing caller. See `lstm.load_rnn_weights` for why this exists.
         if mode not in (NDT, QUANTILE):
             raise ReferenceError(f"unknown mode {mode!r}; expected {NDT!r} or {QUANTILE!r}")
         if not 1 <= int(agreement) <= MAX_AGREEMENT:
@@ -272,6 +275,7 @@ class ForecastDetector(Detector):
         self.chunks = int(chunks)
         self.chunk_steps = int(chunk_steps)
         self.reuse_weights = reuse_weights
+        self.init_weights = init_weights
         self.decay_steps = int(decay_steps)
         super().__init__(mode=mode, agreement=self.agreement,
                          **self.hyper.as_dict(), **self.config.as_dict())
@@ -325,16 +329,26 @@ class ForecastDetector(Detector):
                 f"bundle.load"
             )
 
+        # (!) THE INITIAL WEIGHTS ARE PART OF THE FIT'S IDENTITY. Without this
+        # term a warm-started fit and a cold one on the same data would share a
+        # cache entry, and the second to run would silently return the first's
+        # answer -- which is exactly the comparison D76's owed arm is trying to
+        # make. `reuse_weights=False` is the toolkit's setting and the sanity
+        # scripts' setting, so this is belt and braces; it is here because a
+        # cache key that does not name an input is a bug waiting for a caller.
         key = (self.hyper.as_dict_key(), context.channels, context.fold,
                context.window, values.shape, _sample_digest(values),
                _digest(usable[::997]),
-               None if impulses is None else _sample_digest(impulses))
+               None if impulses is None else _sample_digest(impulses),
+               None if self.init_weights is None
+               else _weights_digest(self.init_weights))
         reuse = self.reuse_weights and caching()
         digest = _digest(key)
         cached = (_WEIGHTS.get(key) or _load_weights(digest)) if reuse else None
         if cached is None:
             weights, report = train(values, usable, self.hyper, fold=context.fold,
-                                    impulses=impulses)
+                                    impulses=impulses,
+                                    init_weights=self.init_weights)
             cached = (weights, report.as_dict())
             if reuse:
                 _save_weights(digest, *cached)
