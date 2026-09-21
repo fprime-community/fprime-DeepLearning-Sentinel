@@ -630,6 +630,7 @@ prediction that failed and why. This document follows the same discipline.
   - [65.7 (!) Where the unrun predictions stand, precisely](#657-where-the-unrun-predictions-stand-precisely)
   - [65.8 Master files changed in this series](#658-master-files-changed-in-this-series)
   - [65.9 Owed](#659-owed)
+  - [65.10 (!) Rider, 2026-09-21: the domain lock, costed and then reproduced, because 65.6's fix had only ever been believed in one direction](#6510-rider-2026-09-21-the-domain-lock-costed-and-then-reproduced-because-656s-fix-had-only-ever-been-believed-in-one-direction)
 
 <!-- /toc -->
 
@@ -19727,3 +19728,95 @@ apparatus does not use it.
 **C2**, still, and still deferred to E4's hardware. 62.6 is unchanged.
 
 **Everything 64.8 owes**, unchanged.
+
+### 65.10 (!) Rider, 2026-09-21: the domain lock, costed and then reproduced, because 65.6's fix had only ever been believed in one direction
+
+**65.6 is not amended.** The run that died stays exactly as it is recorded, including its
+fix. What was missing is that **nothing reproduced the failure**. The deployment stopped
+crashing, which shows the fix is sufficient; it shows nothing about whether the failure was
+real, reproducible, or whether any guard could see it. 65.8 caught one guard in this very
+stage that had only ever passed and was blind, and that is the whole reason this rider
+exists.
+
+#### The three routes, costed, and the one that was already taken
+
+65.6 adopted a fix without costing the alternatives. They are costed here, from the runtime
+headers in this switch rather than from recollection, and the adopted one is named as
+adopted.
+
+```
+  (a) acquire and release the runtime lock around every entry point
+      REFUSED, from source. oxcaml/.opam/5.2.0+ox/lib/ocaml/caml/threads.h:26-27
+      makes caml_acquire_runtime_system and caml_release_runtime_system MACROS
+      for caml_leave_blocking_section / caml_enter_blocking_section -- they are
+      not functions, and taking their address or grepping for them finds
+      nothing. And a thread must be REGISTERED before it may hold the lock at
+      all: caml_c_thread_register is declared CAMLextern_libthreads at
+      threads.h:55-59, so it lives in the OCaml THREADS LIBRARY, which the
+      project's -output-complete-obj object does not carry. Route (a) therefore
+      costs a new link dependency and a change to the flag set 47.8 pinned, to
+      buy a property route (b) already has.
+
+  (b) caml_startup on the thread that will call in
+      ADOPTED, and already in the tree at Retrainer.cpp:97-108. Keeps exactly
+      one domain (D70 c.9, Domain.spawn still never called), every entry point
+      int32_t, no OCaml value in C++, no exception crossing, and fixed compute
+      per tick (Objective.md 11 rule 5). Cost: it is NOT SELF-ENFORCING -- see
+      below, and that cost is what the third guard is for.
+
+  (c) a dedicated thread that starts the runtime and services a queue
+      REFUSED. It adds a task the rate group does not pace, so "fixed compute
+      per cycle" would have to be argued about a queue depth rather than read
+      off one handler. Svc.PassiveRateGroup was refused at 65.6 for an adjacent
+      reason and the same reasoning governs here.
+```
+
+**(!) ROUTE (b)'s COST IS STATED RATHER THAN DISCOVERED LATER.** Booting on the ticking
+thread pins the domain to that thread. It keeps the process alive only while **every call
+in also happens there**, and `schedIn` being the single way in is a property of today's
+component, not of the route. The hub work adds a second caller -- the TCP driver's socket
+read task -- and a `sync` port handler wired to the hub would run on it.
+
+#### DL1 and DL2, and both were run
+
+`oxcaml/retrainer/domain_lock_probe.cpp` boots the runtime on the main thread, exactly as
+`configureTopology()` would, and then calls `sentinel_cycle_init` either on that thread or
+on a second `pthread`. Built and run by `scripts/oxcaml_s65a.sh` at F's own validation flag
+set, `-Werror` with `-Wold-style-cast` and `-Wconversion`.
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **DL1** | a cross-thread call into OCaml is **fatal**, and fatal with that message | `Fatal error: no domain lock held`, **SIGABRT, exit 134** | **HELD** |
+| **DL2** | the same call on the booting thread **succeeds** | returned 0, exit 0 | **HELD** |
+
+DL1's band was: HOLD the process dies **and** stderr carries `no domain lock held`; NO
+VERDICT it dies of something else, which would make the control prove nothing; FAIL it
+returns at all, which would mean 65.6's account of why the fix is needed is wrong and would
+have to be re-read rather than the test relaxed.
+
+**This is the first time the crash has been produced on purpose.** Until now the only
+evidence that OCaml 5 pins the domain lock was one dead deployment and a reading of the
+manual.
+
+#### The guard, and the third check that is not about today
+
+`tests/test_ocaml_domain_lock_is_thread_pinned.py` runs DL1 and DL2 against the built probe
+and skips when it is absent, which on a clone without the OxCaml switch it always is. Two
+further checks always run, because DL1 and DL2 only test the code as it is today:
+
+1. **Every OCaml entry point in `Retrainer.cpp` sits in `boot` or `schedIn_handler`.** All
+   ten call sites do. `boot` counts because `schedIn_handler` is the only caller of it.
+2. **`SentinelRetrainTopology.cpp` calls into OCaml nowhere at all** -- the exact mistake
+   that produced 65.6's crash.
+
+**Both were seen to fail first, on planted input, before either was believed.** An
+`(void)sentinel_retrainer_status()` inserted into `Retrainer::accept` was reported as
+*"OCaml entry points outside ['boot', 'schedIn_handler']: {58: ('accept', ...)}"*, and a
+`(void)sentinel_retrainer_boot()` inserted into the retrainer topology's `configureTopology`
+was reported by name. Both were then removed and all four checks pass.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`runs/_weights/` **1,313** before and after -- nothing here fits anything. The probe builds in seconds. The suite moves from **751** to **755** collected,
+and `tests/test_documents_are_current.py:228` requires the live documents to say so.

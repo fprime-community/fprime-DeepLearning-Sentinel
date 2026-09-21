@@ -14,6 +14,80 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.63] - 2026-09-21 - The domain lock is reproduced on purpose, and route (b) was never costed against the other two
+
+**`docs/MODELS.md` 65.10**, a rider. 65.6 is not amended.
+
+### The crash, on demand
+65.6 recorded a deployment dying with `Fatal error: no domain lock held` and recorded the fix.
+**Nothing reproduced the failure.** The deployment stopped crashing, which shows the fix is
+sufficient and shows nothing about whether the failure was real or whether any guard could see
+it -- and 65.8 caught a guard in that same stage that had only ever passed and was blind.
+
+`oxcaml/retrainer/domain_lock_probe.cpp` boots the runtime on the main thread, exactly as
+`configureTopology()` would, then calls into OCaml either there or on a second `pthread`.
+**DL1 HELD**: the cross-thread call dies with `no domain lock held`, SIGABRT, **exit 134**.
+**DL2 HELD**: the same call on the booting thread returns 0. Built and run at F's own
+validation flag set by `scripts/oxcaml_s65a.sh`.
+
+### The three routes, costed from the headers rather than recalled
+**(a) is refused from source.** `threads.h:26-27` makes `caml_acquire_runtime_system` and
+`caml_release_runtime_system` **macros** for `caml_leave_blocking_section` /
+`caml_enter_blocking_section` -- not functions -- and `caml_c_thread_register` is declared
+`CAMLextern_libthreads` at `threads.h:55-59`, so it lives in the OCaml **threads library**,
+which this project's `-output-complete-obj` object does not carry. **(c) is refused** for
+adding a task the rate group does not pace. **(b) is adopted**, and it was already in the tree.
+
+**Route (b)'s cost is stated rather than discovered later: it is not self-enforcing.** It holds
+only while `schedIn` is the single way in, which is a property of today's component and not of
+the route. So `tests/test_ocaml_domain_lock_is_thread_pinned.py` also asserts by shape that
+every OCaml entry point sits in `boot` or `schedIn_handler` and that the retrainer topology
+calls into OCaml nowhere. **Both were seen to fail on planted input before either was
+believed.** The suite moves 751 -> 755. Zero bucket operations; `runs/_weights/` 1,313 unmoved.
+
+## [0.6.62] - 2026-09-20 - Both deployments get a README, and the citation guard could not see either of them
+
+**Polish 11.2**, deferred until there were two deployments to describe.
+`fprime/SentinelRef/README.md` was 65 lines of unmodified F' boilerplate naming no component of
+this project; `fprime/SentinelRetrain/` had no README at all. Both now state why the split is a
+**requirement** -- D70 consequence 2, and OCaml 5's stop-the-world minor collector -- and the
+retrainer's carries the domain-lock constraint, because that is the thing a reader will
+otherwise rediscover by crashing.
+
+### The guard could not see a new file until the commit that added it
+`scripts/check_references.py:73` enumerated with `git ls-files` alone, so an untracked file was
+not scanned. The two new READMEs carried **two broken citations** -- a DESIGN.md section 8,
+which is a `master`-only document and cannot resolve for a `dev` reader, and a MODELS.md section 47.15b,
+which does not exist because 47.15b is a rider inside 47.15 -- and the checker reported *"every citation
+resolves"* on that working tree twice. It now also scans `--others --exclude-standard`. Seen to
+fail first: an untracked probe citing a MODELS.md section number that cannot exist passed before
+the change and was reported after it.
+
+## [0.6.61] - 2026-09-20 - The second deployment, and C5 discharged -- recorded here late, because it was not recorded at all
+
+**`docs/MODELS.md` 65.** This entry is written after the fact: the five commits of stage 65
+landed with no CHANGELOG entry, and the omission is stated rather than quietly backfilled.
+
+**C5 DISCHARGED.** `fprime/SentinelRetrain/` is a deployment with its own `main`, built by
+`fprime-util`, and the OCaml runtime starts inside it and runs a cycle per tick. All four
+clauses of C5 are met. **DP1-DP4 all HELD**: six full cycles at 1 Hz with hand-checkable
+arithmetic, then `ERR_OVERFLOW` when the fixed 64-sample accumulator fills.
+
+**2,928 OCaml symbols in `SentinelRetrain`, 0 in `SentinelRef`**, checked by symbol on every
+test run -- `Retrainer/CMakeLists.txt:46` links the object **PUBLIC**, so one wiring mistake
+would move the garbage collector into the detector's process silently. **DP2's guard was blind
+when first written and passed anyway**: macOS `nm` prefixes every symbol with an underscore and
+a `\b` anchor does not match between `_` and `caml`. Its positive control caught it.
+
+**And the first run died.** `Fatal error: no domain lock held` -- OCaml 5 grants the domain lock
+to whichever thread calls `caml_startup`, and `Svc.ActiveRateGroup` runs `schedIn` on its own
+task. **Every rung from 48 to 62 ran single-threaded in a unit-test process and could not have
+seen it.** The constraint was never in the arithmetic, the allocation behaviour, the flag set or
+the C boundary; it is in which thread holds the domain.
+
+**HB1, HB2, HB2b and HO1-HO3 were NOT RUN** -- not NO VERDICT and not FAIL. 62.4's distinction
+governs: *"it does not work"* and *"we did not build it"* are different sentences.
+
 ## [0.6.60] - 2026-09-20 - The sanity gate is tested before it is trusted, and it fails
 
 **`docs/MODELS.md` 64**, two questions in one pre-registration. **D74.2** gives
