@@ -592,6 +592,7 @@ prediction that failed and why. This document follows the same discipline.
   - [61.3 Predictions](#613-predictions)
   - [61.4 Falsification](#614-falsification)
   - [61.5 Cost, and stop and report](#615-cost-and-stop-and-report)
+  - [61.5a (!) Rider, 2026-09-20: stop 32 is narrowed to what 47.15b actually refused, because as drafted it makes C5 undischargeable](#615a-rider-2026-09-20-stop-32-is-narrowed-to-what-4715b-actually-refused-because-as-drafted-it-makes-c5-undischargeable)
   - [61.6 OBSERVED -- the cycle crosses into an F' component at the framework's own flag set](#616-observed----the-cycle-crosses-into-an-f-component-at-the-frameworks-own-flag-set)
   - [61.7 Owed](#617-owed)
 - [62 Pre-registration: E5-d, the hub crossing and the detector's tick with a retrainer beside it (Phase 5)](#62-pre-registration-e5-d-the-hub-crossing-and-the-detectors-tick-with-a-retrainer-beside-it-phase-5)
@@ -619,6 +620,12 @@ prediction that failed and why. This document follows the same discipline.
   - [64.6 Cost, and stop and report](#646-cost-and-stop-and-report)
   - [64.7 OBSERVED -- the gradients are bounded at last, and the sanity criterion is not fit to be a gate](#647-observed----the-gradients-are-bounded-at-last-and-the-sanity-criterion-is-not-fit-to-be-a-gate)
   - [64.8 Owed](#648-owed)
+- [65 Pre-registration: E5-d completed and E5-e, the second deployment and the handoff (Phase 5)](#65-pre-registration-e5-d-completed-and-e5-e-the-second-deployment-and-the-handoff-phase-5)
+  - [65.1 REQUIREMENTS DERIVED FROM:](#651-requirements-derived-from)
+  - [65.2 (!) Two traps that are silent rather than loud, and the order that isolates them](#652-two-traps-that-are-silent-rather-than-loud-and-the-order-that-isolates-them)
+  - [65.3 Predictions](#653-predictions)
+  - [65.4 Falsification](#654-falsification)
+  - [65.5 Cost, and stop and report](#655-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -18588,6 +18595,56 @@ Stop and report, carrying every stop from 47.12 through 60.5, and adding:
 33. **A `float` or `double` appears in a C boundary signature.** Stop. CPP-3, and the boundary
     carries `F32`/`F64` through Bigarray or fixed-size integers, never a bare C floating type.
 
+### 61.5a (!) Rider, 2026-09-20: stop 32 is narrowed to what 47.15b actually refused, because as drafted it makes C5 undischargeable
+
+**61.5 is not edited.** Its stop 32 stands quoted here beside the narrowing:
+
+> 32. **`Retrainer` is instanced into any topology.** Stop. 47.15b rejected it on three grounds
+>     and this rung is not an argument against any of them.
+
+**(!) READ STRICTLY, THAT FORBIDS THE ONLY THING THAT CAN DISCHARGE C5.** 47.15b names C5's
+discharger in its own words:
+
+> **Discharged by:** a **minimal retrainer deployment** -- its own `Top/`, a topology carrying
+> the `Retrainer` and a rate group and nothing else, per D70 consequence 2.
+
+A topology carrying the `Retrainer` is a topology. **So the stop and the discharger contradict
+each other, and the strict reading makes C5 undischargeable by construction** -- which is not a
+result about the architecture, it is a drafting defect.
+
+**What 47.15b actually refused is reading (b), and all three of its grounds are about the
+detector's process**:
+
+```
+  1  "It puts the garbage collector in the detector's process, on the process that owns
+     the 1 Hz rate group"                                       -- the DETECTOR's process
+  2  "It contradicts D70 consequence 2", which requires a SEPARATE process
+                                                                -- a separate deployment IS one
+  3  "E2's numbers do not license it ... In-process coexistence has never been measured"
+                                                                -- again, in-process
+```
+
+**None of the three reaches a retrainer in its own deployment and its own process.** Ground 2
+is in fact the argument *for* it.
+
+**THE NARROWING, and it is the owner's ruling.** Stop 32 is read from here as:
+
+> 32. **`Retrainer` is instanced into any topology that carries the `Monitor`, or shares a
+>     process with it.** Stop.
+
+**Nothing else about 47.15b moves.** Reading (b) -- `Retrainer` into `SentinelRef` -- **stays
+rejected on all three grounds**, and `SentinelRef/Top/instances.fpp` will not name `Retrainer`
+at any point in Stage 65. **No rung's progress is evidence that (b) became safe**, and 47.14a's
+sentence saying so is unchanged.
+
+**(!) AND THE NARROWING IS GUARDED RATHER THAN TRUSTED.** 65 writes a check that asserts, by
+**symbol** and not by string, that the built `SentinelRef` binary contains no OCaml runtime --
+because `Retrainer/CMakeLists.txt:46` links `${OX_OBJ}` **PUBLIC**, so a single wiring mistake
+would put the garbage collector in the detector's process at link time, silently, which is
+exactly what ground 1 forbids. **A stop that is narrowed and then only remembered is worse than
+one left too wide.**
+
+
 ### 61.6 OBSERVED -- the cycle crosses into an F' component at the framework's own flag set
 
 **2026-09-17. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
@@ -19391,3 +19448,133 @@ moved the held-out residual by 0.03%.
 **An exhaustive check at more than one seed and `T`**, if the 3.26x margin is ever leaned on.
 
 **Everything 63.7 owes**, unchanged.
+
+---
+
+## 65. Pre-registration: E5-d completed and E5-e, the second deployment and the handoff (Phase 5)
+
+**The crossing 62 did not build, and the handoff after it.** 62.6 reported HB1 and HB2 as an
+**unbuilt crossing** rather than a negative result, and 62.7 named what was missing: a second
+deployment with a `Svc::GenericHub` at each end, a buffer allocator, a
+`Drv::ByteStreamBufferAdapter` and a TCP driver. **This builds it.**
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred. **C5 is what
+this rung bears on, and unlike 61 and 62 it can close it**: 47.15b's named discharger is a
+minimal retrainer deployment, and 61.5a narrows stop 32 so that building one is permitted.
+**Reading (b) stays rejected on all three grounds and `SentinelRef` never instances
+`Retrainer`.**
+
+### 65.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 62.7            "A second deployment with Svc::GenericHub, a buffer
+                                 allocator, Drv::ByteStreamBufferAdapter and a TCP driver
+                                 at each end, serialized values only"
+  docs/MODELS.md 61.5a           stop 32 narrowed to topologies carrying the Monitor
+  docs/MODELS.md 47.15b          C5's discharger: "a minimal retrainer deployment -- its
+                                 own Top/, a topology carrying the Retrainer and a rate
+                                 group and nothing else"; and reading (b)'s three grounds
+  docs/DECISIONS.md D70 c.2      the retrainer is a SEPARATE OS PROCESS, a requirement
+  docs/DECISIONS.md D32 c.2      "Work item 10 promotes it to queued, because its reload
+                                 path is an async command. That is a one-word change in
+                                 the FPP plus a queue dispatch at the top of the schedIn
+                                 handler, and it is recorded here so work item 10 does not
+                                 have to" -- E5-e executes a registered consequence
+  hub-pattern.md:50-55           "Do not pass an Fw::Buffer across a hub"
+  hub-pattern.md:61-63           "Never pass pointers through a hub ... send serialized
+                                 values instead"
+  hub-pattern.md:64-66           received event and telemetry outputs wire to the
+                                 deployment's event manager and telemetry database
+  hub-pattern.md:67-69           Drv::ByteStreamBufferAdapter at each end of the transport
+  Svc/GenericHub/GenericHub.cpp:129-130
+                                 the frame is dispatched only when size == buffer size
+                                 minus 12; :249-252 returns the buffer and DROPS it
+                                 otherwise, with no event and no counter
+  Drv/ByteStreamBufferAdapter/ByteStreamBufferAdapter.cpp:24-35
+                                 bufferIn_handler logs DriverNotReady and does NO framing
+  fprime/SentinelRef/Retrainer/CMakeLists.txt:25-33, :46
+                                 ${OX_OBJ} is cycle_complete.o, and it is linked PUBLIC
+  scripts/oxcaml_s61.sh:79-84    "two -output-complete-obj objects cannot be linked into
+                                 one binary" -- one complete-obj per deployment
+  fprime/SentinelRef/Top/topology.fpp:26-36, :43-48
+                                 the instances and the pattern specifiers the crossing
+                                 must not disturb
+```
+
+### 65.2 (!) Two traps that are silent rather than loud, and the order that isolates them
+
+**Both were found by reading before anything was wired, and both produce "it works sometimes"
+rather than a failure.**
+
+**TRAP A -- the OCaml runtime can reach the detector's binary at link time.**
+`Retrainer/CMakeLists.txt:46` links `${OX_OBJ}` **PUBLIC**, so anything depending on that module
+transitively links a whole OCaml runtime. `SentinelRef` is clean today only because its topology
+never names `Retrainer`. **One wiring mistake puts the garbage collector in the detector's
+process**, which is 47.15b ground 1 arriving as an accident rather than a decision. **The guard
+is written and seen to fail BEFORE anything is wired.**
+
+**TRAP B -- TCP does not preserve message boundaries and `GenericHub` requires that it does.**
+`GenericHub.cpp:129-130` dispatches only on an exact size match and `:249-252` drops anything
+else **silently**. The adapter does no framing. `Retrainer::schedIn_handler` emits five telemetry
+writes and an event back to back, so **any two that coalesce in one `recv` are both dropped.**
+**So the crossing is counted, not observed**: a crossing that "works" is not evidence until the
+loss rate is measured.
+
+### 65.3 Predictions
+
+`HB1` and `HB2` are **62.3's, re-run rather than re-worded**, because 62 recorded them NO
+VERDICT pending exactly this. `DP` is the deployment, `HO` the handoff.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **DP1** | **`SentinelRetrain` builds and starts**, its own `Top/`, `Retrainer` + rate group, linking `${OX_OBJ}` | binary builds and boots its runtime | the OxCaml object is absent and the module skips itself | it does not build |
+| **DP2** | **(!) `SentinelRef`'s binary contains NO OCaml symbols**, by `nm -C`, at every step | **0** OCaml symbols | -- | any -- and then trap A fired and the GC is in the detector's process |
+| **DP3** | **`sentinelMonitor` and `powerSim` are unchanged**, and so is `connections RateGroups` | byte-identical to `HEAD` before this stage | -- | either moved |
+| **DP4** | **The retrainer ticks with no hub in the picture** | `RuntimeBooted` then a cycle per tick, on `textLogger` | the runtime is unavailable, which is an OxCaml fault and not a crossing one | no tick |
+| **HB1** | **serialized values only across the hub**, counted mechanically | **0** `Fw::Buffer` and **0** pointer crossings; the hub's own `bufferIn`/`bufferOut` unconnected | -- | any crossing carries one |
+| **HB2** | **two processes, one hub, and the OCaml runtime starts in the second** -- **C5** | the retrainer deployment boots its runtime and a full cycle is reported across the hub | the transport stands up but no cycle crosses | no crossing at all |
+| **HB2b** | **and the crossing is not lossy**, which HB2 alone cannot see | **>= 99%** of ticks deliver all five channels and the event | `[90%, 99%)`, reported as a lossy crossing with the figure | `< 90%` -- trap B fired, and the transport is reported as unsuitable rather than the design |
+| **HO1** | **a candidate model file is written by process 2** and loads under `flight/`'s own reader | written, and `Detector::load` returns `OK` | -- | it does not load |
+| **HO2** | **it reaches the ground** by FileDownlink, with the metrics beside it | downlinked and the metrics are present | the path stands up but the file does not transfer | no downlink |
+| **HO3** | **a human command reloads it in process 1**, FileUplink then a commanded reload | the command lands and `Monitor` reports the new model | the command lands and the reload is refused, with the code named | no command path |
+
+### 65.4 Falsification
+
+**If DP2 FAILS the stage stops there**, whatever else holds. An OCaml runtime in the detector's
+process contradicts D70 c.2 and 47.15b ground 1, and no crossing result is worth reporting
+beside it.
+
+**If HB2 FAILS for want of the machinery standing up, that is an unbuilt crossing again**, and
+62.4's distinction holds: *"it does not work"* and *"we did not build it"* are different
+sentences.
+
+**If HB2b lands below 90%, the finding is about the transport and not the pattern.**
+`Drv.Udp` imports the same `ByteStreamDriver` interface, so the hub and adapter wiring would be
+unchanged and only the driver instance moves. **That is registered here as the route, before the
+number is seen**, so choosing it afterwards is not a choice made to rescue a result.
+
+**If HO3 returns NO VERDICT with a refusal code, that is a better outcome than a silent pass**
+-- the twelve refusal codes exist for exactly this, and a candidate refused by name is the
+handoff working.
+
+### 65.5 Cost, and stop and report
+
+**Zero bucket operations.** Month unmoved at 238 Class A / 5,740 Class B
+(`docs/STATUS.md:160-161`). **`fprime/` moves, so `master` moves in the same series, and every
+master file changed is listed.**
+
+**(!) NO TIMING FIGURE IS PRODUCED BY THIS STAGE.** 62.6 established that this host's power
+management downclocks an idle core and that the confound exceeds the effect. **C2 stays
+UNVERIFIED and is deferred to E4's hardware**, unless a control can be shown to defeat power
+management -- pinned cores and a spinning idle load, with the two controls agreeing within the
+effect size **before** the retrainer arm runs. **If that cannot be shown, no number is
+reported.** Stop 35 governs.
+
+Stop and report, carrying every stop from 47.12 through 64.6, and adding:
+
+41. **`SentinelRef`'s deployment binary links `${OX_OBJ}`, directly or transitively.** Stop.
+    Trap A, 47.15b ground 1, and DP2 is the guard.
+42. **A hub crossing figure is reported without its loss rate.** Stop. `GenericHub.cpp:249-252`
+    drops silently, so an uncounted crossing is an unmeasured one.
+43. **`Drv.Udp` is substituted for a reason other than HB2b's band.** Stop. 65.4 registers the
+    route and the condition before the number.
