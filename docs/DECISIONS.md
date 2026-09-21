@@ -6360,3 +6360,78 @@ was not registered anywhere until now.
 5. **Nothing about rule 1 moves.** The flying model stays frozen, a human still commands any
    swap, and the previous model is still retained. **This entry narrows what the human can be
    shown, not who decides.**
+
+### D74.4 Rider, 2026-09-21: the criterion is rebuilt from a measured floor, part (ii) is replaced, and what remains is one undecided design question
+
+**D74.2 and D74.3 are not edited.** D74.2's two-part reading stays REGISTERED and not
+adopted; D74.3's account of why it was refused stays as written. This records what replaced
+it, what that cost, and the single question now blocking the gate.
+
+**CONTEXT.** D74.3 left `Objective.md:1066`'s *"measurably better"* undefined and the
+Phase 5 gate unenforceable, with two named causes: a margin *declared* rather than derived,
+and a second part that was **inert**. `docs/MODELS.md` 66 to 69 addressed both, in that
+order, over four pre-registrations and four runs.
+
+**WHAT WAS DONE.**
+
+1. **The floor was measured before any margin was named** (`docs/MODELS.md` 66), as two
+   arms -- N fits on one segment at N seeds, and N fits on N disjoint segments at one seed.
+   This is `docs/HARNESS.md:110`'s rule for the threshold, applied to the margin: *"a noise
+   floor, not a dial."*
+2. **The margin became a formula fixed before its input was measured**: `m = K * F` with
+   `K = 2.0330 = 2 * 2.5758 / 2.534`, the factor that inflates an observed six-sample range
+   to the two-sided 99% interval it under-estimates (`docs/MODELS.md` 67.3). **The normal
+   assumption behind `K` is stated and untested**; six points cannot test it, and it is the
+   one substantive thing in the arc argued rather than measured.
+3. **Part (ii) was replaced, with three routes costed** (`docs/MODELS.md` 67.2). Adopted:
+   the **generalisation gap on the forecast residual**, `|res_held - res_fit| / res_fit`.
+   Refused: calibration on the residual channel alone, and a one-part gate.
+
+**WHAT IT BOUGHT, AND IT IS REAL.** D74.3's second cause is **gone, structurally**. 64.7's
+part (ii) returned values *"identical to six figures"* for two different models. The
+replacement separated them by a factor of **26.2** at `docs/MODELS.md` 68.6 and **372** at
+69.7. No term in it is computed from the telemetry alone, so the mechanism that let the
+derivative set the maximum in 7 of 7 steps has nothing to act on. **The refused route (a) was
+then refused three more times by evidence**, returning 4.75/116.75, 42.50/108.50 and
+1.00/1.00 on arms whose correct answers were known -- including ranking the shadow *worse* on
+the one arm where it is unambiguously better.
+
+**WHAT IT DID NOT BUY.** **No arm has certified.** `docs/MODELS.md` 69.7 found why, and the
+finding is a decomposition nobody had made:
+
+```
+                        L = 6,000        L = 18,000
+  SEGMENT spread          22.5745%          6.5687%     falls 3.44x -- convergence
+  SEED    spread          29.8606%         31.9283%     does not fall -- irreducible
+```
+
+**CONSEQUENCES.**
+
+1. **One undecided design question now determines whether this gate can exist at all**, and
+   it is registered here rather than answered: **does the flown retrainer reproduce the
+   flying model's seed?** If it does, the comparison differs in segment only, the operative
+   floor is 6.5687%, `m` is 13.3542%, and the tracking shadow at 69.7 **would certify** on
+   numbers already measured. If it does not, the floor is 31.9283%, `m` is 64.9100%, and
+   **nothing certifies, ever.** `docs/PHASE5.md` does not mention a seed;
+   `oxcaml/retrainer/shadow59.ml` does not carry one; 64.3's *"seed 0 for both models"* is
+   apparatus and was never proposed as a flight rule.
+2. **That question is not settled by whichever answer makes an arm pass.** It is a property
+   of the flown retrainer and must be argued from flight consequences in its own entry.
+   Deciding it inside an OBSERVED block would be exactly what `docs/MODELS.md` 66.5's stop 44
+   exists to forbid, and it is why 69.7 states the arithmetic of both branches and takes
+   neither.
+3. **`Objective.md` is not edited and nothing is adopted.** The gate at `Objective.md:1065-1067`
+   is carried across unchanged, as D74 carried it. **It is still unenforceable** -- but the
+   reason has moved, and that is the progress this rider records. At D74.3 it was
+   unenforceable because the criterion could not tell two models apart. It is now
+   unenforceable because **one design decision has not been taken**, and both branches of
+   that decision have their consequence measured.
+4. **D74.2's reading is superseded in substance and kept in place.** Its part (i) margin of
+   2.0% and its part (ii) are both replaced by `docs/MODELS.md` 67.2 and 67.3. The entry
+   stays REGISTERED and unedited beside this one, per house form.
+5. **Nothing about rule 1 moves**, and this rider repeats D74.3's fifth consequence
+   deliberately. The flying model stays frozen, a human still commands any swap, and the
+   previous model is retained. **This narrows what the human can be shown, not who decides.**
+6. **An arm matching `F = max` was never run.** Every arm in 67, 68 and 69 held the seed
+   constant, so all three measured the seed-reuse case against a margin derived for the
+   seed-fresh case. `docs/MODELS.md` 69.8 owes it.

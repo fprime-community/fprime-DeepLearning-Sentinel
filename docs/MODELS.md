@@ -665,6 +665,8 @@ prediction that failed and why. This document follows the same discipline.
   - [69.4 Predictions](#694-predictions)
   - [69.5 Falsification, and what each outcome is allowed to mean](#695-falsification-and-what-each-outcome-is-allowed-to-mean)
   - [69.6 Cost](#696-cost)
+  - [69.7 OBSERVED -- NG1 and NG2 both failed, and the failure separates 66.7's two readings exactly](#697-observed----ng1-and-ng2-both-failed-and-the-failure-separates-667s-two-readings-exactly)
+  - [69.8 Owed](#698-owed)
 
 <!-- /toc -->
 
@@ -20676,3 +20678,122 @@ Stop and report, carrying every stop from 47.12 through 68.
 fixture build is about **25 s**, interpolated from the three measured above. **Zero bucket
 operations.** `runs/_weights/` must read **1,313** before and after. Runner
 `scripts/s69_floor_and_band.py`.
+
+### 69.7 OBSERVED -- NG1 and NG2 both failed, and the failure separates 66.7's two readings exactly
+
+**SD1, SD3, SD5, SD6 HELD. SD2 NO VERDICT. SD4 NO VERDICT. NG1 FAILED. NG2 FAILED.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **NG1** | `F` falls at the longer training length | **31.9283%** against 66.7's **29.8606%** -- it did not fall, it rose slightly | **FAIL** |
+| **NG2** | the seed spread is smaller than the segment spread | seeds **31.9283%**, segments **6.5687%** | **FAIL** |
+| **SD1** | Arm A is NOT certified | part (i) failed: **-0.4102%**, the shadow is marginally *worse* | **HELD** |
+| **SD2** | Arm B IS certified | exactly one part passed. (i) **+23.6846%** against a required 64.9100% | **NO VERDICT** |
+| **SD3** | no target rate is an input | **0** occurrences | **HELD** |
+| **SD4** | part (ii) not inert, and the parts agree | not inert; they disagree in both arms | **NO VERDICT** |
+| **SD5** | the ladder reaches its target | gain 1.000 -> 2.000 gives **3.3457x** | **HELD** |
+| **SD6** | the shadow trains on what HELD is scored at | **2.000000** and **2.000000**, difference **0** | **HELD** |
+
+#### (!) THE HEADLINE IS THE DECOMPOSITION, AND IT IS UNAMBIGUOUS
+
+```
+                        L = 6,000        L = 18,000        change
+  SEGMENT spread          22.5745%          6.5687%        falls 3.44x
+  SEED    spread          29.8606%         31.9283%        does not fall
+```
+
+**66.7 could not separate two readings and this separates them: both were partly right, and
+about different arms.** Segment-to-segment variation *is* mostly a failure to converge -- give
+the fitter three times the data and it falls by a factor of 3.44, landing at **6.57%**, which
+is finally in the neighbourhood of the *"about 4%"* 64.7 observed. **Seed-to-seed variation is
+not, at all.** It is **irreducible at roughly 30%** and no amount of training data touches it.
+
+**Arm A corroborates it from the other side.** At `L = 6,000` Arm A's shadow appeared
+**14.9494%** better than the flying model on stationary data -- pure noise wearing the shape
+of an improvement. At `L = 18,000` that collapses to **-0.4102%**. The converged regime does
+what a stationary arm should do: nothing.
+
+#### (!) AND THAT MAKES ONE UNDECIDED DESIGN QUESTION THE WHOLE BALL GAME
+
+66.8 registered as owed: *"Whether the flown retrainer reproduces the flying model's seed."*
+It was an open question. **It is now the question that decides whether this gate can exist.**
+
+The comparison the criterion actually makes is **flying(segment 1, seed 0) against
+shadow(segment 6, seed 0)**. Those two models differ in **segment only**. The null spread for
+that comparison is Arm G's **6.5687%**. Arm S's 31.9283% measures a variance the comparison
+does not contain -- two models differing in *seed* on the *same* segment.
+
+**66.3 declared `F = max` over the two arms before either ran, and that is honoured here: `F`
+is 31.9283% and `m` is 64.9100%. Stop 45. Neither is moved.** But the arithmetic of what was
+already measured is not a secret and is stated rather than withheld:
+
+```
+  IF the flown retrainer reproduces the flying model's seed
+     the operative floor is the SEGMENT arm    6.5687%
+     m = K * F                                13.3542%
+     Arm B measured                          +23.6846%   -> part (i) PASSES
+     part (ii) already passed                             -> CERTIFIED
+
+  IF it does not
+     the operative floor is the SEED arm      31.9283%
+     m = K * F                                64.9100%
+     Arm B measured                          +23.6846%   -> part (i) FAILS
+     -> and no shadow at any training length reachable here can clear it
+```
+
+**This is not a re-derivation of the margin and must never be read as one.** It is the
+consequence of a design decision that has not been made, computed on numbers already on the
+record. **The decision is not taken here**, because it is a property of the flown retrainer
+rather than of this measurement, and taking it inside an OBSERVED block to make an arm certify
+would be precisely the move stop 44 exists to forbid.
+
+**What can be said without deciding it**: the experiment held the seed constant, and was
+therefore scored against a margin derived for the case where it does not. **That mismatch, and
+not the criterion's shape, is why SD2 is NO VERDICT.**
+
+#### 69.5's own falsification, applied to itself
+
+69.5 said: *"If `F` does not fall, the criterion's first part cannot be satisfied by any
+shadow at any training length this project can reach, and that is the result."* **`F` did not
+fall, and that sentence stands -- but only under the second branch above.** 69.5 was written
+without anticipating that `F`'s two components would move in opposite directions, and it is
+recorded here that the pre-registration was **not wrong but incomplete**: it framed a single
+number that turned out to be two.
+
+#### Part (ii), and route (a) collapsing entirely
+
+Part (ii) passed in **both** arms and discriminates enormously in Arm B -- flying **2.429212**
+against shadow **0.006535**, a factor of **372**. It also now passes in Arm A, where the two
+models are genuinely equivalent, which is the correct behaviour for a check that is supposed
+to detect overfitting rather than rank models.
+
+**Route (a) returned `1.000000` for both models in Arm B and `7.50` against `1.000` in Arm A.**
+Reported, never targeted. Across 67, 68 and 69 it has now produced 4.75/116.75, 42.50/108.50
+and 1.00/1.00 on arms whose correct answers are known. 67.2 refused it on principle; three
+arms have refused it on evidence.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+Fifteen fits at 35 epochs on 18,000 timesteps, a fixture build at `n = 780,000` yielding
+**117,000** contiguous healthy timesteps exactly as predicted, and seven ladder passes.
+**5 minutes 58 seconds** wall clock. `runs/_weights/` **1,313 before and 1,313 after**.
+
+### 69.8 Owed
+
+**(!) WHETHER THE FLOWN RETRAINER REPRODUCES THE FLYING MODEL'S SEED.** No longer a
+refinement and no longer merely open: it selects which of two floors is operative, and the
+two give margins of 13.3542% and 64.9100%. Under one the criterion certifies a tracking
+shadow; under the other it certifies nothing, ever. **It is a design decision and belongs in
+a decision entry, argued from flight consequences rather than settled by whichever answer
+makes an arm pass.**
+
+**An arm in which the shadow differs from the flying model in seed as well as segment**,
+which is the matched experiment for `F = max` and was not run: every arm in 67, 68 and 69
+held the seed constant.
+
+**A drift magnitude that is operationally realistic.** Unchanged from 68.7. The gain taken is
+still a sensor doubling its output.
+
+**Whether 6.5687% is itself converged**, or would fall further at `L = 36,000`. One more
+doubling is affordable -- `n = 1,560,000` yields 234,000 -- and nobody has run it.

@@ -14,6 +14,55 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.64] - 2026-09-21 - The sanity margin is derived from a measured floor, part (ii) is replaced, and one undecided design question now decides the gate
+
+**`docs/MODELS.md` 66 to 69**, four pre-registrations and four runs. **D74.4** records the
+arc. D74.2 and D74.3 are not edited.
+
+### The floor is measured before any margin is named
+66 measures it as two arms -- six fits on one segment at six seeds, six fits on six disjoint
+segments at one seed -- which is `docs/HARNESS.md:110`'s rule for the threshold applied to the
+margin. **NF1 FAILED**: the seed spread is the LARGER of the two, so 64.2's claim that
+identical seeding made run-to-run noise *"zero by construction"* was wrong in a second way. It
+was never eliminated, only held constant.
+
+67 fixes the margin as a **formula** before its input is measured: `m = K * F` with
+`K = 2.0330 = 2 * 2.5758 / 2.534`, the factor inflating an observed six-sample range to the
+two-sided 99% interval it under-estimates. The normal assumption behind `K` is stated and
+untested.
+
+### Part (ii) is replaced, and the replacement discriminates
+Three routes costed. Adopted: the generalisation gap `|res_held - res_fit| / res_fit`. 64.7's
+part (ii) returned values **identical to six figures** for two different models; this one
+separates them by a factor of **26.2** and then **372**. Route (a), refused on principle, was
+then refused three times by evidence -- 4.75/116.75, 42.50/108.50, 1.00/1.00 on arms whose
+answers were known, including ranking the shadow **worse** where it is unambiguously better.
+
+### Two arms failed for reasons that were this project's own
+**67.8**: Arm B's drift ramped past the shadow's training window -- it trained on gain factors
+1.0000 -> 1.7999 while HELD spanned 1.8001 -> 3.0000 -- so the shadow was asked to extrapolate
+a slope a 250-step window cannot see. **Inherited from 64.3**, invisible there only because
+the drift moved the residual by 0.03%. **68** fixed the geometry and the shadow's recovery
+went 19.7447% -> 50.1142%, a factor of 2.538, confirming the diagnosis.
+
+### And the decomposition that explains everything
+**69** restored 64.3's own `L = 18,000` (`healthy_run` is linear at 15.0% of fixture size, so
+780,000 gives 117,000 = 6*18,000 + 9,000 exactly):
+```
+                        L = 6,000        L = 18,000
+  SEGMENT spread          22.5745%          6.5687%     falls 3.44x -- convergence
+  SEED    spread          29.8606%         31.9283%     does not fall -- irreducible
+```
+Arm A corroborates from the other side: its stationary "improvement" collapses from +14.9494%
+to **-0.4102%**.
+
+**So one undecided question now decides the gate: does the flown retrainer reproduce the
+flying model's seed?** If it does, the operative floor is 6.5687%, `m` is 13.3542%, and the
+tracking shadow **would certify** on numbers already measured. If not, `m` is 64.9100% and
+nothing certifies ever. **It is registered, not answered** -- it is a property of the flown
+retrainer, and settling it inside an OBSERVED block to make an arm pass is what stop 44
+forbids. `Objective.md` is not edited; nothing is adopted. Zero bucket operations throughout.
+
 ## [0.6.63] - 2026-09-21 - The domain lock is reproduced on purpose, and route (b) was never costed against the other two
 
 **`docs/MODELS.md` 65.10**, a rider. 65.6 is not amended.
