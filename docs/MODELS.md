@@ -656,6 +656,8 @@ prediction that failed and why. This document follows the same discipline.
   - [68.3 Predictions](#683-predictions)
   - [68.4 Falsification](#684-falsification)
   - [68.5 Cost](#685-cost)
+  - [68.6 OBSERVED -- the fix worked as a fix, and the criterion still refuses the arm](#686-observed----the-fix-worked-as-a-fix-and-the-criterion-still-refuses-the-arm)
+  - [68.7 Owed, and the one item that now blocks the rest](#687-owed-and-the-one-item-that-now-blocks-the-rest)
 
 <!-- /toc -->
 
@@ -20466,3 +20468,98 @@ Stop and report, carrying every stop from 47.12 through 67.
 plus the ladder, which is forecast passes only. 67 measured four fits and seven passes at
 **36 seconds**. **Zero bucket operations.** `runs/_weights/` must read **1,313** before and
 after. Runner `scripts/s68_sanity_plateau.py`.
+
+### 68.6 OBSERVED -- the fix worked as a fix, and the criterion still refuses the arm
+
+**SC1, SC3, SC5 and SC6 HELD. SC2 NO VERDICT. SC4 NO VERDICT.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **SC6** | the shadow trains on what HELD is scored at | shadow trains at gain **2.000000**, HELD scored at **2.000000**, difference **0.00e+00** | **HELD** |
+| **SC1** | Arm A is NOT certified | both parts failed, identical to 67's Arm A to eight figures -- the drift does not touch it | **HELD** |
+| **SC2** | Arm B IS certified | **exactly one part passed.** (i) **+50.1142%** against a required 60.7063%; (ii) shadow **0.090695** against flying **2.375885**, PASS | **NO VERDICT** |
+| **SC3** | no target rate is an input | **0** occurrences | **HELD** |
+| **SC4** | part (ii) not inert, and the parts agree | not inert -- they differ by a factor of **26.2** in Arm B -- but the parts **disagree** there | **NO VERDICT** |
+| **SC5** | the ladder reaches its target | gain 1.000 -> 2.000 gives **3.2787x**, first rung past 3.0539x | **HELD** |
+
+```
+  DRIFT LADDER, plateau geometry, flying model only
+    1.000 -> 1.060   residual 0.06032448    1.0568x
+    1.000 -> 1.250   residual 0.07678166    1.3451x
+    1.000 -> 1.500   residual 0.10828484    1.8970x
+    1.000 -> 2.000   residual 0.18715255    3.2787x   <- TAKEN
+    1.000 -> 3.000   residual 0.37797102    6.6216x
+    1.000 -> 5.000   residual 0.82127869   14.3879x
+    1.000 -> 9.000   residual 1.82289016   31.9350x
+
+  ARM B
+    (i)   flying 0.18715255   shadow 0.09336248   improvement +50.1142%
+    (ii)  flying 2.375885     shadow 0.090695     PASS
+```
+
+#### 67.8's DIAGNOSIS WAS RIGHT, AND THIS IS THE NUMBER THAT SHOWS IT
+
+The same criterion, the same margin, the same ladder and target, the same three fits --
+**only the drift's geometry changed**, and the shadow's recovery went from **19.7447% to
+50.1142%, a factor of 2.538**. That is the cost of asking a 250-step windowed forecaster to
+extrapolate a slope instead of recognise a level, measured rather than asserted. **SC6
+confirms the fix took mechanically**, with the two gains identical to eight figures rather
+than merely close.
+
+#### (!) AND IT STILL FAILS PART (i), BY 10.59 PERCENTAGE POINTS
+
+**This is the most favourable arm this project can honestly build.** The shadow trains on
+exactly the distribution it is scored on; the flying model never saw the drift; the drift was
+sized to make the arithmetic possible; and the shadow recovers half the flying model's error.
+**The criterion refuses it.**
+
+68.4 fixed the reading of this in advance and it is followed rather than revisited: **`m` is
+not the thing to fix.** For Arm B to clear part (i), `F` would have to be **24.6504%** or
+less; it is **29.8606%**. The margin is faithfully derived from the floor, and **the floor is
+what is too large** -- 66.7 already recorded that F is measured on fits at `L = 6,000`, a
+third of 64.3's training length, and that *"6,000 timesteps is below the length at which this
+architecture fits stably"* was one of the two readings it could not separate. **This section
+turns that from a caveat into the binding constraint.**
+
+**`m` is not moved. Stop 44.** Nothing here licenses a smaller margin; what it licenses is a
+floor measured on fits that have converged.
+
+#### What is now established about the criterion itself
+
+**Part (ii) is not merely fixed, it discriminates.** In Arm B the flying model's
+generalisation gap is **2.375885** and the shadow's is **0.090695** -- a factor of **26.2**
+between a model that tracked the drift and one that did not. 64.7's part (ii) could not
+separate two models at all. **This one separates them by more than an order of magnitude**,
+and it does so on a quantity no term of which is computed from the telemetry alone.
+
+**Route (a) remains the right refusal, and the second arm makes the case worse.** Reported,
+never targeted: `|1 - holdout/fit|` on the residual channel alone returned **flying 42.50,
+shadow 108.50** in Arm B -- it ranks the shadow **worse** than the flying model on the arm
+where the shadow is unambiguously better by every other measure. A gate built on it would
+have rejected the correct decision.
+
+**SC4's NO VERDICT is a result about the criterion and 67.5 said so before either arm ran.**
+The two parts disagree in Arm B because part (i) is over-strict and part (ii) is not. That is
+informative: it localises the problem to part (i)'s floor rather than to the two-part shape.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+Three fits and seven forecast passes, **35 seconds** wall clock. `runs/_weights/` **1,313
+before and 1,313 after**.
+
+### 68.7 Owed, and the one item that now blocks the rest
+
+**(!) A FLOOR MEASURED ON FITS THAT HAVE CONVERGED.** This is no longer a refinement; it is
+what stands between this criterion and a verdict. 66.8 registered it; 68.6 makes it binding.
+`F` must be measured at a training length where the architecture fits stably, which needs a
+contiguous healthy run long enough for six disjoint segments at that length plus a held-out
+block. Whether this fixture can produce one **has not been measured** and is the next thing
+to measure.
+
+**Whether the flown retrainer reproduces the flying model's seed** -- 66.8, unchanged, and
+still the thing that selects which of the two spreads is the operative floor.
+
+**A drift magnitude that is operationally realistic.** The gain taken here is **1.000 ->
+2.000 on all seven channels**, which is a sensor doubling its output. Nothing here says the
+criterion can see the drifts that matter, and the arm was never built to.
