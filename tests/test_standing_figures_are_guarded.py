@@ -361,12 +361,23 @@ def test_no_document_states_the_floor_as_the_scored_length() -> None:
     """
     d = _derived_floor()
     scored = 9_000 - d["warmup"]
+    floor = d["floor"]
     wrong = []
     for doc in sorted((ROOT / "docs").rglob("*.md")) + [ROOT / "CHANGELOG.md",
                                                         ROOT / "README.md"]:
         for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
-            if "floor" in line.lower() and (f"{scored:,}" in line or str(scored) in line):
-                wrong.append(f"{doc.relative_to(ROOT)}:{n}: {line.strip()[:90]}")
+            if "floor" not in line.lower():
+                continue
+            if f"{scored:,}" not in line and str(scored) not in line:
+                continue
+            # (!) A line that names BOTH figures is drawing the distinction, which
+            # is the correction rather than the mistake -- `CHANGELOG.md` 0.6.75 and
+            # D79 both have to say "6,650, not 6,550" to explain what went wrong.
+            # Only a line that states the scored length near `floor` WITHOUT the
+            # real floor beside it is the error this test exists for.
+            if f"{floor:,}" in line or str(floor) in line:
+                continue
+            wrong.append(f"{doc.relative_to(ROOT)}:{n}: {line.strip()[:90]}")
     assert wrong == [], (
         f"{scored:,} is a scored length, not the {d['floor']:,}-tick floor:\n  "
         + "\n  ".join(wrong))
