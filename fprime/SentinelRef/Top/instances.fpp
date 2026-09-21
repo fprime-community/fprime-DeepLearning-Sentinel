@@ -119,6 +119,12 @@ module SentinelRef {
     """
   }
 
+  @ The counter docs/MODELS.md 70.6 owed. Passive and sync, so a count is taken
+  @ in the hub's own dispatch and nothing can lose a message before it is
+  @ counted. It forwards everything unchanged, so the ground sees exactly what
+  @ it saw before this was inserted.
+  instance hubCounter: HubTap.HubCounter base id 0x10019000
+
   instance hubBufferManager: Svc.BufferManager base id 0x10018000 \
   {
     phase Fpp.ToCpp.Phases.configObjects """

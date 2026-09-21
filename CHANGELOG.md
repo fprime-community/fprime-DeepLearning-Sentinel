@@ -14,6 +14,39 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.68] - 2026-09-21 - HB2b is closed by counting where the hub emits, and the transport substitution turns out to have been necessary
+
+**`docs/MODELS.md` 71.** HB2b's band is 65.3's and is not re-registered. **HB2b HELD.**
+
+70.5 returned NO VERDICT because the ground is downstream of `Svc.TlmChan`'s packetisation and
+the GDS decoder. 70.6 owed a counter where the hub emits. `HubTap.HubCounter` is that counter:
+**passive and sync**, so it runs inside the hub's own dispatch and no queue can lose a message
+before it is counted; it **forwards everything unchanged**, so the ground sees what it saw
+before; and it reports as a **text event**, because reporting tallies as telemetry would send
+them through the very path that made 70.5 unmeasurable.
+
+**The denominator comes from the stream**: the tap deserialises the retrainer's `SampleCount`
+and divides by `SAMPLES_PER_TICK`, so the tick count is the source's own.
+
+| Transport | source ticks | complete | rate | events |
+|---|---|---|---|---|
+| **`Drv.Udp`** | 256 | **256** | **100%** | 11 of 11 |
+| **TCP** | 0 readable | **0** | **0%** | 1 of 11 |
+
+### (!) Trap B is real, and 70.5's substitution was necessary after all
+70.5 disclosed the risk plainly -- *"if a counter at the hub's output later shows the channel
+crossing was never lossy over TCP, this substitution was unnecessary."* **It was lossy.** Over
+TCP the tap recorded **0 complete ticks** and `SampleCount` never arrived once. **177 arrivals
+over ~175 ticks is one per tick**: the first message arrives alone on an idle socket, the
+other five coalesce into one segment, and the hub's exact-size check drops the frame silently.
+
+**The ground-side reading at 70.5 was confounded and its conclusion was right, and that is
+recorded as luck rather than method.** Stop 43 is now satisfied on a clean measurement.
+
+**What it does not show**: anything about latency, anything about a loaded link -- both arms
+ran on loopback at 1 Hz and **UDP has no retransmission** -- and nothing about the five
+channels individually. Zero bucket operations.
+
 ## [0.6.67] - 2026-09-21 - The shadow warm-starts from the flying model, and N8 is re-derived as the vectors figure it always was
 
 **D76 and D77**, both owner decisions. D74.2, D74.3 and D74.4 stay as written; `Objective.md`

@@ -676,6 +676,12 @@ prediction that failed and why. This document follows the same discipline.
   - [70.4 Cost and stops](#704-cost-and-stops)
   - [70.5 OBSERVED -- HB1 and HB2 hold, and HB2b is half measurable and half not](#705-observed----hb1-and-hb2-hold-and-hb2b-is-half-measurable-and-half-not)
   - [70.6 Owed](#706-owed)
+- [71 HB2b, measured where the hub emits (Phase 5)](#71-hb2b-measured-where-the-hub-emits-phase-5)
+  - [71.1 REQUIREMENTS DERIVED FROM:](#711-requirements-derived-from)
+  - [71.2 The apparatus, and the two things that make it a measurement](#712-the-apparatus-and-the-two-things-that-make-it-a-measurement)
+  - [71.3 OBSERVED -- HB2b HOLDS on UDP, FAILS on TCP, and trap B is confirmed as real](#713-observed----hb2b-holds-on-udp-fails-on-tcp-and-trap-b-is-confirmed-as-real)
+  - [71.4 Cost](#714-cost)
+  - [71.5 Owed](#715-owed)
 
 <!-- /toc -->
 
@@ -21076,3 +21082,120 @@ as unknown -- and would remove the very artifact this section had to reason arou
 
 **Whether the TCP result would survive a proper counter**, which is the honest residue of the
 substitution above.
+
+## 71. HB2b, measured where the hub emits (Phase 5)
+
+**70.5 returned NO VERDICT on HB2b and 70.6 said why**: the ground is downstream of
+`Svc.TlmChan`'s packetisation and the GDS decoder, so an arrival count there measures the
+downlink as well as the crossing. **70.6 owed a counter where the hub emits.** This is that
+counter and the measurement it makes possible. **HB2b's band is 65.3's and is not
+re-registered.**
+
+### 71.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 65.3           HB2b: >= 99% of ticks deliver all five channels and
+                                the event; [90%, 99%) NO VERDICT; < 90% FAIL and the
+                                transport is reported as unsuitable
+  docs/MODELS.md 65.4, stop 43  Drv.Udp registered before the number, for HB2b's band
+                                and nothing else
+  docs/MODELS.md 65.5 stop 42   a crossing figure without its loss rate is a stop
+  docs/MODELS.md 70.5, 70.6     why the ground cannot measure it, and the counter owed
+  Svc/GenericHub/GenericHub.cpp:128-130, :249-252
+                                dispatch on an exact size match; otherwise returned
+                                and DROPPED, with no event and no counter
+  fprime/SentinelRef/Retrainer/Retrainer.cpp:141-146
+                                a clean tick writes five channels and then logs one
+                                event, so five arrivals and one event IS one tick
+  fprime/SentinelRef/Retrainer/Retrainer.hpp:37
+                                SAMPLES_PER_TICK = 10, which converts SampleCount to
+                                a source tick count
+  fprime/SentinelRef/Retrainer/Retrainer.fpp:109
+                                StepComplete is `throttle 10` -- the event denominator
+                                is 10 and not the tick count, which 70.5 got wrong first
+```
+
+### 71.2 The apparatus, and the two things that make it a measurement
+
+`HubTap.HubCounter` is a **passive** component at `0x10019000`, inserted between
+`hub.eventOut`/`hub.tlmOut` and `CdhCore.events`/`CdhCore.tlmSend`. It counts and **forwards
+everything unchanged**, so the ground sees exactly what it saw before.
+
+**It is passive and sync on purpose.** It runs inside the hub's own dispatch, so a count is
+taken at the instant the hub emits and no queue can lose or reorder a message before it is
+counted. **That is the difference between this and 70.5.**
+
+**It reports as a TEXT event, not as telemetry.** Reporting the tallies as channels would send
+them through the same `Svc.TlmChan` and the same downlink whose behaviour made 70.5
+unmeasurable -- **the count would depend on the thing it is counting.** The text path goes
+straight to `Svc.PassiveTextLogger` and out of the process.
+
+**The denominator comes from the stream, not from a clock.** Channel offset 0 is the
+retrainer's `SampleCount`; the tap deserialises it and divides by `SAMPLES_PER_TICK`, so the
+tick count HB2b divides by is **the source's own**. 70.5's first reading went wrong on exactly
+the kind of guess this avoids.
+
+**"Complete" is defined mechanically**: the minimum arrival count across the five channel ids.
+A tick delivered all five only if every one of them has been seen at least that many times, so
+the minimum **is** the number of complete ticks.
+
+### 71.3 OBSERVED -- HB2b HOLDS on UDP, FAILS on TCP, and trap B is confirmed as real
+
+Both arms measured at the same point, with the same tap, the same deployments and the same
+1 Hz source. **Only the driver instance differs**, which is what 65.4 said would be the case.
+
+| Transport | source ticks | complete ticks | rate | events | unknown ids | |
+|---|---|---|---|---|---|---|
+| **`Drv.Udp`** | **256** | **256** | **100%** | 11 of 11 | 0 | **HB2b HELD** |
+| **`Drv.TcpServer` / `Drv.TcpClient`** | **0 readable** | **0** | **0%** | 1 of 11 | 0 | **FAIL, `< 90%`** |
+
+**HB2b HOLDS at 100%**, comfortably inside the `>= 99%` band, and **1,281 telemetry points
+arrived for 256 ticks** -- five per tick and one over, with **zero** unknown ids, so every
+message the tap saw was one of the retrainer's.
+
+#### (!) TRAP B IS REAL, AND 70.5's SUBSTITUTION WAS NECESSARY AFTER ALL
+
+70.5 disclosed the risk in as many words: *"if a counter at the hub's output later shows the
+channel crossing was never lossy over TCP, this substitution was unnecessary."* **It was
+lossy.** Over TCP the tap recorded **0 complete ticks**, and **`SampleCount` never arrived
+once** -- so the source tick count could not even be read, which is why that column says
+*0 readable* rather than a number.
+
+**177 channel arrivals over roughly 175 ticks is one per tick**, and that is trap B exactly:
+the first message of a tick arrives alone because the socket has been idle for a second; the
+remaining five are emitted microseconds apart, coalesce into one TCP segment, and
+`GenericHub.cpp:128-130`'s exact-size check rejects the combined frame while `:249-252` drops
+it silently.
+
+**So the ground-side reading at 70.5 was confounded and its conclusion was right.** That is
+luck rather than method, and it is recorded as luck: the substitution was taken on a
+measurement that could not support it, and is retrospectively justified by one that can.
+**Stop 43 is satisfied on the clean measurement, not the confounded one.**
+
+#### What this does not show
+
+**Nothing about latency.** The tap counts; it does not time. 62.6 stands and stop 35 governs.
+
+**Nothing about a loaded link.** Both arms ran on loopback on an idle host at 1 Hz with six
+small messages per tick. **A real link is lossy in ways loopback is not, and UDP has no
+retransmission** -- this measurement says the hub's framing survives UDP's message boundaries,
+not that UDP is the right transport for a spacecraft.
+
+**Nothing about the five channels individually.** "Complete" is a minimum across the five, so
+a transport that dropped the same channel every tick and delivered the rest would read 0% here
+and would deserve a more specific report than this apparatus gives.
+
+### 71.4 Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+`runs/_weights/` **1,313** before and after. Two runs of about **4 minutes** each, which are
+observation windows and **not** timing figures.
+
+### 71.5 Owed
+
+**A merged ground dictionary**, unchanged from 70.6. The tap makes the crossing measurable
+without it, but the GDS still logs the retrainer's telemetry as unknown ids.
+
+**HO1, HO2 and HO3 remain NOT RUN.** 62.4's distinction governs.
+
+**A per-channel report**, if a transport is ever found that drops selectively.

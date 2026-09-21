@@ -38,6 +38,7 @@ module SentinelRef {
     instance hubAdapter
     instance hubServer
     instance hubBufferManager
+    instance hubCounter
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -72,8 +73,15 @@ module SentinelRef {
   # arise on this side: the pattern here targets an event manager, not a hub.
 
     connections HubReceive {
-      hub.eventOut -> CdhCore.events.LogRecv
-      hub.tlmOut -> CdhCore.tlmSend.TlmRecv
+      # (!) THE TAP SITS BETWEEN THE HUB AND THE DELIVERY POINTS, and forwards
+      # everything unchanged. docs/MODELS.md 70.5 could not close HB2b because
+      # the ground is downstream of Svc.TlmChan's packetisation and the GDS
+      # decoder, so an arrival count there measures the downlink too. Counting
+      # here counts the crossing and nothing else.
+      hub.eventOut -> hubCounter.eventIn
+      hubCounter.eventFwd -> CdhCore.events.LogRecv
+      hub.tlmOut -> hubCounter.tlmIn
+      hubCounter.tlmFwd -> CdhCore.tlmSend.TlmRecv
     }
 
     connections HubTransport {
@@ -178,7 +186,11 @@ module SentinelRef {
       rateGroup_0_25Hz.RateGroupMemberOut[1] -> ComCcsds.commsBufferManager.schedIn
       rateGroup_0_25Hz.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
       rateGroup_0_25Hz.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
+      # The hub tap reports its tallies on the slowest group: the counts are
+      # cumulative, so the report rate changes nothing it measures.
+
       rateGroup_0_25Hz.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
+      rateGroup_0_25Hz.RateGroupMemberOut[5] -> hubCounter.schedIn
     }
 
     connections CdhCore_cmdSeq {
