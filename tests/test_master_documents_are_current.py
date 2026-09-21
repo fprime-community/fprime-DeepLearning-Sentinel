@@ -203,6 +203,22 @@ def _cycle_parameters() -> int:
     return int(re.search(r"^let n_params\s*=\s*(\d+)", text, re.M).group(1))
 
 
+def _command_path_chars() -> int:
+    """How many characters the reload command's path argument can carry.
+
+    `master`'s adoption recipe tells a mission its model file has to live
+    somewhere short, and states the bound. The bound is F's
+    `FW_CMD_STRING_MAX_SIZE`, which lives under `fprime/lib/` and is gitignored,
+    so it cannot be read from `dev` source. What CAN be read is the declaration
+    that was written to match it, in the component's own FPP -- and if a future
+    edit widens that declaration past what the transport delivers, which is the
+    mistake Section 73 made once already, this row moves and the document has to
+    move with it.
+    """
+    text = _dev("fprime/Sentinel/Monitor/Monitor.fpp")
+    return int(re.search(r"modelPath: string size (\d+)", text).group(1))
+
+
 def _ex1_margin_x100() -> int:
     """EX1's EXHAUSTIVE gradient margin, x100, re-derived from the worst ratio.
 
@@ -248,6 +264,9 @@ FIGURES = (
     Figure("n3_predicted/EVIDENCE", "docs/EVIDENCE.md",
            r"= ([\d,]+) B \+/- 64",
            _n3_predicted_bytes, "N3's predicted footprint"),
+    Figure("command_path_chars/DESIGN", "docs/DESIGN.md",
+           r"FW_CMD_STRING_MAX_SIZE, which is (\d+) characters",
+           _command_path_chars, "the reload command's path bound"),
     Figure("cycle_parameters/DESIGN", "docs/DESIGN.md",
            r"checked at every one of ([\d,]+) indices",
            _cycle_parameters, "Deep_f32's parameter extent"),
