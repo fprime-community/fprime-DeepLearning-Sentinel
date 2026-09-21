@@ -96,22 +96,30 @@ configs`. `docs/FPRIME.md` rebuilds the checkout with one command, and then all 
 **To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` pins it and
 rebuilds it from nothing with one command.
 
-## (!) `fprime/SentinelRef/Retrainer/` is an experiment, and nothing here depends on it
+## (!) The retraining engine is an experiment, and nothing here depends on it
 
 This branch gained an F' component on 2026-09-15 that calls into a library written in
 **OxCaml**, Jane Street's branch of OCaml. It is named here rather than left to be found,
 because a curated branch that quietly acquires a garbage-collected runtime would be worse
 than an uncurated one.
 
-**What it is.** The first of four experiments asking whether a language whose compiler can
-*prove* a code path performs no allocation is a candidate for onboard model retraining. It
-computes a sum and a mean and contains **no machine learning**. It exists to prove a chain --
-compile, link, runtime startup, the C boundary, F' integration -- and it proved it.
+**What it is.** An investigation of whether a language whose compiler can *prove* a code
+path performs no allocation is a candidate for onboard model retraining. It began as a pipe
+computing a sum and a mean, to prove a chain -- compile, link, runtime startup, the C
+boundary, F' integration -- and it proved it. It now drives a **real float32 training cycle**
+at a fixed step budget, in **its own deployment and its own OS process**
+(`fprime/SentinelRetrain/`), and a full cycle crosses from that process to this one over an
+F' hub. `docs/DESIGN.md` 9 says why the process must be separate, what is proven and what is
+not, with the case against OxCaml stated in the same passage.
 
 **What it is not.** Not adopted, not flown, not on any path the detector takes, and not
 exported: `fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so a mission
-adopting Sentinel does not inherit an OCaml runtime. The experiment that would decide whether
-the approach survives at all has **not been run**.
+adopting Sentinel does not inherit an OCaml runtime. **The detector's own binary carries no
+OCaml runtime at all**, and that is asserted by symbol on every test run rather than assumed,
+because the module links its object with PUBLIC linkage and one wiring mistake would put a
+garbage collector in the detector's process silently. **It has never run on flight hardware**,
+and the gate that would allow a retrained model to be *offered* for a swap is **not yet
+usable**.
 
 **And it does not change what you can build here.** `make -C flight test` and
 `make -C flight lint` are untouched and need no new tool. The module **skips itself with a
@@ -126,7 +134,8 @@ lives on `dev` in `docs/MODELS.md` 47 and `docs/DECISIONS.md` D70.
 | `flight/` | **The C++ inference core.** GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader, and the committed vectors. C++14, no exceptions, no RTTI, no STL containers, **no allocation after init**, `-Werror` |
 | `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp`, its SDD and its unit tests |
 | `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this. **It also carries `Retrainer/`, an experiment and not a feature** -- see the note below -- and `ExampleAdapter/`, the forty-line Passive Adapter Pattern example a mission copies to wire its own channels in (`docs/DESIGN.md` 8) |
-| `docs/DESIGN.md` | What the component does, the rule it flies, and the five permanent safety rules |
+| `fprime/SentinelRetrain/` | **The retraining engine's own deployment**, in its own OS process, and the only place an OCaml runtime exists. Experiment, not feature -- `docs/DESIGN.md` 9 |
+| `docs/DESIGN.md` | What the component does, the rule it flies, the five permanent safety rules, and the retraining experiment |
 | `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, and the caveats |
 | `docs/STATUS.md` | Where it is and what is next |
 | `docs/MODEL_FILE.md` | **Normative** for the loader. Where it and any implementation disagree, the document is right and the implementation is a defect |

@@ -80,6 +80,16 @@ Each has a stated reason. **None is a v1 limitation.**
 
 **No online learning. Ever.**
 
+**(!) And this branch ships a retrainer, so the two sentences are reconciled here rather
+than left to a reader to notice.** *Online* learning means the flying model updates itself
+from the telemetry it is judging. That is what rule 1 forbids and it stays forbidden. What
+`fprime/SentinelRetrain/` does is different in every respect that matters: it trains a
+**shadow** model, in a **separate OS process**, from a **frozen snapshot** of healthy
+telemetry; the flying model is never written to; and a swap is **offered**, never taken --
+it requires a pre-launch sanity report and an explicit ground command. **Rule 1's own words
+are the ones that make both true: retraining is explicit and human-approved.** Section 9
+says what is built, what is proven, and what is not.
+
 **Rule 1 governs the weights, not the threshold.** A threshold is a parameter with a
 provenance and is recalibrated in orbit under human approval; the parameter block is
 separately CRC'd and separately replaceable so that this needs no format change.
@@ -244,3 +254,75 @@ your own F' v4.3.0 checkout. `docs/FPRIME.md` pins the version and the commit.
 **`scripts/`, `src/` and `tests/` are not on this branch** (see the omissions table in
 `README.md`). `scripts/fprime_ref_patch.sh` is cited above because it is the executable
 form of this recipe; it resolves on `dev` at the commit named at the top of this file.
+
+## 9. Onboard retraining, and the language it is being tried in
+
+**Status: an experiment on the branch, adopted for nothing.** Nothing in section 1's chain
+depends on any of it, `fprime/library.cmake` exports the Monitor and not this, and a mission
+adopting Sentinel inherits none of it.
+
+### Why a retrainer at all
+The flying model is frozen so that a degrading spacecraft cannot teach the detector that
+degradation is normal. That is right, and after five years it describes a spacecraft that no
+longer exists. A shadow model retrained on recent healthy telemetry is the only way to fix
+the second problem without reintroducing the first -- provided the flying model is never
+touched and no swap happens without a human.
+
+### Why a separate process, and it is a requirement rather than a preference
+`SentinelRetrain` is its own deployment with its own `main`. The reason is that the
+retrainer is written in OxCaml, whose runtime is garbage-collected: OCaml 5's minor
+collector is stop-the-world across domains, so a retrainer sharing a process with the
+detector would stall the detector at a collection barrier **even if the retrainer's own code
+allocated nothing**. `SentinelRef` carries no OCaml runtime at all, and that is asserted by
+symbol on every test run rather than assumed.
+
+### Why OxCaml, and everything against it in the same paragraph
+Training is thousands of lines of array arithmetic, which is where memory-management
+mistakes live. Flight rules forbid heap allocation after init; in C++ that is checked by a
+human reading code, and OxCaml's `[@zero_alloc strict]` makes it **a compile error,
+transitively across callees**. The strategic question is whether flight software can have a
+safe high-level language at all, and this is a contained component with nothing to lose.
+
+**The case against, which is stronger on every row that has been measured by anybody:**
+OxCaml has **no flight heritage** and **no qualified compiler**; it targets 64-bit Linux and
+arm64 macOS **only**; its own documentation promises no stability; there is **no
+certification precedent for a garbage-collected runtime** in flight software; **Rust's
+footprint is smaller**, it has a qualified toolchain in Ferrocene and actual spaceflight
+heritage on OPS-SAT; and **no Rust comparison has been built here**, so on that comparison
+this project is reasoning rather than measuring. Two further findings belong in this list
+because they were discovered rather than anticipated: a `Bigarray` enum-conversion warning
+that the framework's own flag set rejects, and -- **the one a reader should weigh most** --
+**the runtime's thread affinity is a deployment constraint that unit-test evidence cannot
+show.** OCaml 5 grants the domain lock to whichever thread calls `caml_startup`, and an F'
+active rate group ticks from a different one; every rung of the evidence before a real
+deployment ran single-threaded and could not have seen it.
+
+### What is proven
+The arithmetic of a training step -- forward pass, a 250-step backward pass, two GRU layers
+and the output head, and the optimiser -- holds at float32 under `[@zero_alloc strict]` with
+zero `assume` annotations, and its gradients were checked at **every one of 75,360 indices**,
+giving a **margin of 3.26x over the tolerance model**. The cycle runs through real F' ports.
+The retrainer's weights have a file format this branch's own loader reads. The OCaml runtime
+starts inside a real F' deployment binary and runs a cycle per tick. Two deployments now talk
+across a `Svc::GenericHub`, carrying **serialized values only**, and a full cycle crosses
+from the retrainer's process into the detector's and on to the ground.
+
+### What is not
+**The pre-launch sanity report is not a usable gate yet, and that is measured rather than
+suspected.** A criterion was built, tested against a model that had nothing to learn, and
+**certified it** -- so it was rebuilt from a measured noise floor instead of a chosen margin.
+The rebuilt second term works and discriminates strongly; the first term is now blocked on a
+design decision nobody has taken -- whether the onboard retrainer reproduces the flying
+model's random seed -- because that decision selects between two noise floors whose margins
+differ by a factor of nearly five. Until it is taken, **`Objective.md` section 12's gate
+remains unenforceable**, and no shadow model may be swapped in.
+
+**Also not proven:** that the crossing is lossless -- half that measurement needs a counter
+inside the deployment that does not exist yet; that any of this runs on flight hardware
+(**E5 is HOST-VERIFIED PENDING TARGET**); that the separate process actually isolates the
+detector's timing (**C2**, unverified -- this host's power management downclocks an idle core
+and the confound exceeds the effect); and that the toolchain builds for the flight target at
+all (**C4**, unverified). **No timing figure from any of this work should be quoted.**
+
+The full record is on `dev`: `docs/DECISIONS.md` D70, D73 and D74 with its riders, and
+`docs/MODELS.md` sections 47 through 70.

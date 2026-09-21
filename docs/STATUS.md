@@ -74,7 +74,7 @@ What the pre-registration commits to, so it can be held to it:
 | **B** | **The F' Ref physics testbed** | Coupled current, heat, temperature and voltage; 8-12 channels; real dictionary limits; a real clock; faults seeded **in the physics** and in-limits throughout. A model gate runs on it at a matched rate reporting in-limits catch rate, **time-to-limit-trip**, and manoeuvre false alarms |
 | **C** | **In-orbit threshold recalibration** | File uplink and human-approved reload, exercised end to end on the Ref. The format already permits it: the parameter block is separately CRC'd and separately replaceable, so no format change is needed |
 | **D** | **The hardware envelope** | `docs/PI_ENVELOPE.md` carries a measurement instead of a reservation |
-| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered |
+| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **Started, and adopted for nothing** -- `docs/DESIGN.md` 9. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item |
 
 ## 5. Open, and named
 
@@ -86,6 +86,16 @@ What the pre-registration commits to, so it can be held to it:
   dictionary limits and an anonymised clock. It is item B's, on a real clock.
 - Three improvement arms unrun and three predictions unadjudicated, named in
   `docs/EVIDENCE.md` section 9.
+- **The pre-launch sanity gate is unenforceable**, and it is blocked on a design decision
+  rather than on a measurement: whether the onboard retrainer reproduces the flying model's
+  random seed. That decision selects between two measured noise floors whose margins differ
+  by nearly five times, and under one of them no shadow model can ever be certified.
+  `docs/DESIGN.md` 9.
+- **The retraining engine is host-verified and has never run on flight hardware.** Whether
+  its toolchain even builds for the target is unverified, and so is whether its separate
+  process isolates the detector's timing. **No timing figure from that work should be
+  quoted**; this host's power management downclocks an idle core and the confound exceeds
+  the effect.
 
 ## 6. Release
 
