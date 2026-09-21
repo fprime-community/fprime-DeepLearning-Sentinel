@@ -626,6 +626,10 @@ prediction that failed and why. This document follows the same discipline.
   - [65.3 Predictions](#653-predictions)
   - [65.4 Falsification](#654-falsification)
   - [65.5 Cost, and stop and report](#655-cost-and-stop-and-report)
+  - [65.6 OBSERVED -- C5 is discharged, and the thing that broke first could not have appeared in a unit test](#656-observed----c5-is-discharged-and-the-thing-that-broke-first-could-not-have-appeared-in-a-unit-test)
+  - [65.7 (!) Where the unrun predictions stand, precisely](#657-where-the-unrun-predictions-stand-precisely)
+  - [65.8 Master files changed in this series](#658-master-files-changed-in-this-series)
+  - [65.9 Owed](#659-owed)
 
 <!-- /toc -->
 
@@ -19578,3 +19582,148 @@ Stop and report, carrying every stop from 47.12 through 64.6, and adding:
     drops silently, so an uncounted crossing is an unmeasured one.
 43. **`Drv.Udp` is substituted for a reason other than HB2b's band.** Stop. 65.4 registers the
     route and the condition before the number.
+
+### 65.6 OBSERVED -- C5 is discharged, and the thing that broke first could not have appeared in a unit test
+
+**2026-09-20. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+**`fprime/` moves, so `master` moves in this series** and every file is listed at 65.8.
+`runs/_weights/` read **1,313** before and after. Source `fprime/SentinelRetrain/` entire,
+`fprime/SentinelRef/Retrainer/Retrainer.{hpp,cpp}`, `fprime/CMakeLists.txt` and
+`tests/test_detector_binary_has_no_ocaml_runtime.py`, in this series.
+
+**(!) THIS SECTION REPORTS FOUR OF ELEVEN PREDICTIONS. HB1, HB2, HB2b, HO1, HO2 and HO3 WERE
+NOT RUN**, and 65.7 says exactly where they stand. **They are NOT NO VERDICT and they are not
+FAIL** -- 62.4's distinction governs: *"it does not work"* and *"we did not build it"* are
+different sentences, and the hub is again the second of those.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **DP1** | `SentinelRetrain` builds and starts | builds; boots its runtime; **six full cycles at 1 Hz** with hand-checkable arithmetic (sums 55, 110, 165, 220, 275, 330; mean 5.5 throughout), then `ERR_OVERFLOW` when the fixed 64-sample accumulator fills | **HELD** |
+| **DP2** | `SentinelRef`'s binary carries no OCaml | **0** OCaml symbols in the detector, **2,928** in `SentinelRetrain`, **2,928** in the Retrainer UT executable | **HELD** |
+| **DP3** | `sentinelMonitor` and `powerSim` unchanged | `SentinelRef/Top/` is untouched in this series; the detector's topology never names `Retrainer` | **HELD** |
+| **DP4** | the retrainer ticks with no hub | `RuntimeBooted`, then `StepComplete` once per tick on `textLogger` | **HELD** |
+
+**(!) C5 IS DISCHARGED, AND IT IS THE CLAIM THIS TRACK HAS BEEN ASKING SINCE E1.** 47.15b
+worded it:
+
+> **C5.** An OxCaml static library can be linked into an F' **DEPLOYMENT** -- a topology with
+> its own `main`, built by the F' build system -- with the OCaml runtime started from C++ at a
+> defined point in the deployment's startup, and the deployment runs.
+
+**All four clauses are met.** Its own `main` (`SentinelRetrain/Main.cpp`); built by
+`fprime-util` through `register_fprime_deployment`; the runtime started from C++; and the
+deployment runs a cycle per tick. **Provenance was "nothing" at 47.15b and is now this
+section.** The register reads:
+
+```
+  C1  zero_alloc strict proved transitively        DISCHARGED  E3 (47.13.4), extended by 48.8
+  C2  separate process isolates the detector       UNVERIFIED  62.6: this host cannot measure it
+  C3  links into an F'-built executable            DISCHARGED  E1 (47.13.1 X2), as re-worded
+  C4  the toolchain builds for aarch64 Linux       UNVERIFIED  E4, deferred (47.13.6)
+  C5  links into an F' DEPLOYMENT and it runs      DISCHARGED  65.6
+```
+
+**(!) AND THE FIRST RUN DIED, WHICH IS THE MOST INSTRUCTIVE RESULT IN THE SECTION.**
+
+```
+  EVENT ... RuntimeBooted : OxCaml retrainer booted, accumulator sized 64
+  Fatal error: no domain lock held
+```
+
+**OCaml 5 grants the domain lock to whichever thread calls `caml_startup`.**
+`Svc.ActiveRateGroup` is active and runs `schedIn` on **its own task**, so a runtime started in
+`configureTopology()` -- on the topology's main thread -- aborts the process on the first call
+in. **The runtime started perfectly and the second thread killed it.**
+
+**(!) E1 AND 61 COULD NOT HAVE FOUND THIS, AND 47.13.1 SAID SO WITHOUT ANYONE HEARING IT.** It
+described stage 2 as *"driven through F's own generated port machinery in a **unit-test
+process**"*, and a unit-test process does all of this on one thread. **Every rung from 48 to 62
+ran single-threaded.** The constraint is not in the arithmetic, the allocation behaviour, the
+flag set or the C boundary -- **all of which were tested exhaustively -- it is in which thread
+holds the domain**, and only a deployment with an active component has two threads to get that
+wrong with.
+
+**The fix starts the runtime on the first tick**, on the thread that then owns the domain for
+the life of the process. **D70 consequence 9 is unchanged** -- exactly one domain, and
+`Domain.spawn` is still never called. What moves is *which* thread holds it. An explicit
+`boot()` still sets the flag, so E1's unit test is unaffected and still passes.
+
+**`Svc.PassiveRateGroup` was the obvious alternative and is refused with its reason**, so it is
+not re-proposed: it declares **three command ports** and a `CLEAR_STATISTICS` command, which
+would pull a `CommandDispatcher` into a deployment whose entire point is that it carries
+nothing else.
+
+**Disclosures, volunteered.**
+
+**(!) DP2's GUARD WAS BLIND WHEN FIRST WRITTEN AND PASSED ANYWAY.** macOS `nm` prefixes every
+symbol with an underscore, and a `\b` anchor does not match between `_` and `caml` because `_`
+is a word character. It found **0** symbols in a binary containing **2,928** and reported the
+detector clean on the strength of it. **The positive control caught it** -- the same file
+asserts the check *can* see a runtime, against the Retrainer UT executable which does link the
+object. **Without that control the clean result would have been worth nothing, and the guard
+would have been quietly useless for the rest of the project's life.**
+
+**Trap 2's route is (c) and the cost is stated.** `SentinelRef` registers the `Retrainer` module
+and an F' module may be registered once, so `fprime/CMakeLists.txt` adds `SentinelRetrain`
+**after** it and the directory stays where it is. That keeps the UT target name
+`SentinelRef_Retrainer_ut_exe` and the record citations that name it. **The cost is that the
+retrainer's deployment depends on a module the detector's build file registers**, which is
+backwards as architecture and right as a change -- moving the directory would break
+`docs/MODELS.md` 47.15 and 61.1's citations to buy tidiness.
+
+**`ERR_OVERFLOW` after six ticks is the apparatus, not a defect.** `RETRAINER_CAPACITY` is 64
+and the component feeds 10 samples a tick, so the seventh tick refuses. **It refuses rather
+than reallocating**, which is CPP-1, and it comes back as a status code rather than an
+exception, which is CPP-25. **But it does mean this deployment runs for six ticks and then goes
+quiet**, and a crossing measurement will need a feed that wraps -- which 55's `Window56` already
+does and this apparatus does not.
+
+**No timing figure is produced and none should be quoted from this section.** 62.6 stands.
+
+### 65.7 (!) Where the unrun predictions stand, precisely
+
+**Nothing below is a verdict.** It is the state a later session starts from.
+
+```
+  HB1   the hub carries serialized values only      NOT RUN -- no hub is wired at either end
+  HB2   two processes, one hub, a cycle across it   NOT RUN -- SentinelRetrain runs alone
+  HB2b  the crossing is not lossy                   NOT RUN -- depends on HB2
+  HO1   a candidate model file is written           NOT RUN
+  HO2   it reaches the ground by FileDownlink       NOT RUN
+  HO3   a human command reloads it in process 1     NOT RUN
+```
+
+**What is built and proven:** the second deployment, its runtime, its tick, and the guard that
+keeps the detector free of OCaml. **What is not built:** everything either end of a socket.
+65.2's Trap B is unchanged and still governs HB2b -- `GenericHub.cpp:129-130` dispatches only
+on an exact size match and `:249-252` drops silently, so the crossing must be **counted**.
+
+### 65.8 Master files changed in this series
+
+```
+  fprime/CMakeLists.txt                              modified   registers SentinelRetrain
+  fprime/SentinelRef/CMakeLists.txt                  modified   registers ExampleAdapter
+  fprime/SentinelRef/Retrainer/Retrainer.hpp         modified   m_bootAttempted
+  fprime/SentinelRef/Retrainer/Retrainer.cpp         modified   boot on first tick
+  fprime/SentinelRef/ExampleAdapter/*                added      4 files, polish 11.3
+  fprime/SentinelRetrain/*                           added      9 files, this stage
+  README.md                                          modified   adapter row, integration
+                                                                pointer, example model,
+                                                                omissions table, pointer
+  docs/DESIGN.md                                     modified   section 8, the false
+                                                                paragraph deleted, pointer
+  docs/EVIDENCE.md                                   modified   pointer (twice)
+  docs/STATUS.md                                     modified   pointer
+  docs/datasets/REPRODUCING.md                       modified   gate figures, p2 named
+```
+
+### 65.9 Owed
+
+**The hub crossing and the handoff**: HB1, HB2, HB2b, HO1, HO2, HO3, all NOT RUN.
+
+**A feed that wraps**, so a crossing runs longer than six ticks. `Window56` exists; this
+apparatus does not use it.
+
+**C2**, still, and still deferred to E4's hardware. 62.6 is unchanged.
+
+**Everything 64.8 owes**, unchanged.
