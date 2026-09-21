@@ -344,6 +344,11 @@ FIGURES = (
     # The pattern is phrased to survive the count changing, which it did within
     # a day: "tiers 1 and 2" would have stopped matching the moment tier 3 ran,
     # and a guard that stops matching is a guard that has gone blind.
+    # (!) There was a second `README.md` row here, reading the same figure out of
+    # the omissions table's `src/` entry. D80 rewrote that entry -- `src/` is now
+    # carried in part -- and the figure is stated once in the warning above it
+    # rather than twice. The row is removed rather than re-pointed, because the
+    # sentence it guarded is genuinely gone.
     Figure("toolkit_rungs/README", "README.md",
            r"(\d+) of its \d+ acceptance-ladder rungs have run",
            _toolkit_rungs_built, "acceptance-ladder rungs that run"),
@@ -365,9 +370,6 @@ FIGURES = (
     # reach this one. Anchored on the absent-paths table's own wording -- and
     # WITHOUT the `**` that surrounds the figure in the source, because
     # `_flattened` strips emphasis before any pattern sees it.
-    Figure("toolkit_rungs/README_absent", "README.md",
-           r"the toolkit itself, whose (\d+) of its \d+ acceptance-ladder rungs",
-           _toolkit_rungs_built, "acceptance-ladder rungs that run"),
 )
 
 #: (!) The debt register, and it is EMPTY, which it has not been before.
