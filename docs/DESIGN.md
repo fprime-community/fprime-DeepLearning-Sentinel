@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`8a35810`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`e63c5e0`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -376,22 +376,42 @@ each segment of healthy data -- and **every one of them beat the flying model by
 including the one retrained on the flying model's own training data.** No drift. No new data.
 No later segment. Just more training.
 
-**So the gate's first term -- "the shadow is measurably better" -- is satisfied by the
-retraining itself.** It cannot distinguish *the spacecraft changed* from *the shadow ran for
-longer*, and no choice of threshold repairs a term that passes unconditionally: the arm's own
-arithmetic shows a stationary shadow clearing even the larger margin the same measurement would
-imply. The second term -- a generalisation-gap check -- refused the stationary arm, and it was
-the only thing that did.
+**So the gate's first term -- "the shadow is measurably better" -- was satisfied by the
+retraining itself.** It could not distinguish *the spacecraft changed* from *the shadow ran for
+longer*, and no choice of threshold repairs a term that passes unconditionally.
 
-**That is the earlier failure in mirror image.** The first version of this criterion had an
-inert second term and a first term carrying the gate, and it certified a shadow with nothing to
-learn. This version has an inert *first* term and a second one carrying the gate alone. **Until
-a decision is taken about what the first term should compare** -- three shapes are costed on
-`dev` and none has been argued -- **`Objective.md` section 12's gate remains unenforceable**,
-and no shadow model may be swapped in.
+**That term has since been replaced, and the criterion now discriminates.** The candidate is no
+longer measured against the flying model. It is measured against a **control**: a second shadow,
+warm-started from the same weights, trained at the same step budget, on **the flying model's own
+data**. Control and candidate differ in exactly one thing -- the data they were retrained on --
+so the training advantage cancels by construction and what is left is whatever the new data did.
 
-Still owed alongside it: a drift magnitude that is operationally realistic rather than a sensor
-doubling its output.
+```
+                       against the flying model     against the control
+  nothing has drifted          much better              slightly worse
+  something has drifted        much better              much better
+```
+
+Measured: with nothing to learn, the candidate comes out **2.6217% worse than its control**,
+on the wrong side of zero. With a drift to learn it comes out **42.8489% better than its
+control**, against a margin derived from how far two controls differ from each other. **The old
+comparison could not tell those two cases apart.** This is the first version of this criterion
+that has been near zero when nothing happened and large when something did.
+
+**The cost is real and is stated rather than discovered.** Certification now needs **two trained
+models, not one**. Either the retraining process trains the control as well -- doubling the
+training work per cycle, and the fixed step budget was not derived for that -- or the ground
+reproduces the control, which means keeping the flying model's original training data somewhere
+the ground can reach it. **Neither route is chosen here**, and the choice belongs to whoever
+costs the downlink and the onboard budget together.
+
+**`Objective.md` section 12's gate is still not enforceable, and that claim is not made.** The
+criterion discriminates **on one synthetic fixture**, at a drift magnitude that is a sensor
+doubling its output, and nothing about a mission follows from that. The way it could still fail
+was named before the arm ran and did not occur here: the control trains on older data than the
+candidate, so on telemetry with real seasonal structure the candidate could beat it from
+recency alone. That is the first thing to check on real data. No shadow model may be swapped
+in.
 
 **The candidate reaches the ground and a reload can be commanded.** The file downlink carries
 it, a single command loads an approved model into the running detector, and the model it

@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`8a35810`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`e63c5e0`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -86,13 +86,19 @@ What the pre-registration commits to, so it can be held to it:
   dictionary limits and an anonymised clock. It is item B's, on a real clock.
 - Three improvement arms unrun and three predictions unadjudicated, named in
   `docs/EVIDENCE.md` section 9.
-- **The pre-launch sanity gate is unenforceable, and the arm that was owed to show it has now
-  been run.** It found that **a warm-started shadow beats the flying model whether or not
-  anything has drifted** -- including one retrained on the flying model's own training data.
-  The gate's first term is therefore satisfied by the retraining itself and cannot tell *the
-  spacecraft changed* from *the shadow ran for longer*; no threshold repairs a term that passes
-  unconditionally. **What is owed is a decision about what that term should compare**, with
-  three shapes costed on `dev` and none argued. `docs/DESIGN.md` 9.
+- **The pre-launch sanity gate is unenforceable.** Its first term used to compare the candidate
+  against the flying model, and that was measuring the retraining rather than the drift -- a
+  warm-started shadow beat the flying model whether or not anything had changed. **The term has
+  been replaced with a comparison against a control shadow trained on the flying model's own
+  data, and the criterion now discriminates**: near zero when nothing has drifted, large when
+  something has. **It discriminates on one synthetic fixture**, which is not a mission.
+  `docs/DESIGN.md` 9.
+- **Certification now needs two trained models, not one**, and which of the two routes the flown
+  design takes -- the retrainer trains the control, or the ground reproduces it -- is not
+  chosen. Neither is free.
+- **The two terms of the criterion now compare against different baselines**, the first against
+  the control and the second against the flying model. They disagree on the stationary case,
+  which is refused either way; one decision is owed rather than an accident.
 - **A drift magnitude that is operationally realistic**, rather than a sensor doubling its
   output. Unchanged.
 - **Nothing onboard scores a candidate model.** The retraining process can write one, this
