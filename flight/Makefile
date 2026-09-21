@@ -82,29 +82,60 @@ TIDY := $(shell command -v clang-tidy 2>/dev/null || \
                  ls /opt/homebrew/opt/llvm/bin/clang-tidy 2>/dev/null)
 FPRIME_DIR := ../fprime/lib/fprime
 
-# (!) `set -e` is load-bearing and its absence was a defect. Until 2026-09-11 this
-# recipe ran clang-tidy three times, checked no exit status, and echoed
-# "lint: clean" unconditionally -- so the target could not fail. It was reporting
-# nine errors at the time, three of them in `src/DynamicThreshold.cpp`, and still
-# exiting 0. A gate that cannot go red is not a gate.
+# (!) EXIT STATUS IS LOAD-BEARING AND ITS ABSENCE WAS A DEFECT, TWICE.
+#
+# Until 2026-09-11 this recipe ran clang-tidy three times, checked no exit status,
+# and echoed "lint: clean" unconditionally -- so the target could not fail. It was
+# reporting nine errors at the time, three of them in `src/DynamicThreshold.cpp`,
+# and still exiting 0. A gate that cannot go red is not a gate.
+#
+# The second time was the same shape one level up. From the day the build trees
+# were deleted (2026-09-21) `$(FPRIME_DIR)` was absent, so two of the three configs
+# did not run -- and the recipe still printed "lint: clean" and exited 0. The skip
+# was announced, but it was announced INSIDE a green result, which is the form
+# nobody reads. **A skip inside a pass is not a pass** (Decision 79).
+#
+# So: "clean" is printed only when all three configs ran and passed. Anything less
+# is PARTIAL, names what was skipped and why, and exits non-zero. `LINT_ALLOW_PARTIAL=1`
+# accepts a partial run deliberately -- on a tree without the framework checkout,
+# which is the normal state of a fresh clone -- and still says PARTIAL.
+#
+# Exit status is checked with an explicit `|| exit 1` per invocation rather than
+# `set -e`, because `set -e` is not in effect inside every compound command a
+# portable shell may choose, and this is the one property the target exists for.
 lint:
-	@if [ -z "$(TIDY)" ]; then \
-	    echo "  lint: SKIPPED -- clang-tidy not installed. brew install llvm provides it."; \
+	@ran=0; skipped=''; \
+	if [ -z "$(TIDY)" ]; then \
+	    echo "== lint: clang-tidy is not installed. brew install llvm provides it."; \
+	    skipped='all three configs -- no clang-tidy on this machine'; \
+	else \
+	    printf '== lint: '; $(TIDY) --version | head -1; \
+	    echo "-- flight/.clang-tidy, core and tests"; \
+	    $(TIDY) $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest || exit 1; \
+	    ran=1; \
+	    if [ -f $(FPRIME_DIR)/.clang-tidy ]; then \
+	        echo "-- the framework config, core and tests"; \
+	        $(TIDY) --config-file=$(FPRIME_DIR)/.clang-tidy $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest || exit 1; \
+	        echo "-- the framework release config, flight code only"; \
+	        $(TIDY) --config-file=$(FPRIME_DIR)/release.clang-tidy $(CORE_SRC) -- $(CXXFLAGS) || exit 1; \
+	        ran=3; \
+	    else \
+	        skipped="the framework config and its release config -- $(FPRIME_DIR) is absent; run scripts/fprime_setup.sh"; \
+	    fi; \
+	fi; \
+	if [ -z "$$skipped" ]; then \
+	    echo "  lint: clean ($$ran of 3 configs ran)"; \
 	    exit 0; \
 	fi; \
-	set -e; \
-	printf '== lint: '; $(TIDY) --version | head -1; \
-	echo "-- flight/.clang-tidy, core and tests"; \
-	$(TIDY) $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest; \
-	if [ -f $(FPRIME_DIR)/.clang-tidy ]; then \
-	    echo "-- the framework config, core and tests"; \
-	    $(TIDY) --config-file=$(FPRIME_DIR)/.clang-tidy $(CORE_SRC) test/*.cpp -- $(CXXFLAGS) -Itest; \
-	    echo "-- the framework release config, flight code only"; \
-	    $(TIDY) --config-file=$(FPRIME_DIR)/release.clang-tidy $(CORE_SRC) -- $(CXXFLAGS); \
-	else \
-	    echo "-- framework checkout absent; skipping its two configs"; \
+	echo "  lint: PARTIAL ($$ran of 3 configs ran)"; \
+	echo "        skipped: $$skipped"; \
+	if [ -n "$(LINT_ALLOW_PARTIAL)" ]; then \
+	    echo "        LINT_ALLOW_PARTIAL is set, so a partial run is accepted here."; \
+	    exit 0; \
 	fi; \
-	echo "  lint: clean"
+	echo "        A skip inside a green gate is not a pass. Set LINT_ALLOW_PARTIAL=1"; \
+	echo "        to accept a partial run on a tree without the framework checkout."; \
+	exit 1
 
 clean:
 	rm -rf $(BUILD)

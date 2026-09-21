@@ -47,19 +47,36 @@ from the compile-time maxima, so the read is bounded before the header is
 trusted. The chunked reader `docs/MODEL_FILE.md` 8 anticipates is deferred, and
 the loader's check order is untouched so it stays droppable-in.
 
-## 3. Ports
+## 3. Ports and commands
 
 | Port | Kind | Type |
 |---|---|---|
 | `schedIn` | `sync input` | `Svc.Sched` |
 | `channelsIn` | `sync input` | `Sentinel.ChannelSample` |
-| `cmdIn`, `cmdRegOut`, `cmdResponseOut` | command | required by F' of any component with parameters |
+| `cmdIn`, `cmdRegOut`, `cmdResponseOut` | command | the autocoded `PARAM_SET` and `PARAM_SAVE` protocol, and since work item 10 `RELOAD_MODEL` below |
 | `timeCaller`, `eventOut`, `textEventOut`, `tlmOut`, `prmGetOut`, `prmSetOut` | special | |
 
-**The command ports are not a Sentinel command.** This component declares no
-command of its own and issues none. F' rejects a component with parameter
-specifiers and no command receive port, because the parameter protocol is
-implemented as the autocoded `PARAM_SET` and `PARAM_SAVE` commands.
+| Command | Kind | Opcode | Argument | What it does |
+|---|---|---|---|---|
+| `RELOAD_MODEL` | `async` | `0x10` | `modelPath: string size 40` | Loads the named model file, refusing and rolling back to the previous one on any loader refusal or a channel-width mismatch |
+
+**It issues no command and has no commanding port of any kind. Since work item 10
+it *receives* one** -- `RELOAD_MODEL`, which loads a model file a human has
+approved. `Objective.md` 11 rule 3 is about what a component *issues*; receiving
+one is rule 1's other half, that retraining is explicit and human-approved. The
+component therefore declares exactly one command and sends none.
+
+**Why the command is `async`, and why that makes the component `queued`.** An
+`async` command is queued rather than run in the caller's thread, and F' requires
+a `queued` or `active` component to hold one. Section 2 takes the `queued` route:
+the queue is drained at the top of `schedIn_handler`, bounded by
+`DISPATCH_DEPTH`, so the cyclic work still runs on the rate group's thread and a
+burst of commands cannot make one tick unbounded.
+
+**The opcode is `0x10`, not `0x0`.** The two parameters above autocode four
+commands -- a SET and a SAVE each -- and FPP assigns those from 0, so `0x0`
+through `0x3` are already spent. `0x10` leaves a mission room to add its own
+below it.
 
 **Topology assumption, stated so it can be checked.** The producer of
 `channelsIn` runs on the same rate group at a lower port index, so both `sync`

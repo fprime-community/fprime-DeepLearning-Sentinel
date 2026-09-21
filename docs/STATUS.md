@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`e63c5e0`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`3cfd953`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -141,7 +141,9 @@ reference method is theirs and its source is BSD 3-Clause; clause 3 is quoted in
 
 ```bash
 make -C flight test      # the core against its committed vectors
-make -C flight lint      # clang-tidy at -Werror
+make -C flight lint      # clang-tidy at -Werror, three configs. PARTIAL and
+                         # non-zero if any is missing; LINT_ALLOW_PARTIAL=1
+                         # accepts that, which a clone of this branch needs
 ```
 
 `README.md` says exactly what that green output covers on this branch and what it does not.

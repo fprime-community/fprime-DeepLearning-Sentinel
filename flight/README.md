@@ -13,7 +13,8 @@ recalibration uplink path (work item 10); any inference library (D30).
 
 ```bash
 make -C flight test      # footprint, refusals, determinism x2, golden vectors, round trip
-make -C flight lint      # clang-tidy when present; says so and skips when not
+make -C flight lint      # clang-tidy, three configs. PARTIAL and non-zero if any
+                         # is missing (D79); LINT_ALLOW_PARTIAL=1 accepts that
 ```
 
 `make test` builds at `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror`, so

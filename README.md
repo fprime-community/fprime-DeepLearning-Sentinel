@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`e63c5e0`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`3cfd953`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -52,7 +52,8 @@ No Python, no credentials, no dataset, no network.
 
 ```bash
 make -C flight test      # the core against its committed vectors
-make -C flight lint      # clang-tidy at -Werror
+make -C flight lint      # clang-tidy at -Werror, three configs. PARTIAL and
+                         # non-zero if any is missing; see below
 ```
 
 **What the green output proves here, measured on this branch:**
@@ -93,8 +94,16 @@ should not trust.
 **(!) On a fresh clone, lint runs one configuration, not three.** The target runs
 `flight/.clang-tidy` always, and F's own two configurations **only if the F' checkout is
 present** -- `fprime/lib/fprime/` is gitignored and rebuilt by a script that is not on this
-branch, so a clone of this branch alone prints `framework checkout absent; skipping its two
-configs`. `docs/FPRIME.md` rebuilds the checkout with one command, and then all three run.
+branch. `docs/FPRIME.md` rebuilds the checkout with one command, and then all three run.
+
+**And until 2026-09-21 it still printed `lint: clean` when it had run one of the three.**
+The skip was announced, but announced *inside* a green result, which is the form nobody
+reads -- the same defect as the paragraph above, one level up. It now prints
+`lint: PARTIAL (N of 3 configs ran)`, names what it could not run and why, and **exits
+non-zero**; `LINT_ALLOW_PARTIAL=1` accepts a partial run, which is this branch's normal
+state, and still says PARTIAL. `clean` is printed only when all three ran and passed. Both
+defects are recorded here because **a gate you cannot watch fail is a gate you should not
+trust**, and this one had to be caught twice to make that concrete.
 
 **To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` pins it and
 rebuilds it from nothing with one command.
@@ -180,6 +189,9 @@ uncurated one, because a reader cannot tell what they are not seeing.
 | `Objective.md` | What this project is for, its permanent rules and its four phase gates | The research record. `docs/DESIGN.md` states the rules that bind the component |
 | `CHANGELOG.md` | Version by version | Development history; `dev` has it |
 | `third_party/telemanom/` | The published source, vendored byte-identical at `2e6c5b6c` | Evidence for the research record. **This branch therefore does not redistribute it**, so BSD clauses 1 and 2 do not bind here -- clause 3 does, and is below |
+| `oxcaml/` | **The retraining engine's OxCaml source**: the training cycle, its C stubs, its checkers, and the script that builds the compiler switch | **Not on this branch.** `fprime/SentinelRetrain/` here is the deployment that hosts it; the sources are on `dev` at `oxcaml/retrainer/`, with `scripts/oxcaml_setup.sh`. The retrainer is an experiment and not a feature -- the section above says so, and `docs/DESIGN.md` 9 states the case for it and the case against it in the same passage |
+| `docs/manifest.snapshot.json`, `docs/reorg_plan.json` | Machine-readable companions to the research record: a reference snapshot of the data manifest, and the data behind `docs/REORG_PLAN.md` | The research record |
+| `.env.example`, `conftest.py`, `requirements.txt` | The Python development apparatus: a credential template, pytest's collection scope, and the dependency list | Development apparatus, not product. They serve `src/` and `tests/`, which are not here |
 
 ## Branches
 

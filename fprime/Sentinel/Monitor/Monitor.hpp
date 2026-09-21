@@ -3,9 +3,11 @@
 // \brief  Cross-channel telemetry monitor: the work item 8 core, wrapped
 //
 // Warn-only. This component has no commanding port of any kind and issues no
-// command (Objective.md 11 rule 3). The command ports it does carry are the ones
-// F' requires of any component declaring parameters -- the parameter protocol is
-// implemented as the autocoded PARAM_SET and PARAM_SAVE commands.
+// command (Objective.md 11 rule 3). Since work item 10 it RECEIVES one --
+// RELOAD_MODEL at opcode 0x10, which loads a model file a human has approved --
+// and rule 3 is about what a component issues, not what it accepts. The command
+// ports it carries serve that command and the parameter protocol, which F'
+// implements as the autocoded PARAM_SET and PARAM_SAVE commands.
 //
 // Level 1, the safe failure mode (D5, Objective.md 14.10): on any loader refusal
 // or with model.bin's baseline_only set, the component runs the statistical
