@@ -72,8 +72,12 @@ if "sentinelMonitor" not in s:
     marker = "  instance comDriver: Drv.TcpClient base id 0x10025000\n"
     assert s.count(marker) == 1, "Ref's instances.fpp is not the shape this script expects"
     s = s.replace(marker, marker + """
-  @ Sentinel, consumed from the fprime-sentinel library
-  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000
+  @ Sentinel, consumed from the fprime-sentinel library. Queued since work
+  @ item 10 (D32 consequence 2), so the instance declares a queue size; the
+  @ queue is drained inside the rate-group tick and the cyclic work is
+  @ unchanged.
+  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000 \\
+    queue size 10
 """)
     inst.write_text(s)
     print("-- instance added")

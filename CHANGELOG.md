@@ -14,6 +14,60 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.70] - 2026-09-21 - The candidate downlinks and the reload is commanded, and a model that loaded correctly turned out to be the wrong model
+
+**`docs/MODELS.md` 73.** HO2's and HO3's bands are 65.3's and are not re-registered.
+**HO2 HELD, HO3 HELD**, and HR1 to HR5 all HELD. Fourteen Monitor unit tests, up from ten.
+
+`FileDownlink` carried **302,048 B** from `RetrainCandidate.bin` to the ground, and
+`RELOAD_MODEL` landed and was answered: `ModelLoaded` then `ModelReloadAccepted`, command
+response OK.
+
+### `Sentinel::Monitor` is queued, and it has its first command
+D32 consequence 2 authorised this in 2026-09-01 and is cited rather than re-decided: *"a
+one-word change in the FPP plus a queue dispatch at the top of the `schedIn` handler, and it is
+recorded here so work item 10 does not have to rediscover it."* Both input ports stay `sync`,
+so the cyclic work still runs in the rate group's context and a slip is still a slip. The drain
+is bounded by `DISPATCH_DEPTH`, because draining to empty would make a tick's cost depend on
+arrivals and `Objective.md` 11 rule 5 is fixed compute per cycle.
+
+**The warn-only claim is not weakened and the sentences that said so are corrected.** Rule 3 is
+about what the component ISSUES; it still issues none and has no commanding port of any kind.
+Receiving one is rule 1's other half -- retraining is explicit and human-approved.
+
+### (!) A model that loaded correctly was still the wrong model
+The first deployment run **accepted a 16-channel candidate into an 8-channel deployment** and
+nothing objected. Every CRC was right and no refusal code fired, which is exactly why no
+existing check caught it: `loadModel` lets the file's channel count win over the topology's,
+which is right at startup and wrong on a commanded reload -- the channel source was wired by
+the topology and has not changed. The commanded path now refuses a width change, rolls back,
+and names both numbers. **Found by running it, not by reading it.**
+
+### A refused candidate no longer costs the flying model
+`loadModel` degrades to Level 1 on any refusal, which is right at startup and wrong for a
+commanded reload. The handler saves the previous path and restores it -- `Objective.md` section
+12's *"Previous model kept for rollback"*, in the form that costs nothing, because the
+candidate is uplinked beside the flying model rather than over it. The route that costs
+**603,032 B** -- a second `Detector` for validate-then-swap -- is named and refused. Seen to
+fail first: without the rollback the component ends in `Mode::BASELINE`.
+
+### A 40-character path is all a command can carry
+`Fw::CmdStringArg` is `StringTemplate<FW_CMD_STRING_MAX_SIZE>` and that is **40**. The FPP first
+said `string size 80`, which promised what the transport does not deliver: a 121-character path
+was truncated and the reload rolled back on a file that did not exist. A mission's candidate
+has to live somewhere short.
+
+**Unchanged and re-run**: 15 static_asserts, the 12-code refusal loop, 12 of 12 covered, and
+`scripts/fprime_ref_patch.sh` still PASSES -- **281** `Sentinel::` symbols in F' v4.3.0's own
+Ref including `Sentinel::Monitor::schedIn_handler`, so the queued change did not break adoption.
+
+**NOT RUN**: FileUplink. The mechanism is present and the ground tool exists; the run is not
+done and 73.9 owes it. And HO3's accepting arm used a copy of the flying model, because 72.4's
+shape mismatch means this deployment's retrainer cannot produce a candidate it would accept --
+so it tests the command path, not the handoff end to end.
+
+Zero bucket operations. No timing figure; stop 35.
+
 ## [0.6.69] - 2026-09-21 - HO1: the candidate model file leaves the OCaml process, and the shapes it is built at are not the ones that fly
 
 **`docs/MODELS.md` 72.** HO1's band is 65.3's and is not re-registered. **HO1 HELD, and HZ1 to

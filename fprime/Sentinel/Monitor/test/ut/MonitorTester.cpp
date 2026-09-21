@@ -24,6 +24,11 @@ namespace {
 
 const char* const G1_PATH = SENTINEL_VECTORS_DIR "/g1.bin";
 
+//! A second REAL model, at a different width: g1 is 3 channels and g2 is 7.
+//! Used only to offer the reload a valid file this topology is not wired for.
+const char* const G2_PATH = SENTINEL_VECTORS_DIR "/g2.bin";
+const char* const WIDE_PATH = "MonitorTester_wide.bin";
+
 //! Written into the build cache, never into the source tree: a test that
 //! dirties the tree is what tests/test_no_local_persistence.py forbids on the
 //! Python side, and the rule is the same here.
@@ -31,6 +36,17 @@ const char* const G1_PATH = SENTINEL_VECTORS_DIR "/g1.bin";
 #define SENTINEL_UT_TMP "."
 #endif
 const char* const WORK_PATH = SENTINEL_UT_TMP "/MonitorTester_model.bin";
+
+//! HO3's candidate lands BESIDE the flying model, never over it, which is what
+//! makes the rollback in `RELOAD_MODEL_cmdHandler` possible at all.
+//!
+//! (!) RELATIVE, AND SHORT, AND THAT IS NOT TIDINESS. `Fw::CmdStringArg` holds
+//! FW_CMD_STRING_MAX_SIZE characters and that is 40 in F's default
+//! configuration, so the absolute build-cache path the other fixtures use --
+//! 121 characters here -- is truncated at the command boundary and the reload
+//! fails on a file that does not exist. The bound is the platform's, it is real
+//! in flight too, and a mission's candidate has to live somewhere short.
+const char* const CANDIDATE_PATH = "MonitorTester_candidate.bin";
 
 }  // namespace
 
@@ -370,6 +386,137 @@ void MonitorTester ::testTheBaselineWarningNamesASynthesisedChannel() {
     this->tick(Config::BASELINE_WINDOW + 2U, 1.0F);
     ASSERT_GT(this->eventHistory_CrossChannelWarning->size(), 0U);
     ASSERT_LT(this->eventHistory_CrossChannelWarning->at(0).channelId, G1_CHANNELS);
+}
+
+
+// ----------------------------------------------------------------------
+// Work item 10 / docs/MODELS.md 73, HO3: the commanded reload
+// ----------------------------------------------------------------------
+
+void MonitorTester ::testACommandedReloadLoadsTheNamedFile() {
+    ASSERT_TRUE(m_haveVectors) << "g1.bin not readable from " << G1_PATH;
+    this->restore();
+    ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
+    this->clearHistory();
+
+    // A second good file, at a second path. Same bytes: what is under test is
+    // that the command loads the file it NAMES, not that a different model
+    // arrives -- ModelReloadAccepted carries the path, and that is the evidence.
+    std::FILE* handle = std::fopen(CANDIDATE_PATH, "wb");
+    ASSERT_NE(nullptr, handle);
+    (void)std::fwrite(m_working, 1U, static_cast<size_t>(m_length), handle);
+    (void)std::fclose(handle);
+
+    this->sendCmd_RELOAD_MODEL(0, 10U, Fw::CmdStringArg(CANDIDATE_PATH));
+    this->invoke_to_schedIn(0, 0U);
+
+    ASSERT_EVENTS_ModelReloadAccepted_SIZE(1);
+    ASSERT_EVENTS_ModelReloadAccepted(0, CANDIDATE_PATH);
+    ASSERT_EVENTS_ModelLoaded_SIZE(1);
+    ASSERT_EVENTS_ModelReloadRolledBack_SIZE(0);
+    ASSERT_EVENTS_DegradedToBaseline_SIZE(0);
+    ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+    ASSERT_CMD_RESPONSE_SIZE(1);
+    ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 10U,
+                        Fw::CmdResponse::OK);
+}
+
+void MonitorTester ::testARefusedReloadRestoresThePreviousModel() {
+    ASSERT_TRUE(m_haveVectors);
+    this->restore();
+    ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
+    this->clearHistory();
+
+    // A candidate that will be refused: one flipped byte inside the weights,
+    // which the static CRC covers. BAD_STATIC_CRC is a real refusal code and
+    // not a synthetic one -- it is the code a corrupted uplink would produce.
+    this->restore();
+    m_working[Format::HEADER_BYTES + (Format::CHANNEL_RECORD_BYTES * G1_CHANNELS)] ^= 0xFFU;
+    std::FILE* handle = std::fopen(CANDIDATE_PATH, "wb");
+    ASSERT_NE(nullptr, handle);
+    (void)std::fwrite(m_working, 1U, static_cast<size_t>(m_length), handle);
+    (void)std::fclose(handle);
+
+    this->sendCmd_RELOAD_MODEL(0, 11U, Fw::CmdStringArg(CANDIDATE_PATH));
+    this->invoke_to_schedIn(0, 0U);
+
+    // The refusal is named, and it is named before the rollback.
+    ASSERT_EVENTS_ModelRefused_SIZE(1);
+    ASSERT_EVENTS_ModelReloadRolledBack_SIZE(1);
+    ASSERT_EVENTS_ModelReloadAccepted_SIZE(0);
+
+    // (!) AND THE MODEL THAT WAS WORKING IS WORKING AGAIN. Without the rollback
+    // this assertion fails with Mode::BASELINE -- a refused candidate would have
+    // cost the operator the model it was offered to replace.
+    ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+
+    ASSERT_CMD_RESPONSE_SIZE(1);
+    ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 11U,
+                        Fw::CmdResponse::EXECUTION_ERROR);
+}
+
+void MonitorTester ::testTheReloadCommandIsDispatchedInsideTheTick() {
+    ASSERT_TRUE(m_haveVectors);
+    this->restore();
+    ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
+    this->clearHistory();
+
+    std::FILE* handle = std::fopen(CANDIDATE_PATH, "wb");
+    ASSERT_NE(nullptr, handle);
+    (void)std::fwrite(m_working, 1U, static_cast<size_t>(m_length), handle);
+    (void)std::fclose(handle);
+
+    // (!) THE OTHER DIRECTION, AND IT IS THE ONE THAT PROVES THE COMPONENT IS
+    // QUEUED RATHER THAN PASSIVE. The command is sent and NOT ticked: nothing
+    // must have happened yet, because an async command sits on the queue until
+    // schedIn drains it. A passive component would have run it on arrival.
+    this->sendCmd_RELOAD_MODEL(0, 12U, Fw::CmdStringArg(CANDIDATE_PATH));
+    ASSERT_EVENTS_ModelReloadAccepted_SIZE(0);
+    ASSERT_CMD_RESPONSE_SIZE(0);
+
+    this->invoke_to_schedIn(0, 0U);
+    ASSERT_EVENTS_ModelReloadAccepted_SIZE(1);
+    ASSERT_CMD_RESPONSE_SIZE(1);
+}
+
+void MonitorTester ::testAReloadThatChangesTheChannelWidthIsRefused() {
+    ASSERT_TRUE(m_haveVectors);
+    this->restore();
+    ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
+    this->clearHistory();
+
+    // g2 is a REAL, VALID model file -- it loads, its CRCs are right, nothing
+    // about it is corrupt. It is simply for a seven-channel subsystem, and this
+    // component is wired to a three-channel one.
+    std::FILE* in = std::fopen(G2_PATH, "rb");
+    if (in == nullptr) {
+        GTEST_SKIP() << "g2.bin not readable from " << G2_PATH;
+    }
+    std::FILE* out = std::fopen(WIDE_PATH, "wb");
+    ASSERT_NE(nullptr, out);
+    U8 chunk[4096];
+    size_t got = 0U;
+    while ((got = std::fread(chunk, 1U, sizeof(chunk), in)) > 0U) {
+        (void)std::fwrite(chunk, 1U, got, out);
+    }
+    (void)std::fclose(in);
+    (void)std::fclose(out);
+
+    this->sendCmd_RELOAD_MODEL(0, 13U, Fw::CmdStringArg(WIDE_PATH));
+    this->invoke_to_schedIn(0, 0U);
+
+    // (!) THE FILE LOADED. That is the point: no refusal code fires, because
+    // nothing is wrong with the file. What is wrong is that it is not this
+    // topology's model, and only the commanded path can know that.
+    ASSERT_EVENTS_ModelReloadWidthRefused_SIZE(1);
+    ASSERT_EVENTS_ModelReloadWidthRefused(0, WIDE_PATH, G1_CHANNELS, 7U);
+    ASSERT_EVENTS_ModelReloadAccepted_SIZE(0);
+
+    // And the model this topology IS wired for is running again.
+    ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+    ASSERT_CMD_RESPONSE_SIZE(1);
+    ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 13U,
+                        Fw::CmdResponse::VALIDATION_ERROR);
 }
 
 }  // namespace Sentinel

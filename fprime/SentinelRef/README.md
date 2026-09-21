@@ -77,10 +77,18 @@ transport that coalesces two messages into one read loses both. Measured, over 2
 what the hub emits, because the ground is downstream of `Svc.TlmChan` and cannot measure the
 crossing (70.6).
 
-`sentinelMonitor` and `powerSim` are **passive on purpose**. Each runs in the context of the
-rate group that ticks it, so a slip shows up as a slip rather than being absorbed by a queue,
-and the plant advances in lockstep with the detector watching it -- which is what lets a
+`powerSim` is **passive on purpose** and `sentinelMonitor` is **queued** with both its input
+ports still `sync`, which comes to the same thing for the cyclic work: each runs in the context
+of the rate group that ticks it, so a slip shows up as a slip rather than being absorbed by a
+queue, and the plant advances in lockstep with the detector watching it -- which is what lets a
 warning instant and a limit instant be compared at all.
+
+`sentinelMonitor`'s queue exists for one thing: **`RELOAD_MODEL`, the only command the
+component has ever declared** (`docs/MODELS.md` 73, D32 consequence 2). It is drained at the
+top of the tick, bounded by the queue size, so a burst of commands cannot make one tick
+unbounded. The component still **issues** no command and has no commanding port of any kind --
+`Objective.md` 11 rule 3 is about what it issues -- and receiving one is rule 1's other half,
+that retraining is explicit and human-approved.
 
 Four F' core subtopologies are imported and supply everything else: `CdhCore` (command
 dispatch, events, text logging, fatal handling), `ComCcsds` (the CCSDS uplink and downlink),

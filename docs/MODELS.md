@@ -693,6 +693,16 @@ prediction that failed and why. This document follows the same discipline.
   - [72.7 Cost and stops](#727-cost-and-stops)
   - [72.8 OBSERVED -- HO1 HOLDS, and the shape mismatch is the finding](#728-observed----ho1-holds-and-the-shape-mismatch-is-the-finding)
   - [72.9 Owed](#729-owed)
+- [73 Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)](#73-pre-registration-e5-e-ho2-and-ho3----the-downlink-the-approval-and-the-reload-phase-5)
+  - [73.1 REQUIREMENTS DERIVED FROM:](#731-requirements-derived-from)
+  - [73.2 What changes in the exported component, and what it costs](#732-what-changes-in-the-exported-component-and-what-it-costs)
+  - [73.3 (!) THE WARN-ONLY CLAIM IS NOT WEAKENED, AND THE SENTENCE THAT SAID SO MOVES](#733-the-warn-only-claim-is-not-weakened-and-the-sentence-that-said-so-moves)
+  - [73.4 (!) A REFUSED CANDIDATE MUST NOT COST THE FLYING MODEL](#734-a-refused-candidate-must-not-cost-the-flying-model)
+  - [73.5 (!) AND THE FINDING THIS SECTION EXISTS FOR, WHICH READING WOULD NOT HAVE PRODUCED](#735-and-the-finding-this-section-exists-for-which-reading-would-not-have-produced)
+  - [73.6 (!) A 40-CHARACTER PATH IS ALL A COMMAND CAN CARRY](#736-a-40-character-path-is-all-a-command-can-carry)
+  - [73.7 Cost and stops](#737-cost-and-stops)
+  - [73.8 OBSERVED -- HO2 and HO3 both HOLD, and the width check is the section's finding](#738-observed----ho2-and-ho3-both-hold-and-the-width-check-is-the-sections-finding)
+  - [73.9 Owed](#739-owed)
 
 <!-- /toc -->
 
@@ -21506,3 +21516,224 @@ defaults to `False`, into `subprocess.call` and dies with `TypeError: expected s
 os.PathLike object, not bool`. It is framework code at v4.3.0, it is gitignored here, and
 `fprime-util generate -f` clears it. Recorded so the next person does not debug their own
 change for it.
+
+## 73. Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)
+
+**65.3 registered both bands and they are quoted, not re-registered.** HO2: *"it reaches the
+ground by FileDownlink, with the metrics beside it | downlinked and the metrics are present |
+the path stands up but the file does not transfer | no downlink"*. HO3: *"a human command
+reloads it in process 1, FileUplink then a commanded reload | the command lands and `Monitor`
+reports the new model | the command lands and the reload is refused, with the code named | no
+command path"*.
+
+**This section makes `Sentinel::Monitor` queued and gives it the first command it has ever
+had.** That is a change to the *exported* component -- the one thing a mission adopts -- so
+what it costs is set out before what it buys.
+
+### 73.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 65.3           HO2 and HO3's bands, quoted above
+  docs/MODELS.md 65.4           "a candidate refused by name is the handoff working"
+  docs/DECISIONS.md D32 c.2     "Work item 10 promotes it to `queued`, because its reload
+    (DECISIONS.md:2090-2095)    path is an `async` command. That is a one-word change in the
+                                FPP plus a queue dispatch at the top of the `schedIn`
+                                handler, and it is recorded here so work item 10 does not
+                                have to rediscover it." -- cited, and NO decision entry is
+                                opened for it
+  Objective.md 11 rule 1        the model is frozen in flight; retraining is explicit and
+                                HUMAN-APPROVED -- which is what receiving this command is
+  Objective.md 11 rule 3        warn-only, commands nothing -- about what the component
+                                ISSUES, and it still issues none
+  Objective.md 11 rule 5        fixed compute per cycle -- which is why the queue drain is
+                                bounded by DISPATCH_DEPTH rather than drained to empty
+  Objective.md 12               "Previous model kept for rollback"
+  fprime/Sentinel/Monitor/Monitor.cpp:116-173
+                                loadModel(): Os::File, Detector::load, and -- on ANY refusal
+                                -- degrade() to the Level 1 baseline
+  fprime/Sentinel/Monitor/Monitor.cpp:159
+                                "the width the file declares wins over the width the topology
+                                guessed" -- right at startup, and 73.5 is what it costs on a
+                                commanded reload
+  fprime/lib/fprime/Svc/Health/HealthComponentImpl.cpp:84-92
+                                F's own queued-cyclic pattern: a bounded doDispatch loop at
+                                the top of the Svc.Sched handler
+  fprime/lib/fprime/Fw/Cmd/CmdString.hpp:14
+                                Fw::CmdStringArg is StringTemplate<FW_CMD_STRING_MAX_SIZE>
+  fprime/build-fprime-automatic-native-ut/F-Prime/default/config/FppConstantsAc.hpp:341
+                                FW_CMD_STRING_MAX_SIZE = 40
+  scripts/fprime_ref_patch.sh:132-148
+                                adoption into F's own Ref, gated on the symbol
+                                Sentinel::Monitor::schedIn_handler
+```
+
+### 73.2 What changes in the exported component, and what it costs
+
+```
+  Monitor.fpp   passive component -> queued component            one word, D32 c.2
+                async command RELOAD_MODEL(modelPath) opcode 0x10
+                events ModelReloadAccepted, ModelReloadRolledBack,
+                       ModelReloadWidthRefused
+  Monitor.cpp   a bounded doDispatch loop at the top of schedIn_handler
+                RELOAD_MODEL_cmdHandler, with rollback
+  instances.fpp queue size 10, in this deployment and in the Ref patch
+```
+
+**Both input ports stay `sync`.** The cyclic work still runs in the rate group's context and a
+slip is still visible as a slip, which is the whole of D32's argument and it is not disturbed.
+Only the command is asynchronous.
+
+**The drain is bounded by `DISPATCH_DEPTH` = 10, matching the queue size.** Draining to empty
+would make a tick's cost depend on how many commands arrived, and rule 5 is fixed compute per
+cycle. A command path is not an exemption from it.
+
+**(!) `opcode 0x10`, not `0x0`.** The two parameters generate four autocoded commands and FPP
+assigns those from 0, so `0x0` is rejected as a duplicate. That is the autocoder catching a
+real collision, and it is recorded because the next component to gain a command will meet it.
+
+### 73.3 (!) THE WARN-ONLY CLAIM IS NOT WEAKENED, AND THE SENTENCE THAT SAID SO MOVES
+
+`Monitor.fpp:212` said *"this component has no command of its own and issues none"* and
+`master:README.md` said *"`Monitor.fpp` declares no command of its own."* **The first half of
+each is now false and both are corrected.**
+
+**`Objective.md` 11 rule 3 is "Warn-only. Commands nothing", and it is about what the component
+ISSUES.** It still issues none and still has no commanding port of any kind
+(`Monitor.fpp:161`). What it now does is *receive* one, and that is **rule 1's other half** --
+*"Retraining is explicit and human-approved"* -- made real. A model only ever changes because a
+human sent this command. Refusing to accept a command would not make rule 1 stronger; it would
+make it unimplementable.
+
+### 73.4 (!) A REFUSED CANDIDATE MUST NOT COST THE FLYING MODEL
+
+`loadModel` calls `degrade()` on **any** refusal, and at topology setup that is right: there is
+nothing to fall back to and Level 1 is already what is running. **On a commanded reload it is
+wrong.** A candidate that does not load would take the model that *was* working with it, and
+the operator would learn that from a `DegradedToBaseline` event after the fact.
+
+So the handler saves the previous path, tries the candidate, and on refusal **restores the
+previous path and reloads it**. `Objective.md` section 12 asks for exactly this -- *"Previous
+model kept for rollback"*.
+
+**It costs nothing, and the route that costs 603,032 B is named and refused.** A second
+`Detector` would allow validate-then-swap without touching the running one, and it would add
+`sizeof(Detector)` to **every mission that links this component**, whether or not it ever
+retrains. The cheap form works because the candidate is uplinked **beside** the flying model
+rather than over it: the old file is still on disk, so the rollback has something to read.
+
+**Seen to fail first.** With the rollback removed, `ARefusedReloadRestoresThePreviousModel`
+reports `Mode::BASELINE` -- the exact damage the rollback exists to prevent.
+
+### 73.5 (!) AND THE FINDING THIS SECTION EXISTS FOR, WHICH READING WOULD NOT HAVE PRODUCED
+
+**The first deployment run accepted a 16-channel candidate into an 8-channel deployment, and
+nothing objected.**
+
+```
+  ModelLoaded : Sentinel model loaded: 16 channels, ... s72 apparatus, seeded, not trained
+  ModelReloadAccepted : Model reloaded from RetrainCandidate.bin
+```
+
+`Monitor.cpp:159` lets the file's channel count win over the topology's -- *"the weights only
+make sense at their own shape"* -- and **at startup that is right**, because the file is the
+only thing that knows. **On a commanded reload it is not.** The channel source was wired by the
+topology and has not changed; a candidate declaring a different width is a model for a
+different subsystem, and running it leaves the detector scoring whatever the unwired slots of
+the `ChannelVector` happen to hold. Nothing in the file is wrong -- every CRC is right and no
+refusal code fires -- which is precisely why no existing check caught it.
+
+**The commanded path now refuses a width change, rolls back, and names both numbers.** The
+trace reads: the candidate loads, the previous model is restored, and the refusal says which
+width the topology feeds and which the file declared.
+
+**This was found by running it.** Every refusal code in the twelve was already exercised and
+every one of them still passes; this is not one of them. It is a model that loads correctly and
+is still the wrong model, and only the commanded path can know that.
+
+### 73.6 (!) A 40-CHARACTER PATH IS ALL A COMMAND CAN CARRY
+
+`Fw::CmdStringArg` is `StringTemplate<FW_CMD_STRING_MAX_SIZE>` and that constant is **40** in
+F's default configuration. The FPP first declared `string size 80`, which **promised something
+the transport does not deliver**: a 121-character absolute path was truncated at the command
+boundary and the reload rolled back on a file that did not exist. The declaration now says 40,
+and so do the two events that carry a path back.
+
+**Operationally: a mission's candidate has to live somewhere short** -- beside the binary, not
+at a long absolute path. That is a real constraint on where a retraining deployment may write,
+and it is cheaper to know now than at integration.
+
+### 73.7 Cost and stops
+
+**Zero bucket operations.** Month unmoved at 238 Class A / 5,740 Class B. `runs/_weights/`
+reads **1,313** before and after. **`fprime/` moves, so `master` moves in the same series.**
+**No timing figure**; stop 35, and the sleeps in the run script are waits, not measurements.
+
+Carrying every stop through 72, and adding:
+
+```
+  50. Monitor gains a second command, or a commanding output port of any kind.
+      Stop. Objective.md 11 rule 3 is about what it ISSUES and one received
+      command is rule 1's approval; a second is a feature nobody asked for.
+  51. The queue is drained to empty rather than to DISPATCH_DEPTH. Stop. That
+      makes a tick's cost depend on arrivals, which is rule 5's subject.
+  52. The width check is relaxed so a candidate may change the channel count on
+      a commanded reload. Stop. 73.5 measured what that accepts.
+```
+
+### 73.8 OBSERVED -- HO2 and HO3 both HOLD, and the width check is the section's finding
+
+**HO2 HELD. HO3 HELD.** Fourteen Monitor unit tests pass, up from ten.
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **HO2** | it reaches the ground by FileDownlink, with the metrics beside it | `SendStarted` then `FileSent`: **302,048 B** from `RetrainCandidate.bin` to `downlinked_candidate.bin`, and the file is on the ground at that size. The metrics crossed separately, in `CandidateWritten` over the hub | **HELD** |
+| **HO3** | the command lands and `Monitor` reports the new model | `RELOAD_MODEL approved.bin` -> `ModelLoaded` (8 channels) then `ModelReloadAccepted`, command response **OK** | **HELD** |
+| **HR1** | a refused candidate does not cost the flying model | rollback restores it; without the rollback the component ends in `Mode::BASELINE` | **HELD** |
+| **HR2** | the command is dispatched inside the tick, not on arrival | sent and not ticked: **0** events, **0** command responses. Ticked: **1** and **1** | **HELD** |
+| **HR3** | a candidate for a different subsystem is refused | 16 channels against 8: loaded, rolled back, `ModelReloadWidthRefused` naming both | **HELD** |
+| **HR4** | adoption into F's own Ref still works | `scripts/fprime_ref_patch.sh` **PASS**, **281** `Sentinel::` symbols including `Sentinel::Monitor::schedIn_handler` | **HELD** |
+| **HR5** | the refusal evidence is unchanged | **15** static_asserts, the **12**-code refusal loop, **12 of 12** covered | **HELD** |
+
+**The two-process trace, in order, from the detector's own log:**
+
+```
+  ModelLoaded            8 channels, ... q0.999 pooled nominal, span 2100, n 3825
+  SendStarted            Downlink of 302048 bytes ... RetrainCandidate.bin
+  FileSent               Sent file RetrainCandidate.bin to downlinked_candidate.bin
+  ModelLoaded            8 channels, ...                        <- HO3a, the approved file
+  ModelReloadAccepted    Model reloaded from approved.bin
+  ModelLoaded            16 channels, ... s72 apparatus         <- HO3b, the candidate loads
+  ModelLoaded            8 channels, ...                        <- and is rolled back
+  ModelReloadWidthRefused  this topology feeds 8, the file declares 16
+```
+
+**What this does NOT establish.**
+
+- **FileUplink was not exercised.** HO3's band names *"FileUplink then a commanded reload"*,
+  and what ran is the commanded reload against a file already on the host. Both processes are
+  on one host by design (65 refused a Com stack for the retrainer), so the file did not need to
+  travel; the uplink half is **NOT RUN** and is owed at 73.9. 62.4's distinction governs: that
+  is "we did not build it", not "it does not work".
+- **Nothing scored the candidate before it was offered.** The approval here is a human sending
+  a command, which is rule 1. It is not `Objective.md` section 12's gate, which needs a sanity
+  report nothing onboard produces (72.9).
+- **The reload was commanded on a host with no link budget, no contention and no radiation.**
+- **No timing figure.** Stop 35.
+
+### 73.9 Owed
+
+**FileUplink, exercised.** The mechanism is present in `SentinelRef` and the ground tool
+(`fprime-cli file-uplink`) exists; what is missing is a run. It is small and it is not done.
+
+**A candidate the reload can actually accept.** 72.4's shape mismatch means this deployment's
+retrainer cannot produce one, so HO3's accepting arm had to use a copy of the flying model.
+**The accepting arm is therefore a test of the command path, not of the handoff end to end**,
+and that is stated rather than implied.
+
+**Whether the width check is the right rule.** It refuses any change of channel count on a
+commanded reload. A mission that genuinely re-wires its channel set between reloads would need
+a way to say so, and there is none. The alternative -- trusting the file, as startup does --
+is what 73.5 measured; neither is obviously right and only one is currently implemented.
+
+**A second `Detector` for validate-then-swap**, at 603,032 B, which would let a candidate be
+checked without the running model ever being disturbed. 73.4 costs it and refuses it for now.

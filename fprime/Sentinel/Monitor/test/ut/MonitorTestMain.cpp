@@ -76,3 +76,24 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
+// Work item 10 / docs/MODELS.md 73, HO3.
+TEST(Reload, ACommandedReloadLoadsTheNamedFile) {
+    Sentinel::MonitorTester tester;
+    tester.testACommandedReloadLoadsTheNamedFile();
+}
+
+TEST(Reload, ARefusedReloadRestoresThePreviousModel) {
+    Sentinel::MonitorTester tester;
+    tester.testARefusedReloadRestoresThePreviousModel();
+}
+
+TEST(Reload, TheReloadCommandIsDispatchedInsideTheTick) {
+    Sentinel::MonitorTester tester;
+    tester.testTheReloadCommandIsDispatchedInsideTheTick();
+}
+
+TEST(Reload, AReloadThatChangesTheChannelWidthIsRefused) {
+    Sentinel::MonitorTester tester;
+    tester.testAReloadThatChangesTheChannelWidthIsRefused();
+}

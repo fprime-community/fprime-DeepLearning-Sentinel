@@ -174,6 +174,63 @@ ModelLoadStatus Monitor ::loadModel() {
     return m_status;
 }
 
+void Monitor ::RELOAD_MODEL_cmdHandler(FwOpcodeType opCode, U32 cmdSeq,
+                                       const Fw::CmdStringArg& modelPath) {
+    // (!) THE PREVIOUS PATH IS SAVED BEFORE ANYTHING IS TRIED, and that is the
+    // difference between this and topology setup. `loadModel` degrades to the
+    // Level 1 baseline on any refusal, which is right at startup -- there is
+    // nothing to fall back to. On a commanded reload it would mean a candidate
+    // that does not load costs the operator the model that WAS working, and the
+    // operator would learn that from a DegradedToBaseline event after the fact.
+    //
+    // `Objective.md` section 12 asks for "Previous model kept for rollback", and
+    // this is the cheap form of it: no second Detector -- that would be another
+    // 603,032 B in a component every mission links -- just the path, reloaded
+    // from the file that is still on disk because the candidate was uplinked
+    // beside it rather than over it.
+    const Fw::String previous = m_modelPath;
+    // (!) AND THE WIDTH THE TOPOLOGY IS ACTUALLY FEEDING, captured before the
+    // load, because `loadModel` overwrites m_channels with the file's own.
+    const U32 wired = m_channels;
+
+    this->configure(modelPath.toChar(), m_channels);
+    const ModelLoadStatus attempted = this->loadModel();
+
+    if (attempted == ModelLoadStatus::OK) {
+        const U32 offered = m_detector.model().nChannels;
+        if (offered != wired) {
+            // (!) IT LOADED AND IT IS STILL WRONG. The channel source was wired
+            // by the topology and has not changed; a candidate declaring a
+            // different width is a model for a different subsystem, and running
+            // it would score whatever the unwired slots of the vector held.
+            // Found by running the deployment, not by reading it.
+            this->configure(previous.toChar(), wired);
+            static_cast<void>(this->loadModel());
+            this->log_WARNING_HI_ModelReloadWidthRefused(
+                Fw::String(modelPath.toChar()), wired, offered);
+            this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::VALIDATION_ERROR);
+            return;
+        }
+        this->log_ACTIVITY_HI_ModelReloadAccepted(Fw::String(modelPath.toChar()));
+        this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+        return;
+    }
+
+    // Refused. ModelRefused and DegradedToBaseline have already named the code.
+    // Put back what was running; if that fails too the component is on the
+    // baseline and has already said so, and there is nothing further to try.
+    this->configure(previous.toChar(), wired);
+    static_cast<void>(this->loadModel());
+    this->log_WARNING_HI_ModelReloadRolledBack(Fw::String(modelPath.toChar()),
+                                               previous, attempted);
+
+    // (!) THE COMMAND RESPONDS EXECUTION_ERROR, NOT OK. 65.4: "a candidate
+    // refused by name is the handoff working" -- but it is not a reload that
+    // happened, and a command sequencer that treats it as one would carry on to
+    // the next step as though the model had changed.
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::EXECUTION_ERROR);
+}
+
 void Monitor ::degrade(const DegradeReason& reason, const ModelLoadStatus& status) {
     m_mode = Mode::BASELINE;
     m_degradeReason = reason.e;
@@ -240,6 +297,29 @@ void Monitor ::channelsIn_handler(FwIndexType portNum, Sentinel::ChannelVector& 
 void Monitor ::schedIn_handler(FwIndexType portNum, U32 context) {
     (void)portNum;
     (void)context;
+
+    // (!) THE QUEUE IS DRAINED HERE, INSIDE THE TICK, AND THAT IS THE WHOLE
+    // REASON THIS COMPONENT IS `queued` RATHER THAN `active`. D32 consequence 2
+    // authorised it; F's own component-and-port-selection.md prescribes it for a
+    // cyclic component that also accepts event-driven work, and `Svc::Health`
+    // does the same thing in its own Run handler.
+    //
+    // Bounded by DISPATCH_DEPTH, so a burst of commands cannot turn one tick
+    // into an unbounded amount of work -- Objective.md 11 rule 5 is fixed
+    // compute per cycle, and a command path is not an exemption from it.
+    //
+    // It runs BEFORE the unconfigured check below on purpose: a component that
+    // was never given a model path must still be able to accept the command that
+    // gives it one.
+    for (FwSizeType i = 0U; i < DISPATCH_DEPTH; ++i) {
+        const MsgDispatchStatus status = this->doDispatch();
+        if (status == MSG_DISPATCH_EMPTY) {
+            break;
+        }
+        if (status != MSG_DISPATCH_OK) {
+            break;
+        }
+    }
 
     if (!m_configured || (m_channels == 0U)) {
         // Unconfigured is silent, not fatal. The topology still ticks.

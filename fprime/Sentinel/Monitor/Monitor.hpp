@@ -66,8 +66,18 @@ class Monitor final : public MonitorComponentBase {
     void channelsIn_handler(FwIndexType portNum, Sentinel::ChannelVector& values,
                             bool valid) override;
 
-    //! One rate-group tick: step a detector, emit telemetry, warn if warranted.
+    //! One rate-group tick: drain the command queue, then step a detector, emit
+    //! telemetry, warn if warranted.
     void schedIn_handler(FwIndexType portNum, U32 context) override;
+
+    // ----------------------------------------------------------------------
+    // Command handlers
+    // ----------------------------------------------------------------------
+
+    //! Work item 10's reload. Loads the named file; on refusal, restores the
+    //! file that was working and says so.
+    void RELOAD_MODEL_cmdHandler(FwOpcodeType opCode, U32 cmdSeq,
+                                 const Fw::CmdStringArg& modelPath) override;
 
     // ----------------------------------------------------------------------
     // Helpers
@@ -87,6 +97,12 @@ class Monitor final : public MonitorComponentBase {
     void describeChannel(U32 index, U32& id, Fw::String& name) const;
 
     void emitTelemetry(F32 score, F64 threshold);
+
+    //! How many queued messages one tick drains. Matches the queue size the
+    //! topology gives the instance; `Svc::Health::Run_handler` is the pattern,
+    //! and like it this bounds the per-tick work so `Objective.md` 11 rule 5 --
+    //! fixed compute per cycle -- is not quietly traded away for a command path.
+    static const FwSizeType DISPATCH_DEPTH = 10U;
 
     // -- the two detectors, one of which is running ------------------------
     Detector m_detector;
