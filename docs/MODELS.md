@@ -638,6 +638,8 @@ prediction that failed and why. This document follows the same discipline.
   - [66.4 Predictions](#664-predictions)
   - [66.5 Falsification, and the stops](#665-falsification-and-the-stops)
   - [66.6 Cost](#666-cost)
+  - [66.7 OBSERVED -- the floor is measured, and the prediction that failed is the one worth reading](#667-observed----the-floor-is-measured-and-the-prediction-that-failed-is-the-one-worth-reading)
+  - [66.8 Owed](#668-owed)
 
 <!-- /toc -->
 
@@ -19984,3 +19986,116 @@ HELD. 64 measured *"four fits at 35 epochs, 80 s"* at L = 18,000 (`docs/MODELS.m
 twelve at a third of the length is minutes, not hours. **Zero bucket operations.**
 `reuse_weights=False` (`src/sentinel_toolkit/fit.py:102-104`), so `runs/_weights/` must read
 **1,313** before and after. Runner `scripts/s66_noise_floor.py`.
+
+### 66.7 OBSERVED -- the floor is measured, and the prediction that failed is the one worth reading
+
+**Three of four held. NF1 FAILED, and its failure is the section's most useful result.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **NF1** | the seed-only spread is smaller than the segment spread | **seeds 29.8606%, segments 22.5745%** -- the seed spread is the LARGER of the two | **FAIL** |
+| **NF2** | the segment spread is at least 2.0% | **22.5745%** | **HELD** |
+| **NF3** | no target rate is an input | **0** occurrences; the section reads residuals only | **HELD** |
+| **NF4** | no monotone trend in time order | rho **-0.7714**, exact two-sided p **0.1028** over all 720 orderings | **HELD** |
+
+```
+  ARM S -- six fits, segment 1, seeds 0..5
+    0.05708135  0.04263621  0.05102429  0.04359488  0.04856175  0.04735281
+    min 0.04263621   max 0.05708135   mean 0.04837521
+    range 29.8606%   std 10.9260%
+
+  ARM G -- six fits, segments 1..6, seed 0
+    0.05708135  0.06099887  0.05766948  0.05292274  0.05370533  0.04854805
+    min 0.04854805   max 0.06099887   mean 0.05515430
+    range 22.5745%   std  7.8998%
+
+  (!) THE NOISE FLOOR   F = 29.8606%
+      max over the two arms of (max - min) / mean, as declared at 66.3 before
+      the fits ran and not moved afterwards (stop 45).
+```
+
+#### (!) NF1 FAILED, AND WHAT IT SAYS IS THAT 64.2's CLAIM WAS WRONG IN A SECOND WAY
+
+64.2 wrote:
+
+> *"both fits are seeded identically, so the comparison is deterministic and run-to-run noise
+> is zero by construction"*
+
+64.7 corrected the first half of that: it is *"true of a repeated fit and false of the
+comparison actually being made."* **NF1 shows the second half was wrong too, and in the
+direction nobody checked.** Run-to-run noise is not zero. At this training length it is
+**29.9%, larger than the 22.6% that changing the training segment produces.** It was never
+eliminated by seeding both fits identically; it was **held constant**, which is a different
+thing and only works for as long as something holds it.
+
+**Nothing in the record decides whether the flown retrainer holds it.** `docs/PHASE5.md` does
+not mention a seed. `oxcaml/retrainer/shadow59.ml` does not carry one. 64.3's *"seed 0 for
+both models"* (`docs/MODELS.md:19252`) is a property of that experiment's apparatus and was
+never proposed as a flight rule. **If the onboard retrainer does not reproduce the flying
+model's seed, the operative floor is the seed floor and not the segment floor** -- and this
+is registered as owed below rather than answered here, because answering it is a design
+decision and this section measures.
+
+**F was declared as the max over both arms before either was run**, so the failure of NF1
+does not move it: F = 29.8606% either way. That the conservative choice turned out to be the
+load-bearing one is luck, and is recorded as luck.
+
+#### (!) THE FLOOR IS FIVE TIMES 64.7's FIGURE, AND 66.3 SAID IT WOULD BE BIGGER
+
+64.7 measured *"about 4%"* between two fits on different segments at L = 18,000. Arm G
+measures **22.6%** at L = 6,000. **66.3 predicted the direction before the run** -- *"a shorter
+fit is a noisier fit, so F is more likely an OVER-estimate of the floor at 18,000 than an
+under-estimate"* -- and the magnitude, a factor of about five and a half, is larger than that
+sentence anticipated.
+
+**This is stated as a limitation of the measurement and not as a discovery about the model.**
+Two readings are open and this section cannot separate them: either forecast-residual noise
+genuinely scales this steeply with training length, or 6,000 timesteps is below the length at
+which this architecture fits stably at all and the spread is mostly a failure to converge.
+**Both are consistent with everything measured here**, and the second would mean F is not a
+floor for the flown configuration but a floor for an undertrained one.
+
+#### What this does and does not license
+
+**Licensed.** A margin derived at L = 6,000 and applied to arms at L = 6,000, which is what
+67 does, is internally consistent: floor and arms are the same regime.
+
+**NOT licensed, and stated before 67 uses the number.** F = 29.8606% is **not** the floor for
+the flown configuration and must never be quoted as one. A gate built on it demands the shadow
+beat the flying model by tens of percent, which no honest retraining run on healthy telemetry
+will produce. **So 67 will very likely report a criterion that refuses everything**, and that
+is a finding about the gate's feasibility at this training length rather than a property of
+any shadow model. It is said here, before 67 is written, so it cannot be presented afterwards
+as an insight.
+
+#### NF4, and the one thing it rules out
+
+rho **-0.7714** with exact p **0.1028** is a visible downward drift across the six segments
+that does not reach significance at n = 6. **The band was declared in p and the verdict follows
+the band**: HOLD. But an exact p of 0.10 on a monotone-looking sequence is not evidence of
+stationarity, and the honest statement is that **six segments cannot tell a drifting generator
+from a still one**. 64's EARLY/LATE split is not cleared by this; it is merely not convicted.
+Registered as owed.
+
+#### Cost
+
+**2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
+Twelve fits at 35 epochs plus twelve forecast passes, **2 minutes 1 second** wall clock.
+`runs/_weights/` **1,313 before and 1,313 after**.
+
+### 66.8 Owed
+
+**Whether the flown retrainer reproduces the flying model's seed.** A design decision, not a
+measurement. NF1 makes it load-bearing: it selects which of the two spreads is the operative
+floor, and the two differ by a third.
+
+**A floor at the flown training length.** F is measured at L = 6,000 because contiguity and a
+45,000-step healthy run leave no way to get six disjoint segments at 18,000. Until a fixture
+long enough exists, the relationship between training length and this floor is one point and
+an argument.
+
+**Whether L = 6,000 fits this architecture at all**, which is the second of the two readings
+above and is separable by a convergence curve nobody has run.
+
+**A stationarity test with more than six segments.** NF4 held on a band stated in p, and did
+not clear the generator.
