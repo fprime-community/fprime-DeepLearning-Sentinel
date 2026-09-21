@@ -650,6 +650,12 @@ prediction that failed and why. This document follows the same discipline.
   - [67.7 Cost](#677-cost)
   - [67.8 OBSERVED -- the criterion refuses both arms, and Arm B's drift geometry is the section's own defect](#678-observed----the-criterion-refuses-both-arms-and-arm-bs-drift-geometry-is-the-sections-own-defect)
   - [67.9 Owed](#679-owed)
+- [68 Pre-registration: the sanity arm with a drift the shadow can actually learn (Phase 5)](#68-pre-registration-the-sanity-arm-with-a-drift-the-shadow-can-actually-learn-phase-5)
+  - [68.1 REQUIREMENTS DERIVED FROM:](#681-requirements-derived-from)
+  - [68.2 What changes, and it is one thing](#682-what-changes-and-it-is-one-thing)
+  - [68.3 Predictions](#683-predictions)
+  - [68.4 Falsification](#684-falsification)
+  - [68.5 Cost](#685-cost)
 
 <!-- /toc -->
 
@@ -20370,3 +20376,93 @@ than patched here.
 
 **Everything 66.8 owes**, unchanged -- in particular whether the flown retrainer reproduces
 the flying model's seed, which selects which floor is the operative one.
+
+## 68. Pre-registration: the sanity arm with a drift the shadow can actually learn (Phase 5)
+
+**67.8 found Arm B failing part (i) with a drift that quintupled the flying model's
+residual, and found the cause in the arm's own geometry.** The ramp ran from the start of
+the shadow's segment through the end of HELD, so the shadow trained on gain factors
+`1.0000 -> 1.7999` while HELD spanned `1.8001 -> 3.0000`. **HELD reached a gain the shadow
+never saw**, and a forecaster windowed on 250 steps cannot extrapolate a slope. 67.9
+registered the fix as owed and forbade patching it in place.
+
+**This section changes the geometry and nothing else.** No constant of 67 moves. The margin
+`m` is imported from 67's runner rather than restated, so it cannot drift.
+
+### 68.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 67.8           the defect, measured: shadow trains 1.0000 -> 1.7999,
+                                HELD spans 1.8001 -> 3.0000, a gain 1.667x the largest
+                                it trained on
+  docs/MODELS.md 67.3           m = 60.7063%, K = 2.0330, target T = 3.0539x, and the
+                                ladder -- all imported, none restated
+  docs/MODELS.md 66.7           F = 29.8606%, the floor m is derived from
+  docs/MODELS.md 64.7           "a 6% terminal gain on 2 of 7 channels is averaged
+                                across all seven"; hence all seven here
+  scripts/s64_sanity_band.py:44-56
+                                the ramp geometry this section departs from, and which
+                                64 inherited the same handicap from
+  src/sentinel_toolkit/fit.py:29
+                                FLOWN window 250 -- the reason extrapolation is not
+                                available to this forecaster
+  src/sentinel_toolkit/fit.py:102-104
+                                reuse_weights=False; runs/_weights/ reads 1,313
+```
+
+### 68.2 What changes, and it is one thing
+
+```
+  67 (defective)   ramp 1.000 -> 1.000+g from the START of the shadow's segment
+                   (30,000) through the END of HELD (45,000). The shadow sees the
+                   first 40% of the ramp and is scored on the last 60%.
+
+  68 (this)        ramp 1.000 -> 1.000+g over [24,000:30,000), which is the segment
+                   BEFORE the shadow's, then FLAT at 1.000+g from 30,000 to 45,000.
+                   The shadow's whole segment AND all of HELD sit at one constant
+                   gain, so the shadow trains on exactly the distribution it is
+                   scored on.
+```
+
+The flying model's segment `[0:6,000]` is untouched in both, so it still never saw the
+drift. **The shadow is now asked to recognise a level, not to extrapolate a slope.**
+
+### 68.3 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **SC1** | **Arm A is NOT certified.** Unchanged from Arm A of 67, which the drift does not touch | at least one part fails | -- | both parts pass |
+| **SC2** | **Arm B IS certified** | **both** parts pass | exactly one passes, and the report names which | neither passes -- and then **the 60.71% margin is unreachable even by a shadow that trained on the tested distribution**, which is the strongest statement this project can make about the gate's feasibility |
+| **SC3** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences | -- | any rate steers any choice |
+| **SC4** | **part (ii) is not inert, and the parts agree within each arm** | they differ and agree in verdict | they differ but disagree in an arm | -- |
+| **SC5** | **the ladder reaches its target** | some rung reaches `3.0539x` | -- | the ladder is exhausted |
+| **SC6** | **(!) the defect is gone, checked mechanically** -- the largest gain the shadow trains on equals the largest gain HELD is scored at | `\|difference\| <= 1e-4` | -- | anything larger -- **the fix did not take, and SC2 means nothing whatever it reports** |
+
+**SC6 exists because 67.8's defect was invisible until it was measured.** Asserting the fix
+rather than inspecting it is the whole lesson of that section, and SC6 is evaluated and
+reported **before** the arms run.
+
+### 68.4 Falsification
+
+**If SC2 FAILS, the gate is reported as unusable at this training length and the section
+stops there.** A shadow trained on the exact distribution it is scored on, against a flying
+model that never saw it, at a drift sized to make the arithmetic possible, is the most
+favourable arm that can honestly be built. If the criterion refuses that, `m` is not the
+problem to fix -- the floor `F` it derives from is too large at `L = 6,000`, which is
+66.8's owed item and not this section's to close. **`m` is not moved either way.** Stop 44.
+
+**If SC2 HOLDS, what is shown is narrow and the report says so**: that the criterion can
+distinguish a shadow that tracked a large declared drift from one that did not. It is **not**
+shown that the criterion is safe, useful at realistic drift magnitudes, or that `F` is the
+right floor for the flown configuration.
+
+**If SC6 FAILS nothing else in the section is reported as a verdict.**
+
+Stop and report, carrying every stop from 47.12 through 67.
+
+### 68.5 Cost
+
+**Three fits at 35 epochs on 6,000 timesteps** -- flying, Arm A's shadow, Arm B's shadow --
+plus the ladder, which is forecast passes only. 67 measured four fits and seven passes at
+**36 seconds**. **Zero bucket operations.** `runs/_weights/` must read **1,313** before and
+after. Runner `scripts/s68_sanity_plateau.py`.
