@@ -66,6 +66,27 @@ MASTER_PREFIXES = (
     "docs/FPRIME.md", "docs/PI_ENVELOPE.md", "LICENSE",
     # D69, 2026-09-11: the customer documents. Neither is on `dev`.
     "docs/DESIGN.md", "docs/EVIDENCE.md",
+    # (!) D80 carries the ground toolkit's import closure and six build scripts
+    # onto `master`. `oxcaml/`, `src/sentinel_toolkit/` and `src/sentinel_export/`
+    # move WHOLE, so a prefix is right for them. `src/sentinel_models/`,
+    # `src/sentinel_eval/` and `scripts/` move in PART -- the research apparatus
+    # stays on `dev` -- so those are named file by file. A blanket `src/` here
+    # would report a citation of the scoring harness as resolving on `master`,
+    # which is the opposite of what this mode exists to tell a reader.
+    "oxcaml/", "src/sentinel_toolkit/", "src/sentinel_export/",
+    "requirements-toolkit.txt",
+    "src/sentinel_models/__init__.py", "src/sentinel_models/detectors.py",
+    "src/sentinel_models/lstm.py", "src/sentinel_models/oscfar.py",
+    "src/sentinel_models/reference.py", "src/sentinel_models/telemanom.py",
+    "src/sentinel_models/whiten.py", "src/sentinel_models/windows.py",
+    "src/sentinel_eval/__init__.py", "src/sentinel_eval/bundle.py",
+    "src/sentinel_eval/catalog.py", "src/sentinel_eval/commands.py",
+    "src/sentinel_eval/detector.py", "src/sentinel_eval/errors.py",
+    "src/sentinel_eval/grid.py", "src/sentinel_eval/labels.py",
+    "src/sentinel_eval/normalisation.py", "src/sentinel_eval/read.py",
+    "src/sentinel_eval/synthetic.py", "src/sentinel_eval/tasks.py",
+    "scripts/oxcaml_setup.sh", "scripts/oxcaml_e1.sh", "scripts/oxcaml_s61.sh",
+    "scripts/oxcaml_s72.sh", "scripts/fprime_setup.sh", "scripts/fprime_ref_patch.sh",
 )
 
 #: Of `MASTER_PREFIXES`, the entries that do not exist on `dev` at all. `LICENSE`

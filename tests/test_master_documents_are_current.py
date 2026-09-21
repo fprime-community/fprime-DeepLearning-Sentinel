@@ -493,18 +493,54 @@ def test_no_customer_document_says_the_refusal_coverage_is_incomplete() -> None:
     )
 
 
+#: Directories carried across WHOLE, so tree-SHA identity is the right check.
+#: D69 consequence 1 put `flight/` and `fprime/` here; **D80 added `oxcaml/`**,
+#: which moves complete -- the flown object's nine sources and the experiment
+#: ladder that is the evidence it works.
+IDENTICAL_TREES = ("flight", "fprime", "oxcaml")
+
+
 @needs_master
-def test_flight_and_fprime_are_byte_identical_to_dev() -> None:
-    """D69 consequence 1 carries both across unchanged, and unchanged is checkable.
+def test_the_shared_trees_are_byte_identical_to_dev() -> None:
+    """D69 consequence 1 carries them across unchanged, and unchanged is checkable.
 
     It matters beyond tidiness: until 2026-09-11 `master` carried a lint target
     that could not fail. A public branch whose build differs from the branch the
     evidence was measured on is a public branch nobody can check.
     """
-    for tree in ("flight", "fprime"):
+    on_master = set(_git("ls-tree", "--name-only", MASTER).split())
+    for tree in IDENTICAL_TREES:
+        assert tree in on_master, (
+            f"`{tree}/` is not on `{MASTER}` at all. D69 consequence 1 and D80 "
+            f"carry these trees across whole; if one is deliberately dropped, "
+            f"remove it from IDENTICAL_TREES and say why.")
         assert _git("rev-parse", f"{MASTER}:{tree}").strip() \
             == _git("rev-parse", f"dev:{tree}").strip(), (
             f"`{tree}/` differs between `{MASTER}` and `dev`")
+
+
+@needs_master
+def test_the_partly_carried_trees_are_byte_identical_file_by_file() -> None:
+    """(!) `src/` and `scripts/` move in PART, so a tree SHA cannot check them.
+
+    D80 carries the ground toolkit's import closure and six build scripts, and
+    leaves the research apparatus on `dev` -- the scoring harness, the ingest
+    package, the study runners. A directory that is a subset by design needs a
+    file-by-file check instead, and without one a curated `master` copy could
+    drift from the `dev` file it was taken from and nothing would say so.
+    """
+    on_master = set(_git("ls-tree", "-r", "--name-only", MASTER).split())
+    carried = sorted(p for p in on_master
+                     if p.startswith(("src/", "scripts/", "requirements-toolkit.txt")))
+    assert carried, (
+        "no `src/` or `scripts/` path is on master, but D80 carried some. Either "
+        "the move was reverted -- in which case this test and D80 disagree -- or "
+        "the prefixes above are wrong.")
+    differs = sorted(p for p in carried
+                     if _git("rev-parse", f"{MASTER}:{p}") != _git("rev-parse", f"dev:{p}"))
+    assert not differs, (
+        f"carried file(s) differ between `{MASTER}` and `dev`: {differs}. What "
+        "moves, moves byte-identical.")
 
 
 @needs_master

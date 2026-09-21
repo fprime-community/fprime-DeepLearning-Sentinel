@@ -20,8 +20,6 @@ from functools import cached_property
 
 import numpy as np
 
-from sentinel_data import config as C
-
 from .errors import TaskError
 
 DATASET = "esa-adb"
@@ -93,10 +91,19 @@ class Catalog:
         except KeyError:
             raise TaskError(f"manifest carries no {DATASET!r} dataset") from None
 
+    #: (!) THE KEY IS SPELLED HERE RATHER THAN IMPORTED FROM `sentinel_data`.
+    #: Importing it dragged the whole ingest package into the import graph of
+    #: every reader, and from there `sentinel_data.r2`'s boto3. The value is one
+    #: string and the ingest side owns it, so
+    #: `tests/test_toolkit_closure_is_offline.py` asserts the two spellings
+    #: still agree -- a duplicated constant with a guard, rather than a
+    #: dependency. D80.
+    MANIFEST_KEY = "_manifest/manifest.json"
+
     @classmethod
     def load(cls, source) -> "Catalog":
         """Read `_manifest/manifest.json`. One Class B against R2."""
-        return cls(json.loads(source.get(C.MANIFEST_KEY)))
+        return cls(json.loads(source.get(cls.MANIFEST_KEY)))
 
     # -- provenance --------------------------------------------------------
     def provenance(self) -> dict:

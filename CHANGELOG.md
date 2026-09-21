@@ -14,6 +14,54 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.76] - 2026-09-21 - The retrainer and the ground toolkit move onto master, and the toolkit's closure is cut free of the cloud client first
+
+**`docs/DECISIONS.md` D80.** The owner ruled that `oxcaml/` moves onto `master`: the
+retraining engine is a main part of how this project is presented and `master` is the
+branch an audience sees. The ground toolkit moves with it, so a reader who adopts
+`Sentinel.Monitor` from `master` can also make the `model.bin` it loads.
+
+**(!) What the move exposed.** `src/sentinel_toolkit/cli.py` says *"There is no R2 client,
+no credential read and no bucket in this package."* That was true of the package and false
+of the closure: `selftest.py` -> `sentinel_eval.read` -> `sentinel_data.r2` -> `boto3`, all
+at module scope. Running the offline selftest pulled a Cloudflare R2 client into the
+process. It never built one, never read a credential and never opened a socket, but the
+capability sat in the import graph, and `test_t7_the_toolkit_reaches_no_bucket` could not
+see it because **it read one directory and a closure is not a directory**.
+
+**The cut, before the move.** Two edges, each the only use of its import in the file:
+`sentinel_eval/read.py`'s `sentinel_data.r2` moved into `R2Source.get`, the one method that
+needs the real transport and the one the toolkit never calls; `sentinel_eval/catalog.py`
+now spells `MANIFEST_KEY` itself instead of importing `sentinel_data.config` for one
+string. A function-local import would not have sufficed for the second, because
+`Catalog.load` **is** on the selftest's path.
+
+**No behaviour changed.** The selftest still reports 8 of 8 and still derives the fixture
+cut at 5.076557; `fit` and `verify` are untouched; the full suite is unchanged but for the
+new guards. `src/sentinel_models/reference.py`, the flown rule, `param_version` and the
+model-file format were not touched.
+
+**`requirements-toolkit.txt` is what `master` ships** -- `numpy`, `pyarrow`, `torch`,
+pinned as `requirements.txt` pins them. The repository-wide list carries `boto3`,
+`botocore`, `requests` and `python-dotenv` for the ingest apparatus, and shipping it would
+have told a reader the opposite of what D80 established. `src/sentinel_data/` and
+`.env.example` stay on `dev`: no credential, no credential reader and no cloud client is on
+`master`.
+
+### Guards added
+
+- `tests/test_toolkit_closure_is_offline.py` -- blocks `sentinel_data`, `boto3`,
+  `botocore`, `dotenv` and `requests` at `sys.meta_path` in a subprocess, then imports the
+  closure, asserts no blocked module reaches `sys.modules`, and **runs the whole selftest
+  end to end**. A positive control asserts the blocker blocks. Five of its six checks were
+  shown to fail against the pre-cut chain first.
+- `tests/test_master_documents_are_current.py` -- the cross-branch identity guard now
+  covers `oxcaml/` by tree SHA, and the partly-carried `src/` and `scripts/` file by file,
+  because a directory that is a subset by design cannot be checked by a tree SHA.
+
+**Gates.** 794 tests, of which 787 pass and 6 skip without the build trees, against 788 and
+782 before. `check_no_list` 117 files, unchanged. R2: **zero operations.**
+
 ## [0.6.75] - 2026-09-21 - A skip stops being able to hide inside a green gate, and four stale claims are corrected
 
 **`docs/DECISIONS.md` D79.** Five issues from the 2026-09-21 read-only inspection, each with

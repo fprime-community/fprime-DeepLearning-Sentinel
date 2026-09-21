@@ -33,8 +33,6 @@ from typing import Protocol
 import numpy as np
 import pyarrow.parquet as pq
 
-from sentinel_data import r2
-
 from .catalog import Catalog, Channel, StoredObject
 from .errors import IntegrityError
 
@@ -58,6 +56,15 @@ class R2Source:
     bucket: str
 
     def get(self, key: str) -> bytes:
+        # (!) IMPORTED HERE, NOT AT MODULE SCOPE. `sentinel_data.r2` imports
+        # boto3 and botocore at ITS module scope, so a top-level import here put
+        # a cloud client into the import graph of everything that reads a
+        # channel -- including `sentinel_toolkit`'s offline selftest, which
+        # serves `synthetic.SyntheticSource` and never touches a bucket. D80.
+        # This is the only line in the harness that needs the real transport,
+        # and it is the only one that pays for it.
+        from sentinel_data import r2
+
         return r2.get_bytes(self.client, self.bucket, key)
 
 
