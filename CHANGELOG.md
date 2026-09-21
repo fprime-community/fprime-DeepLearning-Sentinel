@@ -14,6 +14,60 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.69] - 2026-09-21 - HO1: the candidate model file leaves the OCaml process, and the shapes it is built at are not the ones that fly
+
+**`docs/MODELS.md` 72.** HO1's band is 65.3's and is not re-registered. **HO1 HELD, and HZ1 to
+HZ7 all HELD.**
+
+`SentinelRetrain` -- process 2, its own OCaml runtime -- wrote `RetrainCandidate.bin` at
+**302,048 B**, and `flight/`'s own `Detector::load` returned **OK**. Only the weights and the
+two CRCs differ from the flying file; one flipped weights byte still returns `BAD_STATIC_CRC`;
+`format_version` stays **1**, so D30's freeze is not engaged.
+
+The candidate's own `static_crc32`, read from offset 44 of the file on disk, is **1811607725**,
+which is the number the `CandidateWritten` event carried. **The event crossed by one path and
+the file by another, and they agree.**
+
+### What had to be built, because Stage 59 did not have it
+`shadow59.ml` had no loader, no exporter and no `Callback.register` at all. It is **not
+edited** -- Stages 48-63's `[@zero_alloc strict]` figures stand against the files they were
+measured on -- so the surface is a new module, `shadow_c.ml`, plus `sentinel_shadow.h` and
+`shadow_stubs.c`. Four entry points, all `int32_t`, all `CAML_BA_EXTERNAL`, all guarded by
+`retrainer.ml:44`'s pattern. **`cycle_c.ml` has no guard at all**, although
+`sentinel_cycle.h:6` claims the property; that is recorded at 72.9, not repaired here.
+
+### (!) The shapes do not match, and it is reported rather than worked around
+`Deep_f32` is fixed at `Config.hpp`'s maxima -- 16 inputs, **75,360** parameters. The model
+`SentinelRef` flies is 8 channels, **66,960** weights. `shadow59.ml:79` refuses the mismatch
+and is right to. **No candidate this process builds can replace what flies**, and 59.2's
+premise that the retrainer "trains the same architecture at the same shapes" is false for this
+deployment. Three routes were costed; the one taken gives the retrainer a flying file at its
+own shapes and leaves the gap in the record (72.4, owed at 72.9).
+
+### The symbol count moves, and it is ridered rather than edited
+Rebuilding `cycle_complete.o` as a superset moves **2,928 to 3,019**. `SentinelRef` stays at
+**0**, which is the figure DP2 registered and the only one stop 41 is about. 65.6 and 70.2 keep
+their number and gain rider **72.5a**; **0.6.65 and 0.6.61 keep theirs and are superseded by
+this entry**; `fprime/SentinelRetrain/README.md` is live prose and is edited.
+
+**The handover named four citation sites. There are six.** And
+`tests/test_detector_binary_has_no_ocaml_runtime.py` **had been skipping silently** on an
+unbuilt tree rather than passing -- all three binaries were absent. It was made to run, in both
+directions: **3,019** in the control, **0** in `SentinelRef`.
+
+### The domain lock again, one level down
+The first run aborted with `Fatal error: no domain lock held`. 65.10 was about *which thread*
+holds it; this was about *when it is taken* -- the stubs booted inside `CAMLparam0()`, and that
+macro registers GC roots, which needs the lock already held. Each entry point now boots before
+it takes roots.
+
+`tests/test_ocaml_domain_lock_is_thread_pinned.py`'s pattern matched only `retrainer` and
+`cycle`, so it would have read a file with five new entry points and reported that all of them
+were on the ticking thread. **Widened to `shadow`, and shown to fail first** -- both on a
+synthetic probe and by moving a real call out of `schedIn_handler`.
+
+Zero bucket operations. No timing figure; stop 35 untouched.
+
 ## [0.6.68] - 2026-09-21 - HB2b is closed by counting where the hub emits, and the transport substitution turns out to have been necessary
 
 **`docs/MODELS.md` 71.** HB2b's band is 65.3's and is not re-registered. **HB2b HELD.**

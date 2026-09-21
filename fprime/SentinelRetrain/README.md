@@ -19,17 +19,26 @@ discharged.
 ## What is in it, and what is deliberately not
 
 ```
-  retrainer          Retrain.Retrainer     0x30000000   passive
-  rateGroup_1Hz      Svc.ActiveRateGroup   0x30001000   active
-  chronoTime         Svc.ChronoTime        0x30010000   passive
-  rateGroupDriver    Svc.RateGroupDriver   0x30011000   passive
-  timer              Svc.LinuxTimer        0x30012000   passive
-  textLogger         Svc.PassiveTextLogger 0x30013000   passive
+  retrainer          Retrain.Retrainer             0x30000000   passive
+  rateGroup_1Hz      Svc.ActiveRateGroup           0x30001000   active
+  chronoTime         Svc.ChronoTime                0x30010000   passive
+  rateGroupDriver    Svc.RateGroupDriver           0x30011000   passive
+  timer              Svc.LinuxTimer                0x30012000   passive
+  textLogger         Svc.PassiveTextLogger         0x30013000   passive
+  hub                Svc.GenericHub                0x30014000   passive
+  hubAdapter         Drv.ByteStreamBufferAdapter   0x30015000   passive
+  hubComm            Drv.Udp                       0x30016000   passive
+  hubBufferManager   Svc.BufferManager             0x30017000   passive
 ```
 
-Six instances and **no subtopologies at all** -- no command dispatcher, no event manager, no
+Ten instances and **no subtopologies at all** -- no command dispatcher, no event manager, no
 telemetry database, no CCSDS stack, no file handling. A deployment whose point is that it
 carries nothing else has to be checked against that claim, not just described by it.
+
+The last four are the hub (`docs/MODELS.md` 70), which carries this process's events and
+telemetry to `SentinelRef` over `Drv.Udp`. **`Drv.Udp` and not `Drv.TcpClient`**, and 65.4
+registered that route before the number that forced it: over TCP the crossing delivered
+**0 of 256** ticks complete, over UDP **256 of 256** (71.3).
 
 Base ids are `0xDSSCCxxx` with `D = 3`. `D = 2` is not available: `SentinelRef` already places
 `sentinelMonitor` at `0x20000000` and `powerSim` at `0x21000000`, and the two dictionaries are
@@ -44,8 +53,9 @@ be registered once, so `SentinelRef` must be added before this deployment's topo
 
 ## (!) The OCaml runtime starts on the ticking thread, and moving it breaks the process
 
-`Retrainer.cpp:97-108` boots the runtime lazily, inside the first `schedIn`, and the comment
-there says why:
+`Retrainer.cpp`'s `schedIn_handler` boots the runtime lazily on the first tick -- the handler
+opens at `:99`, the reasoning is the comment at `:104-112` and the call is `:113-115` -- and
+that comment says why:
 
 > *"`caml_startup` grants the lock to its CALLER; an `ActiveRateGroup` runs this handler on
 > its own task, so a runtime started in the topology's `configureTopology()` aborts the
@@ -79,10 +89,17 @@ module skips itself and the deployment has nothing to instance.
 
 ## What it proves, and what it does not
 
-**Proved** (`docs/MODELS.md` 65.6): the binary builds through `fprime-util`, boots the OCaml
-runtime inside a real F' deployment, and runs one training cycle per tick. **0** OCaml symbols
-in `SentinelRef`'s binary and **2,928** in this one, checked by symbol on every test run
+**Proved** (`docs/MODELS.md` 65.6, 70, 71, 72): the binary builds through `fprime-util`, boots
+the OCaml runtime inside a real F' deployment, runs one training cycle per tick, carries that
+cycle across a hub into `SentinelRef`'s process, and **writes a candidate model file that
+`flight/`'s own reader loads** (72.8, HO1). **0** OCaml symbols in `SentinelRef`'s binary and
+**3,019** in this one, checked by symbol on every test run
 (`tests/test_detector_binary_has_no_ocaml_runtime.py`).
+
+**(!) The candidate is not a replacement for `SentinelRef`'s model.** The training cycle is
+fixed at `Config.hpp`'s maxima -- 16 inputs, 75,360 parameters -- and `SentinelModel.bin` is an
+8-channel model with 66,960 weights, so the shapes do not meet. `docs/MODELS.md` 72.4 measured
+that and 72.9 carries it as owed.
 
 **Not proved.** C2 -- that the separate process actually isolates the detector's timing -- is
 UNVERIFIED and deferred to hardware: this host downclocks an idle core and the confound

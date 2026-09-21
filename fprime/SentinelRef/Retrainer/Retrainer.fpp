@@ -31,6 +31,22 @@ module Retrain {
         ERR_NO_RUNTIME   = 7
     }
 
+    @ Where on the candidate path a refusal happened (72 / E5-e, HO1). A named
+    @ stage rather than a bare code, so an operator reading the event knows which
+    @ crossing failed without consulting three headers.
+    enum CandidateStage: U8 {
+        @ sentinel_cycle_export, reading the cycle's weights out
+        CYCLE_EXPORT  = 0
+        @ sentinel_shadow_write, the weights into the model file
+        SHADOW_WRITE  = 1
+        @ sentinel_shadow_export, the file out into this process
+        SHADOW_EXPORT = 2
+        @ Os::File::open on the candidate path
+        FILE_OPEN     = 3
+        @ Os::File::write, short or refused
+        FILE_WRITE    = 4
+    }
+
     @ The E1 pipe: an F' component that calls into an OxCaml static library.
     @
     @ (!) THIS IS TEST APPARATUS AND IT LIVES IN THE DEPLOYMENT, NOT THE LIBRARY.
@@ -116,6 +132,42 @@ module Retrain {
             severity warning low \
             id 3 \
             format "OxCaml retrainer refused a call: {}"
+
+        @ HO1/HO2: a candidate model file was written by this process, with the
+        @ metrics the ground needs beside it.
+        @
+        @ (!) crc32 IS THE FILE'S OWN static_crc32, read back from offset 44 of
+        @ the exported bytes (`shadow59.ml:36,93`). It crosses by a DIFFERENT path
+        @ from the file itself -- this event over the hub, the file over
+        @ FileDownlink -- so the ground checks the bytes it received against a
+        @ number that did not travel with them.
+        @
+        @ (!) AND THIS IS NOT THE PRE-LAUNCH SANITY REPORT. Parts (i) and (ii) of
+        @ `Objective.md` section 12's gate are computed on the GROUND from the
+        @ downlinked candidate. Nothing onboard scores a held-out window; that is
+        @ owed and `docs/MODELS.md` 72.6 carries it.
+        event CandidateWritten(
+                                sizeBytes: U32
+                                crc32: U32
+                                steps: I32
+                                loss: F32
+                                samples: U32
+                              ) \
+            severity activity high \
+            id 4 \
+            format "Candidate written: {} B, static_crc32 {}, {} steps, loss {}, {} samples" \
+            throttle 5
+
+        @ The candidate could not be built or written. One event over every
+        @ failure on that path, the way CallRefused covers the accumulator's.
+        event CandidateRefused(
+                                stage: CandidateStage
+                                code: I32
+                              ) \
+            severity warning low \
+            id 5 \
+            format "Candidate refused at {}: code {}" \
+            throttle 5
 
         # ----------------------------------------------------------------------
         # Framework ports

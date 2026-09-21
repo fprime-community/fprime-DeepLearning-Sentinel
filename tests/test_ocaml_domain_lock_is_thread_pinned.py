@@ -44,9 +44,21 @@ RETRAINER = ROOT / "fprime" / "SentinelRef" / "Retrainer" / "Retrainer.cpp"
 RETRAIN_TOP = (ROOT / "fprime" / "SentinelRetrain" / "Top"
                / "SentinelRetrainTopology.cpp")
 
-#: Every C entry point into the OxCaml side. Both surfaces: E1's pipe and the
-#: training cycle. `docs/MODELS.md` 65 and 61 respectively.
-OCAML_ENTRY = re.compile(r"\bsentinel_(?:retrainer|cycle)_\w+\s*\(")
+#: Every C entry point into the OxCaml side. Three surfaces: E1's pipe, the
+#: training cycle, and 72's shadow model file. `docs/MODELS.md` 65, 61 and 72
+#: respectively.
+#:
+#: (!) `shadow` WAS ADDED AT SECTION 72 AND THE OMISSION WOULD HAVE BEEN SILENT.
+#: Until it was, this guard read a file containing five new OCaml entry points and
+#: reported that every entry point was on the ticking thread -- true of the ones it
+#: could see, and worthless. That is 65.8's blind symbol check and 7's invisible
+#: citation a third time, so the widening is shown to fail first
+#: (`test_the_pattern_would_catch_a_shadow_call_off_the_ticking_thread`).
+OCAML_ENTRY = re.compile(r"\bsentinel_(?:retrainer|cycle|shadow)_\w+\s*\(")
+
+#: The pattern this replaced, kept so the both-directions test can show what it
+#: missed. Never used to judge the source.
+OCAML_ENTRY_BEFORE_72 = re.compile(r"\bsentinel_(?:retrainer|cycle)_\w+\s*\(")
 
 #: The only two functions permitted to contain one. `boot` is included because
 #: `schedIn_handler` is the only thing that calls it (`Retrainer.cpp:106-108`),
@@ -145,3 +157,40 @@ def test_the_retrainer_deployment_does_not_boot_the_runtime_in_topology_setup() 
         f"SentinelRetrainTopology.cpp calls into OCaml: {calls}. configureTopology() "
         "runs on the topology's main thread and rateGroup_1Hz calls schedIn on its "
         "own task, so a runtime started here aborts on the first tick.")
+
+
+def test_the_pattern_would_catch_a_shadow_call_off_the_ticking_thread() -> None:
+    """(!) BOTH DIRECTIONS, and the wrong direction is the one that matters here.
+
+    Section 72 added `sentinel_shadow_load`, `_write`, `_export` and `_loss`. The
+    pattern in force before it matched none of them, so a shadow call placed on any
+    other thread would have passed this file's central assertion in silence. The
+    probe below is a synthetic source, never the real one: it puts a shadow call in
+    a handler that is NOT on the ticking thread and asserts the current pattern
+    sees it and the old one does not.
+    """
+    probe = (
+        "void Retrainer::boot() { sentinel_retrainer_boot(); }\n"
+        "void Retrainer::hubIn_handler() { sentinel_shadow_load(buf, n); }\n"
+    )
+    offending = [line for line in probe.splitlines() if OCAML_ENTRY.search(line)
+                 and "hubIn_handler" in line]
+    assert offending, (
+        "the current pattern does not match a shadow entry point; widening it at "
+        "Section 72 achieved nothing")
+
+    missed = [line for line in probe.splitlines()
+              if OCAML_ENTRY_BEFORE_72.search(line) and "hubIn_handler" in line]
+    assert not missed, (
+        "the pre-72 pattern already matched shadow entry points, so the widening "
+        "was not the fix this docstring claims it was")
+
+
+def test_the_guard_reads_a_file_that_actually_contains_shadow_entry_points() -> None:
+    """A pattern that matches nothing in the real source is not a guard either."""
+    source = RETRAINER.read_text()
+    found = [m.group(0) for m in OCAML_ENTRY.finditer(source)
+             if "shadow" in m.group(0)]
+    assert found, (
+        "Retrainer.cpp contains no sentinel_shadow_* call, so either Section 72's "
+        "HO1 work was reverted or this guard is watching the wrong file.")

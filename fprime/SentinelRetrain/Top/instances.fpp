@@ -145,6 +145,24 @@ module SentinelRetrain {
     // allows, and `init` refuses a second call so the accumulator cannot be
     // reset per tick. This raises the bound before boot; it allocates nothing.
     SentinelRetrain::retrainer.configure(4096);
+
+    // 72 / E5-e, HO1: where the flying model is read from and where the
+    // candidate is written. Both sit beside the binary, which is the shared
+    // filesystem path SentinelRef's FileDownlink reads the candidate from --
+    // both processes are on one host, which is what a real spacecraft looks
+    // like, and it is why this deployment needs no Com stack of its own.
+    //
+    // (!) RetrainModel.bin IS NOT SentinelRef's SentinelModel.bin. The cycle is
+    // maxima-shaped -- 16 inputs, 75,360 parameters (deep_f32.ml:28-34) -- and
+    // SentinelRef flies an 8-channel model with 66,960 weights, so no candidate
+    // this process builds can replace that one. docs/MODELS.md 72 reports that
+    // rather than hiding it, and 72.6 carries it as owed. The file is built by
+    // scripts/s72_flying_file.py and is a run artifact, cited by path.
+    //
+    // Absent, the component still ticks and still cycles; it produces no
+    // candidate and says so once. Degrade rather than die.
+    SentinelRetrain::retrainer.configureShadow("RetrainModel.bin",
+                                               "RetrainCandidate.bin");
     """
   }
 

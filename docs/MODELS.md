@@ -682,6 +682,17 @@ prediction that failed and why. This document follows the same discipline.
   - [71.3 OBSERVED -- HB2b HOLDS on UDP, FAILS on TCP, and trap B is confirmed as real](#713-observed----hb2b-holds-on-udp-fails-on-tcp-and-trap-b-is-confirmed-as-real)
   - [71.4 Cost](#714-cost)
   - [71.5 Owed](#715-owed)
+- [72 Pre-registration: E5-e, HO1 -- the candidate model file leaves the OCaml process (Phase 5)](#72-pre-registration-e5-e-ho1----the-candidate-model-file-leaves-the-ocaml-process-phase-5)
+  - [72.1 REQUIREMENTS DERIVED FROM:](#721-requirements-derived-from)
+  - [72.2 The apparatus, and what Stage 59 did not have](#722-the-apparatus-and-what-stage-59-did-not-have)
+  - [72.3 (!) THE DOMAIN LOCK AGAIN, ONE LEVEL DOWN FROM 65.10](#723-the-domain-lock-again-one-level-down-from-6510)
+  - [72.4 (!) THE SHAPES DO NOT MATCH, AND THAT IS THE SECTION'S REAL FINDING](#724-the-shapes-do-not-match-and-that-is-the-sections-real-finding)
+  - [72.5 The symbol count moves, and it is ridered rather than edited](#725-the-symbol-count-moves-and-it-is-ridered-rather-than-edited)
+  - [72.5a Rider to 65.6 and 70.2: the 2,928 figure is superseded from Section 72](#725a-rider-to-656-and-702-the-2928-figure-is-superseded-from-section-72)
+  - [72.6 Predictions](#726-predictions)
+  - [72.7 Cost and stops](#727-cost-and-stops)
+  - [72.8 OBSERVED -- HO1 HOLDS, and the shape mismatch is the finding](#728-observed----ho1-holds-and-the-shape-mismatch-is-the-finding)
+  - [72.9 Owed](#729-owed)
 
 <!-- /toc -->
 
@@ -21199,3 +21210,299 @@ without it, but the GDS still logs the retrainer's telemetry as unknown ids.
 **HO1, HO2 and HO3 remain NOT RUN.** 62.4's distinction governs.
 
 **A per-channel report**, if a transport is ever found that drops selectively.
+
+## 72. Pre-registration: E5-e, HO1 -- the candidate model file leaves the OCaml process (Phase 5)
+
+**65.3 registered HO1's band and it is quoted here, not re-registered**: *"a candidate model
+file is written by process 2 and loads under `flight/`'s own reader | written, and
+`Detector::load` returns `OK` | -- | it does not load"*. What this section adds is the
+apparatus, which turned out to be larger than either earlier plan assumed, and three findings
+that came out of building it.
+
+**HO2 and HO3 are NOT in this section.** They are the downlink and the commanded reload, and
+they are a separate piece of work with a separate topology change.
+
+### 72.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 65.3           HO1: written by process 2, and Detector::load returns OK
+  docs/MODELS.md 65.4, stop 41  SentinelRef's binary carries 0 OCaml symbols at every step
+  docs/MODELS.md 59.2           "the shadow is the flying file with new weights" -- the
+                                premise this section tests and finds does not hold here
+  oxcaml/retrainer/shadow59.ml:25,30-31
+                                file is a module-level 1 MiB Bigarray; max_file = 1 lsl 20
+  oxcaml/retrainer/shadow59.ml:36-37,93,95
+                                static_crc32 at 44 and header_crc32 at 60, and nothing else
+  oxcaml/retrainer/shadow59.ml:76,79
+                                write_shadow refuses a weights block whose size disagrees
+                                with the header: `if wb <> 4 * n_weights then (-1)`
+  oxcaml/retrainer/retrainer.ml:41-44
+                                `guard f = try f () with _ -> err_internal` -- the pattern
+                                47.6 requires, and the one cycle_c.ml does NOT use
+  oxcaml/retrainer/cycle_c.ml:79-84
+                                the Callback.register block and its narrow alert opt-out
+  oxcaml/retrainer/cycle_stubs.c:19-20,60-80
+                                the stub shape: CAMLparam0, closure lookup, caml_ba_alloc
+                                with CAML_BA_EXTERNAL, caml_callback, CAMLreturnT int32_t
+  oxcaml/retrainer/deep_f32.ml:28-34
+                                ins 16, hs 80, n_out 160, n_params 75,360, "at Config.hpp's
+                                maxima" -- the cycle's shapes, which are FIXED
+  scripts/oxcaml_s61.sh:79-92   one -output-complete-obj per binary, each carrying its own
+                                runtime, so there is one object and it is a superset
+  flight/include/sentinel/Detector.hpp:55
+                                LoadStatus load(const U8* data, U32 length) -- testable with
+                                no file at all
+  fprime/Sentinel/Monitor/Monitor.hpp:38-43
+                                MODEL_FILE_MAX_BYTES's derivation, restated in the Retrainer
+                                rather than shared, because that module does not link flight/
+  fprime/Sentinel/Monitor/Monitor.cpp:116-140
+                                the Os::File read pattern, FwSizeType and all
+  tests/test_ocaml_domain_lock_is_thread_pinned.py:54
+                                every OCaml entry point sits in `boot` or `schedIn_handler`
+  docs/DECISIONS.md D30         the model-file freeze: format_version stays 1, no field is
+                                added, moved or resized
+  Objective.md 11 rule 5        fixed compute per cycle
+```
+
+### 72.2 The apparatus, and what Stage 59 did not have
+
+`shadow59.ml` builds the candidate in memory and has done since Stage 59. **It has no loader,
+no exporter and no `Callback.register` at all** -- its `file` is a module-level Bigarray with
+no way in or out from C, and the only thing that touches it is `write_shadow`, which assumes
+the flying bytes are already there. `shadow59_check.ml` supplies both halves, and its own first
+line says what it is: *"Section 59's driver. Not annotated and not part of the claim."*
+
+So HO1 needed a C surface, and **`shadow59.ml` is not edited to get one**. Stages 48-63's
+`[@zero_alloc strict]` figures stand against the files they were measured on, and a module
+edited after measurement is a module whose figures have to be re-earned. The surface is a new
+module, `shadow_c.ml`, in `cycle_c.ml`'s position relative to `deep_f32.ml`:
+
+```
+  oxcaml/retrainer/shadow_c.ml          load / write / export / loss, each guarded
+  oxcaml/retrainer/sentinel_shadow.h    four int32_t entry points, fixed-size types only
+  oxcaml/retrainer/shadow_stubs.c       CAML_BA_EXTERNAL crossings, caller-owned buffers
+  oxcaml/retrainer/shadow_c_harness.cpp the harness, linking flight/ itself
+  scripts/oxcaml_s72.sh                 the runner
+  scripts/s72_flying_file.py            the flying file at the cycle's own shapes
+```
+
+**It takes `retrainer.ml`'s guard and not `cycle_c.ml`'s.** Reading the two to copy the house
+pattern turned up that there is no house pattern: `retrainer.ml:44` wraps every registered
+callback in `try ... with _ -> err_internal`, and **`cycle_c.ml` has no `try` anywhere**,
+although `sentinel_cycle.h:6` claims CPP-25 compliance for its surface and 47.6 asks for
+"structurally impossible rather than merely avoided". `cycle_c.ml` is a module measured at
+Stage 61 and this section does not edit it; the gap is recorded here and carried at 72.8.
+
+**`export` returns a byte count, not a status.** A candidate of zero bytes is not a thing, so
+positive-is-length and negative-is-refusal keeps the surface at four entry points while letting
+the C++ side learn the candidate's length rather than assume it.
+
+**And the length is remembered, not derived.** Deriving it from the header --
+`header_bytes + channels_bytes + weights_bytes` -- was tried first and is wrong: it gives
+**1,276 B** for `p1.bin`, whose real length is **1,396 B**, because the trailing PARAMS block
+is not in that sum. `Detector::load` answered `TRUNCATED`. The candidate **is** the flying file
+with new weights, so its length is the flying file's length, known exactly at load time. A
+layout this module does not know is a layout it cannot get wrong.
+
+### 72.3 (!) THE DOMAIN LOCK AGAIN, ONE LEVEL DOWN FROM 65.10
+
+The first run of the harness aborted with **`Fatal error: no domain lock held`** -- 65.10's
+message, from a different cause.
+
+65.10 was about **which thread** holds the lock. This is about **when it is taken**. The stubs
+booted the runtime inside `shadow_closure()`, which was called *after* `CAMLparam0()`; but
+`CAMLparam0` and `CAMLlocal` register GC roots, which reads the domain's state and therefore
+requires the lock to be held already. The boot was two lines too late.
+
+**`cycle_stubs.c` never hit this** because `Retrainer.cpp` calls `sentinel_cycle_boot()` out of
+band, in `boot()`, before any entry point runs. A surface that boots itself has to boot before
+it takes roots, and each of the four entry points now does.
+
+### 72.4 (!) THE SHAPES DO NOT MATCH, AND THAT IS THE SECTION'S REAL FINDING
+
+**59.2's premise is that the retrainer "trains the same architecture at the same shapes" as the
+flying model, so every header field except two is already correct. For this deployment that is
+false, and no candidate this process builds can replace `SentinelRef`'s model.**
+
+```
+  Deep_f32 (the cycle)            ins 16, hidden [80,80], n_out 160  -> 75,360 parameters
+                                  deep_f32.ml:28-34, FIXED at compile time
+  SentinelModel.bin (what flies)  8 channels, 8 predictions          -> 66,960 weights
+                                  268,224 B, the file SentinelRef loads today
+```
+
+`shadow59.ml:79` refuses the mismatch and is right to: writing 75,360 numbers from one
+architecture into a container declaring 66,960 would produce a file that loads and means
+nothing. **Three routes were costed before one was taken.**
+
+```
+  1  a flying file at the cycle's own shapes        TAKEN. 16 channels, hidden [80,80],
+     scripts/s72_flying_file.py                     10 predictions -> exactly 75,360,
+                                                    asserted against deep_f32.ml:34 rather
+                                                    than trusted. 302,048 B.
+  2  parameterise Deep_f32 at runtime               REFUSED. Every [@zero_alloc strict]
+                                                    figure from Stage 48 to 63 was measured
+                                                    at fixed shapes; this would void them
+                                                    all to make one arm pass.
+  3  truncate the export to the header's count      REFUSED, and recorded as refused. It
+                                                    produces a file that loads. It is a
+                                                    fake, and shadow59.ml:79 exists to
+                                                    stop exactly this.
+```
+
+**Route 1 keeps HO1's registered band and does not pretend the gap is closed.** 72.8 carries
+it. `scripts/s72_flying_file.py`'s own header says, in the file a future reader will open
+first, that its weights are seeded and not trained and that it is apparatus.
+
+**A correction while here.** `shadow59.ml:25`'s comment, *"the flown file is 268,224 B"*, was
+read as wrong during verification because `p1.bin` is 1,396 B. It is **right**: 268,224 B is
+`SentinelModel.bin`, the file `SentinelRef` actually loads, which lives under
+`fprime/build-artifacts/` and is gitignored. The comment names a run artifact, not a committed
+vector.
+
+### 72.5 The symbol count moves, and it is ridered rather than edited
+
+Rebuilding `cycle_complete.o` as a superset -- E1's five entry points, 61's five, and 72's
+four -- moves the figure **2,928** that three records and one live document cite.
+
+```
+  2,928 -> 3,019        docs/MODELS.md 65.6 (twice), 70.2        records: ridered at 72.5a
+                        CHANGELOG.md 0.6.65, 0.6.61              records: superseded by the
+                                                                 entry for this section
+                        fprime/SentinelRetrain/README.md:84      live prose: edited, and it
+                                                                 is on master too
+```
+
+**The handover named four sites. There are six**, and the sixth is the one on both branches.
+
+`tests/test_detector_binary_has_no_ocaml_runtime.py` asserts `> 100` in the control and `0` in
+`SentinelRef`, never the exact number, so it did not break. **But both its tests skip silently
+on an unbuilt tree** (`:66-67`, `:78-80`) and all three binaries were absent when this session
+began -- the guard had been vacuous, not passing. It was made to run.
+
+```
+  SentinelRef            0      DP2 holds. Stop 41 not engaged.
+  SentinelRetrain    3,019
+  Retrainer UT exe   3,019      the positive control: > 100, and it is 3,019
+```
+
+**`fprime-util build --ut -p ./SentinelRef` does not build the Retrainer's UT executable** --
+the module is registered by that deployment and instanced by the other, so the build exits 0
+having built nothing. It was built by its own path.
+
+### 72.5a Rider to 65.6 and 70.2: the 2,928 figure is superseded from Section 72
+
+**65.6 and 70.2 are not edited.** Both state **2,928** OCaml symbols in `SentinelRetrain` and
+in the Retrainer UT executable, and both were correct for the object as it stood: E1's five
+entry points plus 61's five. **Section 72 added a third surface -- `sentinel_shadow_load`,
+`_write`, `_export` and `_loss` -- to the same `-output-complete-obj` object, because two such
+objects cannot be linked into one binary. The figure is now 3,019 in both.** `SentinelRef`
+remains **0**, which is the figure DP2 registered and the only one stop 41 is about.
+
+### 72.6 Predictions
+
+**HO1 is 65.3's and is quoted, not re-registered.** HZ1-HZ7 are apparatus checks; their bands
+are structural and were written into `scripts/oxcaml_s72.sh` before it was first run.
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **HO1** | **a candidate model file is written by process 2** and loads under `flight/`'s own reader | written, and `Detector::load` returns `OK` | it does not load |
+| **HZ1** | the new surface holds `[@zero_alloc strict]` with no `assume` | `-zero-alloc-check all` clean, **0** assume annotations | any assume, or a check failure |
+| **HZ2** | the C surface is fixed-size types only | every entry `int32_t`, **0** bare float/double in a signature (stop 33) | any |
+| **HZ3** | every entry point catches its own exceptions | **4 of 4** guarded, `retrainer.ml:44`'s pattern | fewer |
+| **HZ4** | only the weights and the two CRCs differ from the flying file | **0** bytes differing outside `{weights, 44-47, 60-63}` | any |
+| **HZ5** | `format_version` stays 1 -- D30's freeze is not engaged | **1** | anything else |
+| **HZ6** | the static CRC still guards the candidate | one flipped weights byte -> `BAD_STATIC_CRC` | it loads |
+| **HZ7** | each refusal is exercised, not assumed | short buffer, wrong weight count and null pointer each return their own code | any returns OK |
+
+### 72.7 Cost and stops
+
+**Zero bucket operations.** Month unmoved at 238 Class A / 5,740 Class B (`docs/STATUS.md:160`).
+`runs/_weights/` reads **1,313** before and after; nothing in this section fits a model.
+**`fprime/` moves, so `master` moves in the same series, and every master file changed is
+listed.** Wall clock for the runner: **3 s**, and it is a build time, not a measurement --
+stop 35 is untouched and **no timing figure is produced by this section**. C2 stays UNVERIFIED
+and deferred to E4.
+
+Carrying every stop from 47.12 through 71, and adding:
+
+```
+  47. shadow59.ml, cycle_c.ml, deep_f32.ml or any module measured at Stages 48-63 is
+      edited to make this section's surface work. Stop. Their figures were measured
+      against those files; a new surface goes in a new module.
+  48. The weights count passed to sentinel_shadow_write is taken from the header
+      rather than from the cycle, to make the shapes agree. Stop. That is 72.4's
+      route 3 and it produces a file that loads and means nothing.
+  49. A candidate is described as replacing SentinelModel.bin. Stop. 72.4 measured
+      that it cannot, and the shapes are in the record.
+```
+
+### 72.8 OBSERVED -- HO1 HOLDS, and the shape mismatch is the finding
+
+**HO1 HELD. HZ1-HZ7 all HELD.**
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **HO1** | written by process 2, loads under `flight/`'s reader | `SentinelRetrain` wrote **`RetrainCandidate.bin`, 302,048 B**; `Detector::load` -> **OK** | **HELD** |
+| **HZ1** | zero-alloc, no assume | `-zero-alloc-check all` clean; **0** assume in `shadow_c.ml` and **0** in `shadow59.ml` | **HELD** |
+| **HZ2** | fixed-size types only | **4** entry points, all `int32_t`; **0** bare float/double | **HELD** |
+| **HZ3** | every entry point guarded | **4 of 4** | **HELD** |
+| **HZ4** | only weights and the two CRCs differ | **0** bytes outside `{weights, 44-47, 60-63}`, over a 301,440 B weights region | **HELD** |
+| **HZ5** | `format_version` stays 1 | **1** | **HELD** |
+| **HZ6** | the static CRC still guards | one flipped byte -> **`BAD_STATIC_CRC`** | **HELD** |
+| **HZ7** | refusals exercised | 16 B buffer -> **-1**; one weight too many -> **-1**; null pointer -> **-7** | **HELD** |
+
+**The deployment run, and it is process 2 doing the writing.** `SentinelRetrain` booted its own
+OCaml runtime on the rate group's thread, ran a cycle, and emitted:
+
+```
+  RuntimeBooted     : OxCaml retrainer booted, accumulator sized 4096
+  CandidateWritten  : Candidate written: 302048 B, static_crc32 1811607725,
+                      1 steps, loss -1.473288, 10 samples
+```
+
+**The candidate's own `static_crc32`, read from offset 44 of the file on disk, is
+1811607725** -- the number the event carried. The event crossed by one path and the file by
+another, and they agree. That is what the figure is for.
+
+**What HO1 does NOT establish, and the list is the useful part.**
+
+- **The candidate is not a replacement for anything that flies.** 72.4. Its shapes are the
+  cycle's, not the deployment's.
+- **Its weights are one cycle of a fixed-budget trainer on a synthetic drive**, seeded at
+  `sentinel_cycle_init(7)` and fed `m_window`, which `Retrainer.cpp` fills once with a bounded
+  deterministic pattern. **It is not trained on telemetry.** `loss -1.473288` is that cycle's
+  own number and is reported because HO2's report asks for it, not because it means the model
+  is good.
+- **Nothing scores it.** Parts (i) and (ii) of `Objective.md` section 12's gate are ground
+  computations over a held-out window, and nothing onboard does them. 72.9 carries it.
+- **No timing figure.** Stop 35.
+
+### 72.9 Owed
+
+**(!) ONBOARD HELD-OUT SCORING.** The candidate crosses with a metrics record --
+`candidate_bytes`, `candidate_crc32`, `steps`, `loss`, `samples` -- and **none of those is
+part (i) or part (ii)**. The sanity criterion D74.4 rebuilt needs a held-out window scored by
+the flying model and by the candidate, and the retrainer has neither the window nor the
+scoring. **It is owed as its own section**, not accepted as a gap: until it exists, the
+pre-launch sanity report is computed on the ground from the downlinked candidate, and
+`master` says so in those words.
+
+**A cycle whose shapes are a mission's, not the maxima's.** 72.4. Either `Deep_f32` becomes
+configurable -- at the cost of every fixed-shape figure Stages 48-63 measured -- or the flown
+model is exported at the maxima. Neither has been argued; both are cheaper than discovering it
+at integration.
+
+**`cycle_c.ml` catches no exceptions**, although `sentinel_cycle.h:6` claims CPP-25 compliance
+for its surface and 47.6 asks for structural impossibility. Five entry points are unguarded.
+This section did not edit a module measured at Stage 61; the repair belongs in a section that
+re-measures it.
+
+**HO2 and HO3 remain NOT RUN.** 62.4's distinction governs and they are not verdicts.
+
+**A `fprime-util build` after an `.fpp` change can leave `FPP_IMPORT_FLAGS` empty**, and
+`lib/fprime/cmake/autocoder/scripts/fpp_to_dict_wrapper.py:78` then passes `args.i`, which
+defaults to `False`, into `subprocess.call` and dies with `TypeError: expected str, bytes or
+os.PathLike object, not bool`. It is framework code at v4.3.0, it is gitignored here, and
+`fprime-util generate -f` clears it. Recorded so the next person does not debug their own
+change for it.

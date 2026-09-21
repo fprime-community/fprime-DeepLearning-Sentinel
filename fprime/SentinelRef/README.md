@@ -30,16 +30,17 @@ when one is there.
 
 | Path | What it is |
 |---|---|
-| `Top/` | the topology: 11 instances, the subtopology imports, and the base-id convention |
+| `Top/` | the topology: 16 instances, the four subtopology imports, and the base-id convention |
 | `PowerSim/` | the physics testbed -- coupled current, heat, temperature and voltage with declared limits, wired to the component's input port (`docs/MODELS.md` 42) |
 | `Retrainer/` | **the OxCaml retrainer component.** It lives here and is registered here (`CMakeLists.txt:27`), but it is **instanced only by `SentinelRetrain`** |
 | `ExampleAdapter/` | the forty-line Passive Adapter Pattern example a mission copies to wire its own channels in (`ExampleAdapter/ChannelAdapter.cpp`). The pattern itself is written up on `master` in its `docs/DESIGN.md` section 8 |
+| `HubCounter/` | the tap that counts the hub crossing where the hub emits, so a delivery rate is not taken from the ground (`docs/MODELS.md` 70.6, 71). FPP module `HubTap` |
 | `Main.cpp` | the deployment entry point |
 
-`PowerSim/`, `Retrainer/` and `ExampleAdapter/` are registered in this deployment's own
-`CMakeLists.txt` rather than in `fprime/library.cmake`, and the reason is the same for all
-three: that file exports what a mission adopting Sentinel consumes, and a simulated battery,
-an OCaml runtime and example code are none of them.
+`PowerSim/`, `Retrainer/`, `ExampleAdapter/` and `HubCounter/` are registered in this
+deployment's own `CMakeLists.txt` rather than in `fprime/library.cmake`, and the reason is the
+same for all four: that file exports what a mission adopting Sentinel consumes, and a simulated
+battery, an OCaml runtime, example code and a test instrument are none of them.
 
 ## The instances, and the base-id convention
 
@@ -50,18 +51,31 @@ deployment's own `sentinelMonitor` and `powerSim` and the dictionary merge refus
 collision.
 
 ```
-  rateGroup_1Hz      Svc.ActiveRateGroup   0x10001000   active
-  rateGroup_0_5Hz    Svc.ActiveRateGroup   0x10002000   active
-  rateGroup_0_25Hz   Svc.ActiveRateGroup   0x10003000   active
-  cmdSeq             Svc.CmdSequencer      0x10004000   active
-  chronoTime         Svc.ChronoTime        0x10010000   passive
-  rateGroupDriver    Svc.RateGroupDriver   0x10011000   passive
-  systemResources    Svc.SystemResources   0x10012000   passive
-  timer              Svc.LinuxTimer        0x10013000   passive
-  comDriver          Drv.TcpClient         0x10014000   passive
-  sentinelMonitor    Sentinel.Monitor      0x20000000   passive
-  powerSim           Testbed.PowerSim      0x21000000   passive
+  rateGroup_1Hz      Svc.ActiveRateGroup           0x10001000   active
+  rateGroup_0_5Hz    Svc.ActiveRateGroup           0x10002000   active
+  rateGroup_0_25Hz   Svc.ActiveRateGroup           0x10003000   active
+  cmdSeq             Svc.CmdSequencer              0x10004000   active
+  chronoTime         Svc.ChronoTime                0x10010000   passive
+  rateGroupDriver    Svc.RateGroupDriver           0x10011000   passive
+  systemResources    Svc.SystemResources           0x10012000   passive
+  timer              Svc.LinuxTimer                0x10013000   passive
+  comDriver          Drv.TcpClient                 0x10014000   passive
+  hub                Svc.GenericHub                0x10015000   passive
+  hubAdapter         Drv.ByteStreamBufferAdapter   0x10016000   passive
+  hubServer          Drv.Udp                       0x10017000   passive
+  hubBufferManager   Svc.BufferManager             0x10018000   passive
+  hubCounter         HubTap.HubCounter             0x10019000   passive
+  sentinelMonitor    Sentinel.Monitor              0x20000000   passive
+  powerSim           Testbed.PowerSim              0x21000000   passive
 ```
+
+The five hub instances carry `SentinelRetrain`'s events and telemetry into this process
+(`docs/MODELS.md` 70, 71). **`Drv.Udp` and not `Drv.TcpServer`**: `GenericHub.cpp:129-130`
+dispatches on an exact size match and `:249-252` drops anything else silently, so a stream
+transport that coalesces two messages into one read loses both. Measured, over 256 ticks:
+**TCP 0 complete, UDP 256** (71.3). `hubCounter` sits between the hub and `CdhCore` and counts
+what the hub emits, because the ground is downstream of `Svc.TlmChan` and cannot measure the
+crossing (70.6).
 
 `sentinelMonitor` and `powerSim` are **passive on purpose**. Each runs in the context of the
 rate group that ticks it, so a slip shows up as a slip rather than being absorbed by a queue,

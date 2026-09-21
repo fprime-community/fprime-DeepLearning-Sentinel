@@ -83,11 +83,18 @@ echo "== Section 61 done =="
 # and 47.13.1's figures still refer to it. This is a SUPERSET at a different path,
 # because two -output-complete-obj objects cannot be linked into one binary -- each
 # carries its own runtime.
+#
+# (!) SECTION 72 ADDED THE SHADOW SURFACE TO THIS OBJECT, and this tail builds the
+# SAME set as scripts/oxcaml_s72.sh's tail so the two runners cannot disagree about
+# what cycle_complete.o contains -- whichever runs last, the object is identical.
+# docs/MODELS.md 61 describes the object AS IT WAS AT 61, five entry points plus
+# five; 72.4 is the rider that records the third set and the symbol count it moved.
 echo
-echo "-- the component's object: E1's five entry points plus 61's five"
+echo "-- the component's object: E1's five entry points, 61's five, and 72's three"
 cd "${ROOT}/oxcaml/_build"
 ocamlopt -output-complete-obj -O3 -o cycle_complete.o \
     -warn-error +a -alert @all \
     -I "${SRC}" "${SRC}/retrainer.ml" "${SRC}/retrainer_stubs.c" \
-    "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c"
+    "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c" \
+    "${SRC}/shadow59.ml" "${SRC}/shadow_c.ml" "${SRC}/shadow_stubs.c"
 echo "   cycle_complete.o ($(wc -c < cycle_complete.o) bytes)"
