@@ -10,7 +10,8 @@ reason is the stop-the-world minor collector above."* OCaml 5's minor collector 
 world across domains, so a retrainer sharing a process with the detector would stall the
 detector at a collection barrier **even if the retrainer's own code allocated nothing**.
 
-`docs/MODELS.md` 47.15b named this exact shape as the only thing that could discharge C5 --
+`docs/MODELS.md` 47.15, in its 47.15b rider, named this exact shape as the only thing that
+could discharge C5 --
 *"a **minimal retrainer deployment** -- its own `Top/`, a topology carrying the `Retrainer`
 and a rate group and nothing else"* -- and `docs/MODELS.md` 65 is where it was built and C5 was
 discharged.
