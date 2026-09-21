@@ -172,7 +172,7 @@ does not do.
 - The [Releases](https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel/releases)
   `wi1` to `wi9` (was `wi7`; nine tags exist) are the milestone tour, one per work item, each
   linking into the documents at that tag. Work items 9.5 onward are untagged, and are recorded
-  in `CHANGELOG.md` 0.6.1 to 0.6.60 with the artifact behind every figure.
+  in `CHANGELOG.md` 0.6.1 to 0.6.72 with the artifact behind every figure.
 - **Branches, and there are two.** `dev` carries the complete development history, decision
   by decision, with tags `wi1`-`wi9` and their Releases; all work lands there and it is
   **never rewritten**. `master` is the public branch and the repository default - the

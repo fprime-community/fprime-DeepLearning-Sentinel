@@ -15,7 +15,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D75 (was D63) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D77 (was D75, was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -162,7 +162,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D75 (was D63),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D77 (was D75, was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -479,11 +479,11 @@ operations between them.
   `GoldenVectors.cpp` skips an absent tier silently -- so the ARM proof would have passed on
   3 and 7 channels and reported success. R2 therefore asserts the tier count. **Nothing exists
   at 16 channels**, the compile-time maximum, and the timing fixture for it is generated on the
-  target rather than committed, because tracked content is **7.0527 MiB** (2026-09-20, after 64) and already inside
+  target rather than committed, because tracked content is **7.4724 MiB** (2026-09-21, after 75) and already inside
   39's N8 middle band -- **but D77 re-derived N8 as a vectors-only figure**, so the band that
   applies to a new tier is the **vectors'**: they are **2.0924 MiB**, inside N8's HOLD band
   with **5,146,037 B** under its 7 MiB stop. The binding limit on the tree as a whole is now
-  D64's 8 MiB cap, **768,620 B** away, and it is prose rather than vectors that is spending it.
+  D64's 8 MiB cap, **553,269 B** away, and it is prose rather than vectors that is spending it -- it was 768,620 B on 2026-09-20 and four sections of record have cost the difference.
 - **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
   and its structural half is derivable from A6's committed table. **(!) The lever is confounded

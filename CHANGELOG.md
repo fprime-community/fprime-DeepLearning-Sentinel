@@ -14,6 +14,40 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.73] - 2026-09-21 - The stale-figure sweep, and the tracked-size figure that three documents disagreed about
+
+**Live prose only. No record is edited.**
+
+Every figure re-measured rather than copied forward:
+
+| figure | was | is |
+|---|---|---|
+| tests | 760 | **769** |
+| `check_no_list` files | 114 | **116** |
+| tracked content | **7.0527 MiB** in `docs/STATUS.md` | **7.4724 MiB** over 425 files |
+| headroom under D64's 8 MiB cap | 768,620 B | **553,269 B** |
+| decisions | D1 to D75 | **D1 to D77** |
+| `docs/MODELS.md` sections | 71 | **75** |
+| CHANGELOG | 0.6.60 / 0.6.68 | **0.6.72** |
+| OCaml symbols in `SentinelRetrain` | 2,928 | **3,019** |
+
+**The tracked-size figure was stated three different ways and all three were wrong.**
+`docs/STATUS.md` said 7.0527 MiB, `docs/DECISIONS.md` D77 and `CHANGELOG.md` 0.6.67 said
+7.2670 MiB, and the measurement on 2026-09-20 was neither of those by the time anyone read it.
+**The guard did not catch it and could not**: `test_no_local_persistence.py:175` enforces
+`< 8 MiB` and says nothing about what the documents claim. Only the live figure in
+`docs/STATUS.md` is corrected -- the two in records stand as what was measured on their own
+dates, which is what a record is for.
+
+**Headroom is now 553,269 B and it is prose that is spending it**, as D77 predicted: four
+sections of record since 2026-09-20 have cost 215,351 B. The vectors are unmoved at
+**2,193,995 B over 26 files**, 5,146,037 B under N8's 7 MiB stop.
+
+**Open, and stated on `master`**: it has never run on flight hardware (E5 is HOST-VERIFIED
+PENDING TARGET), whether the toolchain builds for the target is unverified (C4), and whether
+the separate process isolates the detector's timing is unverified (C2). **No licence file**;
+the branch says the licence is not yet selected and the repository is private until it is.
+
 ## [0.6.72] - 2026-09-21 - The shadow is warm-started at last, and part (i) turns out to measure training rather than drift
 
 **`docs/MODELS.md` 74 and 75, and rider D76.1.** WS1, WS2, WS4 and WS5 HELD. **WS3 FAILED.**
