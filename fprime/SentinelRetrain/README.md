@@ -86,8 +86,8 @@ D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
 `scripts/oxcaml_s61.sh` to build the object this deployment links. **The retrainer is still
 an experiment rather than a released feature** -- it has never run on flight hardware,
 its sanity gate is not a usable gate yet, and it trains at the compile-time maxima rather
-than at `SentinelRef`'s flown shape. `docs/DESIGN.md` 9 states the case for it and the
-case against it in the same passage.
+than at `SentinelRef`'s flown shape. `docs/DESIGN.md`, on `master`, states the case for it
+and the case against it in the same passage.
 
 ```
 ./SentinelRetrain -a 127.0.0.1 -p 0        # run the cycle with no hub
