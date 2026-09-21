@@ -617,6 +617,8 @@ prediction that failed and why. This document follows the same discipline.
   - [64.4 Predictions](#644-predictions)
   - [64.5 Falsification](#645-falsification)
   - [64.6 Cost, and stop and report](#646-cost-and-stop-and-report)
+  - [64.7 OBSERVED -- the gradients are bounded at last, and the sanity criterion is not fit to be a gate](#647-observed----the-gradients-are-bounded-at-last-and-the-sanity-criterion-is-not-fit-to-be-a-gate)
+  - [64.8 Owed](#648-owed)
 
 <!-- /toc -->
 
@@ -19256,3 +19258,136 @@ Stop and report, carrying every stop from 47.12 through 63.5, and adding:
     extended to this section's two declared constants.
 40. **`src/sentinel_eval/synthetic.py` is modified.** Stop. 64.3 records why the drift is
     applied downstream, and the generator carries the selftest and the golden vectors.
+
+### 64.7 OBSERVED -- the gradients are bounded at last, and the sanity criterion is not fit to be a gate
+
+**2026-09-20. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B. No new
+host, no hardware, no package. **`flight/` and `fprime/` untouched, so `master` does not move in
+this series.** `runs/_weights/` read **1,313** before and after. Source
+`oxcaml/retrainer/deep_f32_exhaustive.ml`, `scripts/s64_sanity_band.py` and
+`scripts/oxcaml_s64.sh`, in this commit.
+
+| # | Prediction | Measured | Verdict |
+|---|---|---|---|
+| **EX1** | every index passes 51's criterion | **0 outside of 75,360**, all ten shards. Worst `err/allowed` **0.306952** at index 11365; worst `\|err\|` 8.819351553e-05 | **HELD** |
+| **SR1** | ARM A: the shadow is NOT certified | **both parts passed.** (i) 0.9605 against a 0.98 margin; (ii) equal, 0.7500 both | **FAIL** |
+| **SR2** | ARM B: the shadow IS certified | both parts passed -- **and it means nothing, because SR1 says the same test passes on data with nothing to learn** | **HELD, and worthless as written** |
+| **SR3** | no target rate is an input | **0** occurrences steering any choice; the criterion reads residuals and ratio deviations only | **HELD** |
+| **SR4** | the two parts agree within each arm | they agree in both arms -- **and they agree because part (ii) is inert, not because they concur** | **HELD, trivially** |
+
+**(!) EX1 HOLDS AND THE NUMBER IT PRODUCES CONTRADICTS THE ONE THE RECORD HAS BEEN QUOTING.**
+60.7 calls it *"the 5.3x margin"*, from AS4's 0.1882 at stride 101. **The exhaustive worst ratio
+is 0.306952, so the margin is 3.26x, not 5.3x.** Both samples understated the worst case:
+
+```
+  stride  101   (60.6's row)   747 of 75,360   ratio 0.1882   margin 5.31x
+  stride 1021   (the runner)    74 of 75,360   ratio 0.1992   margin 5.02x
+  EXHAUSTIVE                 75,360 of 75,360  ratio 0.3070   margin 3.26x
+                                               understated by 1.63x and 1.54x
+```
+
+**60.6a said neither sampled figure was a bound and this is how much that was worth.** The
+verdict does not move -- **0 outside is 0 outside at every index**, which is the strongest form
+AS4's claim can take -- but **the margin figure quoted anywhere from 60.7 onward should be
+3.26x**, and `S` = 4.707457e+00 and `atol` = 2.873204e-04 were identical across all ten shards,
+which is the determinism 55 established arriving where it should.
+
+**(!) SR1 FAILED, AND 64.5 ALREADY SAID WHAT THAT MEANS: THE CRITERION IS TOO LOOSE TO BE A
+GATE.** On **stationary** data, with nothing whatever to learn, the shadow was **certified**.
+The reason is the assumption in 64.2, stated there and wrong:
+
+> *"both fits are seeded identically, so the comparison is deterministic and run-to-run noise
+> is zero by construction"*
+
+**That is true of a repeated fit and false of the comparison actually being made.** Flying fits
+on EARLY and shadow on LATE, and **two fits on different segments of the same stationary series
+differ by about 4% in held-out forecast error from nothing but the segments.** The declared 2.0%
+margin sits below that, so it certifies noise. **The margin is NOT moved** -- stop 39, and 64.5
+forbids tightening it to rescue SR2.
+
+**(!) AND THE SECOND PART OF THE CRITERION CANNOT DISTINGUISH TWO MODELS AT ALL. THIS IS THE
+LARGER FINDING.** Flying and shadow returned **identical** cuts, fit rates, held-out rates and
+ratios -- 5.350706, 0.1203%, 0.0301%, 0.25 in Arm A, and the same equality in Arm B. Not close:
+**identical to six figures.** The mechanism is `src/sentinel_toolkit/statistic.py:64-65`:
+
+```
+  z_residual   = zstat(smoothed_error[:, c], span)     model-dependent
+  z_derivative = zstat(derivative(values[:, c]), span)  depends on the TELEMETRY ALONE
+  out[:, c]    = np.maximum(z_residual, z_derivative)
+```
+
+**Measured on the held-out segment: at the top quantile -- which is exactly where the cut is
+derived -- the derivative term set the maximum in 7 of 7 steps, and the residual in none.**
+Across all cells the derivative wins 48.6%, but the quantile does not read all cells, it reads
+the extreme, and there the residual never wins. **So the cut, both rates and therefore the ratio
+are set by a term no model can influence, and part (ii) is inert by construction.**
+
+**This is D65.3 arriving exactly where D65.3 said it would.** *"The derivative does the
+deciding."* It was recorded as a property of the flown rule; **it is also, unregistered until
+now, a property that makes any model-comparison built on the fused statistic's operating point
+vacuous.**
+
+**(!) SO SR2 AND SR4 HELD AND NEITHER IS WORTH ANYTHING, AND THAT IS SAID HERE RATHER THAN LEFT
+IN A VERDICT COLUMN.** SR2 certified the shadow under drift -- but SR1 shows the same test
+certifies without drift, so SR2 discriminates nothing. SR4's two parts agreed -- but one of them
+is inert, so agreement is arithmetic rather than evidence. **A prediction that cannot
+distinguish its hypothesis from the null it was written against has not been tested**, which is
+57.8's HL4 in a new place, and it is recorded the same way.
+
+**What D74.2 requires now.** Its reading stands as **registered and NOT adopted**: 64.4's SR1
+was written as the test that could refuse it, and it did. **D74.2 is not edited** -- a rider
+records the refusal and what it obliges. Two things are owed before any gate is built on it, and
+neither is guessed at here:
+
+1. **Part (i) needs a margin derived from measured cross-segment variation**, not assumed from
+   determinism. The 4% seen here is one observation on one fixture, not a distribution.
+2. **Part (ii) needs a statistic the model can move.** Comparing calibration on the fused
+   statistic cannot work while D65.3 holds. The residual term alone would be model-dependent --
+   that is a different instrument and a decision of its own, not a repair.
+
+**Disclosures, volunteered.**
+
+**The drift was probably too small as well, and I cannot separate the two causes.** 64.5 required
+the report to say whether a SR2 failure meant a tight criterion or a small drift. **SR2 did not
+fail, so that question was never reached** -- but the drift moved the flying model's held-out
+residual by only **0.03%** (0.05579750 to 0.05577977), because a 6% terminal gain on **2 of 7**
+channels is averaged across all seven. **So the arm that was supposed to supply a real signal
+supplied almost none**, and SR2's HOLD rests on the same loose margin SR1 failed on. **The 0.060
+scalar is not moved** -- stop 39 -- and a future arm needs its drift sized against the residual
+it is meant to move, which is a measurement nobody has made.
+
+**EX1's ten shards are not an independent replication of each other.** They partition one
+parameter set at one seed and one `T`; every shard reports the same `S` and `atol` because they
+share the forward pass that produced them. **The bound is over indices, not over models,
+seeds or window lengths.**
+
+**`deep_f32_check.ml` was not modified**, per 64.6's requirement that 60.6's cited artifact stay
+as measured. The new module reproduces it exactly where they overlap: **shard 0 of 1021 covers
+precisely the indices stride 1021 samples, and returns checked=74, worst 5.725113690e-05, ratio
+0.199228** -- the runner's row to every digit. The instrument was validated against the old one
+before it was trusted.
+
+**Cost.** EX1: 75,360 checks, ten shards, **about 7 minutes wall clock** against 29 minutes
+single-threaded -- the shards contend for memory bandwidth rather than scaling linearly, and the
+figure is reported as measured rather than as the extrapolation. SR: four fits at 35 epochs,
+**80 s**. No fit wrote to `runs/_weights/` (`fit.py:100-106`). Zero bucket operations.
+
+**E5 remains HOST-VERIFIED PENDING TARGET (47.14a); C4 UNVERIFIED and deferred, C5 UNVERIFIED
+and open. Nothing here bears on either.** `Retrainer` stays uninstanced.
+
+### 64.8 Owed
+
+**A margin for part (i) derived from measured cross-segment variation.** The 2.0% figure was
+assumed from determinism and SR1 refuted the assumption.
+
+**A model-dependent statistic for part (ii)**, or the abandonment of part (ii). While D65.3
+holds, the fused statistic's operating point cannot tell two models apart.
+
+**A drift sized against the residual it is meant to move.** 64.3's 0.060 on 2 of 7 channels
+moved the held-out residual by 0.03%.
+
+**The hub crossing and the handoff**, unchanged: 62.7's HB1 and HB2, and E5-e.
+
+**An exhaustive check at more than one seed and `T`**, if the 3.26x margin is ever leaned on.
+
+**Everything 63.7 owes**, unchanged.

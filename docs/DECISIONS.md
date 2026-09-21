@@ -6305,3 +6305,58 @@ certifies a shadow on stationary data is broken and only both arms test that.
    still requires a human-approved command to swap, the flying model frozen throughout, and
    the previous model retained for rollback. **This entry says what the human is shown, not
    who decides.**
+
+### D74.3 Rider, 2026-09-20: the reading D74.2 registered was refused by the test D74.2 asked for, and it stays REGISTERED rather than adopted
+
+**D74.2 is not edited.** It recorded an operational reading of `Objective.md:1066`'s
+*"measurably better"* and, at consequence 2, named the prediction that could refuse it:
+
+> *"`docs/MODELS.md` 64.4 registers SR1 -- a shadow with nothing to learn must NOT be
+> certified -- as a prediction whose failure is a defect in this reading rather than in the
+> shadow."*
+
+**SR1 FAILED** (`docs/MODELS.md` 64.7, 2026-09-20). **The reading is therefore refused as a
+gate**, and this rider records the refusal in the entry that proposed it rather than leaving
+it in a research section a reader may not reach.
+
+**Both parts failed, for different reasons, and both are stated.**
+
+**Part (i) -- the 2.0% margin -- is below the noise it was supposed to sit above.** D74.2
+consequence 4 justified it as *"set above the scale at which the float32 model file's own
+quantisation could account for a gap"*, and 64.2 justified determinism: *"both fits are
+seeded identically, so the comparison is deterministic and run-to-run noise is zero by
+construction."* **That is true of a repeated fit and false of the comparison being made.** Two
+fits on different segments of the same stationary series differed by about **4%** in held-out
+forecast error from nothing but the segments. A 2.0% margin certifies that.
+
+**Part (ii) cannot distinguish two models at all, and this is the larger finding.** Flying and
+shadow returned identical cuts, fit rates, held-out rates and ratios -- **identical to six
+figures**. `src/sentinel_toolkit/statistic.py:64-65` fuses `max(z_residual, z_derivative)`, and
+`z_derivative` depends on the telemetry alone. **Measured at the top quantile, where the cut is
+derived, the derivative term set the maximum in 7 of 7 steps and the residual in none.** So the
+operating point, both rates and the ratio are set by a term no model can influence.
+
+**(!) THIS IS D65.3 IN A PLACE D65.3 DID NOT SAY IT WOULD BE.** *"The derivative does the
+deciding"* was recorded as a property of the flown rule. **It is also a property that makes any
+model comparison built on the fused statistic's operating point vacuous**, and that consequence
+was not registered anywhere until now.
+
+**CONSEQUENCE.**
+
+1. **`Objective.md` is still not edited**, and the gate's words still stand undefined. D74.2's
+   reading is **registered and not adopted**; no swap may be offered on the strength of it.
+2. **Neither constant was moved after the result.** `docs/MODELS.md` 64.6 stop 39 forbids it and
+   64.5 forbids tightening the margin to rescue the other arm. **The refutation is kept whole
+   rather than repaired into a pass.**
+3. **Two things are owed before any gate is built on this**, at `docs/MODELS.md` 64.8: a margin
+   for part (i) derived from **measured** cross-segment variation, and for part (ii) a statistic
+   the model can move -- or the abandonment of part (ii). The residual term alone is
+   model-dependent, but substituting it is **a different instrument and a decision of its own,
+   not a repair.**
+4. **`Objective.md` section 12's Phase 5 gate is therefore still unenforceable**, and that is
+   now a measured statement rather than a reading of the text. D74 carried the gate across
+   unchanged; **it cannot be passed until "measurably better" has a definition that survives
+   SR1.**
+5. **Nothing about rule 1 moves.** The flying model stays frozen, a human still commands any
+   swap, and the previous model is still retained. **This entry narrows what the human can be
+   shown, not who decides.**
