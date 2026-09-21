@@ -584,6 +584,7 @@ prediction that failed and why. This document follows the same discipline.
   - [60.4 Falsification](#604-falsification)
   - [60.5 Cost, and stop and report](#605-cost-and-stop-and-report)
   - [60.6 OBSERVED -- the whole cycle holds at float32, and the square root needed no primitive at all](#606-observed----the-whole-cycle-holds-at-float32-and-the-square-root-needed-no-primitive-at-all)
+  - [60.6a (!) Rider, 2026-09-20: the recorded AS4 figure needs an argument the runner does not pass, and neither figure is a bound](#606a-rider-2026-09-20-the-recorded-as4-figure-needs-an-argument-the-runner-does-not-pass-and-neither-figure-is-a-bound)
   - [60.7 Owed](#607-owed)
 - [61 Pre-registration: E5-c, the cycle driven through F' ports (Phase 5)](#61-pre-registration-e5-c-the-cycle-driven-through-f-ports-phase-5)
   - [61.1 REQUIREMENTS DERIVED FROM:](#611-requirements-derived-from)
@@ -609,6 +610,13 @@ prediction that failed and why. This document follows the same discipline.
   - [63.5 Cost, and stop and report](#635-cost-and-stop-and-report)
   - [63.6 OBSERVED -- four owed items close, and the fifth closed itself weeks ago](#636-observed----four-owed-items-close-and-the-fifth-closed-itself-weeks-ago)
   - [63.7 Owed](#637-owed)
+- [64 Pre-registration: E5-f, the pre-launch sanity band, and 60's gradients exhaustively (Phase 5)](#64-pre-registration-e5-f-the-pre-launch-sanity-band-and-60s-gradients-exhaustively-phase-5)
+  - [64.1 REQUIREMENTS DERIVED FROM:](#641-requirements-derived-from)
+  - [64.2 (!) What "measurably better" is given to mean, and why the rate cannot be it](#642-what-measurably-better-is-given-to-mean-and-why-the-rate-cannot-be-it)
+  - [64.3 (!) The two arms, and what the generator is NOT allowed to become](#643-the-two-arms-and-what-the-generator-is-not-allowed-to-become)
+  - [64.4 Predictions](#644-predictions)
+  - [64.5 Falsification](#645-falsification)
+  - [64.6 Cost, and stop and report](#646-cost-and-stop-and-report)
 
 <!-- /toc -->
 
@@ -18449,6 +18457,47 @@ entered no deployment.
 
 **Cost.** **19 seconds.** Compute time on this host; no wall-clock claim.
 
+### 60.6a (!) Rider, 2026-09-20: the recorded AS4 figure needs an argument the runner does not pass, and neither figure is a bound
+
+**Found at 63.6 while discharging OW5, and raised against my own convenience rather than
+left.** **60.6 is not edited**; what it records is what was measured, and this rider records
+what reproducing it takes.
+
+**60.6's AS4 row reads** *"0 outside of 747 checked; worst `|err|` 5.408516e-05; worst
+`err/allowed` 0.1882"*. **`scripts/oxcaml_s60.sh` as committed does not produce that.** The
+runner invokes the checker with no stride argument, so `deep_f32_check.ml:113` takes its
+default:
+
+```
+  let stride = if Array.length Sys.argv > 3 then int_of_string Sys.argv.(3) else 1021
+```
+
+and **1021 gives 74 checked, worst `err/allowed` 0.1992**. The recorded figure needs
+`./s60 all 250 101` -- stride **101** -- which yields exactly **747 checked and 0.1882**,
+confirmed 2026-09-20.
+
+```
+  invocation                          checked    worst |err|    worst err/allowed
+  ./s60 all 250 101   (60.6's row)        747    5.408516e-05             0.1882
+  ./s60 all 250 1021  (the runner)         74    5.725114e-05             0.1992
+```
+
+**(!) AND THE SPARSER SAMPLE FOUND THE WORSE RATIO, WHICH IS THE PART THAT MATTERS.** 74
+samples returned **0.1992** where 747 returned **0.1882**. A denser sample did not find a worse
+case, because **the two strides hit different index sets and neither is a superset of the
+other**: 101 and 1021 are coprime, so the sampled indices agree only at 0. **"Worst" in both
+rows is therefore sample-dependent, and neither figure is a bound on the gradient error.**
+
+**What does not change.** AS4's verdict is **HELD** on both invocations -- **0 outside** in each
+-- and 60.6's conclusion that the F32 gradients pass 51's criterion stands. OW5's verdict at
+63.6 stands: the margin is **5.31x** at stride 101 and **5.02x** at stride 1021, both far above
+the `>= 1.00x` band.
+
+**What this obliges.** 60.7 already owes *"an exhaustive gradient check, if any later rung makes
+the 5.3x margin matter"*. **This is the first evidence that the sampled worst case moves with
+the sampling**, which is the condition that clause names. It is discharged at Stage 64, prediction **EX1**.
+
+
 ### 60.7 Owed
 
 **A cycle driven by the F' component rather than by a driver**, which is E5-c.
@@ -19023,3 +19072,187 @@ E4 -- a hardware dependency, registered rather than skipped.
 **50's U2**, still an observation and still withdrawn. 63.2 refused it deliberately.
 
 **Everything 62.7 owes**, unchanged.
+
+---
+
+## 64. Pre-registration: E5-f, the pre-launch sanity band, and 60's gradients exhaustively (Phase 5)
+
+**Two questions, declared together because both were owed before either could be answered.**
+60.6a records that neither of AS4's sampled worst ratios is a bound; **EX1** turns them into
+one. `Objective.md:1066` says the shadow must be *"measurably better on the pre-launch
+sanity report"* and never says what better means; **SR1 to SR4** give that an operational
+reading and test it in both directions.
+
+**(!) E5 IS HOST-VERIFIED PENDING TARGET (47.14a).** C4 UNVERIFIED and deferred; C5 UNVERIFIED
+and open. **Nothing in this section bears on either** -- no deployment, no hub. `Retrainer`
+stays uninstanced.
+
+### 64.1 REQUIREMENTS DERIVED FROM:
+
+```
+  Objective.md:1065-1067        the Phase 5 gate: "no heap allocation after init, no
+                                exceptions, and the shadow measurably better on the
+                                pre-launch sanity report before any swap is offered"
+  docs/PHASE5.md:74-79          property 3: "It is a sanity report, not a target: nobody
+                                tunes anything on the strength of it, and a shadow model
+                                that fires less is not thereby better"
+  docs/HARNESS.md:110           "There is no alarm budget. The threshold is a noise floor,
+                                not a dial"
+  docs/HARNESS.md:143-148       "The per-week figure survives only as a pre-launch sanity
+                                report ... Nobody adjusts anything on the strength of it"
+  src/sentinel_toolkit/report.py:20-56
+                                render(): "THE OPERATING POINT, AND IT IS DERIVED RATHER
+                                THAN CHOSEN", and the held-out half is the sanity rate
+  src/sentinel_toolkit/calibrate.py:48-76
+                                Calibration: cut, quantile, span, fit_rate, holdout_rate,
+                                ratio, curve -- the fields a comparison may use
+  src/sentinel_toolkit/fit.py:100-106
+                                reuse_weights=False: "a toolkit that grows the research
+                                store as a side effect makes the store's own count
+                                meaningless as a gate". The 1,313 gate is safe
+  src/sentinel_toolkit/fit.py:118-121
+                                the warm-up and the two halves: warmup = window +
+                                FLIGHT_ERROR_WINDOW, then settled[:half] / settled[half:]
+  src/sentinel_models/detectors.py:466-469
+                                errors = np.abs(filled[lo:hi] - forecast), then ewma.
+                                The RAW term is the forecast residual; the EWMA is the
+                                statistic's, not the forecaster's
+  src/sentinel_toolkit/selftest.py:40-46
+                                healthy_run(): "Contiguous because the derivative stream
+                                is |x[t] - x[t-1]|: stitching non-adjacent healthy
+                                segments together would invent a step change at every join"
+  oxcaml/retrainer/deep_f32_check.ml:23-27
+                                49.2's step rule and K at the precision in use: macheps32
+                                = 5.9604645e-8, h_rel = cbrt(macheps32), rtol = 1e-6,
+                                k_const = 4.0. Stop 15 forbids moving any of them
+  oxcaml/retrainer/deep_f32_check.ml:113
+                                the default stride of 1021, which is 60.6a's subject
+  docs/MODELS.md 60.6a          neither sampled ratio is a bound; the strides are coprime
+```
+
+### 64.2 (!) What "measurably better" is given to mean, and why the rate cannot be it
+
+**The gate does not define it, and this section does rather than leaving it to whoever runs
+the swap.** The definition is constrained from three directions at once:
+
+- **It cannot be the alarm rate.** `docs/PHASE5.md:78-79` -- *"a shadow model that fires less
+  is not thereby better"* -- and `docs/HARNESS.md:110` -- the threshold is a noise floor, not
+  a dial. A criterion that rewarded a lower rate would be a target, and the report is not one.
+- **It cannot use a label.** The pre-launch sanity report is label-free by construction
+  (`report.py:22-25`), and a spacecraft in orbit has no labelled anomalies to offer.
+- **It has to say something about the spacecraft that changed**, because that is the only
+  reason to retrain at all: after five years the flying model describes a spacecraft that no
+  longer exists.
+
+**The operational reading, both parts required:**
+
+```
+  (i)   the shadow's mean absolute one-step-ahead forecast error on HELD-OUT healthy
+        telemetry is at most 0.98x the flying model's           -- >= 2.0% relative
+  (ii)  the shadow's |1 - holdout/fit| is no larger than the flying model's
+```
+
+**(i) is the claim retraining exists to make**, stated without a label: the shadow predicts the
+current spacecraft better. **(ii) is property 3's guard**, and it is why the criterion has two
+parts: a model can forecast better and calibrate worse, and a gate that missed that would
+certify a shadow whose operating point does not generalise.
+
+**The alarm rates and the sensitivity curve are reported for both models in both arms, and are
+never an input.** No target rate exists anywhere in the harness.
+
+**(!) THE 2.0% MARGIN IS DECLARED HERE, BEFORE THE RUN, AND IS NOT DERIVED FROM A NUMBER.** Its
+reason is that both fits are seeded identically, so the comparison is deterministic and
+run-to-run noise is zero by construction -- which makes a bare *"strictly lower"* satisfiable by
+an arbitrarily small difference. **2.0% is set above the scale at which the float32 model file's
+own quantisation could account for the gap**, and stop 39 below forbids moving it afterwards.
+
+### 64.3 (!) The two arms, and what the generator is NOT allowed to become
+
+**A criterion that certifies a shadow on stationary data is broken, and only two arms test
+that.** Both arms are built from the same fixture, the same seeds, the same split.
+
+```
+  fixture      sentinel_eval.synthetic.build(seed=0, n=300_000), then selftest.healthy_run
+               -> 45,000 contiguous healthy timesteps x 7 channels
+  segments     EARLY  first  40%  (18,000)   the FLYING model is fitted here
+               LATE   next   40%  (18,000)   the SHADOW model is fitted here
+               HELD   last   20%   (9,000)   BOTH are evaluated here, neither saw it
+  fit          FLOWN: window 250, hidden (80, 80), n_predictions 10, max_epochs 35,
+               seed 0 for both models; quantile DEFAULT_QUANTILE for both
+  calibration  each model derives its OWN cut from its OWN fit half, same quantile
+
+  ARM A        no drift. EARLY, LATE and HELD are one distribution
+  ARM B        declared drift, scalar 0.060: channels 0 and 1 carry a multiplicative
+               gain ramping LINEARLY from 1.000 to 1.060 across LATE and HELD together,
+               and EARLY is untouched
+```
+
+**(!) `src/sentinel_eval/synthetic.py` IS NOT MODIFIED, AND THE REASON IS NOT CONVENIENCE.** The
+generator is the substrate the selftest's 8/8 and the committed golden vectors were measured
+against; changing it would move figures across the repository to answer one question here.
+**The drift is applied to the extracted healthy run instead**, as a channel-wise multiplicative
+gain -- which is what a degrading sensor produces, and is the same one-scalar discipline 42's
+testbed uses for a fault. **The departure from "change the generator" is recorded rather than
+hidden**, and a reader may judge it.
+
+### 64.4 Predictions
+
+The prefixes are `EX` for the gradient bound and `SR` for the sanity band.
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **EX1** | **60's F32 gradients pass 51's criterion at EVERY index**, all 75,360, under the tolerance model unchanged from 60 | **0 outside of 75,360** | the run does not complete, and is reported as incomplete with the indices covered | **any index outside** -- and then 60.6's "0 outside" was a property of its sampling |
+| **SR1** | **ARM A: the shadow is NOT certified.** Stationary data, nothing to track | at least one of (i), (ii) fails | -- | **both parts pass** -- the criterion is too loose, and that is the finding |
+| **SR2** | **ARM B: the shadow IS certified.** A declared 6% gain the flying model never saw | **both** (i) and (ii) pass | exactly one part passes, and the report names which | neither passes -- the criterion is too tight **or** the drift too small, and the report says which |
+| **SR3** | **No target alarm rate is an input.** Counted mechanically over the harness | **0** occurrences of a target, budget or desired rate reaching any decision | -- | any rate steers any choice |
+| **SR4** | **The two parts of the criterion agree within each arm** | (i) and (ii) reach the same verdict in both arms | they disagree in an arm -- **which is a result about the criterion, not a failure**, and is reported with what it implies | -- |
+
+### 64.5 Falsification
+
+**If EX1 FAILS**, 60.6's *"0 outside"* was a property of its two strides and not of the
+gradients. **60's verdicts are NOT amended** -- AS4 measured what it said it measured, at the
+indices it said -- and the consequence for E5-b's tolerance is **registered here as owed, not
+fixed on the spot.** 60.6a already says neither sampled figure is a bound; EX1 failing would
+make that concrete rather than cautionary.
+
+**If SR1 FAILS**, the criterion certifies a shadow that had nothing to learn, and it is too
+loose to be a gate. **Reported as a defect in the criterion**, and the criterion is not
+tightened afterwards to rescue SR2 -- that is stop 39.
+
+**If SR2 FAILS**, the report must distinguish two causes it cannot assume between: a criterion
+too tight, or a drift too small for the forecaster to care about. **The margin is not moved and
+the drift scalar is not moved.** Either would be choosing the answer after seeing it.
+
+**If SR4 returns NO VERDICT**, that is the most informative outcome available here: it would
+mean forecast quality and calibration stability can come apart, which is **precisely why the
+criterion has two parts** rather than one. Reported first, not last.
+
+### 64.6 Cost, and stop and report
+
+**Zero bucket operations.** Month unmoved at 238 Class A / 5,740 Class B
+(`docs/STATUS.md:160-161`), read from the document. **No dataset, no wall-clock figure from
+one, no R2.** **`flight/` and `fprime/` are NOT touched, so `master` does not move in this
+series.**
+
+**EX1 is the expensive half and it is measured rather than estimated.** At stride 1021 the
+checker does 74 checks in 1.86 s and at stride 201 it does 375 in 8.85 s, so a check costs
+**(8.85 - 1.86) / (375 - 74) = 0.0232 s** and 75,360 of them is **about 29 minutes**
+single-threaded. **The work is sharded across cores rather than provisioned**: each index is
+independent, and the F32 working set is 2.2766 MiB (60.6 AS6), so RAM is not the constraint and
+ten shards fit comfortably in 16 GiB. **`deep_f32_check.ml` is NOT modified** -- it is 60.6's
+cited artifact -- so the shard driver is a new module beside it.
+
+**SR is four fits at 35 epochs.** A 2-epoch fit on 9,000 train steps takes 1.6 s, so 35 epochs
+is about 28 s and four is about two minutes. `reuse_weights=False` (`fit.py:100-106`), so
+`runs/_weights/` must read **1,313** before and after.
+
+Stop and report, carrying every stop from 47.12 through 63.5, and adding:
+
+38. **A target, budgeted or desired alarm rate becomes an input to anything in this section.**
+    Stop. `docs/HARNESS.md:110` and `docs/PHASE5.md:78-79`; the rate is reported and never
+    targeted.
+39. **The 2.0% margin, the 0.060 drift scalar, or any of `k_const`, `macheps32`, `h_rel`,
+    `rtol` is changed after a number from this section is seen.** Stop. Stop 15's shape,
+    extended to this section's two declared constants.
+40. **`src/sentinel_eval/synthetic.py` is modified.** Stop. 64.3 records why the drift is
+    applied downstream, and the generator carries the selftest and the golden vectors.

@@ -6241,3 +6241,67 @@ kept for rollback, **and all four clauses of the gate hold in the order the gate
 **(!) AND THE BLOCK IS STILL THE AUTHORITY.** If this entry and that block are ever read
 together and disagree about anything other than the language of the retrainer process, **the
 block wins** and this entry is the thing that was wrong.
+
+### D74.2 Rider, 2026-09-20: `Objective.md` section 12's "measurably better" is given an operational reading, and the document is not edited
+
+**Raised because the gate is unenforceable as written, and an unenforceable gate gets read
+whichever way the reader needs.** `Objective.md:1065-1067` requires, before any swap is
+offered:
+
+> ```
+>   |  GATE: no heap allocation after init, no exceptions, and the     |
+>   |        shadow measurably better on the pre-launch sanity report  |
+>   |        before any swap is offered                                |
+> ```
+
+**"Measurably better" is not defined anywhere.** The first two clauses are checkable -- a
+compiler proves the first (C1, discharged at E3) and a flag the second. The third names an
+instrument and not a comparison.
+
+**(!) AND THE OBVIOUS READING IS EXPLICITLY FORBIDDEN BY THE DOCUMENT THAT OWNS THE
+INSTRUMENT.** The pre-launch sanity report reports how often a detector fired on held-out
+healthy data. Reading *"better"* as *"fires less"* is refused twice over:
+
+> `docs/PHASE5.md:78-79` -- *"It is a sanity report, not a target: nobody tunes anything on
+> the strength of it, and a shadow model that fires less is not thereby better."*
+
+> `docs/HARNESS.md:110` -- *"There is no alarm budget. The threshold is a noise floor, not
+> a dial."*
+
+**THE DECISION.** For the purposes of section 12's Phase 5 gate, *"the shadow measurably
+better on the pre-launch sanity report"* means **both** of:
+
+```
+  (i)   the shadow's mean absolute one-step-ahead forecast error, on HELD-OUT healthy
+        telemetry neither model was fitted on, is at most 0.98x the flying model's
+  (ii)  the shadow's |1 - holdout/fit| calibration ratio is no larger than the flying
+        model's
+```
+
+**with the held-out alarm rate and the sensitivity curve reported for both models beside them
+and used as an input to nothing.**
+
+**Why two parts and not one.** (i) is the only claim retraining exists to make, and it is
+statable without a label: the shadow describes the spacecraft that is there now. (ii) is
+`docs/PHASE5.md` property 3's guard -- **a model can forecast better and calibrate worse**,
+and a one-part gate would certify a shadow whose operating point does not generalise. The
+two are measured together at `docs/MODELS.md` 64, in two arms, because a criterion that
+certifies a shadow on stationary data is broken and only both arms test that.
+
+**CONSEQUENCE.**
+
+1. **`Objective.md` is NOT edited.** D74 carried section 12's gate across unchanged and this
+   rider does not move it. The gate's words stand; this entry records what they are taken to
+   mean and where that reading is tested. Amending `Objective.md` remains a decision of its
+   own, as D70 consequence 4 already says of that document.
+2. **The reading is falsifiable and was declared before it ran.** `docs/MODELS.md` 64.4
+   registers SR1 -- a shadow with nothing to learn must NOT be certified -- as a prediction
+   whose failure is a defect in this reading rather than in the shadow.
+3. **No target rate is an input, here or anywhere downstream.** `docs/MODELS.md` 64.6 stop 38.
+4. **The 2.0% margin is this entry's, and moving it is stop 39.** It is set above the scale
+   at which the float32 model file's own quantisation could account for a gap, not derived
+   from any measured difference.
+5. **This does not weaken rule 1 and is not an autonomous criterion.** `Objective.md:1058-1069`
+   still requires a human-approved command to swap, the flying model frozen throughout, and
+   the previous model retained for rollback. **This entry says what the human is shown, not
+   who decides.**
