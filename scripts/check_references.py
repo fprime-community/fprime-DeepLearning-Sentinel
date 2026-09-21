@@ -54,6 +54,9 @@ ROOT = Path(__file__).resolve().parents[1]
 #: `docs/DESIGN.md` and `docs/EVIDENCE.md` exist ONLY on `master`.
 MASTER_PREFIXES = (
     "flight/", "fprime/Sentinel/Monitor/", "fprime/SentinelRef/",
+    # docs/MODELS.md 65: the retrainer's own deployment, which is where the OCaml
+    # runtime lives. D70 consequence 2 makes the separate process a requirement.
+    "fprime/SentinelRetrain/",
     "fprime/CMakeLists.txt", "fprime/library.cmake", "fprime/settings.ini",
     "README.md", "docs/STATUS.md", "docs/datasets/", "docs/MODEL_FILE.md",
     "docs/FPRIME.md", "docs/PI_ENVELOPE.md", "LICENSE",
