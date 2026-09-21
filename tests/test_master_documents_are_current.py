@@ -427,13 +427,35 @@ def test_every_citation_in_a_master_document_resolves() -> None:
     for doc in CUSTOMER_DOCS:
         text = _git("show", f"{MASTER}:{doc}")
         for m in C.REPO_PATH.finditer(text):
-            if m.group(1) not in on_master and m.group(1) not in on_dev:
-                breaks.append(f"{doc}: path `{m.group(1)}`")
+            path = m.group(1)
+            # (!) The same two exemptions `scripts/check_references.py:211` makes, and
+            # this test did not: upstream `nasa/fprime` documentation namespace-collides
+            # with this repository's own `docs/`, and `fprime/lib/` is gitignored. Without
+            # them a master document could not cite F's user manual, which is exactly what
+            # master's integration section has to do to send a reader to the Passive
+            # Adapter Pattern.
+            if path.startswith(C.UPSTREAM_DOC_PREFIXES) or path in C.FPRIME_CHECKOUT_PATHS:
+                continue
+            if path not in on_master and path not in on_dev:
+                breaks.append(f"{doc}: path `{path}`")
         for m in C.SECTION.finditer(text):
             document, section = m.group(1), m.group(2)
-            if document not in on_dev:
+            # (!) A master-only document's sections resolve on MASTER. `docs/DESIGN.md`
+            # and `docs/EVIDENCE.md` are not on `dev` at all (MASTER_ONLY), so reading
+            # their headings from the dev working tree reported them as existing on
+            # neither branch -- which is how this test read a correct citation as broken.
+            if document in on_dev:
+                available = C.headings(ROOT / document)
+            elif document in on_master:
+                blob = _git("show", f"{MASTER}:{document}")
+                tmp = ROOT / ".pytest_cache" / f"_master_{document.replace('/', '_')}"
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(blob, encoding="utf-8")
+                available = C.headings(tmp)
+            else:
                 breaks.append(f"{doc}: section in `{document}`, which is on neither branch")
-            elif section not in C.headings(ROOT / document):
+                continue
+            if section not in available:
                 breaks.append(f"{doc}: `{document}` {section} -- no such section")
         for m in C.MD_LINK.finditer(text):
             target = m.group(1)
