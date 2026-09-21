@@ -631,6 +631,13 @@ prediction that failed and why. This document follows the same discipline.
   - [65.8 Master files changed in this series](#658-master-files-changed-in-this-series)
   - [65.9 Owed](#659-owed)
   - [65.10 (!) Rider, 2026-09-21: the domain lock, costed and then reproduced, because 65.6's fix had only ever been believed in one direction](#6510-rider-2026-09-21-the-domain-lock-costed-and-then-reproduced-because-656s-fix-had-only-ever-been-believed-in-one-direction)
+- [66 Pre-registration: the noise floor a sanity margin has to sit above (Phase 5)](#66-pre-registration-the-noise-floor-a-sanity-margin-has-to-sit-above-phase-5)
+  - [66.1 REQUIREMENTS DERIVED FROM:](#661-requirements-derived-from)
+  - [66.2 (!) What this section is NOT, stated before it runs](#662-what-this-section-is-not-stated-before-it-runs)
+  - [66.3 The apparatus, declared before the fits run](#663-the-apparatus-declared-before-the-fits-run)
+  - [66.4 Predictions](#664-predictions)
+  - [66.5 Falsification, and the stops](#665-falsification-and-the-stops)
+  - [66.6 Cost](#666-cost)
 
 <!-- /toc -->
 
@@ -19820,3 +19827,160 @@ was reported by name. Both were then removed and all four checks pass.
 **2026-09-21. Zero bucket operations**; ledger unmoved at 238 Class A and 5,740 Class B.
 `runs/_weights/` **1,313** before and after -- nothing here fits anything. The probe builds in seconds. The suite moves from **751** to **755** collected,
 and `tests/test_documents_are_current.py:228` requires the live documents to say so.
+
+## 66. Pre-registration: the noise floor a sanity margin has to sit above (Phase 5)
+
+**64.7 found the pre-launch sanity criterion certifying a shadow on stationary data**, and
+named the cause in one sentence: 64.3's 2.0% margin was *"declared here, before the run, and
+is not derived from a number"*, and *"two fits on different segments of the same stationary
+series differ by about 4% in held-out forecast error from nothing but the segments."* 64.8
+then said what that 4% is worth: *"The 4% seen here is one observation on one fixture, not a
+distribution."*
+
+**So no margin can yet be derived from it, and this section exists to make one derivable.**
+It measures the floor and it measures nothing else. **It sets no margin, states no criterion
+and certifies nothing.** Section 67 does that, afterwards, from the number this prints.
+
+`docs/HARNESS.md`'s rule for the threshold is the rule being applied here to the margin:
+*"There is no alarm budget. The threshold is a noise floor, not a dial"* (`docs/HARNESS.md:110`),
+and *"That line is measured from nominal residuals and never chosen from results"*
+(`docs/HARNESS.md:129`).
+
+### 66.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/MODELS.md 64.7           "two fits on different segments of the same stationary
+                                series differ by about 4% in held-out forecast error
+                                from nothing but the segments"; and part (ii) inert
+                                because the derivative set the maximum in 7 of 7 steps
+  docs/MODELS.md 64.8           "Part (i) needs a margin derived from measured
+                                cross-segment variation, not assumed from determinism.
+                                The 4% seen here is one observation on one fixture, not
+                                a distribution."
+  docs/HARNESS.md:110, :129     the threshold is a noise floor and never chosen from
+                                results -- the rule this section applies to the margin
+  docs/DECISIONS.md D74.2       the two-part reading, REGISTERED and not adopted
+  docs/DECISIONS.md D74.3       and the reading refused by its own test
+  Objective.md:1065-1067        the gate: "the shadow measurably better on the
+                                pre-launch sanity report before any swap is offered"
+  src/sentinel_toolkit/limits.py:28
+                                FLIGHT_ERROR_WINDOW = 2100, so WARMUP is 2,350 with
+                                FLOWN's window of 250 and the settled held-out region
+                                is 6,650 of 9,000
+  src/sentinel_toolkit/fit.py:29
+                                FLOWN = window 250, hidden (80, 80), n_predictions 10,
+                                max_epochs 35 -- the flown shape, unchanged
+  src/sentinel_toolkit/fit.py:102-104
+                                reuse_weights=False, so no fit banks weights and
+                                runs/_weights/ must read 1,313 before and after
+  src/sentinel_toolkit/selftest.py:45
+                                healthy_run is CONTIGUOUS: "stitching non-adjacent
+                                healthy segments together would invent a step change at
+                                every join" -- which is why the segments below are
+                                contiguous blocks and never a stitched sample
+  scripts/s64_sanity_band.py:71-87
+                                forecast_residual, the statistic 64.7 measured, loaded
+                                from that file rather than copied so it cannot drift
+```
+
+### 66.2 (!) What this section is NOT, stated before it runs
+
+**It is not a re-run of 64.** SR1 to SR4 are 64's and are not re-adjudicated here.
+**64.3's 2.0% margin and 0.060 drift scalar are not touched, read, or moved**, and 64.7's
+record stands exactly as written -- stop 39 binds section 64 and is honoured by leaving it
+alone, not by reinterpreting it.
+
+**It is not a gate.** Nothing here passes or fails a shadow model. There is no shadow model.
+
+### 66.3 The apparatus, declared before the fits run
+
+```
+  fixture    sentinel_eval.synthetic.build(seed=0, n=300_000), then selftest.healthy_run
+             -- 64.3's fixture, seed and call, unchanged
+  HELD       the LAST 9,000 timesteps. 64.3's HELD length, so the held-out statistic is
+             directly comparable to 64.7's numbers. Settled 6,650 after WARMUP 2,350.
+  segments   the first 36,000 -> SIX disjoint contiguous blocks of L = 6,000, in time
+             order, no overlap and no gap
+  Arm S      6 fits on segment 1 at seeds 0..5              the seed-only spread
+  Arm G      6 fits, one per segment, at seed 0             the segment spread
+  statistic  mean absolute one-step-ahead forecast error on HELD[2350:], for every fit
+  F          the NOISE FLOOR = max over the two arms of (max - min) / mean, with the
+             sample standard deviation reported beside it
+```
+
+**Why the range and not the standard deviation.** A gate has to survive the largest gap two
+null fits produced, not the typical one: a margin below that gap cannot distinguish a real
+improvement from a pair of null fits. The standard deviation is reported beside it because a
+range over six points is a coarse instrument, and saying so costs less than being asked.
+
+**Why N = 6 and L = 6,000, and what was refused.** `healthy_run` returns the longest
+*contiguous* anomaly-free run, which is **45,000** at this fixture size, and contiguity is not
+negotiable -- `src/sentinel_toolkit/selftest.py:45` says stitching non-adjacent healthy
+segments *"would invent a step change at every join and calibrate the detector against its own
+splicing."* With HELD fixed at 9,000 that leaves 36,000, and three shapes fit it:
+
+```
+  N = 4, L = 9,000    REFUSED. Four points cannot bound a range, and a range is exactly
+                      what the margin is derived from.
+  N = 6, L = 6,000    TAKEN.
+  N = 8, L = 4,500    REFUSED. A quarter of 64.3's training length; the arms in 67 would
+                      no longer be recognisably the same experiment.
+  overlapping windows at L = 18,000
+                      REFUSED, and this one matters: overlap shares training data
+                      between fits, which UNDERSTATES the spread, which would set the
+                      margin too LOW. That is the unsafe direction and it is refused
+                      before any number is seen.
+```
+
+**(!) A DISCLOSURE AGAINST THIS SECTION'S OWN RESULT, MADE BEFORE IT RUNS.** L = 6,000 is a
+third of 64.3's 18,000, and a shorter fit is a noisier fit. **F is therefore more likely an
+over-estimate of the floor at 18,000 than an under-estimate.** That makes 67's derived margin
+**conservative -- harder to certify, not easier** -- and it is said here so it cannot be
+claimed afterwards as though it had been noticed at the time. 67's arms use the same
+L = 6,000, so the floor and the arms are measured in one regime and the comparison is
+internally consistent whatever the absolute level.
+
+### 66.4 Predictions
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **NF1** | **the seed-only spread is smaller than the segment spread** -- the thing 64.7 blamed is the thing that dominates | Arm S's range `<` Arm G's | -- | Arm S's range `>=` Arm G's, and then 64.7's diagnosis is incomplete: run-to-run noise is as large as segment noise and both arms of 67 are confounded |
+| **NF2** | **the segment spread is at least 2.0%**, i.e. 64.3's declared margin lies inside the measured floor | `>= 2.0%` | `[1.0%, 2.0%)` -- the margin is marginal rather than swamped, reported with the figure | `< 1.0%` -- **then SR1 failed for a reason 64.7 did not identify**, the "about 4%" was wrong, and 67 must not be written until the real cause is found |
+| **NF3** | **no target, budgeted or desired alarm rate is an input** | **0** occurrences reaching any choice | -- | any rate steers anything |
+| **NF4** | **the spread is not an artefact of time order** -- Spearman rho of Arm G's residuals against segment position, exact two-sided permutation p over all 720 orderings | `p > 0.05` | `0.01 < p <= 0.05` | `p <= 0.01` -- the generator drifts across its own run, and **every segment comparison in 64 and 67 is confounded**, which is a larger finding than the margin |
+
+### 66.5 Falsification, and the stops
+
+**If NF2 FAILS, section 67 is not written.** A floor below 1.0% would mean the 2.0% margin was
+never inside the noise and SR1's failure has a cause nobody has found. Deriving a new margin
+from a floor that does not explain the original failure would be fitting a number to a story.
+
+**If NF4 FAILS, the finding is reported against this project's own earlier work.** A monotone
+trend across the healthy run means 64's EARLY/LATE split compared two different distributions
+and called them one, and that would have to be said plainly at 64 as a rider before anything
+else is built on it.
+
+**If NF1 FAILS it is not fatal and is not treated as one.** It would mean the floor is
+dominated by seed noise rather than segment noise, which changes the *account* of why SR1
+failed without changing the floor itself -- F is the max over both arms either way.
+
+Stop and report, carrying every stop from 47.12 through 65.5, and adding:
+
+```
+  44. The margin factor of 67, or any drift-sizing multiple, is declared after a number
+      from 67's own arms has been seen. Stop. This is stop 15's discipline restated for
+      constants that did not exist when stop 15 was written.
+  45. N, L, HELD or F's definition moves after this section has run. Stop. A floor that
+      is re-shaped once its value is known is a dial wearing a floor's name, which is
+      precisely what docs/HARNESS.md:110 forbids for the threshold.
+  46. A margin is declared before its floor is measured. Stop. The order is the whole
+      point: 64.3 declared 2.0% first and 64.7 is what that cost.
+```
+
+### 66.6 Cost
+
+**Twelve fits at 35 epochs on 6,000 timesteps each**, plus twelve forecast passes over
+HELD. 64 measured *"four fits at 35 epochs, 80 s"* at L = 18,000 (`docs/MODELS.md:19433`), so
+twelve at a third of the length is minutes, not hours. **Zero bucket operations.**
+`reuse_weights=False` (`src/sentinel_toolkit/fit.py:102-104`), so `runs/_weights/` must read
+**1,313** before and after. Runner `scripts/s66_noise_floor.py`.
