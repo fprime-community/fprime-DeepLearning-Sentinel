@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`8142e58`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`01e9492`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -169,3 +169,83 @@ format's warm-up outlasts everything the fused statistic's own windows need.
 **Whether this fits a small single-board computer is not measured.**
 `docs/PI_ENVELOPE.md` is reserved and deliberately empty; a figure in it that is not a
 measurement would be a defect.
+
+## 8. Integration: adopting this component into your deployment
+
+**Four edits to your project, and none of them copies a source file.**
+`scripts/fprime_ref_patch.sh` performs exactly these against F' v4.3.0's own `Ref`
+deployment, unmodified, and then proves the result by symbol rather than by string -- so
+this recipe is executed and checked rather than described.
+
+**There is no manifest and nothing to generate.** `fprime/library.cmake` is the only file
+an adopting project needs from here, and it already exists.
+
+```
+  1  settings.ini      add one line:  library_locations: <path to this repo's fprime/>
+                       fprime_ref_patch.sh:46-60
+
+  2  Top/instances.fpp add one instance:
+                         instance sentinelMonitor: Sentinel.Monitor base id 0x20000000
+                       fprime_ref_patch.sh:76
+
+  3  Top/topology.fpp  add the instance to the topology, and one rate-group connection:
+                         rateGroup1Comp.RateGroupMemberOut[8] -> sentinelMonitor.schedIn
+                       fprime_ref_patch.sh:86, :89
+
+  4  Top/*Packets.fppi one telemetry packet, if your deployment packetizes:
+                         packet Sentinel id 100 group 2 { Score, Threshold,
+                           ActiveMode, TicksSinceWarmup, LoadStatus }
+                       fprime_ref_patch.sh:104-110
+```
+
+Then `fprime-util generate && fprime-util build` (`fprime_ref_patch.sh:116-123`).
+
+### What you still have to write, and it is about forty lines
+
+**The component does not read your telemetry database.** `Sentinel/Monitor/docs/sdd.md` and
+`Monitor.fpp:20-25` give the reason: `Fw.Tlm` carries a serialized `TlmBuffer`, and
+`model.bin`'s CHANNELS record has no per-channel type tag to deserialize it with. So a
+mission converts its own typed telemetry into one `Sentinel.ChannelVector` per tick, using
+F's **Passive Adapter Pattern**.
+
+**`fprime/SentinelRef/ExampleAdapter/` is that adapter, at its smallest useful size.** It
+holds the latest value of each channel and emits the vector on the rate-group tick; the
+conversion is the only thing it does. **Copy the directory, rename it, and replace its
+`valueIn` port with your own types.** It is example code and is deliberately not exported:
+`fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so adopting Sentinel
+does not drag this -- or the testbed, or the OxCaml experiment -- into your build.
+
+You wire exactly two input ports:
+
+```
+  sentinelMonitor.schedIn      <- your rate group          Monitor.fpp:96
+  sentinelMonitor.channelsIn   <- your adapter's output    Monitor.fpp:102
+```
+
+Both are `sync`. Put `channelsIn` at a **lower** port index than `schedIn` on the same rate
+group, so the vector for this cycle lands before the detector steps; a producer on another
+thread makes that port `guarded` instead (`Monitor.fpp:98-101`).
+
+### The model file, and an example you can load today
+
+The component loads a `model.bin` at init and refuses it on any of twelve grounds rather
+than flying a file it cannot verify. `docs/MODEL_FILE.md` specifies the format completely
+enough to write one independently.
+
+**Two loadable example files are committed in this branch:**
+`flight/test/vectors/p1.bin` (3 channels) and `flight/test/vectors/p2.bin` (1 channel),
+both at `param_version` 2, both produced by the flight configuration and both re-emitted
+byte-identically by the round-trip test. They are named as test vectors because that is
+what they are for -- but they are real model files, and loading one is the fastest way to
+see the component arm.
+
+### (!) Two things that will not work from this branch alone
+
+**The F' framework itself is not here.** `fprime/lib/` is gitignored, so the F' documents
+this file and the SDDs cite -- `docs/user-manual/design-patterns/hub-pattern.md`,
+`docs/user-manual/framework/component-and-port-selection.md` -- resolve only once you have
+your own F' v4.3.0 checkout. `docs/FPRIME.md` pins the version and the commit.
+
+**`scripts/`, `src/` and `tests/` are not on this branch** (see the omissions table in
+`README.md`). `scripts/fprime_ref_patch.sh` is cited above because it is the executable
+form of this recipe; it resolves on `dev` at the commit named at the top of this file.

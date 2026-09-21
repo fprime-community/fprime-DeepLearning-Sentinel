@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`8142e58`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`01e9492`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -125,7 +125,7 @@ lives on `dev` in `docs/MODELS.md` 47 and `docs/DECISIONS.md` D70.
 |---|---|
 | `flight/` | **The C++ inference core.** GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader, and the committed vectors. C++14, no exceptions, no RTTI, no STL containers, **no allocation after init**, `-Werror` |
 | `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp`, its SDD and its unit tests |
-| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this. **It also carries `Retrainer/`, an experiment and not a feature** -- see the note below |
+| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this. **It also carries `Retrainer/`, an experiment and not a feature** -- see the note below -- and `ExampleAdapter/`, the forty-line Passive Adapter Pattern example a mission copies to wire its own channels in (`docs/DESIGN.md` 8) |
 | `docs/DESIGN.md` | What the component does, the rule it flies, and the five permanent safety rules |
 | `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, and the caveats |
 | `docs/STATUS.md` | Where it is and what is next |
@@ -135,7 +135,9 @@ lives on `dev` in `docs/MODELS.md` 47 and `docs/DECISIONS.md` D70.
 | `docs/datasets/` | What the data is, its licences, and the caveats that would corrupt a result |
 
 **Read in this order:** this file, then `docs/EVIDENCE.md`, then `docs/DESIGN.md`, then
-`docs/STATUS.md`. About fifteen minutes to the point where you can decide whether to keep
+`docs/STATUS.md`. **To adopt it into your own
+deployment, `docs/DESIGN.md` 8 is the recipe** -- four edits, no copied sources, and two committed `model.bin`
+files at `flight/test/vectors/p1.bin` and `p2.bin` you can load today. About fifteen minutes to the point where you can decide whether to keep
 reading.
 
 ## (!) What is not on this branch, and why
