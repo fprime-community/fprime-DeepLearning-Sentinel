@@ -14,6 +14,102 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.60] - 2026-09-20 - The sanity gate is tested before it is trusted, and it fails
+
+**`docs/MODELS.md` 64**, two questions in one pre-registration. **D74.2** gives
+`Objective.md:1066`'s *"measurably better"* an operational reading; **D74.3** records that the
+reading was refused by the test D74.2 itself asked for.
+
+### The gradients are bounded at last
+**EX1: 0 outside of 75,360**, every index, ten shards. And the bound contradicts the figure the
+record had been quoting -- 60.7 calls it *"the 5.3x margin"*, and the exhaustive worst ratio is
+**0.306952**, a margin of **3.26x**.
+```
+  stride  101   (60.6's row)     747 indices   ratio 0.1882   margin 5.31x
+  stride 1021   (the runner)      74 indices   ratio 0.1992   margin 5.02x
+  EXHAUSTIVE                  75,360 indices   ratio 0.3070   margin 3.26x
+```
+**60.6a** had already said neither sample was a bound, because strides 101 and 1021 are coprime
+and their index sets agree only at 0. This is how much that was worth.
+
+### And the sanity criterion is not fit to be a gate
+**SR1 FAILED.** On stationary data, with nothing to learn, the shadow was **certified**. The
+assumption was that identical seeds make the comparison deterministic; that is true of a
+repeated fit and false of two fits on different segments, which differ by about **4%** from
+nothing but the segments. The 2.0% margin certifies that. **It was not moved afterwards.**
+
+**And the second half of the criterion cannot tell two models apart at all.** Flying and shadow
+returned identical cuts, rates and ratios -- identical to six figures. `statistic.py:64-65`
+fuses `max(z_residual, z_derivative)`, and at the top quantile, where the cut is derived, the
+**derivative set the maximum in 7 of 7 steps**. This is **D65.3** in a place D65.3 did not say
+it would be: *"the derivative does the deciding"* was a property of the flown rule, and it is
+also what makes any model comparison built on the fused statistic's operating point vacuous.
+
+**`Objective.md` section 12's Phase 5 gate is therefore still unenforceable**, and that is now a
+measured statement rather than a reading of the text. Zero bucket operations.
+
+## [0.6.59] - 2026-09-20 - Four owed items close, and the fifth had closed itself at 60
+
+**`docs/MODELS.md` 63.** **OW1** settles what 53.9 named and did not bury: `adam.py:475`'s
+`addcmul_` computes `value * t1 * t2` without the Python saying how it associates, and both the
+NumPy reference and the OxCaml side write `((1-b2)*g)*g` because `*` and `*.` are each
+left-associative. **torch associates the same way, on 12 of 12 separating probes.**
+
+**OW2 and OW3**: 53.9 warned a one-ulp claim about torch would not survive the executed
+comparison. It survives -- worst absolute **1.110223e-16** -- and `_single_tensor_adam` and
+`_multi_tensor_adam` are **bit-identical**, so torch's Adam is one trajectory and not three.
+`_fused_adam` is CUDA-only and is now owed in E4's class.
+
+**OW4** gives E3 four of four: an unboxed `checksum` returning `float#` holds
+`[@zero_alloc strict]` with zero `assume` and returns the slot form's value bit for bit. Two
+constraints disclosed rather than buried -- it needs `Stdlib_upstream_compatible.Float_u`, and
+`float#` cannot live in a `ref` at 5.2.0+ox.
+
+**OW5** was discharged by **reading**: `deep_f32.ml:200` says *"the head, and 57's head-only
+loss"*, so 60's cycle **is** 57's loss at F32 and 60 had already measured it. The fifth item,
+50's U2, was **refused deliberately** -- discharging it would re-open a withdrawn prediction
+after seeing that the later sections held.
+
+## [0.6.58] - 2026-09-17 - The cycle crosses into an F' component, and the hub does not get built
+
+**`docs/MODELS.md` 61 and 62.** **61**: the float32 cycle is driven through F's own generated
+port machinery at the framework's own validation flag set, `cmake/flags.cmake:46-60`, with
+nothing relaxed. **62**: E5-d's hub half **was not built**, and 62.4 had pre-registered that
+this be reported as an **unbuilt crossing** rather than as a result -- *"it does not work"* and
+*"we did not build it"* are different sentences.
+
+**And the timing half found its own instrument inadequate.** The retrainer arm is **quieter**
+than the idle control at every rate, by 62 to 782 us; an A-B-A design ruled out ordering. An
+idle core downclocks and its cache goes cold, and a retrainer spinning beside it keeps the core
+awake. **The confound is larger than the effect, so C2 stays UNVERIFIED and this host cannot
+settle it.**
+
+## [0.6.57] - 2026-09-17 - The whole training cycle holds at float32, and the square root needed no primitive
+
+**`docs/MODELS.md` 59 and 60.** **59**: the shadow's weights are the flying file with new
+weights -- a patch of the committed format, not a second format. **60**: forward, 250-step
+backward, two GRU layers plus head and Adam all hold `[@zero_alloc strict]` at F32, and the
+float32 square root is computed in float64 and rounded back, **exact over all 22,052,527
+float32 values**. Working set **596,800 floats = 2.2766 MiB**.
+
+## [0.6.56] - 2026-09-17 - OxCaml is registered as a candidate flight language, and everything against it is registered with it
+
+**`docs/DECISIONS.md` D70 to D75 and `docs/MODELS.md` 47 to 58.** The strategic case is that
+flight software has no safe high-level language and this is a contained test of whether OxCaml
+could be one -- **never that OxCaml is better for ML**. `[@zero_alloc strict]` makes a heap
+allocation a **compile error**, transitively.
+
+**Stated against it, in the same passage, every time:** no flight heritage, no qualified
+compiler, 64-bit Linux and macOS only, no stability promise in OxCaml's own text, no
+certification precedent for a GC'd runtime in flight, and Rust has no runtime, a smaller
+footprint, TUV SUD-qualified Ferrocene and OPS-SAT heritage. **No Rust comparison is built and
+D70 says so wherever the comparison appears.**
+
+**C1 DISCHARGED** (E3), **C3 DISCHARGED as re-worded** (E1), **C2 NO VERDICT**, **C4 and C5
+UNVERIFIED**. **D74** permits OxCaml for the retrainer process and nothing else; **D75** names
+the interim target. **E5 is HOST-VERIFIED PENDING TARGET.** Two fabricated claims in the
+commissioning brief are adjudicated at D70 consequence 10 rather than quietly corrected.
+
 ## [0.6.55] - 2026-09-14 - The testbed result reaches the customer branch, with the method that makes it one
 
 **`master` gains `docs/EVIDENCE.md` section 5a** -- numbered 5a so sections 6 to 10 keep the

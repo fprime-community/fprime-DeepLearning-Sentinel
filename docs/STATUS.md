@@ -15,7 +15,7 @@ test that pins it.
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D69 (was D63) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D75 (was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -162,7 +162,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D69 (was D63),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D75 (was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -479,8 +479,8 @@ operations between them.
   `GoldenVectors.cpp` skips an absent tier silently -- so the ARM proof would have passed on
   3 and 7 channels and reported success. R2 therefore asserts the tier count. **Nothing exists
   at 16 channels**, the compile-time maximum, and the timing fixture for it is generated on the
-  target rather than committed, because tracked content is **6.48 MiB** (2026-09-16, after 49) and already inside
-  39's N8 middle band.
+  target rather than committed, because tracked content is **7.0527 MiB** (2026-09-20, after 64) and already inside
+  39's N8 middle band, with 516,675 B under D71's 7.5 MiB stop.
 - **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
   and its structural half is derivable from A6's committed table. **(!) The lever is confounded
@@ -576,8 +576,8 @@ seed.
 - **History**: **two branches.** All work lands on `dev` (tags `wi1`-`wi9`) and it is
   **never rewritten**; `master` takes a snapshot when something is done. Nothing is ever
   force-pushed.
-  **`master` is the public branch and the repository default** (D67, D67.1, D69): **94
-  files, 2.41 MiB**, its own four customer documents, and `flight/` and `fprime/`
+  **`master` is the public branch and the repository default** (D67, D67.1, D69): **116
+  files, 2.5562 MiB**, its own four customer documents, and `flight/` and `fprime/`
   byte-identical to `dev`. Every figure it states about this repository is re-derived by
   `tests/test_master_documents_are_current.py`, which compares **trees rather than walking
   ancestry** -- the two branches **share no commit**.

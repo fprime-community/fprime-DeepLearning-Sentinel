@@ -367,6 +367,43 @@ def test_the_check_actually_catches_things() -> None:
 
 
 @needs_master
+def test_no_customer_document_says_the_refusal_coverage_is_incomplete() -> None:
+    """(!) The figure was guarded and the prose contradicting it was not.
+
+    Until 2026-09-20 `master:docs/DESIGN.md` stated **both** "12 of the 12 proven to
+    degrade to Level 1" in its table and, four lines below, "The twelfth is not in that
+    loop ... the F' component's unit test still iterates the eleven that existed before
+    it". The first is derived by `_fprime_covered_codes` and moved when the gap closed at
+    `docs/MODELS.md` 20.13; the second is prose, invisible to the `FIGURES` regex, and
+    nobody deleted it. A customer reading that section could not tell which half was true.
+
+    So the register is not enough on its own: a figure that moves can leave a sentence
+    behind that says the opposite. This checks the one claim whose figure is already
+    derived, and fails if any customer document asserts the coverage is partial while the
+    source says it is complete.
+    """
+    covered = _fprime_covered_codes()
+    total = _refusal_codes()
+    if covered != total:
+        pytest.skip(f"coverage is genuinely partial ({covered} of {total}); the caveat belongs")
+    stale = (
+        "is not in that loop",
+        "still iterates the eleven",
+        "the topology-level degradation test does not",
+    )
+    found = []
+    for doc in CUSTOMER_DOCS:
+        text = _on_master(doc)
+        for phrase in stale:
+            if phrase in text:
+                found.append(f"{doc}: {phrase!r}")
+    assert not found, (
+        f"the F' test covers {covered} of {total} refusal codes, and these say otherwise: "
+        f"{found}. A figure that moved left a sentence behind."
+    )
+
+
+@needs_master
 def test_flight_and_fprime_are_byte_identical_to_dev() -> None:
     """D69 consequence 1 carries both across unchanged, and unchanged is checkable.
 
