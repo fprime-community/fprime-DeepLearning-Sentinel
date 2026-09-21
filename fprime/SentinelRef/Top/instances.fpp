@@ -142,12 +142,19 @@ module SentinelRef {
     """
   }
 
-  @ The Sentinel cross-channel monitor. Passive (D32), so it runs in the
-  @ context of the rate group that ticks it and a slip shows up as a slip.
+  @ The Sentinel cross-channel monitor. Queued (D32 consequence 2), and the
+  @ queue is drained inside the rate-group tick, so the cyclic work still runs
+  @ in the context of the rate group that ticks it and a slip shows up as a
+  @ slip. Only the reload command is asynchronous.
+  @
+  @ The queue size matches Monitor's DISPATCH_DEPTH: a tick drains at most what
+  @ the queue can hold, so a burst of commands cannot make one tick unbounded.
+  @
   @ Objective.md 10.2 fix 2: a topology may instantiate one per subsystem,
   @ each with its own model.bin and its own channel set, so the base id is
   @ given room above the system services rather than squeezed among them.
-  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000
+  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000 \
+    queue size 10
 
   @ The physics testbed's subsystem simulation (docs/MODELS.md 42). Passive, so
   @ its tick runs in the rate group's thread and the plant advances in lockstep

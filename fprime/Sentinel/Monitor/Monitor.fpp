@@ -82,17 +82,31 @@ module Sentinel {
     }
 
     @ Cross-channel telemetry monitor: warns before a limit trips, and never commands
-    passive component Monitor {
+    @
+    @ (!) QUEUED, NOT PASSIVE, AND D32 CONSEQUENCE 2 AUTHORISED IT BEFORE IT WAS
+    @ NEEDED: "Work item 10 promotes it to `queued`, because its reload path is an
+    @ `async` command. That is a one-word change in the FPP plus a queue dispatch
+    @ at the top of the `schedIn` handler, and it is recorded here so work item 10
+    @ does not have to rediscover it." No decision entry is opened for it.
+    @
+    @ Both input ports stay `sync`, so the cyclic work still runs in the context of
+    @ the rate group that ticks it and a slip is still visible as a slip. Only the
+    @ command is asynchronous, and it is dispatched inside the tick -- which is
+    @ what F's own component-and-port-selection.md prescribes, and what
+    @ `Svc.Health` does.
+    queued component Monitor {
 
         # ----------------------------------------------------------------------
         # Ports
         # ----------------------------------------------------------------------
 
-        @ The rate-group tick. One tick, one step of the detector.
-        @ Passive with a sync Svc.Sched input is what F's own
+        @ The rate-group tick. One tick, one step of the detector -- and, first,
+        @ one drain of the command queue. A sync Svc.Sched input is what F's own
         @ component-and-port-selection.md prescribes for cyclic work, so that a
         @ rate-group slip is visible as a slip rather than hidden on a thread
-        @ (D32). Work item 10's reload command makes this component queued.
+        @ (D32); the same document prescribes `queued` with the queue dispatched
+        @ inside that handler once the component also accepts event-driven work,
+        @ which the reload command is.
         sync input port schedIn: Svc.Sched
 
         @ The per-tick channel vector from the mission's adapter. Sync, and on
@@ -181,6 +195,58 @@ module Sentinel {
             format "Sentinel warm: {} ticks in {} mode; warnings are now enabled"
 
         @ The throttled warning has been reset, so warnings resume
+        @ A reload was commanded and the file named was loaded. The model that
+        @ arrives is reported by ModelLoaded as usual; this says which path it
+        @ came from, because the operator needs to know the command took the file
+        @ they approved and not the one already there.
+        event ModelReloadAccepted(
+                                   modelPath: string size 40
+                                 ) \
+            severity activity high \
+            id 6 \
+            format "Model reloaded from {}"
+
+        @ (!) THE COMMANDED RELOAD FAILED AND THE PREVIOUS MODEL WAS RESTORED.
+        @
+        @ `loadModel` degrades to the Level 1 baseline on any refusal, which is
+        @ right at topology setup -- there is nothing to fall back to. It is wrong
+        @ for a commanded reload: a candidate that does not load would otherwise
+        @ cost the operator the model that was working. So the previous path is
+        @ reloaded and this says so. `Objective.md` section 12 asks for exactly
+        @ this -- "Previous model kept for rollback".
+        @
+        @ If the rollback ALSO fails, the component is on the baseline and
+        @ DegradedToBaseline has already said so with the code.
+        event ModelReloadRolledBack(
+                                     attempted: string size 40
+                                     restored: string size 40
+                                     status: ModelLoadStatus
+                                   ) \
+            severity warning high \
+            id 7 \
+            format "Reload of {} refused ({}); restored {}"
+
+        @ (!) THE CANDIDATE LOADED, AND IT WAS STILL WRONG FOR THIS TOPOLOGY.
+        @
+        @ `loadModel` lets the file's channel count win over the topology's --
+        @ "the weights only make sense at their own shape" -- and at startup that
+        @ is right, because the file is the only thing that knows. On a COMMANDED
+        @ reload it is not: the channel source is already wired and has not
+        @ changed, so a candidate declaring a different width is a model for a
+        @ different subsystem. Accepting it would leave the detector scoring
+        @ whatever the unwired slots of the vector happened to hold.
+        @
+        @ Found by running it (`docs/MODELS.md` 73): a 16-channel candidate was
+        @ accepted into an 8-channel deployment and nothing objected.
+        event ModelReloadWidthRefused(
+                                       attempted: string size 40
+                                       expected: U32
+                                       offered: U32
+                                     ) \
+            severity warning high \
+            id 8 \
+            format "Reload of {} refused: this topology feeds {} channels, the file declares {}"
+
         event WarningThrottleCleared() \
             severity activity low \
             id 5 \
@@ -206,10 +272,49 @@ module Sentinel {
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
         ###############################################################################
+        # ----------------------------------------------------------------------
+        # Commands
+        # ----------------------------------------------------------------------
+
+        @ Reload the model from a named file. Work item 10's path, and the only
+        @ command this component has ever declared.
+        @
+        @ (!) IT DOES NOT WEAKEN Objective.md 11 RULE 3. The rule is "warn-only,
+        @ commands nothing", and this component still ISSUES no command and has no
+        @ commanding port of any kind. Receiving one is rule 1's other half --
+        @ "retraining is explicit and human-approved" -- made real: a model only
+        @ ever changes because a human sent this.
+        @
+        @ The path is a parameter rather than implicit so that a candidate can be
+        @ uplinked BESIDE the flying model rather than over it. Uplinking over it
+        @ would mean a refused candidate had already destroyed the file it
+        @ replaced; with a separate path the rollback below has something to
+        @ restore, and "roll back" is a second RELOAD_MODEL naming the old path.
+        @ (!) OPCODE 0x10, NOT 0x0. The two parameters above generate four
+        @ autocoded commands -- a SET and a SAVE each -- and FPP assigns those
+        @ from 0, so 0x0 through 0x3 are already spent. `opcode 0x0` here is
+        @ rejected as a duplicate, which is the autocoder catching a real
+        @ collision rather than a nuisance. 0x10 leaves room for a mission to add
+        @ parameters without moving this.
+        @ (!) 40 CHARACTERS, AND IT IS THE PLATFORM'S BOUND RATHER THAN A CHOICE.
+        @ `Fw::CmdStringArg` is `StringTemplate<FW_CMD_STRING_MAX_SIZE>`
+        @ (`Fw/Cmd/CmdString.hpp:14`) and that constant is **40** in F's default
+        @ configuration, so a longer path is TRUNCATED at the command boundary
+        @ whatever this declaration says. Declaring 80 here promised something the
+        @ transport does not deliver, and the truncation showed up as a reload
+        @ that silently rolled back. Operationally: the candidate has to live
+        @ somewhere short -- beside the binary, not at a long absolute path.
+        async command RELOAD_MODEL(
+                                    modelPath: string size 40 @< the file to load
+                                  ) \
+            opcode 0x10
+
         @ Command receive. F' requires a command recv port on any component
         @ that declares parameters: the parameter protocol is implemented as the
-        @ autocoded PARAM_SET and PARAM_SAVE commands. Not a Sentinel command --
-        @ this component has no command of its own and issues none.
+        @ autocoded PARAM_SET and PARAM_SAVE commands, and since work item 10 for
+        @ RELOAD_MODEL above. The component ISSUES no command and has no
+        @ commanding port of any kind, which is what Objective.md 11 rule 3 is
+        @ about; it receives one, which is rule 1's human approval.
         command recv port cmdIn
 
         @ Command registration

@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`5f0e382`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`14807b4`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -93,9 +93,17 @@ What the pre-registration commits to, so it can be held to it:
   and that claim is not made: every arm run so far was a cold fit, and what is owed is an arm
   in which the shadow is actually warm-started, at a drift magnitude more realistic than a
   sensor doubling its output. `docs/DESIGN.md` 9.
-- **Nothing onboard scores a candidate model.** The retraining process can write one and
-  this branch's loader accepts it, but both parts of the sanity criterion are computed on the
-  ground from the downlinked file. Onboard held-out scoring does not exist.
+- **Nothing onboard scores a candidate model.** The retraining process can write one, this
+  branch's loader accepts it, the file downlink carries it to the ground and a command reloads
+  an approved one -- but both parts of the sanity criterion are computed on the ground from
+  that downlinked file. Onboard held-out scoring does not exist.
+- **The file uplink half of that path has not been run.** The mechanism is in the reference
+  deployment and the ground tool exists; the commanded reload was exercised against a file
+  already on the host, because both processes run there by design. It is not built, rather
+  than not working.
+- **Whether refusing any width change on a commanded reload is the right rule.** It is what
+  stops a model for a different subsystem being accepted, and it also means a mission that
+  genuinely re-wires its channel set between reloads has no way to say so.
 - **The candidate cannot replace the model the reference deployment flies.** The training
   cycle is fixed at the configuration maxima and that model is narrower, so the weight blocks
   are different sizes and the writer refuses the mismatch. `docs/DESIGN.md` 9.

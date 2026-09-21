@@ -3,7 +3,7 @@
 > **This branch is the product. Paths outside it resolve on `dev`.**
 > It carries the F' flight component and the evidence that it works, and nothing else
 > (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`5f0e382`**.
+> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`14807b4`**.
 > **The guards that keep these figures true run on `dev`, not here** -- they are
 > `tests/test_master_documents_are_current.py`, which re-derives every figure this
 > branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
@@ -15,7 +15,10 @@ mission's own healthy telemetry, predicts each watched channel every cycle. The 
 residual and the channel's first derivative, each standardised against that channel's own
 trailing window, drive a warning event naming the channel.
 
-**It warns only.** `Monitor.fpp` declares no command of its own.
+**It warns only.** It issues no command and has no commanding port of any kind. Since work
+item 10 it *receives* one -- `RELOAD_MODEL`, which loads a model file a human has approved --
+and that is the difference the rule is about: detection and response stay separated, and a
+model only ever changes because somebody sent that command.
 
 The detection method is JPL's -- Hundman et al., KDD 2018, *telemanom*. What this project
 adds is the flight packaging, the evidence base, and one finding: telemanom's published
@@ -112,6 +115,10 @@ at a fixed step budget, in **its own deployment and its own OS process**
 hub with every tick delivered, and that process now **writes a candidate model file this
 branch's own loader accepts**. `docs/DESIGN.md` 9 says why the process must be separate, what
 is proven and what is not, with the case against OxCaml stated in the same passage.
+
+That candidate now also **reaches the ground over the file downlink** and a **commanded reload
+loads an approved model back into the running detector**, with the model it replaces restored
+if the new one is refused.
 
 **The candidate is not a replacement for the model this deployment flies**, and the reason is
 a shape mismatch rather than a bug: the training cycle is fixed at the configuration maxima

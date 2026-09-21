@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`5f0e382`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`14807b4`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -223,13 +223,38 @@ does not drag this -- or the testbed, or the OxCaml experiment -- into your buil
 You wire exactly two input ports:
 
 ```
-  sentinelMonitor.schedIn      <- your rate group          Monitor.fpp:96
-  sentinelMonitor.channelsIn   <- your adapter's output    Monitor.fpp:102
+  sentinelMonitor.schedIn      <- your rate group          Monitor.fpp:110
+  sentinelMonitor.channelsIn   <- your adapter's output    Monitor.fpp:116
 ```
 
 Both are `sync`. Put `channelsIn` at a **lower** port index than `schedIn` on the same rate
 group, so the vector for this cycle lands before the detector steps; a producer on another
-thread makes that port `guarded` instead (`Monitor.fpp:98-101`).
+thread makes that port `guarded` instead (`Monitor.fpp:112-115`).
+
+**(!) The component is `queued`, so its instance declaration needs a queue size.** That is one
+extra line and no extra thread:
+
+```
+  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000 \
+    queue size 10
+```
+
+The queue exists for one thing, the reload command below, and it is **drained at the top of
+the rate-group tick** rather than on its own thread -- so the cyclic work still runs in the
+context of the rate group that ticks it and a slip is still visible as a slip. The drain is
+bounded by the queue size, so a burst of commands cannot make one tick unbounded.
+
+**The component declares one command, `RELOAD_MODEL`, and it takes the path of the file to
+load.** The path is bounded by F's `FW_CMD_STRING_MAX_SIZE`, which is **40** characters in the
+default configuration, so a model file has to live somewhere short -- beside the binary rather
+than at a long absolute path.
+
+**Uplink the new file beside the running one, not over it.** A candidate that fails to load
+would otherwise have destroyed the file it was offered to replace; with a separate path the
+component restores the previous model and says so, and rolling back is a second `RELOAD_MODEL`
+naming the old file. **A reload that changes the channel count is refused**, because the
+channel source is wired by your topology and has not changed -- a file declaring a different
+width is a model for a different subsystem, and it would otherwise load without complaint.
 
 ### The model file, and an example you can load today
 
@@ -347,6 +372,20 @@ claim is not made.** What is still owed is an arm in which the shadow is actuall
 -- every arm run so far was a cold fit -- and a drift magnitude that is operationally realistic
 rather than a sensor doubling its output. Until those exist, **`Objective.md` section 12's gate
 remains unenforceable**, and no shadow model may be swapped in.
+
+**The candidate reaches the ground and a reload can be commanded.** The file downlink carries
+it, a single command loads an approved model into the running detector, and the model it
+replaces is restored if the new one is refused -- which is what `Objective.md` section 12 means
+by keeping the previous model for rollback, in the form that costs no extra memory.
+
+**(!) And running that path found something reading it did not.** A candidate built for a
+different subsystem -- a valid file, every checksum correct, no refusal code -- **loaded into
+the reference deployment without complaint**, because the loader lets the file's channel count
+win over the topology's. That is right when the component starts, where the file is the only
+thing that knows its own shape. It is wrong on a commanded reload, where the channel source is
+already wired and has not changed, and it would have left the detector scoring whatever the
+unwired slots of the vector held. The commanded path now refuses a width change, restores the
+previous model and names both widths.
 
 **And the candidate the retrainer writes is not a replacement for the model this deployment
 flies.** The training cycle is fixed at the configuration maxima and the reference deployment's
