@@ -14,6 +14,25 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.71] - 2026-09-21 - The reload tests were dirtying the source tree, and now a guard says so
+
+**A correction to 0.6.70, as a follow-up rather than an amend.** Section 73's reload tests name
+their candidate by a SHORT path, because `FW_CMD_STRING_MAX_SIZE` is 40 and a longer one is
+truncated at the command boundary. **A short path is a relative path**, and the tests wrote it
+wherever the runner happened to be -- **four `.bin` files in `fprime/`, committed by
+`git add -A`** before anything objected.
+
+The tests now move the process into the build cache before writing anything, so the path stays
+short and the tree stays clean. The four files are removed.
+
+**Nothing guarded it, and that is the part worth keeping.**
+`tests/test_no_local_persistence.py` counts untracked content toward D64's cap but does not
+forbid it, and the files were small enough not to trip it. The Python side has had this rule
+since work item 8; the C++ side had it only as a convention.
+`test_no_unit_test_artifact_is_committed_outside_the_vector_directory` makes it a rule:
+`flight/test/vectors/` is the one place a committed binary belongs (D77), and a binary anywhere
+else fails. Seen to fail first, on a planted stray.
+
 ## [0.6.70] - 2026-09-21 - The candidate downlinks and the reload is commanded, and a model that loaded correctly turned out to be the wrong model
 
 **`docs/MODELS.md` 73.** HO2's and HO3's bands are 65.3's and are not re-registered.

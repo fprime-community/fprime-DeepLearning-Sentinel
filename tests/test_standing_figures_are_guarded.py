@@ -267,3 +267,31 @@ def test_the_gate_block_states_the_ratio_the_selftest_reports() -> None:
     assert stated.groups() == reported.groups(), (
         f"the selftest reports {reported.group(0)}; {GATE_BLOCK} says "
         f"{stated.group(1)}/{stated.group(2)}.")
+
+
+def test_no_unit_test_artifact_is_committed_outside_the_vector_directory() -> None:
+    """(!) A C++ UNIT TEST THAT DIRTIES THE SOURCE TREE, CAUGHT BY NAME.
+
+    Section 73's reload tests name their candidate file by a SHORT path, because
+    `FW_CMD_STRING_MAX_SIZE` is 40 and a longer one is truncated at the command
+    boundary. A short path is a relative path, and the first version of those
+    tests wrote it wherever the runner happened to be -- four `.bin` files in
+    `fprime/`, swept into a commit by `git add -A` before anything objected.
+
+    Nothing guarded it. `test_no_local_persistence.py` counts untracked content
+    toward D64's cap but does not forbid it, and the files were small. The Python
+    side has had this rule since work item 8; the C++ side had it only as a
+    convention, and a convention is what this is replacing.
+
+    `flight/test/vectors/` is the one place a committed binary belongs (D77).
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=str(ROOT),
+        capture_output=True, text=True, timeout=60).stdout
+    binaries = [name for name in tracked.split("\0")
+                if name.endswith((".bin", ".npz", ".npy", ".dat"))]
+    strays = [name for name in binaries if not name.startswith(VECTOR_ROOT + "/")]
+    assert not strays, (
+        f"committed binaries outside {VECTOR_ROOT}/: {strays}. A unit test that "
+        "writes into the source tree is what this catches; give it an absolute "
+        "path under the build cache, or move the process there first.")

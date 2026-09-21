@@ -5,6 +5,8 @@
 
 #include "MonitorTester.hpp"
 
+#include <unistd.h>
+
 #include <cstdio>
 #include <cstring>
 
@@ -29,6 +31,14 @@ const char* const G1_PATH = SENTINEL_VECTORS_DIR "/g1.bin";
 const char* const G2_PATH = SENTINEL_VECTORS_DIR "/g2.bin";
 const char* const WIDE_PATH = "MonitorTester_wide.bin";
 
+//! Put the process in the build cache, so the short relative paths above resolve
+//! there rather than into the source tree. Called by every reload test before it
+//! writes anything. Idempotent, and a failure is not fatal -- the test then
+//! writes where it was launched, which is what the assertion below catches.
+void moveToBuildCache() {
+    (void)::chdir(SENTINEL_UT_TMP);
+}
+
 //! Written into the build cache, never into the source tree: a test that
 //! dirties the tree is what tests/test_no_local_persistence.py forbids on the
 //! Python side, and the rule is the same here.
@@ -46,6 +56,13 @@ const char* const WORK_PATH = SENTINEL_UT_TMP "/MonitorTester_model.bin";
 //! 121 characters here -- is truncated at the command boundary and the reload
 //! fails on a file that does not exist. The bound is the platform's, it is real
 //! in flight too, and a mission's candidate has to live somewhere short.
+//!
+//! (!) AND A RELATIVE PATH LANDS WHEREVER THE TEST WAS LAUNCHED FROM, WHICH THE
+//! FIRST VERSION OF THIS DID -- four .bin files in the source tree, swept into a
+//! commit by `git add -A`. `moveToBuildCache()` below puts the process in the
+//! build cache before any of them is written, so the path stays short AND the
+//! tree stays clean. The other fixtures avoid this by using SENTINEL_UT_TMP
+//! outright; they can, because they never go through a command.
 const char* const CANDIDATE_PATH = "MonitorTester_candidate.bin";
 
 }  // namespace
@@ -394,6 +411,7 @@ void MonitorTester ::testTheBaselineWarningNamesASynthesisedChannel() {
 // ----------------------------------------------------------------------
 
 void MonitorTester ::testACommandedReloadLoadsTheNamedFile() {
+    moveToBuildCache();
     ASSERT_TRUE(m_haveVectors) << "g1.bin not readable from " << G1_PATH;
     this->restore();
     ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
@@ -422,6 +440,7 @@ void MonitorTester ::testACommandedReloadLoadsTheNamedFile() {
 }
 
 void MonitorTester ::testARefusedReloadRestoresThePreviousModel() {
+    moveToBuildCache();
     ASSERT_TRUE(m_haveVectors);
     this->restore();
     ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
@@ -456,6 +475,7 @@ void MonitorTester ::testARefusedReloadRestoresThePreviousModel() {
 }
 
 void MonitorTester ::testTheReloadCommandIsDispatchedInsideTheTick() {
+    moveToBuildCache();
     ASSERT_TRUE(m_haveVectors);
     this->restore();
     ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
@@ -480,6 +500,7 @@ void MonitorTester ::testTheReloadCommandIsDispatchedInsideTheTick() {
 }
 
 void MonitorTester ::testAReloadThatChangesTheChannelWidthIsRefused() {
+    moveToBuildCache();
     ASSERT_TRUE(m_haveVectors);
     this->restore();
     ASSERT_EQ(Mode::MODEL, this->loadWorkingAs(WORK_PATH));
