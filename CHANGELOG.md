@@ -14,6 +14,44 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.67] - 2026-09-21 - The shadow warm-starts from the flying model, and N8 is re-derived as the vectors figure it always was
+
+**D76 and D77**, both owner decisions. D74.2, D74.3 and D74.4 stay as written; `Objective.md`
+is not edited; D64's 8 MiB cap does not move.
+
+### D76: the seed question dissolves rather than being answered
+The flown retrainer **initialises the shadow from the flying model's weights**. There is no
+random initialisation on the flight path, so there is no seed to reproduce or to differ in.
+`docs/MODELS.md` 69.7 had found the floor's two components moving in opposite directions --
+segment spread falling 3.44x with training length, **seed spread irreducible at ~30%** -- and
+refused to choose between them inside an OBSERVED block.
+
+**The operative floor is therefore the segment spread, 6.5687%**, and the margin follows by
+67.3's `K = 2.0330`: **`m` = 13.3542%**. Nothing chooses a number; the formula was fixed
+before any floor was measured. **69's SD2 is not amended and no arm is retroactively
+certified** -- 69's arms were cold fits at a common seed.
+
+**(!) And the trade-off is stated rather than discovered later: a warm-started shadow TRACKS
+DRIFT, it does not RE-LEARN.** It begins at the flying model's answer, so **it cannot escape
+what the flying model already got wrong.** This buys adaptation and gives up correction.
+
+### D77: N8 is about the vectors, and now measures them
+D71 parked the re-derivation with a condition -- *"the right answer if the cap is ever
+approached, because at that point the question is which kind of content is growing."* The cap
+is approached and the answer is known: **the vectors are 2.0924 MiB of a 7.2670 MiB tree**,
+every one of them under `flight/test/vectors/`, and the remaining 5.17 MiB is prose N8 was
+never measuring.
+
+N8's bands now read against the **vectors** (HOLD under 6 MiB, stop above 7); total tracked
+content is guarded by **D64's cap alone**. N8 keeps its message -- *report rather than
+trimming coverage to fit* -- and it now attaches to the only thing that can trigger it, since
+no amount of prose can make you delete a tier. **Headroom moves from 244,332 B to 768,620 B,
+and it is not licence to grow prose**: D64 consequence 5 stands.
+
+**Seen to fail in both directions before being believed**: the bands fire on oversized vectors
+and on an oversized tree, a 7.9 MiB tree holding 1 KiB of vectors correctly does **not** fire
+N8, and a planted vector-shaped file under docs/ was reported by name before being removed.
+
 ## [0.6.66] - 2026-09-21 - The customer branch says what the retrainer is, and the 3.26x margin gets a guard and two riders
 
 **`master` gains `docs/DESIGN.md` section 9.** The branch has shipped a retrainer since

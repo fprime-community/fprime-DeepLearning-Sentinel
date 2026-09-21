@@ -480,7 +480,10 @@ operations between them.
   3 and 7 channels and reported success. R2 therefore asserts the tier count. **Nothing exists
   at 16 channels**, the compile-time maximum, and the timing fixture for it is generated on the
   target rather than committed, because tracked content is **7.0527 MiB** (2026-09-20, after 64) and already inside
-  39's N8 middle band, with 516,675 B under D71's 7.5 MiB stop.
+  39's N8 middle band -- **but D77 re-derived N8 as a vectors-only figure**, so the band that
+  applies to a new tier is the **vectors'**: they are **2.0924 MiB**, inside N8's HOLD band
+  with **5,146,037 B** under its 7 MiB stop. The binding limit on the tree as a whole is now
+  D64's 8 MiB cap, **768,620 B** away, and it is prose rather than vectors that is spending it.
 - **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
   and its structural half is derivable from A6's committed table. **(!) The lever is confounded
@@ -563,7 +566,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**759 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**760 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -593,7 +596,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 759 tests
+.venv/bin/python -m pytest -q                                    # 760 tests
 .venv/bin/python scripts/check_no_list.py                        # 114 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves
 .venv/bin/python scripts/check_references.py --master            # D67's curated branch

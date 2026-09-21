@@ -101,6 +101,8 @@ STATUS. Updated in the same commit as the decision it records
 - [D73 The retraining cycle runs a fixed STEP budget, not a fixed epoch count. Answers `docs/PHASE5.md` question 8](#d73-the-retraining-cycle-runs-a-fixed-step-budget-not-a-fixed-epoch-count-answers-docsphase5md-question-8)
 - [D74 OxCaml is permitted for the retrainer process and for nothing else, and `Objective.md` section 12's C++ gate is carried across unchanged](#d74-oxcaml-is-permitted-for-the-retrainer-process-and-for-nothing-else-and-objectivemd-section-12s-c-gate-is-carried-across-unchanged)
 - [D75 The interim flight target is declared: Raspberry Pi 4 Model B, 4 GB, aarch64, 64-bit Linux](#d75-the-interim-flight-target-is-declared-raspberry-pi-4-model-b-4-gb-aarch64-64-bit-linux)
+- [D76 The flown retrainer warm-starts the shadow from the flying model's weights. There is no random initialisation on the flight path](#d76-the-flown-retrainer-warm-starts-the-shadow-from-the-flying-models-weights-there-is-no-random-initialisation-on-the-flight-path)
+- [D77 N8 is re-derived as a vectors-only figure, which is what it measured. Takes D71 alternative 3, which D71 parked rather than rejected](#d77-n8-is-re-derived-as-a-vectors-only-figure-which-is-what-it-measured-takes-d71-alternative-3-which-d71-parked-rather-than-rejected)
 
 <!-- /toc -->
 
@@ -6435,3 +6437,143 @@ finding is a decomposition nobody had made:
 6. **An arm matching `F = max` was never run.** Every arm in 67, 68 and 69 held the seed
    constant, so all three measured the seed-reuse case against a margin derived for the
    seed-fresh case. `docs/MODELS.md` 69.8 owes it.
+
+---
+
+## D76. The flown retrainer warm-starts the shadow from the flying model's weights. There is no random initialisation on the flight path
+
+**DATE** 2026-09-21 | **STATUS** resolved by the owner as a design decision. It settles the
+question `docs/MODELS.md` 66.8 registered as open, 69.8 promoted to urgent and **D74.4
+consequence 1** named as deciding whether the pre-launch sanity gate can exist at all.
+`Objective.md` is not edited. **D74.2, D74.3 and D74.4 stay exactly as written.**
+
+**CONTEXT.** `docs/MODELS.md` 69.7 measured the noise floor at two training lengths and found
+its two components moving in opposite directions:
+
+```
+                        L = 6,000        L = 18,000
+  SEGMENT spread          22.5745%          6.5687%     falls 3.44x -- convergence
+  SEED    spread          29.8606%         31.9283%     does not fall -- irreducible
+```
+
+66.3 had declared `F = max` over the two arms **before either ran**, so `F` was 31.9283% and
+the margin 64.9100%, which refused the most favourable arm that could honestly be built.
+69.7 stated the consequence and refused to resolve it: *"if the flown retrainer reproduces the
+flying model's seed then m = 13.3542% and Arm B's +23.6846% certifies; if it does not,
+m = 64.9100% and nothing certifies ever"* -- and took neither branch, because taking it inside
+an OBSERVED block to make an arm certify is what stop 44 exists to forbid.
+
+**Nothing in the record decided it.** `docs/PHASE5.md` does not mention a seed;
+`oxcaml/retrainer/shadow59.ml` does not carry one; 64.3's *"seed 0 for both models"* is
+apparatus and was never proposed as a flight rule.
+
+**DECISION.** The shadow is **initialised from the flying model's weights** and fine-tuned on
+recent healthy telemetry. **No random initialisation exists on the flight path.**
+
+**CONSEQUENCES.**
+
+1. **The seed question dissolves rather than being answered.** There is no seed to reproduce
+   or to differ in, because the shadow does not start from a distribution -- it starts from a
+   file. `oxcaml/retrainer/shadow59.ml`'s design already assumed this in substance: the
+   candidate is *"the flying file with new weights"*, the same architecture at the same
+   shapes, with every header field but two already correct.
+2. **The operative noise floor is the SEGMENT spread at the flown training length: 6.5687%**
+   (69.7, Arm G, six disjoint segments of 18,000 at one seed). The seed arm measured a
+   variance the flown comparison does not contain and is retired as a floor -- **not as a
+   measurement**, and 66.7 and 69.7 keep it exactly as recorded.
+3. **The margin follows arithmetically, by 67.3's factor, which does not move.**
+   `K = 2.0330` and `m = K * F = 13.3542%`. **Nothing here chooses a number**; the formula was
+   fixed at 67.3 before any floor was measured and it is applied to a different floor, not
+   rewritten for one.
+4. **(!) AND THE TRADE-OFF IS REAL, AND IS STATED HERE RATHER THAN DISCOVERED LATER. A
+   warm-started shadow TRACKS DRIFT; IT DOES NOT RE-LEARN.** It begins at the flying model's
+   answer and moves from there, so **it cannot escape what the flying model already got
+   wrong.** A systematic error in the flown weights -- a channel it never modelled well, a
+   regime absent from the original training set -- is inherited by every shadow this design
+   will ever produce, and no amount of retraining removes it. **This decision buys
+   adaptation and gives up correction**, and a mission whose problem is the second one is
+   not served by it. The route that would fix that is a cold re-fit on the ground, which is
+   work item A's toolkit and not this path.
+5. **69's SD2 is NOT amended and no arm is retroactively certified.** 69's arms were **cold
+   fits at a common seed**, not warm starts, and were scored against the margin in force when
+   they ran. What consequence 3 changes is which floor is operative **from here**.
+6. **Arm G is an upper bound on the warm-start floor, so the derived margin is
+   conservative.** Two fits that begin from the same weights should differ by less than two
+   independent fits at a common seed, not more. **That direction is stated before the arm is
+   run so it cannot be claimed afterwards**, and `docs/MODELS.md` 70.6's owed list gains the
+   arm that would measure it.
+7. **This does not make the gate enforceable, and the claim is not made.** It removes the
+   blocker D74.4 named. What is still owed is an arm in which the shadow is actually
+   warm-started, and a drift magnitude that is operationally realistic rather than a sensor
+   doubling its output.
+8. **Rule 1 is untouched.** The flying model stays frozen, a human still commands any swap,
+   and the previous model is retained. **Warm-starting changes where the shadow begins, not
+   who decides whether it flies.**
+
+---
+
+## D77. N8 is re-derived as a vectors-only figure, which is what it measured. Takes D71 alternative 3, which D71 parked rather than rejected
+
+**DATE** 2026-09-21 | **STATUS** resolved by the owner. **D64's 8 MiB cap does not move**, and
+`tests/test_no_local_persistence.py:175` is untouched.
+
+**CONTEXT.** D71 raised `N8_STOP_MIB` from 7.0 to 7.5 and recorded, in the same entry, that
+the more honest reading was available and not being taken:
+
+> *"3. **Re-derive N8 as a vectors-only figure**, guarding vectors against N8's bands and
+> total tracked content against D64's cap. **CONSIDERED AND PARKED, NOT REJECTED.** It is the
+> more honest reading of what N8 measured, and it is the right answer if the **cap** is ever
+> approached, because at that point the question is which kind of content is growing."*
+
+**The cap is now being approached and the answer to "which kind of content is growing" is
+known.** Tracked content is **7.2670 MiB**, leaving **768,620 B** to D64's cap. Of that,
+the committed vectors are **2,193,995 B (2.0924 MiB) over 26 files**, every one of them under
+`flight/test/vectors/`; a tracked-file sweep for `.bin`, `.npz`, `.npy`, `.pvec`, `.dat` and
+`.vec` outside that directory returns **nothing**. The remaining **5.17 MiB is prose**, which
+this project writes deliberately and which N8 was never measuring.
+
+**WHAT N8 ACTUALLY SAID.** `docs/MODELS.md` 39:
+
+> | **N8** | **The vectors fit.** Tracked content after the new tiers are committed | **under
+> 6 MiB** | 6 to 7 MiB | **above 7 MiB** -- a **stop**: report rather than trimming coverage
+> to fit under the cap |
+
+**Its subject is the vectors.** *"Tracked content"* was its **instrument**, correct at the
+time because the vectors dominated the tree -- N8 HELD at **5.53 MiB** with all seven tiers
+committed. D71 already identified the error: *"the guard generalised a vectors prediction to
+all tracked content."* Every further megabyte of prose has made that instrument worse.
+
+**DECISION.** The guard reads N8's bands against **the committed vectors**, and total tracked
+content against **D64's cap**. Both remain guarded; each is measured against the thing it was
+actually about.
+
+**CONSEQUENCES.**
+
+1. **N8's bands are unchanged and are applied to vectors**: under 6 MiB holds, 6 to 7 MiB is
+   no verdict, above 7 MiB is a **stop**. Vectors today: **2.0924 MiB**, headroom to the stop
+   **5,146,037 B**.
+2. **`N8_STOP_MIB` stays 7.5 for tracked content is NOT what this does.** The tracked-content
+   band is retired from N8 and total tracked content is guarded by **D64's 8 MiB cap alone**,
+   which is the only figure that was ever derived about tracked content as a whole. Headroom:
+   **768,620 B**.
+3. **N8 keeps its message, and it now attaches to the thing that can trigger it.** *Report
+   rather than trimming coverage to fit* is a sentence about **test vectors** -- deleting a
+   tier to get under a line is the failure it names, and no amount of prose can produce that
+   failure.
+4. **D71 is not edited and is not superseded in substance.** Its raise to 7.5 was correct on
+   the information it had, and its own consequence 6 said *"a later section that needs room
+   may take it, and the reasoning is here rather than re-derived."* **This is that section.**
+   D71's alternative 3 is now taken; alternatives 1 and 2 stay refused for the reasons given
+   there.
+5. **`docs/MODELS.md` 39's N8 is not edited.** It is a record and it held when it was written.
+6. **(!) THE NEW GUARD IS NOT ACCEPTED UNTIL IT HAS BEEN SEEN TO FAIL, IN BOTH DIRECTIONS.**
+   D71 consequence 5's precedent stands: a gate nobody has seen fail is not known to work.
+   The band comparison stays a pure function exercised on synthetic byte counts, so the stop
+   is demonstrated without committing 7 MiB of vectors to prove it, and it is shown to fire on
+   an oversized **vectors** figure and **not** to fire on an oversized prose figure that keeps
+   the vectors small -- which is the whole point of the re-derivation.
+7. **This buys headroom and the amount is stated rather than implied.** The binding limit
+   becomes D64's cap at **768,620 B** of headroom, where before it was D71's stop at
+   **244,332 B**. **It is not licence to grow prose**: D64 consequence 5 stands unchanged --
+   if tracked content reaches 8 MiB the question is asked again, and the answer may then be
+   that prose belongs somewhere else.

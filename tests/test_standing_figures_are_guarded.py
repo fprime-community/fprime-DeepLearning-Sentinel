@@ -43,7 +43,19 @@ CAP_MIB = 8.0
 #: never the guard, and because it is documentation rather than vectors that moves
 #: the number -- N8 predicted the vectors would fit, and they still do. D64's 8 MiB
 #: cap did not move with it.
-N8_STOP_MIB = 7.5
+#:
+#: **D77 then took D71's parked alternative 3.** N8's SUBJECT is the vectors;
+#: "tracked content" was its INSTRUMENT, correct when the vectors dominated the
+#: tree and worse with every megabyte of prose since. So N8's bands are now read
+#: against the committed vectors, and total tracked content is guarded by D64's cap
+#: alone -- the only figure ever derived about tracked content as a whole.
+N8_STOP_MIB = 7.0
+
+#: Every committed test vector lives here. D77 checked: a tracked-file sweep for
+#: `.bin`, `.npz`, `.npy`, `.pvec`, `.dat` and `.vec` outside this directory returns
+#: nothing, so the directory IS the figure rather than standing in for it.
+VECTOR_ROOT = "flight/test/vectors"
+VECTOR_SUFFIXES = (".bin", ".npz", ".npy", ".pvec", ".dat", ".vec")
 
 
 def _tracked_bytes() -> int:
@@ -62,30 +74,73 @@ def test_the_weight_store_is_the_size_every_figure_was_measured_against() -> Non
         "against this store, and a run that moved it has invalidated them.")
 
 
-def _check_size_bands(total_bytes: int) -> None:
-    """D64's cap and `docs/MODELS.md` 39's N8 stop, as a pure function.
+def _vector_bytes() -> int:
+    """The committed test vectors, which is what `docs/MODELS.md` 39's N8 measured."""
+    out = subprocess.run(["git", "ls-files", "-z", VECTOR_ROOT], cwd=ROOT, check=True,
+                         capture_output=True)
+    names = [n for n in out.stdout.split(b"\0") if n]
+    return sum((ROOT / n.decode()).stat().st_size
+               for n in names if (ROOT / n.decode()).is_file())
 
-    Separated from the measurement so that the stop can be exercised on a
-    synthetic byte count. **D71 consequence 5: a gate nobody has seen fail is not
-    known to work**, and proving this one by committing 7.5 MiB of anything would
-    be the exact opposite of what N8 asks for.
+
+def _stray_vectors() -> list[str]:
+    """Vector-shaped files tracked OUTSIDE `VECTOR_ROOT`.
+
+    D77 rests on the directory being the whole figure. If that stops being true the
+    vectors band silently stops measuring the vectors, which is the failure mode D71
+    named in the guard it replaced.
     """
-    mib = total_bytes / (1024 * 1024)
-    assert mib < CAP_MIB, (
-        f"tracked content is {mib:.2f} MiB, over D64's {CAP_MIB} MiB cap.")
-    assert mib < N8_STOP_MIB, (
-        f"tracked content is {mib:.2f} MiB, past docs/MODELS.md 39's N8 stop at "
-        f"{N8_STOP_MIB} MiB (D71). N8 says report rather than trimming coverage to "
-        "fit: bring it to the owner and take a decision (raise the stop, split the "
-        "bands, or accept it), do not delete evidence to get back under the line.")
+    out = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True,
+                         capture_output=True, text=True).stdout.split()
+    return [n for n in out
+            if n.endswith(VECTOR_SUFFIXES) and not n.startswith(VECTOR_ROOT + "/")]
 
 
-def test_tracked_content_is_inside_the_cap_and_below_39s_N8_stop() -> None:
-    _check_size_bands(_tracked_bytes())
+def _check_size_bands(vector_bytes: int, total_bytes: int) -> None:
+    """D64's cap on the tree, and N8's bands on the vectors. A pure function.
+
+    Separated from the measurement so that both can be exercised on synthetic byte
+    counts. **D71 consequence 5: a gate nobody has seen fail is not known to work**,
+    and proving this one by committing 7 MiB of vectors would be the exact opposite
+    of what N8 asks for.
+
+    **D77 split the two arguments**, because they guard different things: the cap is
+    about the whole tree and N8 is about the vectors. Before the split a megabyte of
+    prose could fire a stop whose text says "do not delete evidence to get back under
+    the line", which is advice about vectors and unactionable about prose.
+    """
+    total_mib = total_bytes / (1024 * 1024)
+    assert total_mib < CAP_MIB, (
+        f"tracked content is {total_mib:.2f} MiB, over D64's {CAP_MIB} MiB cap. D64 "
+        "consequence 5: the question is asked again, and the answer may be that prose "
+        "belongs somewhere else.")
+    vector_mib = vector_bytes / (1024 * 1024)
+    assert vector_mib < N8_STOP_MIB, (
+        f"the committed vectors are {vector_mib:.2f} MiB, past docs/MODELS.md 39's N8 "
+        f"stop at {N8_STOP_MIB} MiB (D77). N8 says report rather than trimming coverage "
+        "to fit: bring it to the owner and take a decision, do not delete a tier to get "
+        "back under the line.")
+
+
+def test_tracked_content_is_inside_the_cap_and_the_vectors_below_39s_N8_stop() -> None:
+    _check_size_bands(_vector_bytes(), _tracked_bytes())
+
+
+def test_every_committed_vector_is_where_the_vectors_band_looks() -> None:
+    """D77's premise, asserted rather than assumed.
+
+    If a vector is committed outside `VECTOR_ROOT` the band stops measuring the
+    thing it is named after, and it does so silently.
+    """
+    strays = _stray_vectors()
+    assert not strays, (
+        f"vector-shaped files tracked outside {VECTOR_ROOT}/: {strays}. D77 read N8's "
+        "bands against that directory on the finding that it holds every committed "
+        "vector. Either move them, or widen VECTOR_ROOT and say so in a rider.")
 
 
 def test_the_N8_stop_and_the_cap_both_still_fire_above_their_bands() -> None:
-    """D71 consequence 5. The stop is demonstrated rather than assumed.
+    """D71 consequence 5 and D77 consequence 6. Demonstrated rather than assumed.
 
     `flight/Makefile:85-89` is the precedent this exists against: a lint target
     ran three times, checked no exit status and echoed "clean" unconditionally,
@@ -93,13 +148,24 @@ def test_the_N8_stop_and_the_cap_both_still_fire_above_their_bands() -> None:
     is re-run at the new value in both directions.
     """
     stop = int(N8_STOP_MIB * 1024 * 1024)
-    _check_size_bands(stop - 1)                      # just inside: passes, as it must
+    cap = int(CAP_MIB * 1024 * 1024)
+    small_total, small_vectors = 1024, 1024
 
+    # Just inside both: passes, as it must.
+    _check_size_bands(stop - 1, cap - 1)
+
+    # The vectors band fires on oversized VECTORS.
     with pytest.raises(AssertionError, match="N8 stop"):
-        _check_size_bands(stop + 1)
+        _check_size_bands(stop + 1, small_total)
 
+    # The cap fires on an oversized TREE.
     with pytest.raises(AssertionError, match="cap"):
-        _check_size_bands(int(CAP_MIB * 1024 * 1024) + 1)
+        _check_size_bands(small_vectors, cap + 1)
+
+    # (!) AND THE POINT OF D77: prose past the OLD 7.5 MiB tracked-content stop no
+    # longer fires N8, because N8 is not about prose. A tree of 7.9 MiB holding
+    # 1 KiB of vectors is inside the cap and says nothing about coverage.
+    _check_size_bands(small_vectors, int(7.9 * 1024 * 1024))
 
 
 def test_the_index_row_for_models_reaches_the_highest_section() -> None:
