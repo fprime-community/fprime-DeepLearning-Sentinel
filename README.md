@@ -1,262 +1,340 @@
 # fprime-DeepLearning-Sentinel
 
-> **This branch is the product. Paths outside it resolve on `dev`.**
-> It carries the F' flight component and the evidence that it works, and nothing else
-> (`docs/DECISIONS.md` D69, on `dev`). A citation into `src/`, `scripts/`, `tests/`,
-> `docs/MODELS.md` or `third_party/` points into `dev` at commit **`8b4db15`**.
-> **The guards that keep these figures true run on `dev`, not here** -- they are
-> `tests/test_master_documents_are_current.py`, which re-derives every figure this
-> branch states about `dev`, and `scripts/check_references.py --master`. You cannot run
-> them from this branch, and that is stated rather than implied.
+**A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
+spacecraft anomalies that never cross a limit line.**
 
-**Sentinel** is a reusable NASA F' (F Prime) flight-software component that warns of
-spacecraft anomalies **that never cross a limit line**. A GRU forecaster, trained on a
-mission's own healthy telemetry, predicts each watched channel every cycle. The prediction
-residual and the channel's first derivative, each standardised against that channel's own
-trailing window, drive a warning event naming the channel.
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`de8d9bf`**
+> (D69). The guards that keep every figure here true run on `dev`, not here.
 
-**It warns only.** It issues no command and has no commanding port of any kind. Since work
-item 10 it *receives* one -- `RELOAD_MODEL`, which loads a model file a human has approved --
-and that is the difference the rule is about: detection and response stay separated, and a
-model only ever changes because somebody sent that command.
+[The problem](#the-problem) |
+[The result](#the-result) |
+[How it works](#how-it-works) |
+[What is in this branch](#what-is-in-this-branch) |
+[Quick start](#quick-start) |
+[Use it in your F' project](#use-it-in-your-f-project) |
+[The retrainer](#the-retrainer) |
+[Status](#status) |
+[Documents](#documents) |
+[Not on this branch](#not-on-this-branch) |
+[Branches](#branches) |
+[Licence](#licence) |
+[Citation](#citation)
 
-The detection method is JPL's -- Hundman et al., KDD 2018, *telemanom*. What this project
-adds is the flight packaging, the evidence base, and one finding: telemanom's published
-false-alarm filter deletes true detections on the in-range population, and the first
-derivative recovers them. `docs/EVIDENCE.md` is that argument with its numbers and its
-caveats.
+## The problem
 
-## (!) What this is not, and what you cannot do with it yet
+Onboard fault protection checks each telemetry channel against a high and a low limit. That
+catches loud failures and misses quiet ones. A radiator that should swing -20 C to +40 C
+each orbit but sits flat at +15 C reports a legal number while the sensor is dead. It is not
+the value, it is the value in context, and a limit check has no notion of context.
 
-- **The ground training toolkit is here since D80, and it is still one mission's worth of
-  evidence.** The component *runs* a model; the toolkit *produces* one, and both halves are
-  now on this branch. **3 of its 3 acceptance-ladder rungs have run on `dev`**, the last of
-  them on a real twelve-channel mission (`docs/STATUS.md`) -- **one mission and one split**,
-  which is what the evidence is, not what a release note would say. `docs/MODEL_FILE.md` specifies the file completely enough to
-  write one independently, which is the honest answer available today.
-- **No early-warning claim is made.** Not "warns N minutes before", not "~4 hours", not any
-  wall-clock figure. On real telemetry the rule this branch ships is **less late than the rule
-  it replaced, and not early** (`docs/MODELS.md` 45.6); the frozen layer it replaced measured
-  **0 of 10 positive leads** (37.7a). A warning time **has** been measured against a real limit
-  on a **simulated** plant -- `docs/EVIDENCE.md` section 5a -- and that is a claim about a
-  testbed and a fault this project designed, not about a mission. Every figure here is in
-  **timesteps**, never in hours.
-- **The evidence is one arm on one dataset, UNDERPOWERED.** n = 19 per half. Read
-  `docs/EVIDENCE.md` before quoting anything from it.
+## The result
 
-## Build and verify
+### Detection, on NASA's SMAP/MSL telemetry
 
-**Everything on this branch builds and verifies with a C++ toolchain and nothing else.**
-No Python, no credentials, no dataset, no network.
+Channel-disjoint split fixed before tuning; held-out (EVAL) half:
 
-```bash
-make -C flight test      # the core against its committed vectors
-make -C flight lint      # clang-tidy at -Werror, three configs. PARTIAL and
-                         # non-zero if any is missing; see below
+| Arm | Caught | Alarm rate |
+|---|---|---|
+| telemanom's published rule (frozen) | 4 of 19 | 0.6820% |
+| Sentinel (residual fused with the first derivative) | **17 of 19** | 0.6820% |
+
+**n = 19 per half; the harness's own n<20 rule (`docs/HARNESS.md` 1, on `dev`) stamps this
+UNDERPOWERED.** Alarm rate is matched, so recall is the only thing varying.
+
+**The population is anomalies that stay at or within their channel's training range**, so a
+limit check sees none of them -- a premise of how the population was selected, not a measured
+score, and it rests on real flight limits sitting outside the historical range.
+
+**"At or within", not "strictly inside": 23 of the 39 sit exactly on a training-range rail.**
+The two halves sum to 38, not 39, because one event is excluded on a training stall: of the
+labelled contextual anomalies in the dataset, **39** stay at or within the envelope and
+**38** are scored. `docs/EVIDENCE.md` 2 is that arithmetic.
+
+The method is JPL's (Hundman et al., KDD 2018, *telemanom*). What this adds is the flight
+packaging, the evidence base, and one finding: telemanom's published false-alarm filter
+deletes true detections on this population, and the first derivative recovers them.
+
+### Warning time, on a physics testbed
+
+No dataset this project holds can produce a warning time, so one was built: a simulated
+coupled power and thermal plant with declared limits, on a real 1 Hz clock
+(`fprime/SentinelRef/PowerSim/`).
+
+| Measure | Value |
+|---|---|
+| median fault-attributable lead | **9,774.5 ticks** before the first limit trip |
+| false alarms | **0.1608%** of warmed healthy ticks |
+| worst tick | **326 us**, against this deployment's 1 Hz period |
+
+**Three caveats, all mandatory:**
+
+- **In ticks, never hours or minutes.** The plant's time constants are chosen, so its
+  seconds are not a mission's.
+- **Only the fault-attributable lead counts.** The naive lead -- first warning to first limit
+  crossing -- is **16,525 ticks and it is false**, because the healthy control warns at the
+  same tick with no fault present. A warning is the fault's only when it is absent from the
+  healthy run on the same seed.
+- **Ten runs are not ten systems.** They share a plant, a fault mode, a rate and an injection
+  tick, so the effective **n is close to 1**.
+
+`docs/EVIDENCE.md` is both arguments with their caveats.
+
+## How it works
+
+```text
+  healthy telemetry  ->  ground toolkit  ->  model.bin  ->  Monitor, on the spacecraft
+                                                                |
+                                                    warning event naming the channel
+                                                                |
+                                                                v
+                                                              ground
+
+  retrain loop:  SentinelRetrain (own process)  ->  candidate model.bin
+                        ->  downlink  ->  A HUMAN APPROVES  ->  uplink
+                        ->  RELOAD_MODEL command  ->  Monitor
 ```
 
-**Since D80 this branch also carries the two halves that were missing**, each with the
-scripts that build it:
+- A GRU forecaster predicts each watched channel every cycle. The rule is the maximum of two
+  signals, each standardised against that channel's own trailing window: the smoothed
+  prediction residual, and the channel's first derivative.
+- **The derivative is what decides.** Over **both** halves together this arm catches
+  **30 of 38** -- which is **not** the headline, because it includes the events the cut was
+  chosen on -- and across all thirty the residual alone reached the cut on none of them
+  (`docs/EVIDENCE.md`).
+- **The threshold is derived from the mission's own data.** No target alarm rate is an input
+  anywhere in the toolkit.
+- **It warns only** -- no output ports of any kind. It *receives* one command,
+  `RELOAD_MODEL`, which loads a model file a human has approved, and issues none.
+
+## What is in this branch
+
+```text
+  flight/                     The C++14 inference core. No allocation after init, no
+                              exceptions, no RTTI, no STL containers, -Werror
+  fprime/Sentinel/Monitor/    The F' component: Monitor.fpp, its SDD, its unit tests
+  fprime/SentinelRef/         Reference deployment, topology, and the physics testbed.
+                              Apparatus, not product. Also ExampleAdapter/, the adapter
+                              a mission copies
+  fprime/SentinelRetrain/     The retraining engine's own deployment and OS process, and
+                              the only place an OCaml runtime exists. EXPERIMENT
+  oxcaml/                     The retrainer's OxCaml sources and its C stubs
+  src/                        The ground toolkit and its import closure. Reaches no bucket
+                              and reads no credential (D80)
+  scripts/                    The six build scripts this branch's commands call
+  docs/                       Design, evidence, status, the normative file format
+  requirements-toolkit.txt    numpy, pyarrow, torch. Nothing else
+```
+
+## Quick start
+
+**Every block starts from the repository root.**
+
+The flight core -- a C++ toolchain and nothing else:
 
 ```bash
-# the ground toolkit: healthy telemetry in, a model.bin out. No bucket, no credential.
+make -C flight test
+LINT_ALLOW_PARTIAL=1 make -C flight lint    # PARTIAL until the F' checkout is built
+```
+
+The ground toolkit -- your healthy telemetry in, a `model.bin` out. **`--telemetry` takes a
+`.npy` array, 2-D and finite, one row per timestep and one column per channel, at most 16
+channels, and every row must be healthy.**
+
+```bash
 python -m venv .venv && .venv/bin/pip install -r requirements-toolkit.txt
 PYTHONPATH=src .venv/bin/python -m sentinel_toolkit selftest
 PYTHONPATH=src .venv/bin/python -m sentinel_toolkit fit --telemetry healthy.npy --out model.bin
-
-# the F' half, and the retraining experiment
-scripts/fprime_setup.sh                      # F' v4.3.0, into the gitignored fprime/lib/
-scripts/oxcaml_setup.sh                      # the OxCaml switch. It compiles a compiler:
-                                             # under 90 minutes and under 12 GiB
-bash scripts/oxcaml_s61.sh                   # the object SentinelRetrain links
+PYTHONPATH=src .venv/bin/python -m sentinel_toolkit verify --model model.bin
 ```
 
-**`requirements-toolkit.txt` is `numpy`, `pyarrow`, `torch` and nothing else.** The
-repository-wide `requirements.txt` on `dev` installs a Cloudflare R2 client and a `.env`
-reader for the ingest apparatus; the toolkit needs neither and this branch ships neither.
-`docs/DECISIONS.md` D80 records how the import closure was cut so that is true of the
-closure and not merely of one directory.
+The F' half -- the framework checkout, then the detector's deployment:
 
-**What the green output proves here, measured on this branch:**
-
-```
-  footprint             sizeof(Detector) asserted exactly, 603,032 B
-  refusals              18 load cases, exercising all 12 refusal codes plus the
-                        accept path; CRC check value 0xCBF43926
-  determinism           bit-identical in-process and across two processes, over
-                        a 6,400-tick run that wraps the window twice
-  golden vectors        2 tiers: g1 at 3 channels, g2 at 7
-  baseline vectors      4 tiers, max |diff| 0.000e+00
-  trailing window       3 tiers, worst 3.738e-10
-  dynamic threshold     2 tiers, worst eps 5.072e-06
-  derivative stream     2 tiers, worst 2.899e-07
-  flight configuration  2 tiers, both 3,200 steps: p1 at 3 channels and p2 at 1,
-                        fused score matched to 3.098e-06, 85 of 85 emissions
-                        exact on each
-  round trip            2 committed model.bin files re-emitted byte-identically
+```bash
+scripts/fprime_setup.sh                     # F' v4.3.0 into the gitignored fprime/lib/
+(cd fprime && source fprime-venv/bin/activate \
+   && fprime-util generate -f && fprime-util build -p ./SentinelRef)
 ```
 
-Tolerance is **1e-05** throughout.
+The retrainer, which is an experiment. **This assumes the F' block above has already been
+run.** `oxcaml_setup.sh` compiles a compiler: measured at **373.52 s** and **2.7 GiB** on
+disk on the development host, well inside its pre-registered ceiling.
 
-**(!) And what it does not prove here.** The forward pass has **seven** golden tiers and
-**two** run on this branch. The 12-channel tier `g3` and the four production-shaped `g4_*`
-tiers need weight files that are **deliberately committed nowhere** -- they regenerate
-exactly from a seed, and the generator lives in `scripts/`, which is not on this branch.
-`g3.vec` is here and its input is not, so that tier **skips silently**. You should know
-that rather than read seven where two ran. Everything the C++ port and D68 added does run
-here at full width.
+```bash
+scripts/oxcaml_setup.sh
+bash scripts/oxcaml_s61.sh                  # the object SentinelRetrain links
+(cd fprime && source fprime-venv/bin/activate \
+   && fprime-util build -p ./SentinelRetrain)
+```
 
-**`make -C flight lint` can fail, and could not until 2026-09-11.** The recipe ran
-clang-tidy, checked no exit status, and printed `lint: clean` unconditionally. It was
-reporting nine errors at the time, three of them in flight code. All nine are fixed and the
-recipe now carries `set -e`. Recorded because a gate you cannot watch fail is a gate you
-should not trust.
+What `make -C flight test` proves, on this branch:
 
-**(!) On a fresh clone, lint runs one configuration, not three.** The target runs
-`flight/.clang-tidy` always, and F's own two configurations **only if the F' checkout is
-present** -- `fprime/lib/fprime/` is gitignored and rebuilt by a script that is not on this
-branch. `docs/FPRIME.md` rebuilds the checkout with one command, and then all three run.
-
-**And until 2026-09-21 it still printed `lint: clean` when it had run one of the three.**
-The skip was announced, but announced *inside* a green result, which is the form nobody
-reads -- the same defect as the paragraph above, one level up. It now prints
-`lint: PARTIAL (N of 3 configs ran)`, names what it could not run and why, and **exits
-non-zero**; `LINT_ALLOW_PARTIAL=1` accepts a partial run, which is this branch's normal
-state, and still says PARTIAL. `clean` is printed only when all three ran and passed. Both
-defects are recorded here because **a gate you cannot watch fail is a gate you should not
-trust**, and this one had to be caught twice to make that concrete.
-
-**To build the F' component** you need the F' v4.3.0 toolchain; `docs/FPRIME.md` pins it and
-rebuilds it from nothing with one command.
-
-## (!) The retraining engine is an experiment, and nothing here depends on it
-
-This branch gained an F' component on 2026-09-15 that calls into a library written in
-**OxCaml**, Jane Street's branch of OCaml. It is named here rather than left to be found,
-because a curated branch that quietly acquires a garbage-collected runtime would be worse
-than an uncurated one.
-
-**What it is.** An investigation of whether a language whose compiler can *prove* a code
-path performs no allocation is a candidate for onboard model retraining. It began as a pipe
-computing a sum and a mean, to prove a chain -- compile, link, runtime startup, the C
-boundary, F' integration -- and it proved it. It now drives a **real float32 training cycle**
-at a fixed step budget, in **its own deployment and its own OS process**
-(`fprime/SentinelRetrain/`), a full cycle crosses from that process to this one over an F'
-hub with every tick delivered, and that process now **writes a candidate model file this
-branch's own loader accepts**. `docs/DESIGN.md` 9 says why the process must be separate, what
-is proven and what is not, with the case against OxCaml stated in the same passage.
-
-That candidate now also **reaches the ground over the file downlink** and a **commanded reload
-loads an approved model back into the running detector**, with the model it replaces restored
-if the new one is refused.
-
-**The candidate is not a replacement for the model this deployment flies**, and the reason is
-a shape mismatch rather than a bug: the training cycle is fixed at the configuration maxima
-and the reference deployment's model is narrower, so the writer refuses to put one
-architecture's weights into the other's container. `docs/DESIGN.md` 9 carries it.
-
-**What it is not.** Not adopted, not flown, not on any path the detector takes, and not
-exported: `fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so a mission
-adopting Sentinel does not inherit an OCaml runtime. **The detector's own binary carries no
-OCaml runtime at all**, and that is asserted by symbol on every test run rather than assumed,
-because the module links its object with PUBLIC linkage and one wiring mistake would put a
-garbage collector in the detector's process silently. **It has never run on flight hardware**,
-and the gate that would allow a retrained model to be *offered* for a swap is **not yet
-usable**.
-
-**And it does not change what you can build here.** `make -C flight test` and
-`make -C flight lint` are untouched and need no new tool. The module **skips itself with a
-message** if the OxCaml toolchain is absent, which on a fresh clone of this branch it always
-is, so the F' build is unaffected. Every claim about it, and the decision to try it at all,
-lives on `dev` in `docs/MODELS.md` 47 and `docs/DECISIONS.md` D70.
-
-## What is here
-
-| Path | What it holds |
+| Check | What it shows |
 |---|---|
-| `flight/` | **The C++ inference core.** GRU forward pass, telemanom's dynamic threshold, the trailing-standardised derivative stream, the `model.bin` reader, and the committed vectors. C++14, no exceptions, no RTTI, no STL containers, **no allocation after init**, `-Werror` |
-| `fprime/Sentinel/Monitor/` | **The F' component.** `Monitor.fpp`, its SDD and its unit tests |
-| `fprime/SentinelRef/` | The reference deployment that instantiates it, the topology, and **the physics testbed**: a simulated coupled power and thermal subsystem with declared limits, wired to the component's input port. Apparatus, not product -- `library.cmake` exports the Monitor and not this. **It also carries `Retrainer/`, an experiment and not a feature** -- see the note below -- and `ExampleAdapter/`, the forty-line Passive Adapter Pattern example a mission copies to wire its own channels in (`docs/DESIGN.md` 8) |
-| `fprime/SentinelRetrain/` | **The retraining engine's own deployment**, in its own OS process, and the only place an OCaml runtime exists. Experiment, not feature -- `docs/DESIGN.md` 9 |
-| `docs/DESIGN.md` | What the component does, the rule it flies, the five permanent safety rules, and the retraining experiment |
-| `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, and the caveats |
-| `docs/STATUS.md` | Where it is and what is next |
-| `docs/MODEL_FILE.md` | **Normative** for the loader. Where it and any implementation disagree, the document is right and the implementation is a defect |
-| `docs/FPRIME.md` | The F' v4.3.0 toolchain this is built against |
-| `docs/PI_ENVELOPE.md` | Whether it runs on small hardware -- **reserved, and deliberately empty** |
-| `docs/datasets/` | What the data is, its licences, and the caveats that would corrupt a result |
+| footprint | `sizeof(Detector)` checked by a test at run time, exactly 603,032 B |
+| refusals | 18 load cases, exercising all 12 refusal codes plus the accept path |
+| determinism | bit-identical within a process and across two |
+| vectors | every tier inside the tolerance the tests pin -- but of the **3** golden tiers the committed manifest describes, only **2** ship a model file here; that tier and the production-shaped ones regenerate from weights committed nowhere, and skip |
 
-**Read in this order:** this file, then `docs/EVIDENCE.md`, then `docs/DESIGN.md`, then
-`docs/STATUS.md`. **To adopt it into your own
-deployment, `docs/DESIGN.md` 8 is the recipe** -- four edits, no copied sources, and two committed `model.bin`
-files at `flight/test/vectors/p1.bin` and `p2.bin` you can load today. About fifteen minutes to the point where you can decide whether to keep
-reading.
+## Use it in your F' project
 
-## (!) What is not on this branch, and why
+`scripts/fprime_ref_patch.sh` performs exactly these four edits against F' v4.3.0's own
+`Ref` deployment, builds it, asserts `Sentinel::Monitor::schedIn_handler` is in the binary,
+and reverts. Nothing is copied.
 
-**Every omission is named.** A curated branch that quietly drops things is worse than an
-uncurated one, because a reader cannot tell what they are not seeing.
-
-| Absent | What it is | Why |
+| # | File | What the script adds |
 |---|---|---|
-| `src/` -- **in part** | **The ground toolkit and its import closure are HERE since D80**: `src/sentinel_toolkit/`, `src/sentinel_export/`, and the eight `src/sentinel_models/` and twelve `src/sentinel_eval/` modules they need. Absent: the scoring harness (`harness.py`, `scorecard.py`, `splits.py`, `ops.py`, `metrics/`), the detector registry and the baselines, and **all of `src/sentinel_data/`** | The absent half is the research apparatus. `src/sentinel_data/` is the R2 ingest package, and **D80 keeps it off this branch deliberately**: it holds the cloud client and the credential reader, and the toolkit reaches neither |
-| `scripts/` -- **in part** | **Six build scripts are HERE since D80**: `fprime_setup.sh` and `fprime_ref_patch.sh`, which this branch's own documents tell you to run, and `oxcaml_setup.sh`, `oxcaml_e1.sh`, `oxcaml_s61.sh` and `oxcaml_s72.sh`, which build the retrainer's object. Absent: the guards, the vector generators, and every study that produced a figure | The absent ones are development apparatus, not product |
-| `tests/` | The Python suite, which runs against `src/` | Runs against `src/`, which is not here |
-| `docs/MODELS.md` | Every pre-registration beside its outcome | The research record. Cited from here, resolves on `dev` |
-| `docs/DECISIONS.md` | Every decision with its alternatives and the evidence that settled it | The research record. **D69 removed it from this branch and it is kept whole on `dev`** -- `docs/EVIDENCE.md` cites the active entries by number |
-| `docs/NARRATIVE.md` | What happened in order, mistakes included | Same. The retractions bearing on the result are in `docs/EVIDENCE.md` |
-| `docs/HARNESS.md`, `docs/DATA.md`, `docs/RESEARCH.md`, `docs/THRESHOLD.md`, `docs/PHASE2.md`, `docs/PHASE5.md`, `docs/PHASE1_REPORT.md`, `docs/TELEMANOM_EXCERPTS.md`, `docs/REORG_PLAN.md`, `docs/INDEX.md` | The internal documents | Same |
-| `docs/RESULTS.md` | Every scored result, every sweep, and the tables the headline is read from | The research record. `docs/EVIDENCE.md` carries the result of record and its caveats |
-| `Objective.md` | What this project is for, its permanent rules and its four phase gates | The research record. `docs/DESIGN.md` states the rules that bind the component |
-| `CHANGELOG.md` | Version by version | Development history; `dev` has it |
-| `third_party/telemanom/` | The published source, vendored byte-identical at `2e6c5b6c` | Evidence for the research record. **This branch therefore does not redistribute it**, so BSD clauses 1 and 2 do not bind here -- clause 3 does, and is below |
-| `docs/manifest.snapshot.json`, `docs/reorg_plan.json` | Machine-readable companions to the research record: a reference snapshot of the data manifest, and the data behind `docs/REORG_PLAN.md` | The research record |
-| `.env.example`, `conftest.py`, `requirements.txt` | A credential template, pytest's collection scope, and the repository-wide dependency list | Development apparatus, not product. **`requirements.txt` is deliberately not here**: it installs `boto3`, `botocore`, `requests` and `python-dotenv` for the ingest apparatus, and a dependency list that installed a cloud client would contradict the row above. `requirements-toolkit.txt` is this branch's list -- `numpy`, `pyarrow`, `torch` |
+| 1 | `settings.ini` | `library_locations: ./path/to/fprime-DeepLearning-Sentinel/fprime` |
+| 2 | `Top/instances.fpp` | `instance sentinelMonitor: Sentinel.Monitor base id 0x20000000 queue size 10` |
+| 3 | `Top/topology.fpp` | `instance sentinelMonitor` in the instance list, and `rateGroup1Comp.RateGroupMemberOut[8] -> sentinelMonitor.schedIn` |
+| 4 | `Top/RefPackets.fppi` | `packet Sentinel id 100 group 2 { ... }` carrying the component's five telemetry channels |
+
+**Two more steps that the Ref proof does not need and your mission does.**
+
+First, in `configureTopology()`, give the component a model and a channel count:
+
+```cpp
+sentinelMonitor.configure("SentinelModel.bin", YOUR_CHANNEL_COUNT);
+(void)sentinelMonitor.loadModel();
+```
+
+Second, write the one piece that is yours: an **adapter** converting your typed telemetry
+into one `Sentinel.ChannelSample` per tick, on a `sync` port at a lower rate-group index than
+the detector's. Copy `fprime/SentinelRef/ExampleAdapter/` -- **176 lines across three files**,
+of which **65** are the implementation. `fprime/README.md` and `docs/DESIGN.md` 8 carry the
+recipe in full.
+
+- **A mission inherits the Monitor and the inference core and nothing else.**
+  `fprime/library.cmake` exports `Sentinel/Monitor` and `sentinel_core` -- not the testbed,
+  not the retrainer, not an OCaml runtime.
+- **Make the model with the ground toolkit**, from your own healthy telemetry:
+  `PYTHONPATH=src python -m sentinel_toolkit fit --telemetry healthy.npy --out SentinelModel.bin`.
+  `--telemetry` takes a **`.npy` array, 2-D and finite, one row per timestep and one column
+  per channel**, at most **16** channels -- the maximum the component is compiled for -- and
+  every row must be healthy, because the model learns what healthy looks like.
+- **Minimum data: 6,550 contiguous healthy timesteps.** Fewer is refused, and a refusal is
+  the correct output.
+- Two loadable examples sit at `flight/test/vectors/p1.bin` and `p2.bin`. A missing or
+  refused model is not fatal: the component degrades to its Level 1 statistical baseline,
+  names the refusal code in an event, and keeps ticking.
+
+## The retrainer
+
+**An EXPERIMENT, not a feature.** A frozen model goes stale over a ten-year mission.
+`SentinelRetrain` trains a candidate in **its own OS process**, downlinks it, and **a human
+approves it** before `RELOAD_MODEL` changes anything. Nothing the detector does depends on
+it.
+
+**Why OxCaml.** Training is thousands of lines of array arithmetic, where memory bugs live,
+and flight rules forbid allocation after init. Mark a function `[@zero_alloc strict]` and the
+build fails if anything in its call tree allocates: the rule becomes a compile error rather
+than a review item.
+
+**The case against, stronger on every row measured by anybody.** No flight heritage, no
+qualified compiler, no certification precedent for a garbage-collected runtime in flight;
+64-bit Linux and arm64 macOS only; no stability promise in its own documentation. **Rust's
+footprint is smaller**, with a qualified toolchain in Ferrocene and OPS-SAT heritage -- and
+**no Rust comparison has been built here**, so on that row this project is reasoning rather
+than measuring. Found rather than anticipated: the runtime's thread affinity is a deployment
+constraint unit-test evidence cannot show.
+
+**Its limits, all three:**
+
+- The gate that would let a retrained model be *offered* for a swap is **not a usable gate
+  yet**: one synthetic fixture, one seed, one drift shape (`docs/DESIGN.md` 9).
+- **Host-verified only, never run on flight hardware.** The capability register marks the
+  engine **HOST-VERIFIED PENDING TARGET** (E5), and two claims unverified: whether the
+  retrainer's process disturbs the detector's timing (C2), and whether the toolchain builds
+  for a flight target at all (C4).
+- It trains at the compile-time maxima, **75,360 parameters**, and `SentinelRef` flies a
+  narrower model, so **no candidate it builds can replace what that deployment flies**.
+
+**Building it from this branch is argued from the build files, not demonstrated** -- every
+path they reference is here, but no one has run them from a clean clone of this branch.
+
+**The detector's own binary carries no OCaml runtime.** That is asserted by reading the
+symbol table **whenever a `SentinelRef` binary has been built**; on a tree without one --
+which is a fresh clone, and this machine today -- **the check skips rather than passes**, and
+says so.
+
+## Status
+
+**Verified**
+
+- The C++ core against its committed vectors, bit-deterministic within a process and across
+  two. This runs on a fresh clone.
+- The F' component built and its unit tests passed **when last run**, before the build trees
+  were deleted on 2026-09-21. They need the F' toolchain and skip without it.
+- For the ground toolkit, **3 of its 3 acceptance-ladder rungs have run** on `dev` -- a
+  generated fixture, a single channel, and a real twelve-channel mission. **One mission, one
+  split.**
+- The retraining chain end to end, on a development host: candidate written, downlinked,
+  approved, reloaded.
+
+**Not yet verified**
+
+- The retrainer on flight hardware.
+- The sanity gate on data with seasonal structure.
+- A drift magnitude that is not a sensor doubling its output.
+
+**Owed**
+
+- One Raspberry Pi session, which covers four things at once: **E4**, whether the retrainer
+  builds and runs on the target; **Stage 41**, the flight envelope -- timing, memory and
+  determinism on that board; and **C2** and **C4** above.
+- Measurements on real mission data, for the gate and for a realistic drift.
+- A licence.
+
+**No early-warning claim is made about spacecraft telemetry** -- not "warns N minutes
+before", not any wall-clock figure. The only warning time measured is the testbed's above:
+a simulated plant and a fault this project designed, in ticks, fault-attributable only,
+transferring to no mission.
+
+## Documents
+
+| Document | What it holds |
+|---|---|
+| `docs/DESIGN.md` | What it does, the rule it flies, the five safety rules, the retraining experiment |
+| `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, the caveats |
+| `docs/STATUS.md` | Where it is and what is next |
+| `docs/FPRIME.md` | The F' v4.3.0 toolchain this is built against |
+| `docs/MODEL_FILE.md` | **Normative** for the loader; where it and an implementation disagree, the document is right |
+| `docs/OMISSIONS.md` | **Every path on `dev` that is not here, and why.** Every omission is named |
+| `docs/PI_ENVELOPE.md` | Small-hardware envelope -- reserved, deliberately empty |
+| `docs/datasets/` | The data, its licences, and the caveats that would corrupt a result |
+| `fprime/README.md`, the SDDs | The layout, the adoption recipe, each component's design |
+
+**Read in this order:** this file, `docs/EVIDENCE.md`, `docs/DESIGN.md`, `docs/STATUS.md`.
+
+## Not on this branch
+
+**Every omission is named**, in `docs/OMISSIONS.md` -- every path `dev` has and this branch
+does not, what it is, and why. A curated branch that quietly drops things is worse than an
+uncurated one, because a reader cannot tell what they are not seeing.
 
 ## Branches
 
-- **`dev`** carries the complete development history, decision by decision, with tags
-  `wi1`-`wi9` and their Releases. All work lands there and **it is never rewritten**.
-- **`master`** is this branch and **the repository default**: the component and the
-  evidence it works, taking a snapshot when something is done. A visitor arriving at this
-  repository lands here.
-- **(!) `main` was retired on 2026-09-14.** It was an earlier snapshot branch. Every commit
-  it held is reachable from this one -- `git rev-list master..main` was 0 before it went
-  -- and all nine tags were and remain on `dev`, so no commit and no Release was lost.
-  **A `/blob/main/...` link held outside this repository will now 404.** No such link
-  exists inside it; one held elsewhere cannot be searched for, so that risk is stated rather
-  than dismissed.
-- **Nothing is ever force-pushed, and no branch is ever rewritten.**
-
-**`dev` and this branch share no commit.** Different root commits, and `git merge-base`
-between them is empty. That is why the guard on `dev` compares trees rather than walking
-ancestry, and why every figure above names the `dev` commit it was derived from.
+`dev` carries the complete history with tags `wi1`-`wi9`; `master` is this branch and the
+default. **Neither is ever rewritten and nothing is force-pushed.** **They share no commit**
+(different root commits, `git merge-base` empty), which is why the guard on `dev` compares
+trees, not ancestry. **`main` was retired 2026-09-14** -- every commit it held is reachable
+from here, and a `/blob/main/...` link held elsewhere will 404. **Some commits on `dev` carry
+a personal email address in their authorship; no commit on this branch does.** Removing it
+from `dev` would invalidate every tag and Release for a cosmetic gain, so it is disclosed
+rather than rewritten.
 
 ## Licence
 
-**Not yet selected.** Intended for community release to the F' ecosystem. The repository is
-private until then.
-
-**(!) One obligation binds regardless of which licence is chosen.** The reference method is
-JPL's -- Hundman et al., KDD 2018 -- and its source is BSD 3-Clause (Caltech/JPL 2018),
-whose third clause reads, verbatim:
+**Not yet selected.** Intended for community release to the F' ecosystem. One obligation
+binds regardless -- telemanom is BSD 3-Clause (Caltech/JPL 2018), third clause verbatim:
 
 > *"Neither the name of Caltech nor its operating division, the Jet Propulsion Laboratory,
 > nor the names of its contributors may be used to endorse or promote products derived from
 > this software without specific prior written permission."*
 
-**No document in this repository presents this project as endorsed by, affiliated with, or
-produced by Caltech or the Jet Propulsion Laboratory.** Naming telemanom's authorship and
-citing the paper is description, not endorsement.
-
-ESA-ADB carries a separate attribution requirement -- **CC BY 3.0 IGO**, verified at the
-Zenodo record on 2026-09-11 (record `15237121`, version v2, published 2025-04-17).
-`docs/datasets/ESA_ADB.md` carries it.
-
-**Author email.** Some commits on `dev` carry a personal email address in their authorship.
-**No history is rewritten to remove it**, on this branch or any other: rewriting authorship
-would invalidate every existing tag, Release and commit citation for a cosmetic gain. It is
-disclosed here instead.
+**No document here presents this project as endorsed by, affiliated with, or produced by
+Caltech or JPL.** Naming telemanom's authorship and citing the paper is description, not
+endorsement. ESA-ADB carries a separate requirement, **CC BY 3.0 IGO**
+(`docs/datasets/ESA_ADB.md`).
 
 ## Citation
 
