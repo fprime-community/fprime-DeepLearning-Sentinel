@@ -46,7 +46,9 @@ MASTER = "master"
 #: document and differ from it by design; two exist only on `master`.
 CUSTOMER_DOCS = ("README.md", "docs/DESIGN.md", "docs/EVIDENCE.md", "docs/STATUS.md")
 CURATED_ON_MASTER = {"README.md", "docs/STATUS.md"}
-MASTER_ONLY = {"docs/DESIGN.md", "docs/EVIDENCE.md"}
+#: D81 adds the third: the omissions table, moved out of `README.md` so a
+#: first-time reader meets the product before the curation.
+MASTER_ONLY = {"docs/DESIGN.md", "docs/EVIDENCE.md", "docs/OMISSIONS.md"}
 
 
 def _git(*args: str) -> str:
@@ -742,7 +744,12 @@ def test_the_snapshot_commit_master_names_exists_and_is_accurate() -> None:
     commit holds. The previous public README named a commit two behind the branch,
     because a later commit ported two dataset files without moving it.
     """
-    match = re.search(r"points into dev at commit ([0-9a-f]{7,40})",
+    # (!) D81 reworded the blockquote this reads. It said "points into dev at
+    # commit X"; it now says "resolve on dev at commit X", which is plainer. The
+    # pattern follows the wording rather than the wording being held to the
+    # pattern -- but it stays specific enough to fail loudly if the pointer goes
+    # away, which is the one thing this test exists to catch.
+    match = re.search(r"resolve on dev at commit ([0-9a-f]{7,40})",
                       _on_master("README.md"))
     assert match, "master:README.md no longer names the dev commit it resolves at"
     cited = match.group(1)
