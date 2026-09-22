@@ -576,7 +576,7 @@ FIGURES = (
            r"is ([\d,]+) ticks and it is false", _testbed_naive_lead,
            "the naive lead, which is false"),
     Figure("adapter_code_lines/README", "README.md",
-           r"of which (\d+) are neither blank nor a comment", _adapter_code_lines,
+           r"and (\d+) are neither blank nor a comment", _adapter_code_lines,
            "the example adapter's code lines"),
 
     # ---- D81.1: `docs/EVIDENCE.md`'s own figures ----------------------------
