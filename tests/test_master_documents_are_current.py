@@ -316,6 +316,22 @@ def _adapter_lines() -> int:
     return sum(len(f.read_text(encoding="utf-8").splitlines()) for f in files)
 
 
+def _adapter_code_lines() -> int:
+    """(!) The count the prose has always meant by "about forty lines".
+
+    D81 called `master`'s "forty lines" wrong. Counting properly shows it was an
+    approximation of the IMPLEMENTATION'S CODE LINES, which is a fair reading:
+    `ChannelAdapter.cpp` is 65 lines and 46 of them are neither blank nor a
+    comment. D81.1 is the rider. Both figures are stated on `master` now, so
+    both are derived, and a reader meeting "65" in one file and "about forty" in
+    another can see they count different things.
+    """
+    impl = [f for f in _adapter_files() if f.suffix == ".cpp"]
+    assert len(impl) == 1, impl
+    return sum(1 for line in impl[0].read_text(encoding="utf-8").splitlines()
+               if line.strip() and not line.strip().startswith("//"))
+
+
 def _adapter_impl_lines() -> int:
     impl = [f for f in _adapter_files() if f.suffix == ".cpp"]
     assert len(impl) == 1, impl
@@ -558,6 +574,38 @@ FIGURES = (
            r"worst tick \| ([\d,]+) us", _testbed_worst_tick, "the testbed's worst tick"),
     Figure("testbed_naive_lead/README", "README.md",
            r"is ([\d,]+) ticks and it is false", _testbed_naive_lead,
+           "the naive lead, which is false"),
+    Figure("adapter_code_lines/README", "README.md",
+           r"of which (\d+) are neither blank nor a comment", _adapter_code_lines,
+           "the example adapter's code lines"),
+
+    # ---- D81.1: `docs/EVIDENCE.md`'s own figures ----------------------------
+    # D81's report listed these as stated-and-unguarded and recommended exactly
+    # this. Every one reuses a derive function D81 already added, so the cost is
+    # a row rather than a new source of truth.
+    Figure("all_caught/EVIDENCE", "docs/EVIDENCE.md",
+           r"scores (\d+) of \d+ across both halves", _all_caught,
+           "caught over both halves"),
+    Figure("all_total/EVIDENCE", "docs/EVIDENCE.md",
+           r"scores \d+ of (\d+) across both halves", _population,
+           "the scored population, in the all-38 sentence"),
+    Figure("rail_events/EVIDENCE", "docs/EVIDENCE.md",
+           r"(\d+) of the \d+ touch a rail exactly", _rail_events,
+           "events sitting on a rail"),
+    Figure("in_range_events/EVIDENCE", "docs/EVIDENCE.md",
+           r"\d+ of the (\d+) touch a rail exactly", _in_range_events,
+           "the in-range population"),
+    Figure("testbed_lead/EVIDENCE", "docs/EVIDENCE.md",
+           r"Lead, median of ten \| ([\d,.]+) timesteps", _testbed_lead_x10,
+           "the testbed's fault-attributable lead", scale=10),
+    Figure("testbed_false_alarms/EVIDENCE", "docs/EVIDENCE.md",
+           r"warmed healthy ticks = ([\d.]+)%", _testbed_false_alarms_x10000,
+           "the testbed's false-alarm rate", scale=10000),
+    Figure("testbed_worst_tick/EVIDENCE", "docs/EVIDENCE.md",
+           r"median 11 us, worst ([\d,]+) us", _testbed_worst_tick,
+           "the testbed's worst tick"),
+    Figure("testbed_naive_lead/EVIDENCE", "docs/EVIDENCE.md",
+           r"number is ([\d,]+) and it is false", _testbed_naive_lead,
            "the naive lead, which is false"),
 )
 

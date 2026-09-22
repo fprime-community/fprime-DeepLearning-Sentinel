@@ -14,6 +14,35 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.78] - 2026-09-21 - The sweep found nothing stale on master, and corrected two of D81's own claims
+
+**`docs/DECISIONS.md` D81.1, a rider.** D81 said `master` had been calling the example
+adapter "forty lines" and that `Sentinel.ChannelVector` was the wrong type. A sweep of every
+file on `master` for both, and for "asserted exactly", `static_assert` used of
+`sizeof(Detector)`, "90 minutes" and "12 GiB", found **no stale prose** -- and showed both
+claims were too strong.
+
+- **"About forty lines" was an approximation, not an error.** Every surviving instance ties
+  it to `ChannelAdapter.cpp`, which is 65 lines of which **46 are neither blank nor a
+  comment**. What was loose was the old README's phrasing, which attached "forty-line" to
+  the three-file `ExampleAdapter/` directory, and that is gone with the rewrite.
+- **`ChannelVector` is a real type and the prose using it is right.** It is the `F32` array
+  of channel values; `ChannelSample` is the port type that carries one. A mission converts
+  its telemetry into a `ChannelVector`, which travels in a `ChannelSample`. The README now
+  names both.
+- **Confirmed correct and unchanged:** `scripts/oxcaml_setup.sh`'s "under 90 min and under
+  12 GiB", which labels itself a pre-registered band; every `static_assert` on `master`,
+  none of which is about `sizeof(Detector)`; and `docs/EVIDENCE.md`'s **603,024**, which is
+  the object's size before a later commit added a `U32` member, in a sentence that narrates
+  the change to 603,032.
+
+**`docs/EVIDENCE.md`'s figures gain rows**, the route D81's report recommended. Eight rows,
+every one reusing a derive function D81 already added: the testbed's lead, false-alarm rate
+and worst tick, the naive lead that is false, the rail count and the in-range population,
+and the all-38 sentence's pair. **Figure rows 46 -> 55.**
+
+**Gates.** R2: **zero operations.**
+
 ## [0.6.77] - 2026-09-21 - master's README is rewritten, and guarding its figures found three that were wrong
 
 **`docs/DECISIONS.md` D81.** The public README was 268 lines of narrative that told its lint

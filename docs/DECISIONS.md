@@ -7043,3 +7043,46 @@ minutes.
 - **Keep the omissions table inline but compact.** See consequence 3.
 - **State figures without guarding them.** Rejected: it is the condition D69 exists to
   prevent, and this session found three wrong figures in prose that nothing re-derived.
+
+### D81.1 Rider, 2026-09-21: the sweep D81 asked for found no stale prose on `master`, and corrected two of D81's own claims
+
+**D81 is not edited.** It said `master` had been calling the example adapter "forty lines"
+and that `Sentinel.ChannelVector` was the wrong type. A sweep of every file on `master` for
+both -- and for "asserted exactly", `static_assert` used of `sizeof(Detector)`, "90 minutes"
+and "12 GiB" -- found **nothing stale**, and showed both claims were too strong.
+
+**1. "About forty lines" was an approximation, not an error.** Every surviving instance ties
+the figure to `ChannelAdapter.cpp` -- `fprime/SentinelRef/README.md`,
+`ExampleAdapter/ChannelAdapter.fpp` and `docs/DESIGN.md` 8 all do. That file is **65 lines,
+of which 46 are neither blank nor a comment**, so "about forty lines of C++" is a fair
+description of the code a mission writes. What was loose was the *old* README's phrasing,
+which attached "forty-line" to the `ExampleAdapter/` **directory** -- 176 lines across three
+files -- and that phrasing is gone with the rewrite. **D81's consequence 5 overstates this
+and the correct reading is here.** `_adapter_code_lines` now derives the 46, so `master`
+states all three counts and each is checked.
+
+**2. `ChannelVector` is a real type and the prose using it is right.**
+`Monitor.fpp:10` declares `array ChannelVector = [MAX_CHANNELS] F32`, and
+`ChannelSample` is the *port* type that carries one (`Monitor.fpp:29-32`:
+`ref values: ChannelVector, valid: bool`). So a mission does convert its telemetry into a
+`ChannelVector`, which travels in a `ChannelSample`; `docs/DESIGN.md` 8 and
+`fprime/README.md` describe the payload and are correct, and
+`ChannelAdapter.fpp:46`'s `output port channelOut: Sentinel.ChannelSample` describes the
+port. **D81's consequence 7 called the payload wording an error. It is not.** The README now
+names both, because naming one invites the reader to think the other does not exist.
+
+**3. The two figures the sweep confirmed correct, and why they are not changed.**
+`scripts/oxcaml_setup.sh:15` states "under 90 min wall clock and under 12 GiB" and labels it
+a **pre-registered band**, which is what it is; the measured cost is 47.9 X12's and the
+README carries it. Every `static_assert` on `master` is a real one, and none is about
+`sizeof(Detector)` -- that check is `checkEqualU32` in `flight/test/Footprint.cpp`, which is
+what D81 corrected. `docs/EVIDENCE.md`'s **603,024** is the object's size *before* a later
+commit added a `U32` member; the sentence narrates the change to 603,032 and is right.
+
+**4. `docs/EVIDENCE.md`'s figures gain rows.** D81's report listed them as owed and
+recommended it. Eight rows, every one reusing a derive function D81 already added: the
+testbed's lead, false-alarm rate and worst tick, the naive lead that is false, the rail
+count and the in-range population, and the all-38 sentence's pair. **55 rows in the
+register.** What is still unguarded there is recorded in the report rather than here: about
+thirty measured figures, most of them one seeded run's tick coordinates and the vector
+agreement table, each of which needs its own source read. **That is an audit, not a rider.**
