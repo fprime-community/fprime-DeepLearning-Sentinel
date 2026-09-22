@@ -96,6 +96,43 @@ def test_a_deliberately_allocating_function_still_fails_the_build() -> None:
             f"the committed fixture {FIXTURE.name} would now be stale:\n{live}")
 
 
+@pytest.mark.skipif(not SWITCH_OCAMLOPT.exists(),
+                    reason="no OxCaml switch; run scripts/oxcaml_setup.sh")
+def test_bounds_checking_and_strict_are_not_in_tension() -> None:
+    """(!) The measurement that decides what "safe" may be claimed.
+
+    The reasonable guess was that `[@zero_alloc strict]` forced the 559 unchecked
+    accesses: `strict` refuses a function whose paths reach an exceptional return,
+    and a checked access raises. `scripts/oxcaml_checked.sh` measures it instead of
+    guessing, and the guess is refuted -- every annotated module holds `strict`
+    against a bounds-checked accessor, because the bounds-failure path raises a
+    preallocated exception and does not allocate.
+
+    Both directions are in the script: the flight variant must hold `strict` at every
+    module (it substitutes nothing, so a failure there is a regression), and a
+    deliberate out-of-range read must be CAUGHT under the checked accessor and NOT
+    caught under the flight one.
+    """
+    script = ROOT / "scripts" / "oxcaml_checked.sh"
+    assert script.exists(), f"{script} is missing"
+    result = subprocess.run(["bash", str(script)], cwd=ROOT, capture_output=True,
+                            text=True, timeout=1800)
+    assert result.returncode == 0, (
+        f"the bounds-checked pass failed:\n{result.stdout[-4000:]}\n"
+        f"{result.stderr[-2000:]}")
+    out = result.stdout
+    assert "CAUGHT: index out of bounds" in out, (
+        "the checked accessor did not catch an out-of-range read, so it is not "
+        f"checking anything:\n{out[-2000:]}")
+    # And the flight accessor must NOT catch it -- otherwise the two variants are the
+    # same build and the comparison means nothing.
+    flight_line = next((ln for ln in out.splitlines() if ln.strip().startswith("flight")
+                        and "8-element" in ln), "")
+    assert flight_line and "CAUGHT" not in flight_line, (
+        "the flight accessor caught the out-of-range read too; the variants are not "
+        f"distinct and the measurement is vacuous: {flight_line!r}")
+
+
 def _rejection_log() -> str | None:
     """The log `oxcaml_e3.sh:33` writes, if the run left one behind."""
     log = ROOT / "oxcaml" / "_build" / "e3" / "probes" / "p_alloc.log"
