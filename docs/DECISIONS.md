@@ -7053,7 +7053,7 @@ and "12 GiB" -- found **nothing stale**, and showed both claims were too strong.
 
 **1. "About forty lines" was an approximation, not an error.** Every surviving instance ties
 the figure to `ChannelAdapter.cpp` -- `fprime/SentinelRef/README.md`,
-`ExampleAdapter/ChannelAdapter.fpp` and `docs/DESIGN.md` 8 all do. That file is **65 lines,
+`ExampleAdapter/ChannelAdapter.fpp` and `docs/DESIGN.md`'s adoption section all do. That file is **65 lines,
 of which 46 are neither blank nor a comment**, so "about forty lines of C++" is a fair
 description of the code a mission writes. What was loose was the *old* README's phrasing,
 which attached "forty-line" to the `ExampleAdapter/` **directory** -- 176 lines across three
@@ -7065,7 +7065,7 @@ states all three counts and each is checked.
 `Monitor.fpp:10` declares `array ChannelVector = [MAX_CHANNELS] F32`, and
 `ChannelSample` is the *port* type that carries one (`Monitor.fpp:29-32`:
 `ref values: ChannelVector, valid: bool`). So a mission does convert its telemetry into a
-`ChannelVector`, which travels in a `ChannelSample`; `docs/DESIGN.md` 8 and
+`ChannelVector`, which travels in a `ChannelSample`; `docs/DESIGN.md` and
 `fprime/README.md` describe the payload and are correct, and
 `ChannelAdapter.fpp:46`'s `output port channelOut: Sentinel.ChannelSample` describes the
 port. **D81's consequence 7 called the payload wording an error. It is not.** The README now
