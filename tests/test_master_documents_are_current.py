@@ -207,6 +207,31 @@ def _cycle_parameters() -> int:
     return int(re.search(r"^let n_params\s*=\s*(\d+)", text, re.M).group(1))
 
 
+def _symbol_guard_constant(name: str) -> int:
+    """A count pinned by `tests/test_detector_binary_has_no_ocaml_runtime.py`.
+
+    (!) `fprime/SentinelRetrain/README.md` is on `master` -- `fprime/` moves whole --
+    and states both symbol counts in prose. Until now nothing re-derived them, which
+    is D69's condition exactly, and 72.5 watched one of them drift **2,928 -> 3,019**
+    across four records and this very document while the guard, which asserted only
+    `> 100`, stayed green.
+
+    The guard now pins the numbers, so these rows read them from the guard rather
+    than restating them: one source of truth, and a build that moves the count fails
+    the guard first and these rows second.
+    """
+    text = _dev("tests/test_detector_binary_has_no_ocaml_runtime.py")
+    return int(re.search(rf"^{name}\s*=\s*(\d+)", text, re.M).group(1))
+
+
+def _retrainer_ocaml_symbols() -> int:
+    return _symbol_guard_constant("RETRAINER_OCAML_SYMBOLS")
+
+
+def _detector_ocaml_symbols() -> int:
+    return _symbol_guard_constant("DETECTOR_OCAML_SYMBOLS")
+
+
 def _stationary_vs_control_x10000() -> int:
     """How much WORSE the stationary candidate is than its control, x10000.
 
@@ -453,6 +478,17 @@ FIGURES = (
     Figure("ex1_margin/DESIGN", "docs/DESIGN.md",
            r"margin of ([\d.]+)x over the tolerance model",
            _ex1_margin_x100, "EX1's exhaustive gradient margin", scale=100),
+    # (!) Not a CUSTOMER_DOCS file, and that is the point. `fprime/` moves to
+    # `master` whole, so this README is on the public branch stating two figures
+    # nothing re-derived. 72.5 found one of them stale at six sites.
+    Figure("detector_ocaml_symbols/SENTINELRETRAIN_README",
+           "fprime/SentinelRetrain/README.md",
+           r"(\d+) OCaml symbols in SentinelRef's binary",
+           _detector_ocaml_symbols, "OCaml symbols in the detector's binary"),
+    Figure("retrainer_ocaml_symbols/SENTINELRETRAIN_README",
+           "fprime/SentinelRetrain/README.md",
+           r"OCaml symbols in SentinelRef's binary and ([\d,]+) in this one",
+           _retrainer_ocaml_symbols, "OCaml symbols in SentinelRetrain's binary"),
     Figure("refusal_codes/README", "README.md",
            r"exercising all (\d+) refusal codes",
            _refusal_codes, "refusal codes in Status.hpp"),

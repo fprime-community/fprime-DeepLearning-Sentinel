@@ -237,10 +237,29 @@ def test_the_core_compiles_against_fprime_types_when_the_checkout_is_present():
     fprime = ROOT / "fprime" / "lib" / "fprime"
     if not (fprime / "Fw" / "FPrimeBasicTypes.hpp").exists():
         pytest.skip("no F' checkout; run scripts/fprime_setup.sh")
-    builds = sorted((fprime / "TestDeploymentsProject").glob("build-fprime-automatic-*"))
-    generated = next((b for b in builds if (b / "F-Prime" / "default").is_dir()), None)
+
+    # (!) THIS PROJECT'S OWN BUILD CACHE FIRST, AND THE FRAMEWORK'S SAMPLE SECOND.
+    # The cache is here to supply config headers, and the two are not the same set.
+    # `TestDeploymentsProject` is a framework SAMPLE project: `fprime-util generate`
+    # leaves 51 files in its `F-Prime/default/config/`, all of them static, because
+    # the autocoded ones are produced by a BUILD it has never had. This project's own
+    # cache has 118, including `config/FwAssertArgTypeAliasAc.h`, which `Fw/Types`
+    # includes -- so reading the sample made this test fail on a missing header the
+    # moment it stopped skipping. It is also the wrong configuration to judge by:
+    # the claim is that the core compiles against F' types AS THIS PROJECT CONFIGURES
+    # THEM, and `fprime/build-fprime-automatic-native` is that configuration.
+    candidates = [
+        *sorted((ROOT / "fprime").glob("build-fprime-automatic-*")),
+        *sorted((fprime / "TestDeploymentsProject").glob("build-fprime-automatic-*")),
+    ]
+    generated = next(
+        (b for b in candidates
+         if (b / "F-Prime" / "default" / "config" / "FwAssertArgTypeAliasAc.h").exists()),
+        None)
     if generated is None:
-        pytest.skip("no generated F' build cache to supply config headers")
+        pytest.skip("no built F' cache to supply autocoded config headers; "
+                    "run fprime-util generate -f && fprime-util build -p ./SentinelRef "
+                    "in fprime/")
 
     compiler = shutil.which("clang++") or shutil.which("g++")
     flags = ["-std=c++14", "-fno-exceptions", "-fno-rtti", "-ffp-contract=off",

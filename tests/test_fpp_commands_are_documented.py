@@ -31,7 +31,10 @@ Three checks, and the third is why the first two can be believed:
 
 A component with no sdd document has nothing that can go stale and is not checked; the
 `Top/` topology files declare no commands and fall out of the walk for the same reason.
-`fprime/lib/` is the gitignored framework checkout and is never walked.
+`fprime/lib/` is the gitignored framework checkout and is never walked, and neither
+is `fprime/fprime-venv/` -- **which this file claimed and did not do until
+2026-09-22**. Both are rebuilt by `scripts/fprime_setup.sh`, both are gitignored, and
+the exclusion now names both, as `conftest.py` already did. See `NOT_OURS`.
 """
 from __future__ import annotations
 
@@ -58,11 +61,24 @@ DENIALS = (
 )
 
 
+#: (!) BOTH gitignored subtrees, named exactly as `conftest.py` excludes them from
+#: collection -- and the second was missing, which made this file's own docstring
+#: false. `fprime/lib/` is the framework checkout; `fprime/fprime-venv/` is the tool
+#: virtualenv, and it ships F's cookiecutter component template at
+#: `lib/python3.14/site-packages/fprime/cookiecutter_templates/`, whose `.fpp`
+#: declares `TODO`, `TODO_1` and `TODO_2`. The old test read the FIRST path part
+#: only, so `("lib",)` was excluded and `("fprime-venv", "lib", ...)` was not: this
+#: walk reported three undocumented commands in a component that does not exist.
+#: It could only ever fire on a machine that had run `scripts/fprime_setup.sh`,
+#: which is why it passed for as long as the checkout was absent.
+NOT_OURS = ("lib", "fprime-venv")
+
+
 def _components(root: pathlib.Path):
     """Every `.fpp` under `root` declaring a command, with its component's sdd path."""
     out = []
     for fpp in sorted(root.rglob("*.fpp")):
-        if "lib" in fpp.relative_to(root).parts[:1]:
+        if fpp.relative_to(root).parts[0] in NOT_OURS:
             continue
         names = COMMAND.findall(fpp.read_text(encoding="utf-8", errors="replace"))
         if names:
