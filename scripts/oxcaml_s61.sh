@@ -66,10 +66,23 @@ fi
 
 echo
 echo "-- FC6: Retrainer must stay uninstanced"
-if grep -rqi retrainer "${ROOT}/fprime/SentinelRef/Top/"; then
+# (!) THE CHECK IS AN INSTANCING, NOT THE WORD, AND THE DIFFERENCE COST A BUILD.
+# This read `grep -rqi retrainer`, which claimed "the Retrainer is not instanced"
+# but tested "the word does not appear in Top/". The two parted company the
+# moment the hub arrangement was documented: three comments in `topology.fpp`
+# and `instances.fpp` name the retrainer to say which side connects, so FC6
+# failed a deployment that instances nothing of the kind -- and took the
+# `-output-complete-obj` build below down with it, because the script exits here.
+# A guard's scope is part of its claim, so this matches an FPP instancing --
+# `instance retrainer`, or the `Retrain.Retrainer` type -- and nothing else.
+# 61.5a narrowed stop 32 to permit the separate deployment; this is that
+# narrowing enforced rather than remembered. It still exits 1 on a real
+# instancing: `fprime/SentinelRetrain/Top/` matches both alternatives.
+if grep -rqE '^[[:space:]]*instance[[:space:]]+retrainer\b|Retrain\.Retrainer' \
+        "${ROOT}/fprime/SentinelRef/Top/"; then
     echo "   (!) INSTANCED -- stop 32."; exit 1
 else
-    echo "   uninstanced: no reference to Retrainer anywhere in Top/"
+    echo "   uninstanced: no Retrainer instance and no Retrain.Retrainer in Top/"
 fi
 
 echo

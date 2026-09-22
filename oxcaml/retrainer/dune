@@ -5,9 +5,21 @@
 ; CAMLprim, not ctypes: every crossing is a reviewable piece of source rather than a
 ; generated one, which is the argument `flight/` already makes for being a hand-written
 ; transcription held to a reference (`docs/MODELS.md` 47.6).
+;
+; (!) `(modules retrainer)` IS LOAD-BEARING, AND ITS ABSENCE BROKE THIS BUILD.
+; Without it dune takes EVERY `.ml` beside this file into the archive -- the
+; whole Stage 48-72 ladder, which is driver and evidence code, not the pipe.
+; It stayed invisible while every ladder module happened to compile with no
+; library beyond the stdlib, and stopped being invisible at Stage 63:
+; `zalloc_u.ml` reaches `Stdlib_upstream_compatible.Float_u`, which the ladder
+; builds with `-I +stdlib_upstream_compatible` (`scripts/oxcaml_s63.sh:30`) and
+; this stanza never declared, so `scripts/oxcaml_e1.sh` failed with
+; "Unbound module Stdlib_upstream_compatible" in a file E1 does not use.
+; Naming the one module the archive is for restores the first line's claim.
 (library
  (name retrainer)
  (modes native)
+ (modules retrainer)
  (foreign_stubs
   (language c)
   (names retrainer_stubs)))
