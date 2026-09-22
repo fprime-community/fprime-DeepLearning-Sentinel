@@ -14,6 +14,61 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.77] - 2026-09-21 - master's README is rewritten, and guarding its figures found three that were wrong
+
+**`docs/DECISIONS.md` D81.** The public README was 268 lines of narrative that told its lint
+story twice, carried the omissions table inline, and stated four guarded figures while
+omitting the project's own headline result. It is now a first-time reader's order -- the
+problem, the result, how it works, what is here, how to run it, how to adopt it, the
+retrainer, status -- with tables and commands instead of prose, and a contents list.
+
+**Both headline results are stated rather than referred to**: the detection table (17 of 19
+against the frozen rule's 4 of 19, at a matched 0.6820%) and the testbed's warning time
+(median fault-attributable lead 9,774.5 ticks, 0.1608% false alarms, worst tick 326 us),
+each with its caveats in the same block -- in ticks, only the fault-attributable lead, and
+ten runs sharing one plant and one fault.
+
+**The omissions table moves to `docs/OMISSIONS.md`**, with a one-line pointer in the README.
+The claim moved with it, so `tests/test_master_omissions_are_all_named.py` follows: a guard
+reading the wrong file is a guard reading nothing.
+
+### (!) Guarding the figures found three that were wrong
+
+- **`sizeof(Detector)` was "asserted exactly"**, which reads as a `static_assert`. The check
+  is `checkEqualU32` in `flight/test/Footprint.cpp` and runs when that binary runs. The value
+  was always right; the characterisation was not.
+- **The example adapter was "forty lines"** for weeks. It is **176 across three files**, of
+  which 65 are the implementation. Nothing counted it, so nothing caught it. Counted from
+  the files now.
+- **The OxCaml switch's install was quoted as its pre-registered ceiling** -- under 90
+  minutes, under 12 GiB -- as though that were the cost. 47.9 X12 measured **373.52 s and
+  2.7 GiB**. Budgeting ninety minutes for a six-minute build errs in the safe direction and
+  is still wrong.
+
+### And two claims that were false as written
+
+- "The detector's binary carries no OCaml runtime, **asserted by symbol on every test run**"
+  -- the guard **skips** when no `SentinelRef` binary is built, which is a fresh clone's
+  state. Now stated as skipping.
+- **The adoption recipe's fourth edit was wrong.** `scripts/fprime_ref_patch.sh` reverts four
+  files and the fourth is `Top/RefPackets.fppi`, the telemetry packet -- not
+  `configureTopology()`, which is a step a mission needs and the Ref proof does not. The
+  table is the script's four edits; the mission's two extra steps follow it. The adapter's
+  output type is `Sentinel.ChannelSample`, not `ChannelVector`.
+
+**`master` now states the toolkit's input contract** -- a `.npy` array, 2-D and finite, one
+row per timestep, one column per channel, at most `MAX_CHANNELS`, every row healthy -- and
+the command that makes the model. A branch that ships a model-maker and does not say what it
+eats is not usable.
+
+**Figure rows 25 -> 46**, of which 25 read the README against eleven new derive functions.
+Two figures were dropped rather than stated, because guarding them was not worth the
+coupling; one for want of a cheap source. **Every number the README states is now either
+derived from source, a structural label, a citation identifier, a date, or the illustrative
+example in the opening paragraph.**
+
+**Gates.** R2: **zero operations.**
+
 ## [0.6.76] - 2026-09-21 - The retrainer and the ground toolkit move onto master, and the toolkit's closure is cut free of the cloud client first
 
 **`docs/DECISIONS.md` D80.** The owner ruled that `oxcaml/` moves onto `master`: the

@@ -23,6 +23,8 @@ another document's prose, which is how a figure travels while staying wrong.
 from __future__ import annotations
 
 import os
+import json
+import pathlib
 import re
 import subprocess
 import sys
@@ -269,12 +271,143 @@ class Figure:
     scale: int = 1
 
 
+# ----------------------------------------------------------------------------
+# D81: the public README states more figures than it used to, and every one of
+# them is derived here. A figure a customer document states and nothing
+# re-derives is the condition D69 was written about.
+# ----------------------------------------------------------------------------
+
+def _all_caught() -> int:
+    """Both halves together. NOT the headline -- it includes the tuning half."""
+    return _d65_row("arm 2: residual + derivative")[5]
+
+
+def _rail_row() -> tuple[int, int]:
+    """D46.1's count: how many in-range events sit exactly ON a training rail.
+
+    The README says "at or within", never "strictly inside", and this is the
+    figure that makes the distinction load-bearing.
+    """
+    m = re.search(r"touching a rail EXACTLY \(margin 0\.0\)\s+(\d+) of (\d+)",
+                  _dev("docs/DECISIONS.md"))
+    assert m, "D46.1's rail count is no longer in the form this guard reads"
+    return int(m.group(1)), int(m.group(2))
+
+
+def _rail_events() -> int:
+    return _rail_row()[0]
+
+
+def _in_range_events() -> int:
+    return _rail_row()[1]
+
+
+def _adapter_files() -> list[pathlib.Path]:
+    return sorted((ROOT / "fprime" / "SentinelRef" / "ExampleAdapter").glob("ChannelAdapter.*"))
+
+
+def _adapter_lines() -> int:
+    """(!) COUNTED, not remembered. `master` called this adapter "forty lines"
+    for weeks while it was three files and 176, because nothing counted it."""
+    files = _adapter_files()
+    assert len(files) == 3, f"ExampleAdapter is {len(files)} files, not three"
+    return sum(len(f.read_text(encoding="utf-8").splitlines()) for f in files)
+
+
+def _adapter_impl_lines() -> int:
+    impl = [f for f in _adapter_files() if f.suffix == ".cpp"]
+    assert len(impl) == 1, impl
+    return len(impl[0].read_text(encoding="utf-8").splitlines())
+
+
+def _golden_manifest() -> list[dict]:
+    return json.loads(_dev("flight/test/vectors/manifest.json"))
+
+
+def _golden_tiers() -> int:
+    return len(_golden_manifest())
+
+
+def _golden_tiers_shipped() -> int:
+    """How many of them a fresh clone can actually run: the ones whose model
+    file is committed. The rest regenerate from a seed, and skip."""
+    tracked = set(_git("ls-tree", "-r", "--name-only", "dev",
+                       "--", "flight/test/vectors").split())
+    return sum(1 for t in _golden_manifest()
+               if f"flight/test/vectors/{t['tier']}.bin" in tracked)
+
+
+def _x12_row() -> tuple[float, float]:
+    """47.9 X12's MEASURED install cost, not its pre-registered ceiling.
+
+    The README quoted the ceiling -- under 90 minutes, under 12 GiB -- as though
+    it were the cost. It measured 373.52 s and 2.7 GiB, about fifteen times
+    cheaper, and telling a reader to budget 90 minutes for a six-minute build is
+    a figure that misleads in the safe direction and is still wrong.
+    """
+    text = _dev("docs/MODELS.md")
+    m = re.search(r"\*\*([\d.]+) s = \d+ min [\d ]*s?\*\* wall clock", text)
+    assert m, "X12's measured wall clock is no longer in the form this guard reads"
+    g = re.search(r"peak RSS [\d.]+ GiB, \*\*([\d.]+) GiB\*\* on disk", text)
+    assert g, "X12's measured disk figure is no longer in the form this guard reads"
+    return float(m.group(1)), float(g.group(1))
+
+
+def _install_seconds_x100() -> int:
+    return int(round(_x12_row()[0] * 100))
+
+
+def _install_disk_gib_x10() -> int:
+    return int(round(_x12_row()[1] * 10))
+
+
+def _toolkit_floor() -> int:
+    """42.3 departure 2's floor, from the three toolkit files that produce it.
+
+    `fit.py` warms up for `window + FLIGHT_ERROR_WINDOW`; `validate.py` refuses
+    unless BOTH halves of what remains reach that span, so the calibration term
+    is twice it. A handover carried 6,650 and named 6,550 as the error; it is
+    the other way round, and 6,650 is a different quantity (D80).
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "src"))
+    from sentinel_toolkit.fit import FLOWN
+    from sentinel_toolkit.limits import FLIGHT_ERROR_WINDOW as SPAN
+    return (FLOWN["window"] + SPAN) + 2 * SPAN
+
+
+def _testbed_42_9(pattern: str) -> str:
+    m = re.search(pattern, _dev("docs/MODELS.md"))
+    assert m, f"42.9's observed table no longer carries {pattern!r}"
+    return m.group(1).replace(",", "")
+
+
+def _testbed_lead_x10() -> int:
+    return int(round(float(_testbed_42_9(r"median lead \*\*([\d,.]+) ticks\*\*")) * 10))
+
+
+def _testbed_false_alarms_x10000() -> int:
+    return int(round(float(_testbed_42_9(r"warmed healthy ticks = ([\d.]+)%")) * 10000))
+
+
+def _testbed_worst_tick() -> int:
+    return int(_testbed_42_9(r"worst (\d+) us\*\*"))
+
+
+def _testbed_naive_lead() -> int:
+    return int(_testbed_42_9(
+        r"naive first warning, seed 1\s+lead \+([\d,]+) ticks\s+FALSE"))
+
 #: What the customer documents state, and what produces each answer. **A figure
 #: not in this tuple is a figure nothing checks**, which is the condition D69 was
 #: written about -- so adding a number to a customer document means adding a row.
 FIGURES = (
+    # (!) D81 reworded this. It was "asserted exactly", which read as a
+    # static_assert; the check is `checkEqualU32` in `flight/test/Footprint.cpp`
+    # and runs when the Footprint binary does. The figure is right and was
+    # always right; the characterisation was not.
     Figure("detector_bytes/README", "README.md",
-           r"sizeof\(Detector\) asserted exactly, ([\d,]+) B",
+           r"sizeof\(Detector\) checked by a test at run time, exactly ([\d,]+) B",
            _detector_bytes, "sizeof(Detector)"),
     Figure("detector_bytes/DESIGN", "docs/DESIGN.md",
            r"sizeof\(Detector\) is ([\d,]+) B",
@@ -365,11 +498,65 @@ FIGURES = (
     Figure("toolkit_rungs/EVIDENCE", "docs/EVIDENCE.md",
            r"(\d+) of its \d+ acceptance-ladder rungs have run",
            _toolkit_rungs_built, "acceptance-ladder rungs that run"),
-    # A SECOND occurrence in `README.md`, so it needs its own pattern: `_on_master`
-    # searches with `re.search`, which returns the first match and would never
-    # reach this one. Anchored on the absent-paths table's own wording -- and
-    # WITHOUT the `**` that surrounds the figure in the source, because
-    # `_flattened` strips emphasis before any pattern sees it.
+    # ---- D81: the public README's own figures -------------------------------
+    Figure("eval_caught/README", "README.md",
+           r"first derivative\) \| (\d+) of \d+", _eval_caught, "EVAL caught"),
+    Figure("eval_total/README", "README.md",
+           r"first derivative\) \| \d+ of (\d+)", _eval_total, "EVAL denominator"),
+    Figure("frozen_eval/README", "README.md",
+           r"published rule \(frozen\) \| (\d+) of \d+", _frozen_eval,
+           "what the frozen rule caught"),
+    Figure("alarm_rate/README", "README.md",
+           r"published rule \(frozen\) \| \d+ of \d+ \| ([\d.]+)%",
+           _alarm_rate_x10000, "the matched alarm rate", scale=10000),
+    Figure("all_caught/README", "README.md",
+           r"this arm catches (\d+) of \d+", _all_caught, "caught over both halves"),
+    Figure("population/README", "README.md",
+           r"this arm catches \d+ of (\d+)", _population, "the scored population"),
+    Figure("rail_events/README", "README.md",
+           r"not \"strictly inside\": (\d+) of the \d+ sit exactly on a training-range rail",
+           _rail_events, "events sitting on a rail"),
+    Figure("in_range_events/README", "README.md",
+           r"not \"strictly inside\": \d+ of the (\d+) sit exactly on a training-range rail",
+           _in_range_events, "the in-range population"),
+    Figure("cycle_parameters/README", "README.md",
+           r"at the compile-time maxima, ([\d,]+) parameters", _cycle_parameters,
+           "the retraining cycle's parameter count"),
+    Figure("toolkit_floor/README", "README.md",
+           r"Minimum data: ([\d,]+) contiguous healthy timesteps", _toolkit_floor,
+           "the toolkit's data floor"),
+    Figure("max_channels/README", "README.md",
+           r"at most (\d+) channels -- the maximum the component is compiled for",
+           _max_channels, "the compiled channel maximum"),
+    Figure("adapter_lines/README", "README.md",
+           r"([\d,]+) lines across three files", _adapter_lines,
+           "the example adapter's size"),
+    Figure("adapter_impl_lines/README", "README.md",
+           r"lines across three files, of which (\d+) are the implementation",
+           _adapter_impl_lines, "the example adapter's implementation size"),
+    Figure("golden_tiers/README", "README.md",
+           r"of the (\d+) golden tiers the committed manifest describes", _golden_tiers,
+           "golden tiers in the committed manifest"),
+    Figure("golden_tiers_shipped/README", "README.md",
+           r"committed manifest describes, only (\d+) ship a model file",
+           _golden_tiers_shipped, "golden tiers a fresh clone can run"),
+    Figure("install_seconds/README", "README.md",
+           r"measured at ([\d.]+) s and", _install_seconds_x100,
+           "the OxCaml switch's measured build time", scale=100),
+    Figure("install_disk_gib/README", "README.md",
+           r"measured at [\d.]+ s and ([\d.]+) GiB on disk", _install_disk_gib_x10,
+           "the OxCaml switch's measured disk cost", scale=10),
+    Figure("testbed_lead/README", "README.md",
+           r"median fault-attributable lead \| ([\d,.]+) ticks", _testbed_lead_x10,
+           "the testbed's fault-attributable lead", scale=10),
+    Figure("testbed_false_alarms/README", "README.md",
+           r"false alarms \| ([\d.]+)% of warmed healthy ticks",
+           _testbed_false_alarms_x10000, "the testbed's false-alarm rate", scale=10000),
+    Figure("testbed_worst_tick/README", "README.md",
+           r"worst tick \| ([\d,]+) us", _testbed_worst_tick, "the testbed's worst tick"),
+    Figure("testbed_naive_lead/README", "README.md",
+           r"is ([\d,]+) ticks and it is false", _testbed_naive_lead,
+           "the naive lead, which is false"),
 )
 
 #: (!) The debt register, and it is EMPTY, which it has not been before.

@@ -125,7 +125,7 @@ first failed build.
 ## Building
 
 ```
-source fprime-venv/bin/activate      # created by scripts/fprime_setup.sh, on dev
+source fprime-venv/bin/activate      # created by scripts/fprime_setup.sh
 fprime-util generate -f
 fprime-util build -p ./SentinelRef
 fprime-util build -p ./SentinelRetrain

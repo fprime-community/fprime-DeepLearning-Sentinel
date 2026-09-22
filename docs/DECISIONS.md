@@ -106,6 +106,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D78 Part (i) of the sanity criterion compares the candidate against a CONTROL SHADOW, not against the flying model. Supersedes D74.4's part (i)](#d78-part-i-of-the-sanity-criterion-compares-the-candidate-against-a-control-shadow-not-against-the-flying-model-supersedes-d744s-part-i)
 - [D79 A build-dependent gate SKIPS loudly and never inside a green pass. `check_references` skips a citation into an absent `fprime/lib/`; `make -C flight lint` reports PARTIAL and exits non-zero](#d79-a-build-dependent-gate-skips-loudly-and-never-inside-a-green-pass-check-references-skips-a-citation-into-an-absent-fprimelib-make--c-flight-lint-reports-partial-and-exits-non-zero)
 - [D80 `oxcaml/` and the ground toolkit move onto `master`. The toolkit's import closure is cut free of `sentinel_data` first, so no cloud client or credential reader travels with it](#d80-oxcaml-and-the-ground-toolkit-move-onto-master-the-toolkits-import-closure-is-cut-free-of-sentinel-data-first-so-no-cloud-client-or-credential-reader-travels-with-it)
+- [D81 `master`'s README is rewritten for a first-time reader, the omissions table moves to `docs/OMISSIONS.md`, and every figure the README states gains a Figure row](#d81-masters-readme-is-rewritten-for-a-first-time-reader-the-omissions-table-moves-to-docsomissionsmd-and-every-figure-the-readme-states-gains-a-figure-row)
 
 <!-- /toc -->
 
@@ -6957,3 +6958,88 @@ only use of its import in the file:
 - **Edit `sentinel_data` instead -- strip the credential reader.** Rejected: it is the
   ingest apparatus doing exactly its job, and the defect was the harness's import, not
   `sentinel_data`'s existence.
+
+## D81. `master`'s README is rewritten for a first-time reader, the omissions table moves to `docs/OMISSIONS.md`, and every figure the README states gains a Figure row
+
+**DATE** 2026-09-21 | **STATUS** resolved by the owner, who set the priorities and approved
+the text. It changes no result, no figure and no flown rule; it changes what a visitor reads
+first and what the figure guard covers. **`Objective.md` is not edited.**
+
+**WHY IT IS A DECISION.** Two things in it are conventions rather than prose. The omissions
+table moved out of `README.md`, and **the claim moved with it**, so
+`tests/test_master_omissions_are_all_named.py` had to follow -- a guard reading the wrong
+file is a guard reading nothing. And the README now states twenty-five figures where it
+stated four, which is a fivefold increase in what D69's figure guard has to cover.
+
+**CONTEXT.** The README was 268 lines of narrative that told its lint story twice at length,
+carried the omissions table inline, and stated four guarded figures while omitting the
+project's own headline result. A visitor could not learn what Sentinel achieved in two
+minutes.
+
+**CONSEQUENCES.**
+
+1. **The structure is a first-time reader's order**: the problem, the result, how it works,
+   what is here, how to run it, how to adopt it, the retrainer, status, documents. Tables
+   and commands rather than prose wherever the content is a list of facts. A contents list,
+   because the file is long enough to need one.
+
+2. **Both headline results are stated rather than referred to** -- the detection table and
+   the testbed's warning time -- each with its caveats in the same block. The testbed's
+   three figures and the naive lead that is false are now guarded, deriving from 42.9's
+   observed table.
+
+3. **`docs/OMISSIONS.md` carries the omissions table**, with a one-line pointer in the
+   README and a row in its document table. "Every omission is named" is asserted of the new
+   location. The alternative -- keeping a compact table inline -- was rejected because the
+   table is the one section that grows every time the branches diverge, and it is reference
+   material a first-time reader does not need.
+
+4. **Twenty-five README figures, twenty-five Figure rows**, 46 in the register. Eleven
+   derive functions are new. Two figures were **dropped rather than stated**, because
+   guarding them was not worth the coupling: the worst tick as a percentage of the period,
+   and the vector tolerance. One was dropped for want of a cheap source: the count of
+   labelled contextual anomalies before the in-range filter.
+
+5. **Three figures were WRONG and are corrected by this entry.**
+   - `sizeof(Detector)` was "asserted exactly", which reads as a `static_assert`. The check
+     is `checkEqualU32` in `flight/test/Footprint.cpp` and runs when that binary runs. The
+     value was always right; the characterisation was not.
+   - The example adapter was "forty lines" for weeks. It is **176 across three files**, of
+     which 65 are the implementation. Nothing counted it, so nothing caught it. It is
+     counted from the files now.
+   - The OxCaml switch's install was quoted as its **pre-registered ceiling** -- under 90
+     minutes, under 12 GiB -- as though that were the cost. 47.9 X12 measured **373.52 s and
+     2.7 GiB**. Telling a reader to budget ninety minutes for a six-minute build is a figure
+     that errs in the safe direction and is still wrong.
+
+6. **Two claims were false as written and are now true.**
+   - "The detector's binary carries no OCaml runtime, asserted by symbol on every test run"
+     -- the guard **skips** when no `SentinelRef` binary is built, which is a fresh clone's
+     state and this machine's. Now stated as skipping.
+   - The adoption recipe's fourth edit was `configureTopology()`. `scripts/fprime_ref_patch.sh`
+     reverts four files and the fourth is `Top/RefPackets.fppi`, the telemetry packet;
+     `configure`/`loadModel` is a step a mission needs and the Ref proof does not. The table
+     is the script's four edits; the mission's two extra steps follow it.
+
+7. **The adapter's output type is `Sentinel.ChannelSample`.** The draft said
+   `ChannelVector`, which is the type the sample carries, not the port's type
+   (`ChannelAdapter.fpp:46`).
+
+8. **Internal codes are glossed where a visitor meets them** -- E4, E5, C2, C4 and Stage 41
+   keep their labels and gain a few words saying what each is. "Work item 10" is replaced by
+   what it did.
+
+9. **`master` now carries the toolkit's input contract**: a `.npy` array, two-dimensional
+   and finite, one row per timestep and one column per channel, at most `MAX_CHANNELS`, every
+   row healthy. A branch that ships a model-maker and does not say what it eats is not
+   usable.
+
+**ALTERNATIVES.**
+
+- **Halve the word count**, which the first instruction asked for. Measured against the
+  mandated structure it could not be done without dropping a caveat or a command, and the
+  owner dropped the target rather than the content. The README is longer than the first
+  draft and more accurate.
+- **Keep the omissions table inline but compact.** See consequence 3.
+- **State figures without guarding them.** Rejected: it is the condition D69 exists to
+  prevent, and this session found three wrong figures in prose that nothing re-derived.

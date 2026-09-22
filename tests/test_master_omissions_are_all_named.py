@@ -1,6 +1,6 @@
 """(!) `master`'s omissions table says "Every omission is named." It did not name six.
 
-`master:README.md` opens its omissions table with:
+`master:docs/OMISSIONS.md` opens with:
 
     **Every omission is named.** A curated branch that quietly drops things is worse
     than an uncurated one, because a reader cannot tell what they are not seeing.
@@ -35,10 +35,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: The heading the omissions table lives under, matched loosely so a reworded
-#: heading does not silently turn this test into a no-op -- if the section cannot
-#: be found at all, the test fails rather than passing over an empty table.
-SECTION = re.compile(r"^##+ .*not on this branch.*$", re.MULTILINE | re.IGNORECASE)
+#: (!) D81 moved the table out of `master:README.md` into its own document. The
+#: README carries a one-line pointer instead, and the claim -- "every omission is
+#: named" -- moved with the table, so this guard follows it. The whole document
+#: IS the table now, so there is no section to find; what is asserted instead is
+#: that the document exists and still makes the claim.
+OMISSIONS = "docs/OMISSIONS.md"
 
 
 def _git(*args: str) -> str:
@@ -51,13 +53,11 @@ def _tracked(ref: str) -> set[str]:
     return {line for line in _git("ls-tree", "-r", "--name-only", ref).splitlines() if line}
 
 
-def _omissions_table(readme: str) -> str:
-    found = SECTION.search(readme)
-    assert found, ("master:README.md has no 'what is not on this branch' section; "
-                   "the omissions table is what this test guards")
-    rest = readme[found.end():]
-    nxt = re.search(r"^##+ ", rest, re.MULTILINE)
-    return rest[: nxt.start()] if nxt else rest
+def _omissions_table(document: str) -> str:
+    assert "|" in document, (
+        f"master:{OMISSIONS} carries no table; the omissions table is what this "
+        "test guards, and an empty document would make every check below vacuous")
+    return document
 
 
 #: The table names paths in backticks. Parsing them, rather than substring-matching
@@ -86,7 +86,7 @@ def _named(path: str, table: str) -> bool:
 @pytest.fixture(scope="module")
 def absent_and_table() -> tuple[set[str], str]:
     absent = _tracked("dev") - _tracked("master")
-    return absent, _omissions_table(_git("show", "master:README.md"))
+    return absent, _omissions_table(_git("show", f"master:{OMISSIONS}"))
 
 
 def test_every_path_absent_from_master_is_named_in_its_omissions_table(
@@ -108,7 +108,7 @@ def test_the_table_claims_completeness_so_the_check_above_is_the_right_one(
     left asserting something the branch no longer promises."""
     _, table = absent_and_table
     assert "Every omission is named" in table, (
-        "master's omissions table no longer claims to name every omission. That is "
+        f"master:{OMISSIONS} no longer claims to name every omission. That is "
         "allowed, but then the completeness check above is enforcing a promise the "
         "branch has stopped making -- decide which, and record it.")
 

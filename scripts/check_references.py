@@ -65,7 +65,7 @@ MASTER_PREFIXES = (
     "README.md", "docs/STATUS.md", "docs/datasets/", "docs/MODEL_FILE.md",
     "docs/FPRIME.md", "docs/PI_ENVELOPE.md", "LICENSE",
     # D69, 2026-09-11: the customer documents. Neither is on `dev`.
-    "docs/DESIGN.md", "docs/EVIDENCE.md",
+    "docs/DESIGN.md", "docs/EVIDENCE.md", "docs/OMISSIONS.md",
     # (!) D80 carries the ground toolkit's import closure and six build scripts
     # onto `master`. `oxcaml/`, `src/sentinel_toolkit/` and `src/sentinel_export/`
     # move WHOLE, so a prefix is right for them. `src/sentinel_models/`,
@@ -91,7 +91,8 @@ MASTER_PREFIXES = (
 
 #: Of `MASTER_PREFIXES`, the entries that do not exist on `dev` at all. `LICENSE`
 #: is unselected; the other two are `master`'s own documents.
-MASTER_ONLY_PREFIXES = ("LICENSE", "docs/DESIGN.md", "docs/EVIDENCE.md")
+MASTER_ONLY_PREFIXES = ("LICENSE", "docs/DESIGN.md", "docs/EVIDENCE.md",
+                        "docs/OMISSIONS.md")
 
 #: Documents whose citations are checked. Source files cite too, and are included.
 #:
