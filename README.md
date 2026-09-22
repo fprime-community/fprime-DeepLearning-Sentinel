@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`c0eb8c5`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`558cdcc`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -198,9 +198,13 @@ sentinelMonitor.configure("SentinelModel.bin", YOUR_CHANNEL_COUNT);
 ```
 
 Second, write the one piece that is yours: an **adapter** converting your typed telemetry
-into one `Sentinel.ChannelSample` per tick, on a `sync` port at a lower rate-group index than
-the detector's. Copy `fprime/SentinelRef/ExampleAdapter/` -- **176 lines across three files**,
-of which **65** are the implementation. `fprime/README.md` and `docs/DESIGN.md` 8 carry the
+into one `Sentinel.ChannelVector` per tick -- the `F32` array of channel values -- and
+emitting it on a `Sentinel.ChannelSample` port, which carries that array and a validity
+flag. Put it on a `sync` port at a lower rate-group index than the detector's.
+
+Copy `fprime/SentinelRef/ExampleAdapter/`: **176 lines across three files**, of which **65**
+are the implementation and **46** are neither blank nor a comment -- which is the "about
+forty lines" the other documents mean. `fprime/README.md` and `docs/DESIGN.md` 8 carry the
 recipe in full.
 
 - **A mission inherits the Monitor and the inference core and nothing else.**
