@@ -1,0 +1,9 @@
+File "probes/p_alloc.ml", line 27, characters 5-15:
+27 | let[@zero_alloc strict] matmul () =
+          ^^^^^^^^^^
+Error: Annotation check for zero_alloc strict failed on function P_alloc.matmul (camlP_alloc__matmul_0_4_code).
+
+File "probes/p_alloc.ml", line 36, characters 34-52:
+36 |       ignore (Sys.opaque_identity (Array.make 8 0.0))
+                                       ^^^^^^^^^^^^^^^^^^
+Error: called function may allocate (external call to caml_array_make)
