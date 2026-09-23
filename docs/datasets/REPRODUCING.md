@@ -61,9 +61,25 @@ sufficient.
   scripts/fprime_setup.sh     rc=0    F' v4.3.0 checkout + tool virtualenv
   scripts/oxcaml_setup.sh     rc=0    switch 5.2.0+ox
   scripts/oxcaml_s61.sh       rc=0    cycle_complete.o, the object the deployment links
+  make -C flight test         rc=0    every flight suite, round trip byte-identical
+  fprime-util generate        rc=1    NOT ESTABLISHED -- see below
 ```
 
-238 tracked files, and **nothing outside the clone was needed**.
+238 tracked files, and nothing outside the clone was needed **for the four that passed**.
+
+**(!) THE TWO DEPLOYMENTS WERE NOT BUILT, AND THE CLAIM IS NARROWED ACCORDINGLY.**
+`fprime-util generate` failed in the clone, so `SentinelRef` and `SentinelRetrain` were
+never linked and no deployment binary exists to point at. The cause is a **path
+resolution mismatch at the clone's location, not a defect in this branch**: F' v4.3.0's
+`lib/fprime/cmake/settings/ini.cmake:38` compares the `settings.ini` it was handed
+against the one it expected, found `/private/tmp/...` against `/tmp/...`, and refused --
+macOS's `/tmp` is a symlink to `/private/tmp` and the two spellings reached CMake by
+different routes. Re-running from the `/tmp` spelling did not clear it.
+
+**So what a reader may take from this page is narrower than "master builds everything":
+master supplies the toolchain, builds the OxCaml object the deployment links, and passes
+the whole flight suite. Whether the two F' deployments link from a clean clone is
+still owed**, and needs a clone at a path without the symlink ambiguity.
 
 **(!) And the object is code-identical to the one built in the development tree**, which
 is the part worth checking rather than assuming:
@@ -76,6 +92,10 @@ is the part worth checking rather than assuming:
 The two files differ by **6,152 B** in total size and in nothing else. Both are built
 with `-g`, both embed their own build path in the debug info, and the clone's path is
 **83 characters longer**. The code sections are identical; the difference is DWARF.
+
+**And `make -C flight test` passed in the clone** -- determinism, golden vectors,
+baseline, trailing window, dynamic threshold, refusals and footprint, with the round
+trip byte-identical. The C++ half of the branch is self-sufficient and demonstrated.
 
 **Cost, measured:** the OxCaml switch dominates at **2.7 GiB**, with F's checkout at
 70 MB and the tool virtualenv at 354 MB. All three are gitignored and rebuilt by the

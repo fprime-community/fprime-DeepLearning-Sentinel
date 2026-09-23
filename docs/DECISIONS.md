@@ -7468,3 +7468,43 @@ worse than the honest sentence `master` currently carries: *"The retraining engi
 produce a candidate; it cannot yet produce a candidate for this mission."* That sentence
 stays true until route 1 lands. **What has changed is that it is now a scheduling
 decision rather than an open question.**
+
+### D83.2 Rider, 2026-09-23: D83.1 overstated the clean-clone result, and this narrows it
+
+**D83.1 is not edited.** It says *"THE LARGEST UNPROVEN CLAIM IS PROVEN"* and that is
+**too strong**. It is corrected here rather than amended, which is the same treatment
+D76.1 gave D76's own consequence 6.
+
+**What the clean clone DID establish**, unchanged and still evidence:
+
+```
+  scripts/fprime_setup.sh   rc=0   F' v4.3.0 checkout + tool virtualenv
+  scripts/oxcaml_setup.sh   rc=0   switch 5.2.0+ox, 2.7 GiB
+  scripts/oxcaml_s61.sh     rc=0   cycle_complete.o, code-identical to the dev tree's
+                                   (4,816 symbols, 3,083 OCaml, __text 395,632 -- equal)
+  make -C flight test       rc=0   every flight suite, round trip byte-identical
+```
+
+**What it did NOT establish, and D83.1 implied it had.** `fprime-util generate` failed in
+the clone, so **`SentinelRef` and `SentinelRetrain` were never linked** and no deployment
+binary exists. D83.1's phrasing invited a reader to conclude the deployments build from
+`master` alone. They have not been shown to.
+
+**The cause is the clone's LOCATION, not this branch.** F' v4.3.0's
+`lib/fprime/cmake/settings/ini.cmake:38` compares the `settings.ini` path it was handed
+against the one it expected, received `/private/tmp/...` against `/tmp/...`, and refused.
+macOS's `/tmp` is a symlink to `/private/tmp`, and the two spellings reached CMake by
+different routes. Re-running from the `/tmp` spelling did not clear it.
+
+**(!) AND ONE READING IN THE FIRST ATTEMPT WAS INVALID.** The two deployment builds were
+reported `rc=0` from a command whose output was piped through `tail`, so the status
+captured was `tail`'s and not `fprime-util`'s. No binary was produced, which is what
+caught it. A `rc` read through a pipe is not a `rc`, and `set -o pipefail` -- the same
+mechanism D82 found silently failing `oxcaml_s52.sh` on a clean result -- is what makes
+the difference.
+
+**So the claim stands narrowed:** `master` supplies the toolchain, builds the OxCaml
+object the deployment links, and passes the whole flight suite from a clean clone.
+**Whether the two F' deployments link from a clean clone is still owed**, and needs a
+clone at a path free of the symlink ambiguity. That is a one-command check for whoever
+next has a machine where it can be run.
