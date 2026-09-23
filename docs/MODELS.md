@@ -694,6 +694,7 @@ prediction that failed and why. This document follows the same discipline.
   - [72.8 OBSERVED -- HO1 HOLDS, and the shape mismatch is the finding](#728-observed----ho1-holds-and-the-shape-mismatch-is-the-finding)
   - [72.9 Owed](#729-owed)
   - [72.10 Rider, 2026-09-22: three citations in this section went stale, and one of them is a shape that never added up](#7210-rider-2026-09-22-three-citations-in-this-section-went-stale-and-one-of-them-is-a-shape-that-never-added-up)
+  - [72.11 Rider, 2026-09-23: the symbol count moves again, and this time the guard agreed with a stale artifact](#7211-rider-2026-09-23-the-symbol-count-moves-again-and-this-time-the-guard-agreed-with-a-stale-artifact)
 - [73 Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)](#73-pre-registration-e5-e-ho2-and-ho3----the-downlink-the-approval-and-the-reload-phase-5)
   - [73.1 REQUIREMENTS DERIVED FROM:](#731-requirements-derived-from)
   - [73.2 What changes in the exported component, and what it costs](#732-what-changes-in-the-exported-component-and-what-it-costs)
@@ -21591,6 +21592,34 @@ stale at six sites while a guard watched a band instead of a number; the sixth s
 since moved down twenty lines, which is the same failure one level out. **D82 pins the
 symbol counts exactly and adds two `Figure` rows that re-derive them**, so that site is
 now checked rather than cited.
+
+### 72.11 Rider, 2026-09-23: the symbol count moves again, and this time the guard agreed with a stale artifact
+
+**72.5 and 72.5a are not edited.** Both record **3,019** and both were right for the
+object as it stood. D82 added `acc.ml` and `acc_int.ml` to `${OX_OBJ}`, and the figure
+moved with them.
+
+```
+  measured 2026-09-23, clean clone of master, Darwin arm64, switch 5.2.0+ox
+    SentinelRef          0        unchanged -- D70 c.2 holds
+    SentinelRetrain  3,082
+    Retrainer UT exe 3,082        the positive control, and the guard's own target
+```
+
+**(!) AND THE GUARD DID NOT CATCH IT, WHICH IS THE PART WORTH RECORDING.** D82 replaced
+72.5's `> 100` band with an exact constant precisely so a move could not pass unnoticed
+-- and then the constant passed every run for a day, because the binary it reads was
+built at **15:30 on 2026-09-22**, before D82, and nothing rebuilt it. An exact figure
+compared against a stale artifact agrees with itself.
+
+It surfaced only because `master` was built from a clean clone and the same executable
+came out at 3,082. **72.5's lesson was a band too loose to see a change; this is one
+level beyond it -- an exact check whose input had stopped tracking the source.** The
+development tree's pre-D82 build trees have been removed so the guard skips loudly
+rather than passing on them, which is D79's posture and the honest one.
+
+`fprime/SentinelRetrain/README.md` states the figure and is corrected on both branches;
+the `Figure` row re-derives it from the guard, so it follows without being restated.
 
 ## 73. Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)
 

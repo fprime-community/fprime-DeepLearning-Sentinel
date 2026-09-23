@@ -59,9 +59,21 @@ POSITIVE_CONTROL = (FPRIME / "build-fprime-automatic-native-ut" / "bin" / "Darwi
 #: legitimate change to `${OX_OBJ}`'s contents is expected to move this constant AND
 #: every document that cites it, in the same commit. The failure message names them.
 #:
-#: Measured 2026-09-22, Darwin arm64, switch 5.2.0+ox, against the object
-#: `scripts/oxcaml_s61.sh` links: E1's five entry points, 61's five and 72's four.
-RETRAINER_OCAML_SYMBOLS = 3019
+#: (!) AND THE FIRST VALUE THIS GUARD PINNED WAS ALREADY STALE WHEN IT WAS WRITTEN.
+#: It was set to 3,019 on 2026-09-22 and passed every run afterwards -- against a
+#: binary built at 15:30 that day, BEFORE D82 added `acc.ml` and `acc_int.ml` to
+#: `${OX_OBJ}`. Nothing rebuilt it, so the guard compared a stale number to a stale
+#: artifact and agreed with itself. Found 2026-09-23 by building `master` from a clean
+#: clone, where the same executable carries **3,082**.
+#:
+#: That is the failure mode one level beyond 72.5's: not a band too loose to notice a
+#: change, but an exact figure checked against an artifact that no longer reflects the
+#: source. An exact count is only worth having if what it reads is current.
+#:
+#: Measured 2026-09-23, Darwin arm64, switch 5.2.0+ox, in a clean clone of `master`,
+#: against the object `scripts/oxcaml_s61.sh` links: the accessor pair, E1's five entry
+#: points, 61's five and 72's four. `SentinelRef` measured **0** in the same clone.
+RETRAINER_OCAML_SYMBOLS = 3082
 
 #: The detector's own binary. Not a band either: D70 consequence 2 permits no runtime
 #: at all in the process that owns the 1 Hz rate group, so the only passing value is 0.

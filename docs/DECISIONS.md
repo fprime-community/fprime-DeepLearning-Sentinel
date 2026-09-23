@@ -7508,3 +7508,34 @@ object the deployment links, and passes the whole flight suite from a clean clon
 **Whether the two F' deployments link from a clean clone is still owed**, and needs a
 clone at a path free of the symlink ambiguity. That is a one-command check for whoever
 next has a machine where it can be run.
+
+### D82.3 Rider, 2026-09-23: the symbol count D82 pinned was stale when it was pinned
+
+**D82 and D82.2 are not edited.** D82 consequence 7 replaced 72.5's `> 100` band with an
+exact count, and D82.2 recorded the two `Figure` rows that re-derive it. The number
+chosen was **3,019**, and it was already wrong.
+
+D82 itself added `acc.ml` and `acc_int.ml` to `${OX_OBJ}`. The measured figure is
+**3,082**, in `SentinelRetrain` and in the `Retrainer` UT executable alike; `SentinelRef`
+is **0**, unchanged. Measured 2026-09-23 in a clean clone of `master`, Darwin arm64,
+switch 5.2.0+ox.
+
+**(!) THE GUARD PASSED ANYWAY, FOR A DAY.** The binary it reads was built at 15:30 on
+2026-09-22 -- before D82 -- and nothing rebuilt it, so an exact constant was compared
+against an artifact that no longer reflected the source and the two agreed. The check
+was not blind and not skipping: it was **current about the wrong thing**.
+
+That is a distinct failure from the ones already recorded this session. FC6's grep was
+too broad, the FPP walk's scope was too wide, `oxcaml_s52.sh` was silent about success,
+and 72.5's band was too loose. This one is **an exact check with a stale input**, which
+no amount of tightening the assertion would have caught. What catches it is building
+from a clean clone, which is now done and recorded.
+
+**Consequences.** The constant is 3,082; `fprime/SentinelRetrain/README.md` is corrected
+on both branches; the `Figure` rows re-derive from the guard and follow. The development
+tree's pre-D82 build trees -- `fprime/build-artifacts`,
+`fprime/build-fprime-automatic-native`, `-native-ut` and `oxcaml/_build`, 207 MB, all
+gitignored -- are removed, so the symbol and domain-lock guards **skip loudly** rather
+than passing on artifacts nothing can rebuild there. `flight/build` stays: `make -C
+flight test` rebuilds it with a C++ compiler alone, so the allocator scan remains a live
+check rather than a record.
