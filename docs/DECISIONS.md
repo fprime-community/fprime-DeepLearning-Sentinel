@@ -7539,3 +7539,64 @@ gitignored -- are removed, so the symbol and domain-lock guards **skip loudly** 
 than passing on artifacts nothing can rebuild there. `flight/build` stays: `make -C
 flight test` rebuilds it with a C++ compiler alone, so the allocator scan remains a live
 check rather than a record.
+
+### D83.3 Rider, 2026-09-23: master builds from scratch, both deployments link, and the two things that stopped a stranger were in our README
+
+**D83.1 and D83.2 are not edited.** D83.1 overstated the clean-clone result and D83.2
+narrowed it to "the two F' deployments are still owed". They are owed no longer.
+
+**Every Quick start block in `master:README.md`, run VERBATIM and in order, from a fresh
+clone in an ordinary user directory, 2026-09-23 -- all `rc=0`:**
+
+```
+  SentinelRef       2,092,392 B      0 OCaml symbols   -- D70 c.2 holds
+  SentinelRetrain   1,409,760 B  3,082 OCaml symbols
+  Sentinel_Monitor_ut_exe          15 of 15 pass
+  SentinelRef_Retrainer_ut_exe      1 of 1 passes
+  make -C flight test              every suite, round trip byte-identical
+```
+
+**(!) ROOT CAUSE OF THE EARLIER FAILURE: THE CLONE'S LOCATION, AND IT IS UPSTREAM.**
+D83.2 blamed a path-resolution mismatch and was right, and the characterisation is now
+exact. F' v4.3.0's `lib/fprime/cmake/settings/ini.cmake:37-39` reads
+
+    set(CALCULATED_INI "${CMAKE_SOURCE_DIR}/settings.ini")
+    if (DEFINED FPRIME_SETTINGS_FILE AND NOT FPRIME_SETTINGS_FILE STREQUAL "${CALCULATED_INI}")
+        message(FATAL_ERROR "Provided settings.ini ... not expected file ...")
+
+-- a **`STREQUAL` between two paths**. macOS's `/tmp` is a symlink to `private/tmp`, so
+one directory has two spellings and `fprime-util` and `CMAKE_SOURCE_DIR` supplied one
+each. **Tested rather than assumed**: a clone under `$HOME` succeeds, a deliberately
+symlinked path under `$HOME` also succeeds, and only the `/tmp` clone fails -- so the
+trigger is the two spellings reaching CMake by different routes, not symlinks as such.
+
+**A repository-side repair was written and then withdrawn**, and the reason matters. A
+normalisation in `fprime/CMakeLists.txt` cleared that error and revealed a second one
+underneath: `lib/fprime/cmake/Platform/Darwin.cmake:8` calls `FIND_PACKAGE(Threads)`
+inside a platform file, which re-enters through every nested `try_compile` until CMake
+reports *"Maximum recursion depth of 100 exceeded"*. **Fixing that needs F' itself**, and
+D31 pins v4.3.0. Per the standing rule the work stopped there and the partial repair was
+reverted rather than left in to fix nothing observable: it made no ordinary location work
+that did not already work.
+
+**THE REAL FIX WAS OURS, AND THERE WERE TWO.** Neither is in F':
+
+```
+  master:README.md   `python -m venv`  -- there is no `python` on macOS or most
+                     current Linux. A stranger failed on their FIRST command of the
+                     second block. dev:README.md had `python3.14` the whole time, and
+                     D67/D81 curate the two separately, so nothing compared them
+  master:README.md   the retrainer block built SentinelRetrain WITHOUT regenerating.
+                     The deployment registers only if the OxCaml object exists at
+                     generate time, so it was absent from the cache and the build
+                     printed `ninja: no work to do`, exited 0, and produced nothing
+```
+
+Both are corrected and both are guarded by
+`tests/test_documented_commands_are_runnable.py`, which reads `master` because `master`
+is the branch a stranger clones. The run above used a clone made **after** the fixes, so
+every block worked first time.
+
+**Still not established**: that any of this builds for a flight target (C4) or runs on
+flight hardware (E4). Same host, same architecture. The branch is sufficient; the
+toolchain's portability is untested.
