@@ -7600,3 +7600,59 @@ every block worked first time.
 **Still not established**: that any of this builds for a flight target (C4) or runs on
 flight hardware (E4). Same host, same architecture. The branch is sufficient; the
 toolchain's portability is untested.
+
+### D83.4 Rider, 2026-09-23: the withdrawn `/tmp` repair, kept verbatim so the route can be re-taken rather than re-derived
+
+**D83.3 is not edited.** It records that "a repository-side repair was written and then
+withdrawn" and then deletes the only copy along with the clone it lived in. That is the
+shape this session has already corrected twice -- a conclusion recorded and its evidence
+discarded (72.11, D82.3: an exact count checked against an artifact nobody kept current).
+So the patch is kept here, and nowhere else, as the cost column of route 1.
+
+**It is NOT applied.** It is written against `fprime/CMakeLists.txt` at `1dfa1eb` and was
+reverted for the reason D83.3 gives: it cleared `ini.cmake`'s `STREQUAL` and then met
+`Platform/Darwin.cmake:8`'s `FIND_PACKAGE(Threads)` recursion, which needs F' itself.
+**It made no ordinary location work that did not already work**, and a repair that fixes
+nothing observable is worse than none: it would read as if `/tmp` were supported.
+
+```cmake
+# inserted after `set(FPRIME_INCLUDE_FRAMEWORK_CODE OFF)`, before find_package(FPrime)
+#
+# The repair is narrow and refuses to hide a real disagreement: if the two paths
+# resolve to the SAME FILE, adopt the spelling F' expects; if they do not, leave
+# them alone and let F's own check fire, because then it is right.
+if (DEFINED FPRIME_SETTINGS_FILE)
+    get_filename_component(_sentinel_given "${FPRIME_SETTINGS_FILE}" REALPATH)
+    get_filename_component(_sentinel_want "${CMAKE_SOURCE_DIR}/settings.ini" REALPATH)
+    if (_sentinel_given STREQUAL _sentinel_want)
+        set(FPRIME_SETTINGS_FILE "${CMAKE_SOURCE_DIR}/settings.ini"
+            CACHE FILEPATH "settings.ini, respelled to match CMAKE_SOURCE_DIR" FORCE)
+    endif()
+    unset(_sentinel_given)
+    unset(_sentinel_want)
+endif()
+```
+
+**The three routes, and what each would cost, so the choice is not re-litigated from
+memory.** The owner's instruction was that a fix needing F' or a moved pin stops and
+reports; this is that report, kept where the decision is.
+
+```
+  1  THIS PATCH, PLUS AN F' FIX for Darwin.cmake:8. The patch above is written and
+     tested. The second half is not ours: it needs a change inside `fprime/lib/fprime`,
+     which D31 pins at v4.3.0. Cost: an upstream patch carried as a local delta, and
+     every future pin move re-applies and re-tests it. NOT TAKEN
+  2  MOVE THE PIN to an F' release where both are fixed. Cost: unknown until someone
+     checks whether such a release exists, plus a full re-verification of everything
+     D31 pinned the version FOR. NOT TAKEN, and not investigated
+  3  DOCUMENT THE LOCATION. Build in an ordinary user directory, which is what the
+     README already says and what every stranger would do anyway. Cost: one sentence.
+     TAKEN -- and note it costs nothing precisely because `/tmp` was never the
+     documented route; the clean-clone test put it there, not the README
+```
+
+**What a presenter may say about it**: that a clone under `/tmp` does not build on macOS,
+that the cause is an upstream string comparison between two spellings of one directory,
+and that we did not patch someone else's framework to make our own test location work.
+Not that `/tmp` is supported, and not that F' is defective in a way that affects flight --
+it affects one build location on one platform.
