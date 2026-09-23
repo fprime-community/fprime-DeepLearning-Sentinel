@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`906f60f`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`a935d8f`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -141,8 +141,14 @@ The ground toolkit -- your healthy telemetry in, a `model.bin` out. **`--telemet
 channels, and every row must be healthy.**
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements-toolkit.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements-toolkit.txt
 PYTHONPATH=src .venv/bin/python -m sentinel_toolkit selftest
+```
+
+Then, **with your own `.npy`** in place of `healthy.npy` -- these two need data this
+repository does not ship:
+
+```bash
 PYTHONPATH=src .venv/bin/python -m sentinel_toolkit fit --telemetry healthy.npy --out model.bin
 PYTHONPATH=src .venv/bin/python -m sentinel_toolkit verify --model model.bin
 ```
@@ -211,7 +217,7 @@ recipe in full.
   `fprime/library.cmake` exports `Sentinel/Monitor` and `sentinel_core` -- not the testbed,
   not the retrainer, not an OCaml runtime.
 - **Make the model with the ground toolkit**, from your own healthy telemetry:
-  `PYTHONPATH=src python -m sentinel_toolkit fit --telemetry healthy.npy --out SentinelModel.bin`.
+  `PYTHONPATH=src .venv/bin/python -m sentinel_toolkit fit --telemetry healthy.npy --out SentinelModel.bin`.
   `--telemetry` takes a **`.npy` array, 2-D and finite, one row per timestep and one column
   per channel**, at most **16** channels -- the maximum the component is compiled for -- and
   every row must be healthy, because the model learns what healthy looks like.
