@@ -15,7 +15,7 @@ this page**, on 2026-09-11.
 
 ```
 git clone <this repository>
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 | Command | What it proves | Measured |
