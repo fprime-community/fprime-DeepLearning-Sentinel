@@ -156,7 +156,7 @@ module SentinelRetrain {
     // maxima-shaped -- 16 inputs, 75,360 parameters (deep_f32.ml:28-34) -- and
     // SentinelRef flies an 8-channel model with 66,960 weights, so no candidate
     // this process builds can replace that one. docs/MODELS.md 72 reports that
-    // rather than hiding it, and 72.6 carries it as owed. The file is built by
+    // rather than hiding it, and 72.9 carries it as owed. The file is built by
     // scripts/s72_flying_file.py and is a run artifact, cited by path.
     //
     // Absent, the component still ticks and still cycles; it produces no

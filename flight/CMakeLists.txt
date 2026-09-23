@@ -57,8 +57,14 @@ foreach(forbidden "-ffast-math" "-Ofast" "-funsafe-math-optimizations")
     endif()
 endforeach()
 
+# (!) THIS LIST MUST MATCH `flight/Makefile`'s TESTS, AND FOR MONTHS IT DID NOT.
+# `TrailingVectors` and `ThresholdVectors` were in the Makefile and not here, so the
+# CMake build produced six binaries where the Makefile produced eight and "the flight
+# suite" meant different things depending on which one you ran. Carried as inspection
+# item 7.6 and unfixed until 2026-09-22. `tests/test_flight_build.py` now compares the
+# two lists, so they cannot part company again.
 foreach(binary GoldenVectors RefusalTests DeterminismTest RoundTripDump Footprint
-               BaselineVectors)
+               BaselineVectors TrailingVectors ThresholdVectors)
     add_executable(${binary} test/${binary}.cpp)
     target_include_directories(${binary} PRIVATE test)
     target_link_libraries(${binary} PRIVATE sentinel_core)

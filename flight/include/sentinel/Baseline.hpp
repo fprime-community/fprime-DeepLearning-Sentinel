@@ -80,7 +80,10 @@ class Baseline {
     U32 nChannels() const { return m_channels; }
 
     //! The channel that took the maximum. Ties keep the lowest index, which is
-    //! what the strict `>` scan gives and what `Detector.cpp:100-106` does.
+    //! what the strict `>` scan gives and what `Detector.cpp:145-155` does. (The
+    //! cited range moved: `:100-106` is now the forecast-mean comment, and since
+    //! D68 the core also keeps a FUSED argmax at `:177-187`, which is the index
+    //! the warning names on a `param_version` 2 model.)
     //! This is what the warning event names.
     U32 peakChannel() const { return m_peak; }
 
@@ -93,7 +96,7 @@ class Baseline {
     //! is pre-registered as prediction C10.
     //!
     //! Strictly greater, to match the rest of the core rather than by accident.
-    //! `Detector.cpp:113` tests `m_steps >= warmupSteps` against the count of
+    //! `Detector.cpp:209` tests `m_steps >= warmupSteps` against the count of
     //! *previous* steps, because its increment comes after the check; this class
     //! increments before, so the equivalent test is `>`. Both then agree with
     //! `harness.py:160-167`, which prefixes the scored window with `warmup_steps`

@@ -200,7 +200,7 @@ void checkWarmup() {
     const F32 values[4] = {1.0F, 2.0F, 3.0F, 4.0F};
 
     // Silent for calls 1..WINDOW, speaking on call WINDOW + 1. That is
-    // `harness.py:160-167`'s convention and `Detector.cpp:113`'s, not an
+    // `harness.py:160-167`'s convention and `Detector.cpp:209`'s, not an
     // off-by-one: see Baseline::warmed.
     U32 emittedBeforeWarm = 0U;
     for (U32 t = 0U; t < Sentinel::Config::BASELINE_WINDOW; ++t) {
