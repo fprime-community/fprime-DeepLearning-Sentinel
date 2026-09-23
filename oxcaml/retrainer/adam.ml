@@ -11,6 +11,13 @@
  * (stdlib.mli:479-480, :485-486). Array.make carries no such declaration, which is why 48's
  * G5 rejected it and why AD2 predicts these hold. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 let n_max = 75360                 (* 52's model, ModelFile.hpp:34 at Config.hpp's maxima *)
 
 let lr = 1e-3                     (* lstm.py:121 *)

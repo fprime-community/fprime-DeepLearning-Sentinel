@@ -9,6 +9,13 @@
  * The algebra is flight/include/sentinel/Gru.hpp:22-40, with b_hn INSIDE the reset product
  * and ATen's (h - n) * z + n, exactly as 48.1 transcribed it. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 let hs = 80                       (* Config.hpp MAX_HIDDEN *)
 let ins = 16                      (* Config.hpp MAX_INPUTS *)
 let gw = 240                      (* MAX_GATE_WIDTH *)

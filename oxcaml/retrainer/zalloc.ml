@@ -10,6 +10,13 @@
  * `float array` is unboxed, so the storage itself allocates once at module init -- which
  * is CPP-1's shape, allocation at initialisation and none after. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 let n = 16
 
 (* Preallocated once, at module initialisation. Nothing below allocates these. *)

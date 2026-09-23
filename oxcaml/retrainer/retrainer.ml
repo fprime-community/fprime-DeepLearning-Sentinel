@@ -65,7 +65,7 @@ let feed (samples : (float, Bigarray.float64_elt, Bigarray.c_layout) Bigarray.Ar
       if a.n + k > a.capacity then err_overflow
       else begin
         for i = 0 to k - 1 do
-          let x = Bigarray.Array1.unsafe_get samples i in
+          let x = Acc.F64.get samples i in
           a.sum   <- a.sum +. x;
           a.sumsq <- a.sumsq +. (x *. x)
         done;
@@ -93,9 +93,9 @@ let export (out : (float, Bigarray.float64_elt, Bigarray.c_layout) Bigarray.Arra
       if Bigarray.Array1.dim out < 3 then err_short_buffer
       else begin
         let n = float_of_int a.n in
-        Bigarray.Array1.unsafe_set out 0 n;
-        Bigarray.Array1.unsafe_set out 1 a.sum;
-        Bigarray.Array1.unsafe_set out 2 (if a.n = 0 then 0.0 else a.sum /. n);
+        Acc.F64.set out 0 n;
+        Acc.F64.set out 1 a.sum;
+        Acc.F64.set out 2 (if a.n = 0 then 0.0 else a.sum /. n);
         ok
       end)
 

@@ -19,7 +19,7 @@
 (library
  (name retrainer)
  (modes native)
- (modules retrainer)
+ (modules acc acc_int retrainer)
  (foreign_stubs
   (language c)
   (names retrainer_stubs)))

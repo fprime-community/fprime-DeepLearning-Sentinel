@@ -15,6 +15,13 @@
  * from 0.0F and adds the bias LAST; 48's cell starts the accumulator AT the bias. The two
  * differ in the last bits, which is invisible at F64-against-F32 and decisive for FT3. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 external to_f : float32 -> float = "%floatoffloat32"
 external of_f : float -> float32 = "%float32offloat"
 external add : float32 -> float32 -> float32 = "%addfloat32"
@@ -29,8 +36,8 @@ let gw = 240
 
 type f32 = (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array1.t
 let mk n : f32 = Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout n
-let[@inline] get (a : f32) i = of_f (Bigarray.Array1.unsafe_get a i)
-let[@inline] set (a : f32) i (v : float32) = Bigarray.Array1.unsafe_set a i (to_f v)
+let[@inline] get (a : f32) i = of_f (F32.get a i)
+let[@inline] set (a : f32) i (v : float32) = F32.set a i (to_f v)
 
 let w_ih = mk (gw * ins)
 let w_hh = mk (gw * hs)

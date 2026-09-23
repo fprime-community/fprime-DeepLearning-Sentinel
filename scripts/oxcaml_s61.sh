@@ -6,6 +6,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s61"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}"; cd "${B}"
 cp "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c" "${SRC}/sentinel_cycle.h" .
 
@@ -14,7 +20,7 @@ FFLAGS="-Wold-style-cast -pedantic -Wall -Wextra -Wconversion -Wdouble-promotion
 
 START=$(date +%s)
 echo "== Section 61 / E5-c =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   FC1  assume annotations in cycle_c.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' cycle_c.ml)"
 echo "   FC2  entry points in sentinel_cycle.h: $(grep -c '^int32_t sentinel_cycle' sentinel_cycle.h) (all int32_t)"
 echo "   FC2  bare float/double in signatures: $(grep -cE '^\s*(float|double) [a-z_]+\(' sentinel_cycle.h) (stop 33)"
@@ -22,13 +28,13 @@ echo "   FC2  CAML_BA_EXTERNAL crossings: $(grep -c CAML_BA_EXTERNAL cycle_stubs
 
 echo
 echo "-- FC1: the OCaml surface under -zero-alloc-check all"
-ocamlopt -c -g -zero-alloc-check all -warn-error +a -alert @all -O3 deep_f32.ml
-ocamlopt -c -g -zero-alloc-check all -warn-error +a -alert @all -O3 -I . cycle_c.ml
+ocamlopt -I "${SRC}" -c -g -zero-alloc-check all -warn-error +a -alert @all -O3 -I . deep_f32.ml
+ocamlopt -I "${SRC}" -c -g -zero-alloc-check all -warn-error +a -alert @all -O3 -I . cycle_c.ml
 echo "   clean: seed_from, copy_window and copy_best hold [@zero_alloc strict]"
 
 echo
 echo "-- the OCaml side as one linkable object (-output-complete-obj, 47.6)"
-ocamlopt -output-complete-obj -O3 -o cycle_ml.o deep_f32.ml cycle_c.ml
+ocamlopt -I "${SRC}" -output-complete-obj -O3 -o cycle_ml.o -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" deep_f32.ml cycle_c.ml
 echo "   cycle_ml.o built"
 
 echo
@@ -105,9 +111,10 @@ echo "== Section 61 done =="
 echo
 echo "-- the component's object: E1's five entry points, 61's five, and 72's three"
 cd "${ROOT}/oxcaml/_build"
-ocamlopt -output-complete-obj -O3 -o cycle_complete.o \
+ocamlopt -I "${SRC}" -output-complete-obj -O3 -o cycle_complete.o \
     -warn-error +a -alert @all \
-    -I "${SRC}" "${SRC}/retrainer.ml" "${SRC}/retrainer_stubs.c" \
+    -I "${SRC}" "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" \
+    "${SRC}/retrainer.ml" "${SRC}/retrainer_stubs.c" \
     "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c" \
     "${SRC}/shadow59.ml" "${SRC}/shadow_c.ml" "${SRC}/shadow_stubs.c"
 echo "   cycle_complete.o ($(wc -c < cycle_complete.o) bytes)"

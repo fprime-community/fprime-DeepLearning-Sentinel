@@ -18,6 +18,13 @@
  * State is two ring counters, so the rule is O(1) per tick in fixed memory and
  * reads no tick later than the one it is deciding. Objective.md:986 rule 5. *)
 
+
+(* D82: every element access below is bounds-checked. `acc_int.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc_int
+
 let w = 6550                    (* 42.3 departure 2's data floor *)
 let nominal = 0.001830          (* 42.9's held-out sanity rate *)
 let k = 2.0                     (* 56.3: beyond the 1.75x the ground already saw *)

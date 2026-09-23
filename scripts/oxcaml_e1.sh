@@ -25,6 +25,12 @@ eval "$(opam env --switch="${SWITCH}" --set-switch)"
 
 OCAML_LIB="$(ocamlopt -where)"
 SRC="${ROOT}/oxcaml/retrainer"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 BUILD="${ROOT}/oxcaml/_build"
 OBJ="${BUILD}/retrainer_complete.o"
 OUT="${BUILD}/e1_harness"
@@ -36,7 +42,7 @@ DETERM="-ffp-contract=off"
 WARN="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror"
 
 echo "== E1 stage 1 =="
-echo "   switch     ${SWITCH}   ocamlopt $(ocamlopt -version)"
+echo "   switch     ${SWITCH}   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   dune       $(dune --version)"
 echo "   ocaml lib  ${OCAML_LIB}"
 echo "   flags      ${STD} ${SAFETY} ${DETERM} ${WARN}"
@@ -48,14 +54,15 @@ dune build @all 2>&1 | sed 's/^/   /'
 echo "   ok"
 echo
 
-echo "-- ocamlopt -output-complete-obj: OCaml + stubs + runtime, one object"
+echo "-- ocamlopt -I "${SRC}" -output-complete-obj: OCaml + stubs + runtime, one object"
 mkdir -p "${BUILD}"
 cd "${BUILD}"
 # -warn-error +a -alert @all: strict by default, the same posture flight/Makefile takes
 # with -Werror. retrainer.ml carries exactly one narrow, documented alert opt-out.
-ocamlopt -output-complete-obj -o "${OBJ}" \
+ocamlopt -I "${SRC}" -output-complete-obj -o "${OBJ}" \
     -warn-error +a -alert @all \
-    -I "${SRC}" "${SRC}/retrainer.ml" "${SRC}/retrainer_stubs.c"
+    -I "${SRC}" "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" \
+    "${SRC}/retrainer.ml" "${SRC}/retrainer_stubs.c"
 echo "   ${OBJ} ($(wc -c < "${OBJ}") bytes)"
 echo
 

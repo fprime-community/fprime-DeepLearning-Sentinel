@@ -22,6 +22,13 @@
  * (!) STOP 29: the shape fields are never written. The offsets below are read-only
  * except for 44 and 60. *)
 
+
+(* D82: every element access below is bounds-checked. `acc_int.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc_int
+
 let max_file = 1 lsl 20                 (* 1 MiB; the flown file is 268,224 B *)
 
 type u8 = (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -50,17 +57,17 @@ let () =
     crc_table.(n) <- !c land mask
   done
 
-let[@inline] get_u8 off = Bigarray.Array1.unsafe_get file off
+let[@inline] get_u8 off = U8.get file off
 
 let[@zero_alloc strict] get_u32 off =
   (get_u8 off) lor ((get_u8 (off + 1)) lsl 8)
   lor ((get_u8 (off + 2)) lsl 16) lor ((get_u8 (off + 3)) lsl 24)
 
 let[@zero_alloc strict] put_u32 off v =
-  Bigarray.Array1.unsafe_set file off (v land 0xFF);
-  Bigarray.Array1.unsafe_set file (off + 1) ((v lsr 8) land 0xFF);
-  Bigarray.Array1.unsafe_set file (off + 2) ((v lsr 16) land 0xFF);
-  Bigarray.Array1.unsafe_set file (off + 3) ((v lsr 24) land 0xFF)
+  U8.set file off (v land 0xFF);
+  U8.set file (off + 1) ((v lsr 8) land 0xFF);
+  U8.set file (off + 2) ((v lsr 16) land 0xFF);
+  U8.set file (off + 3) ((v lsr 24) land 0xFF)
 
 let[@zero_alloc strict] crc_range lo n =
   let c = ref mask in
@@ -81,10 +88,10 @@ let[@zero_alloc strict] write_shadow (w : f32) n_weights =
   else begin
     let w_off = header_bytes + cb in
     for i = 0 to n_weights - 1 do
-      let bits = Int32.bits_of_float (Bigarray.Array1.unsafe_get w i) in
+      let bits = Int32.bits_of_float (F32.get w i) in
       let base = w_off + (4 * i) in
       for s = 0 to 3 do
-        Bigarray.Array1.unsafe_set file (base + s)
+        U8.set file (base + s)
           ((Int32.to_int (Int32.shift_right_logical bits (8 * s))) land 0xFF)
       done
     done;
