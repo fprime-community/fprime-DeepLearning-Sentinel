@@ -92,3 +92,33 @@ def test_the_check_would_catch_a_bare_python() -> None:
     assert not _offenders("```bash\npython3 -m venv .venv\n```")
     assert not _offenders("```bash\npython3.14 -m venv .venv\n```")
     assert not _offenders("```bash\nPYTHONPATH=src .venv/bin/python -m pytest -q\n```")
+
+
+def test_the_retrainer_block_regenerates_before_it_builds() -> None:
+    """(!) A build that exits 0 having produced nothing, documented as the way to do it.
+
+    `Retrainer/CMakeLists.txt` and `SentinelRetrain/CMakeLists.txt` return early when
+    `${OX_OBJ}` is absent, so a build cache generated BEFORE `oxcaml_s61.sh` has run
+    registers neither the module nor the deployment. The README's retrainer block runs
+    `oxcaml_s61.sh` and then built straight away against the cache the F' block made --
+    so `fprime-util build -p ./SentinelRetrain` printed `ninja: no work to do`, **exited
+    0**, and left no binary. Found 2026-09-23 by running the block verbatim and then
+    looking for the binary, which is the only thing that would have caught it.
+
+    `docs/MODELS.md` 72.5 recorded the same shape once already: "the build exits 0
+    having built nothing". This is that, in the instructions.
+    """
+    probe = subprocess.run(["git", "rev-parse", "--verify", "master"],
+                           cwd=ROOT, capture_output=True, text=True)
+    if probe.returncode != 0:
+        pytest.skip("no `master` ref in this clone")
+    text = subprocess.run(["git", "show", "master:README.md"],
+                          cwd=ROOT, capture_output=True, text=True).stdout
+    blocks = [b for b in _bash_blocks(text) if "SentinelRetrain" in b]
+    assert blocks, "master:README.md no longer shows how to build SentinelRetrain"
+    for block in blocks:
+        assert "fprime-util generate" in block, (
+            "the retrainer block builds SentinelRetrain without regenerating the build "
+            "cache first. The deployment is registered only if the OxCaml object exists "
+            "at generate time, so this silently produces no binary and still exits 0:\n"
+            f"{block}")
