@@ -78,6 +78,11 @@ int main(int argc, char** argv) {
 }
 
 // Work item 10 / docs/MODELS.md 73, HO3.
+TEST(Nominal, TheWarningNamesTheFusedRulesChannel) {
+    Sentinel::MonitorTester tester;
+    tester.testTheWarningNamesTheFusedRulesChannel();
+}
+
 TEST(Reload, ACommandedReloadLoadsTheNamedFile) {
     Sentinel::MonitorTester tester;
     tester.testACommandedReloadLoadsTheNamedFile();

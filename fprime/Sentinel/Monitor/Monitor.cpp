@@ -345,15 +345,38 @@ void Monitor ::schedIn_handler(FwIndexType portNum, U32 context) {
         threshold = m_detector.model().threshold;
         emitted = m_detector.emitted();
         warmed = m_detector.steps() > static_cast<U64>(m_detector.model().warmupSteps);
-        // The core reduces into a local and discards the index
-        // (Detector.cpp:100-106), so the argmax is taken here, with the same
-        // strict `>` so a tie keeps the lowest index exactly as the core does.
-        const F32* smoothed = m_detector.smoothed();
-        F32 largest = smoothed[0];
-        for (U32 c = 1U; c < m_channels; ++c) {
-            if (smoothed[c] > largest) {
-                largest = smoothed[c];
-                peak = c;
+        // (!) THE WARNING NAMES THE CHANNEL THE RULE THAT FIRED PICKED, AND UNTIL
+        // 2026-09-22 IT DID NOT. This scanned `smoothed()` -- the residual stream --
+        // and that was CORRECT when it was written: `docs/MODELS.md` 20's row 8
+        // records that the core "reduces into a local and discards" the index, so the
+        // component took its own argmax at "zero core change". D68 then adopted the
+        // fused rule, `max(z_residual, z_derivative)` (`flight/src/Detector.cpp`
+        // `Detector::fused`), and the core gained `m_fusedChannel` with it -- an
+        // argmax over the fused statistic, seeded from channel 0 for the reason
+        // `Detector.cpp:168-176` gives. This scan was never updated, so whenever the
+        // DERIVATIVE term was the one that crossed, the event named whichever channel
+        // had the largest residual: a real channel, a plausible number, and the wrong
+        // answer. It never moved a flag -- `m_emitted` is the core's -- which is why
+        // nothing caught it.
+        //
+        // So the source of the index now follows the statistic the cut was applied
+        // to, which `param_version` already names and the loader already refuses to
+        // mismatch (`ModelFile.cpp:232-234`). This is a REPORTING fix: the detection
+        // rule, `param_version` and the model format are untouched, and which ticks
+        // warn is unchanged.
+        if (m_detector.model().paramVersion == Format::PARAM_VERSION_FUSED) {
+            peak = m_detector.fusedChannel();
+        } else {
+            // `param_version` 1 cuts the smoothed residual itself, so the residual
+            // argmax IS the rule that fired. Same strict `>` as the core, so a tie
+            // keeps the lowest index exactly as it does.
+            const F32* smoothed = m_detector.smoothed();
+            F32 largest = smoothed[0];
+            for (U32 c = 1U; c < m_channels; ++c) {
+                if (smoothed[c] > largest) {
+                    largest = smoothed[c];
+                    peak = c;
+                }
             }
         }
     } else {

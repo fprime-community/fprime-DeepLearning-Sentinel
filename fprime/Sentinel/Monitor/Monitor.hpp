@@ -59,6 +59,16 @@ class Monitor final : public MonitorComponentBase {
     //! Which detector is running, for the topology and the tests.
     Mode activeMode() const { return m_mode; }
 
+    //! (!) READ-ONLY, AND IT EXISTS SO A TEST CAN ASK THE RULE ITS OWN ANSWER.
+    //! The warning event names a channel, and until 2026-09-22 it named the wrong
+    //! one whenever the derivative term was what crossed -- a real channel, a
+    //! plausible number, and no flag moved, which is why nothing caught it. A test
+    //! that re-derives the fused argmax would only be re-implementing the thing
+    //! under test; asking the core is the honest check. Nothing in the FPP surface
+    //! changes: no port, no command, no parameter. `Detector` is already a member
+    //! and `model()` is already read on the reload path.
+    const Detector& detector() const { return m_detector; }
+
   private:
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports

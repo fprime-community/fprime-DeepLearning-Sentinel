@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`eb91334`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`9605e7c`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the

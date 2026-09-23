@@ -51,6 +51,7 @@ class MonitorTester final : public MonitorGTestBase {
     void testATickWithNoSampleCannotAlarm();
     void testTheWarningNamesTheChannelFromTheModelFile();
     void testTheBaselineWarningNamesASynthesisedChannel();
+    void testTheWarningNamesTheFusedRulesChannel();
 
     // Work item 10 / docs/MODELS.md 73, HO3. Both directions.
     void testACommandedReloadLoadsTheNamedFile();
@@ -76,6 +77,12 @@ class MonitorTester final : public MonitorGTestBase {
 
     //! Drive `count` ticks with `value` on every channel.
     void tick(U32 count, F32 value, bool valid = true);
+
+    //! One tick with DISTINCT per-channel values. `tick` drives every channel
+    //! with the same number, which makes the residual and derivative argmaxes
+    //! agree by construction -- and the defect this file now guards only shows
+    //! up when they disagree.
+    void tickChannels(const F32* values, U32 n, bool valid = true);
 
     Monitor component;
     U8 m_original[G1_BYTES];
