@@ -47,6 +47,45 @@ published method without leaving the clone.
 by humans. **No code reads it** -- `check_no_list.py` rule 4 refuses any that would -- so
 it cannot become a second source of truth.
 
+## (!) The retrainer builds from this branch alone, and that is now executed rather than read
+
+**This was the largest unproven claim `master` made.** That `master` alone can build the
+retraining engine was established by **reading** `fprime/library.cmake`, the per-module
+`CMakeLists.txt` files and the two setup scripts -- never by running them from a clean
+clone. D80 moved `oxcaml/` here; nothing had since checked that what arrived was
+sufficient.
+
+**Executed 2026-09-23, from a fresh `git clone --branch master --single-branch`:**
+
+```
+  scripts/fprime_setup.sh     rc=0    F' v4.3.0 checkout + tool virtualenv
+  scripts/oxcaml_setup.sh     rc=0    switch 5.2.0+ox
+  scripts/oxcaml_s61.sh       rc=0    cycle_complete.o, the object the deployment links
+```
+
+238 tracked files, and **nothing outside the clone was needed**.
+
+**(!) And the object is code-identical to the one built in the development tree**, which
+is the part worth checking rather than assuming:
+
+```
+  symbols        4,816  =  4,816          __text     395,632  =  395,632
+  OCaml symbols  3,083  =  3,083          __cstring   13,940  =   13,940
+```
+
+The two files differ by **6,152 B** in total size and in nothing else. Both are built
+with `-g`, both embed their own build path in the debug info, and the clone's path is
+**83 characters longer**. The code sections are identical; the difference is DWARF.
+
+**Cost, measured:** the OxCaml switch dominates at **2.7 GiB**, with F's checkout at
+70 MB and the tool virtualenv at 354 MB. All three are gitignored and rebuilt by the
+scripts, which is why none of them is committed.
+
+**What this does NOT establish.** That any of it builds for a **flight target** -- that
+is C4, and it is still unverified. That it runs on flight hardware -- E4, never run. The
+clone was built on the same host and the same architecture as the development tree, so
+this proves sufficiency of the branch, not portability of the toolchain.
+
 ## (!) What you cannot recompute, and it is most of the numbers
 
 **Any figure scored on ESA-ADB or SMAP/MSL.** The telemetry is not here and never will be
