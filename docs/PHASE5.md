@@ -425,3 +425,43 @@ records that this same 70 is really the error-window batch and that conflating t
 correction of its own. And **`sequences_per_epoch` is a training-set count**, so the step
 figures exclude the validation pass that best-weights tracking requires; the budget has to
 carry that on top.
+
+---
+
+## 10. Rider, 2026-09-22: the implementation is chosen, and it is not the one this document proposed
+
+**Sections 1 to 9 are not edited.** The decision is `docs/DECISIONS.md` **D83**, and it
+is recorded here beside the proposal it supersedes so a reader meets both.
+
+**The choice: OxCaml, as "the chosen retraining implementation, host-verified, not
+flight-qualified".** Section 4 of this document proposed **mlpack**, on Armadillo, with
+ensmallen -- conditional on a claim it marked **UNVERIFIED** in its own words:
+
+> **Armadillo can be made to run on statically allocated memory - fixed-size matrix
+> types with no allocation after initialisation.**
+
+**That claim is still undischarged.** D83 does not discharge it, does not refute it, and
+does not need it: it chooses a different route. Section 4's "if the mechanism exists as
+described, mlpack is the candidate" remains exactly as true and exactly as unchecked as
+it was on 2026-09-09. **What would discharge it is still what section 4 says would.**
+
+**Section 5's seven open questions are not all closed by this.** Question 8 was answered
+by D73 (a fixed step budget) and question 4 -- what counts as recent healthy telemetry --
+was answered by section 56 and `window56.ml`. **Question 4 is answered onboard and
+unvalidated on real telemetry**, which is a different thing from closed. Question 1, the
+exception-free path, is answered for OxCaml rather than for mlpack: `retrainer.ml:44`,
+`shadow_c.ml:40` and -- since D82 -- `cycle_c.ml`'s guard turn an exception into a status
+before it can reach a `-fno-exceptions` caller.
+
+**What the choice does not buy**, restated here because this document is where a reader
+comes for Phase 5's scope: the pre-launch sanity gate is still not enforceable and **no
+shadow model may be swapped in**; nothing onboard scores a candidate; the candidate this
+engine builds cannot replace `SentinelRef`'s model, 75,360 parameters against 66,960;
+E5 is HOST-VERIFIED PENDING TARGET with C2 and C4 unverified; and **no timing figure from
+any of this work may be quoted**.
+
+**And the case against OxCaml is unchanged by being chosen** -- no flight heritage, no
+qualified compiler, no certification precedent for a garbage-collected runtime in flight,
+64-bit Linux and arm64 macOS only, no stability promise, Rust smaller with Ferrocene
+qualified and OPS-SAT heritage, and **no Rust comparison built here**. D70 consequence 3's
+cost stands as written: on that comparison this project is reasoning and not measuring.

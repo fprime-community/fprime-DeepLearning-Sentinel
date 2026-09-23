@@ -108,6 +108,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D80 `oxcaml/` and the ground toolkit move onto `master`. The toolkit's import closure is cut free of `sentinel_data` first, so no cloud client or credential reader travels with it](#d80-oxcaml-and-the-ground-toolkit-move-onto-master-the-toolkits-import-closure-is-cut-free-of-sentinel-data-first-so-no-cloud-client-or-credential-reader-travels-with-it)
 - [D81 `master`'s README is rewritten for a first-time reader, the omissions table moves to `docs/OMISSIONS.md`, and every figure the README states gains a Figure row](#d81-masters-readme-is-rewritten-for-a-first-time-reader-the-omissions-table-moves-to-docsomissionsmd-and-every-figure-the-readme-states-gains-a-figure-row)
 - [D82 The flown retrainer is bounds-checked. `[@zero_alloc strict]` never required unchecked access, and the 559 accesses were a choice nobody had recorded](#d82-the-flown-retrainer-is-bounds-checked-zero-alloc-strict-never-required-unchecked-access-and-the-559-accesses-were-a-choice-nobody-had-recorded)
+- [D83 OxCaml is the Phase 5 retraining implementation -- the chosen one, host-verified and not flight-qualified. Supersedes D74's "permitted", and `Objective.md` section 12 is NOT edited](#d83-oxcaml-is-the-phase-5-retraining-implementation----the-chosen-one-host-verified-and-not-flight-qualified-supersedes-d74s-permitted-and-objectivemd-section-12-is-not-edited)
 
 <!-- /toc -->
 
@@ -7295,3 +7296,109 @@ count fails the guard first and the rows second.
 states" was read as "every figure in the four curated documents", and `master` carries
 more prose than that. Whether the remaining `fprime/` and `flight/` READMEs on `master`
 state figures nothing re-derives is **not audited here** and is owed.
+
+## D83. OxCaml is the Phase 5 retraining implementation -- the chosen one, host-verified and not flight-qualified. Supersedes D74's "permitted", and `Objective.md` section 12 is NOT edited
+
+**DATE** 2026-09-23 | **STATUS** resolved by the owner as a design decision.
+**`Objective.md` is not edited. D70, D73, D76, D77, D78, D82 stand. D74 is superseded in
+scope only -- its refusals 1, 2 and 3 are re-affirmed below, not lifted.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** D74's subject is *what is permitted*: OxCaml
+"for the retrainer process and nothing else", taken explicitly **with D70 c.4's
+precondition unsatisfied**. This changes the verb, from permitted to **chosen**, and a
+decision that supersedes part of an earlier reading rather than extending it is a new
+entry -- D69 over D67, and D78 over D74.4, are the house precedents.
+
+**CONTEXT.** `Objective.md` section 12's Phase 5 box says **C++**. `docs/PHASE5.md`
+section 4 proposed **mlpack/Armadillo/ensmallen**, conditional on a claim -- that
+Armadillo can be made to run on statically allocated memory -- which **reached this
+project as a spoken finding with no source attached and has never been discharged**.
+D70 registered OxCaml as a candidate behind four experiments; D74 permitted it for one
+process. Since then E1, E3, E5-a through E5-f, the hub crossing, HO1, HO2 and HO3 have
+run, and D82 made the flown modules bounds-checked while holding all 56
+`[@zero_alloc strict]` sites with zero `assume`.
+
+**DECISION. OxCaml is the retraining engine's implementation language.** The wording,
+which travels with it wherever it appears:
+
+> **the chosen retraining implementation, host-verified, not flight-qualified**
+
+Each word is load-bearing. **Chosen**, not permitted -- the fallback is no longer being
+held open. **Host-verified** -- every rung ran on a development Mac. **Not
+flight-qualified** -- and the rows that make that true are unchanged and are restated
+below rather than filed away.
+
+**(!) AND D70 c.4's PRECONDITION IS STILL UNSATISFIED. THIS ENTRY DOES NOT PRETEND
+OTHERWISE.** D70 consequence 4 reads *"If E1 to E4 pass"*. **E1 and E3 passed. E2
+returned NO VERDICT. E4 has never run -- it needs flight hardware.** D74 was taken on
+the owner's direction with that precondition unmet, and D83 is taken the same way, for
+the same reason, and says so in the same words. Nothing here converts an unrun
+experiment into a passed one.
+
+**THE CASE AGAINST, WHICH IS STRONGER ON EVERY ROW MEASURED BY ANYBODY**, and which
+rule 19 requires beside every argument for it -- unchanged by this decision:
+
+```
+  flight heritage        none
+  qualified compiler     none
+  certification          no precedent for a garbage-collected runtime in flight
+  targets                x86-64 and arm64 Linux, arm64 macOS. No 32-bit ARM, no musl,
+                         no documented cross-compile recipe
+  stability              its own documentation promises none -- and D82 found the
+                         compiler answering a duplicate module with an internal
+                         compiler error rather than a diagnostic
+  Rust                   smaller footprint, Ferrocene qualified, OPS-SAT heritage
+  the comparison         NO RUST COMPARISON HAS BEEN BUILT HERE. On that row this
+                         project is reasoning and not measuring, and D70 c.3's cost
+                         stands exactly as written
+```
+
+**ALTERNATIVES, AND WHAT EACH COSTS.**
+
+```
+  1  choose OxCaml, Objective.md unedited     TAKEN. Costs the precondition being
+     and the case against beside it            unmet and stated, every time
+  2  edit Objective.md 12 to say "C++ or      REFUSED. D74 alternative 2's reason is
+     OxCaml"                                   unchanged: "A governing document edited
+                                               to match the work stops being a check on
+                                               the work." D63 is the precedent
+  3  wait for E4                              REFUSED. Honest and indefinite: E4 needs
+                                               hardware that is not scheduled, and the
+                                               whole track would wait behind a session
+                                               nobody can book
+  4  take mlpack after all                    REFUSED. Its load-bearing claim is still
+                                               undischarged, and choosing on an
+                                               unverified premise is what PHASE5 4 warns
+                                               against in its own words
+```
+
+**CONSEQUENCES.**
+
+1. **`Objective.md` is not edited, and that is checkable.** Section 12's Phase 5 box
+   still says C++ and the disagreement is recorded here, which is D63's treatment of a
+   rule-shaped disagreement. A guard asserting `Objective.md` is byte-identical across
+   this change would make the rule enforced rather than remembered, and is owed.
+
+2. **`docs/PHASE5.md` gets a rider, not an edit.** Sections 1 to 9 stand, including
+   section 4's UNVERIFIED mlpack claim -- which D83 closes by choosing another route
+   **without discharging it**. A reader should still be able to see what was proposed
+   and why it was conditional.
+
+3. **Every live document that called this an experiment changes**, on both branches:
+   `master:docs/DESIGN.md` section 9's status line, `master:docs/STATUS.md`'s roadmap
+   row E, `master:README.md`'s retrainer paragraphs, and the three `fprime/` READMEs and
+   sdd. What does NOT change is every sentence about what is unproven.
+
+4. **The limits are re-affirmed, not retired.** The pre-launch sanity gate is still not
+   enforceable and **no shadow model may be swapped in**. Nothing onboard scores a
+   candidate. The candidate this engine builds still cannot replace what `SentinelRef`
+   flies -- 75,360 against 66,960. E5 is HOST-VERIFIED PENDING TARGET, C2 and C4
+   unverified, and **no timing figure from any of this work may be quoted** (stop 35,
+   kept by D82.1).
+
+5. **(!) THE THING THIS DECISION MAKES EASIER TO OVERCLAIM, NAMED BEFORE IT HAPPENS.**
+   "Chosen" invites "adopted", and "adopted" invites "flight software is written in
+   OxCaml here". It is not. One advisory, non-critical background process, in its own
+   deployment, is. `fprime/library.cmake` exports the Monitor and not this, and a
+   mission adopting Sentinel inherits none of it. That sentence stays in the customer
+   document.
