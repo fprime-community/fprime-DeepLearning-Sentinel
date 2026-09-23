@@ -102,7 +102,7 @@ and the case against it in the same passage.
 the OCaml runtime inside a real F' deployment, runs one training cycle per tick, carries that
 cycle across a hub into `SentinelRef`'s process, and **writes a candidate model file that
 `flight/`'s own reader loads** (72.8, HO1). **0** OCaml symbols in `SentinelRef`'s binary and
-**3,019** in this one, checked by symbol on every test run
+**3,082** in this one, checked by symbol on every test run
 (`tests/test_detector_binary_has_no_ocaml_runtime.py`).
 
 **(!) The candidate is not a replacement for `SentinelRef`'s model.** The training cycle is
