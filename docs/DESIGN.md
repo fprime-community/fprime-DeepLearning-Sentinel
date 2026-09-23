@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`cd08c95`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`16e3e8d`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -283,9 +283,13 @@ carry it. The guards that keep this document's figures true still run on `dev`.
 
 ## 9. Onboard retraining, and the language it is being tried in
 
-**Status: an experiment on the branch, adopted for nothing.** Nothing in section 1's chain
-depends on any of it, `fprime/library.cmake` exports the Monitor and not this, and a mission
-adopting Sentinel inherits none of it.
+**Status: the chosen retraining implementation, host-verified, not flight-qualified**
+(D83). Chosen is not qualified, and the distinction is the whole of this section: it has
+never run on flight hardware, its sanity gate is not a usable gate, and nothing onboard
+scores a candidate. **Nothing in section 1's chain depends on any of it,
+`fprime/library.cmake` exports the Monitor and not this, and a mission adopting Sentinel
+inherits none of it** -- adoption is of a language for one advisory background process,
+not of this component by anybody.
 
 ### Why a retrainer at all
 The flying model is frozen so that a degrading spacecraft cannot teach the detector that
@@ -446,5 +450,8 @@ the file's length and CRC, the step count, the loss, the sample count -- and non
 either part of the sanity criterion. **Both parts are computed on the ground from the
 downlinked candidate.** Onboard held-out scoring does not exist and is owed.
 
-The full record is on `dev`: `docs/DECISIONS.md` D70, D73, D74 with its riders, D76 and D77,
-and `docs/MODELS.md` sections 47 through 72.
+The full record is on `dev`: `docs/DECISIONS.md` D70, D73, D74 with its riders, D76, D77,
+**D78** (the control shadow this section's percentages come from), **D82** (the retrainer
+made bounds-checked) and **D83** (the adoption), and `docs/MODELS.md` sections 47 through
+**76**. The earlier pointer stopped at D77 and section 72, which predated the sanity
+gate's rebuild and the two sections this page now quotes.

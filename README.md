@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`cd08c95`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`16e3e8d`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -228,10 +228,13 @@ recipe in full.
 approves it** before `RELOAD_MODEL` changes anything. Nothing the detector does depends on
 it.
 
-**Why OxCaml.** Training is thousands of lines of array arithmetic, where memory bugs live,
-and flight rules forbid allocation after init. Mark a function `[@zero_alloc strict]` and the
-build fails if anything in its call tree allocates: the rule becomes a compile error rather
-than a review item.
+**Why OxCaml, and it is now the chosen implementation rather than an experiment** (D83) --
+**host-verified, not flight-qualified.** Training is thousands of lines of array
+arithmetic, where memory bugs live, and flight rules forbid allocation after init. Mark a
+function `[@zero_alloc strict]` and the build fails if anything in its call tree allocates:
+the rule becomes a compile error rather than a review item. **56 functions carry it, with
+zero `assume` escape hatches, and since D82 every array access in the retrainer is
+bounds-checked as well** -- the two hold together, which was measured rather than assumed.
 
 **The case against, stronger on every row measured by anybody.** No flight heritage, no
 qualified compiler, no certification precedent for a garbage-collected runtime in flight;

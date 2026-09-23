@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`cd08c95`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`16e3e8d`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -76,7 +76,7 @@ What the pre-registration commits to, so it can be held to it:
 | **B** | **The F' Ref physics testbed** | Coupled current, heat, temperature and voltage; 8-12 channels; real dictionary limits; a real clock; faults seeded **in the physics** and in-limits throughout. A model gate runs on it at a matched rate reporting in-limits catch rate, **time-to-limit-trip**, and manoeuvre false alarms |
 | **C** | **In-orbit threshold recalibration** | File uplink and human-approved reload, exercised end to end on the Ref. The format already permits it: the parameter block is separately CRC'd and separately replaceable, so no format change is needed |
 | **D** | **The hardware envelope** | `docs/PI_ENVELOPE.md` carries a measurement instead of a reservation |
-| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **Started, and adopted for nothing** -- `docs/DESIGN.md` 9. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item |
+| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **The chosen retraining implementation, host-verified and not flight-qualified** (D83) -- `docs/DESIGN.md` 9. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item |
 
 ## 5. Open, and named
 

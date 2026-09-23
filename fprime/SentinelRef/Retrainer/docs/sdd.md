@@ -67,8 +67,9 @@ being measured.
 
 - **Not that OxCaml allocates nothing.** That is E3, and `[@zero_alloc strict]` appears
   nowhere in E1.
-- **Not that the detector is isolated from the retrainer's collector.** That is E2, and it
-  is the experiment that can end the approach.
+- **Not that the detector is isolated from the retrainer's collector.** That is E2, which
+  returned **NO VERDICT**, and C2 is still unverified. D83 chose OxCaml with that
+  precondition unmet and says so; it is not converted into a pass by being chosen.
 - **Not that any of this builds for a flight target.** That is E4.
 - **Not that the arithmetic is useful.** It is a sum and a mean, chosen because both are
   exact in F64.

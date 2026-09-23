@@ -83,10 +83,11 @@ module skips itself and the deployment has nothing to instance.
 
 **The OxCaml sources and the scripts that build the switch are on both branches** since
 D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
-`scripts/oxcaml_s61.sh` to build the object this deployment links. **The retrainer is still
-an experiment rather than a released feature** -- it has never run on flight hardware,
-its sanity gate is not a usable gate yet, and it trains at the compile-time maxima rather
-than at `SentinelRef`'s flown shape. `docs/DESIGN.md`, on `master`, states the case for it
+`scripts/oxcaml_s61.sh` to build the object this deployment links. **OxCaml is the CHOSEN retraining implementation --
+host-verified, not flight-qualified** (D83). Chosen is not qualified: it has never run
+on flight hardware, its sanity gate is not a usable gate yet, and it trains at the
+compile-time maxima rather than at `SentinelRef`'s flown shape, so no candidate it
+builds can replace what that deployment flies. `docs/DESIGN.md`, on `master`, states the case for it
 and the case against it in the same passage.
 
 ```

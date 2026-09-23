@@ -138,6 +138,8 @@ The binary can also be run on its own from `build-artifacts/<platform>/bin/`:
 ## Where the reasoning is
 
 The decisions are on `dev` in `docs/DECISIONS.md` -- D32 for the component's passive shape
-and its refusal behaviour, D70 for why OxCaml is a candidate and what is registered against
-it, D73 for the fixed step budget. The pre-registrations and what they measured are in
+and its refusal behaviour, D70 for why OxCaml was registered as a candidate and what is
+recorded against it, **D83 for its adoption as the chosen retraining implementation --
+host-verified, not flight-qualified, with that case against unchanged** -- D82 for the
+retrainer being bounds-checked, D73 for the fixed step budget. The pre-registrations and what they measured are in
 `docs/MODELS.md`: 42 for the testbed, 47 for the OxCaml gateway, 65 for the second deployment.
