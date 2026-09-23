@@ -10,19 +10,25 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s49"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}/vb"; cd "${B}"
 
 echo "== Section 49 =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   assume annotations in gru_cell.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' "${SRC}/gru_cell.ml")"
 
 echo
 echo "-- J6: 48's strict result, with the Arm B dump path present"
 ocamlopt -g -zero-alloc-check all -warn-error +a -alert @all -I "${SRC}" \
-    -o s49_j6 "${SRC}/gru_cell.ml" "${SRC}/gru_dump.ml"
+    -o s49_j6 "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" "${SRC}/gru_cell.ml" "${SRC}/gru_dump.ml"
 echo "   gru_cell.ml + gru_dump.ml: clean under -zero-alloc-check all"
 sed 's/^let\[@inline\] sigmoid v =/let sigmoid v =/' "${SRC}/gru_cell.ml" > nohint.ml
-ocamlopt -g -zero-alloc-check all -c nohint.ml >nohint.log 2>&1 || true
+ocamlopt -I "${SRC}" -g -zero-alloc-check all -c -I . nohint.ml >nohint.log 2>&1 || true
 if grep -q "failed on function Nohint.backward" nohint.log; then
     echo "   (!) backward FAILS without the hint -- J6 is not clean"; exit 1
 fi
@@ -30,13 +36,13 @@ echo "   backward still passes unhinted; only forward needs the hint, as 48.8 re
 
 echo
 echo "-- J1, J2, J3: Arm A"
-ocamlopt -g -I "${SRC}" -o s49_fd "${SRC}/gru_cell.ml" "${SRC}/gru_fd.ml"
+ocamlopt -g -I "${SRC}" -o s49_fd "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" "${SRC}/gru_cell.ml" "${SRC}/gru_fd.ml"
 set +e; ./s49_fd; ARM_A=$?; set -e
 echo "   (Arm A exit ${ARM_A}: 0 = J1 HOLD, 1 = NO VERDICT, 2 = FAIL)"
 
 echo
 echo "-- J4: Arm B, against reference.py at float64"
-ocamlopt -g -I "${SRC}" -o s49_dump "${SRC}/gru_cell.ml" "${SRC}/gru_dump.ml"
+ocamlopt -g -I "${SRC}" -o s49_dump "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" "${SRC}/gru_cell.ml" "${SRC}/gru_dump.ml"
 ./s49_dump "${B}/s49_cell.txt"
 set +e
 "${ROOT}/.venv/bin/python" "${ROOT}/scripts/s49_reference_check.py" "${B}/s49_cell.txt"
@@ -60,10 +66,10 @@ assert s.count(old) == 1, f"anchor matched {s.count(old)} times"
 io.open(dst, "w", encoding="utf-8").write(s.replace(old, new))
 print("   variant written: b_hn moved OUTSIDE the reset product")
 PY
-ocamlopt -g -I vb -o s49_fd_bhn vb/gru_cell.ml "${SRC}/gru_fd.ml"
+ocamlopt -g -I vb -I "${SRC}" -o s49_fd_bhn "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" vb/gru_cell.ml "${SRC}/gru_fd.ml"
 set +e; ./s49_fd_bhn > bhn_a.log 2>&1; BHN_A=$?; set -e
 grep -E "entries outside|worst relative error|band: 0 outside" bhn_a.log | sed 's/^/     /'
-ocamlopt -g -I vb -o s49_dump_bhn vb/gru_cell.ml "${SRC}/gru_dump.ml"
+ocamlopt -g -I vb -I "${SRC}" -o s49_dump_bhn "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" vb/gru_cell.ml "${SRC}/gru_dump.ml"
 ./s49_dump_bhn "${B}/s49_cell_bhn.txt" >/dev/null
 set +e
 "${ROOT}/.venv/bin/python" "${ROOT}/scripts/s49_reference_check.py" "${B}/s49_cell_bhn.txt" \

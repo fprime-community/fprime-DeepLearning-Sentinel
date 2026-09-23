@@ -9,17 +9,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s52"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 NPROC="${NPROC:-8}"
 rm -rf "${B}"; mkdir -p "${B}/alloc" "${B}/stack"; cd "${B}"
 cp "${SRC}/gru_deep.ml" "${SRC}/gru_deep_check.ml" .
 
 echo "== Section 52 =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   HD5  assume annotations in gru_deep.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' gru_deep.ml)"
 
 echo
 echo "-- HD1, HD2, HD3: two layers, the backward sweep, and the head must compile clean"
-ocamlopt -g -zero-alloc-check all -warn-error +a -alert @all -o s52 gru_deep.ml gru_deep_check.ml
+ocamlopt -I "${SRC}" -g -zero-alloc-check all -warn-error +a -alert @all -o s52 -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" gru_deep.ml gru_deep_check.ml
 echo "   clean: layer_fwd, layer_bwd, forward_deep, backward_deep and zero_grads_deep all hold"
 
 echo
@@ -43,7 +49,7 @@ io.open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, new))
 print("   variant written: Array.make inside layer_bwd, which serves BOTH layers")
 PY
 cp gru_deep_check.ml alloc/
-if (cd alloc && ocamlopt -g -zero-alloc-check all -c gru_deep.ml >a.log 2>&1); then
+if (cd alloc && ocamlopt -I "${SRC}" -I .. -g -zero-alloc-check all -c -I .. gru_deep.ml >a.log 2>&1); then
     echo "   (!) BUILT -- the gate cannot fail. HD6a FAILED."; exit 1
 else
     echo "   rejected: $(grep -m1 -oE 'called function may allocate.*' alloc/a.log)"
@@ -65,7 +71,7 @@ io.open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, new))
 print("   variant written")
 PY
 cp gru_deep_check.ml stack/
-(cd stack && ocamlopt -g -o s52bad gru_deep.ml gru_deep_check.ml >/dev/null 2>&1)
+(cd stack && ocamlopt -I "${SRC}" -I .. -g -o s52bad -I .. "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" gru_deep.ml gru_deep_check.ml >/dev/null 2>&1)
 set +e
 BAD=$(cd stack && for p in $(seq 0 $((NPROC-1))); do ./s52bad "$p" "$NPROC" 250 & done; wait)
 set -e
@@ -85,7 +91,12 @@ TOT=$(echo "$OUT"  | grep -oE 'checked [0-9]+'       | awk '{s+=$2} END {print s
 OUTS=$(echo "$OUT" | grep -oE 'outside [0-9]+'       | awk '{s+=$2} END {print s}')
 WA=$(echo "$OUT"   | grep -oE 'worst_abs [0-9.e+-]+' | awk '{if($2>m)m=$2} END {printf "%.6e", m}')
 echo "   AGGREGATE: checked ${TOT}, entries outside ${OUTS}, worst abs ${WA}"
-echo "$OUT" | grep '^  OUT' | head -12
+# (!) `|| true` IS LOAD-BEARING, AND ITS ABSENCE MADE A PASS LOOK LIKE A FAILURE.
+# These are the out-of-tolerance detail lines, so `grep` matches NOTHING exactly when
+# every entry is inside tolerance -- the good case. Under `set -o pipefail` that 1
+# propagated and killed the script immediately after the AGGREGATE line, so HD4
+# exited non-zero on a clean sweep and never printed its own verdict.
+echo "$OUT" | grep '^  OUT' | head -12 || true
 if [ "${OUTS}" -eq 0 ]; then V="HOLD"; elif [ "${OUTS}" -le 10 ]; then V="NO VERDICT"; else V="FAIL"; fi
 echo "   band: 0 outside HOLD, <=10 NO VERDICT, else FAIL -> ${V}"
 echo "   wall clock $(( $(date +%s) - START )) s across ${NPROC} processes   (HD7 exit ${HD7})"

@@ -20,6 +20,13 @@
  * Everything is preallocated at module initialisation and nothing below allocates: that is
  * CPP-1's shape and it is what 48.4's G1 and G2 assert. No `assume` appears in this file. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 let h_size = 80          (* Config.hpp MAX_HIDDEN *)
 let in_size = 16         (* Config.hpp MAX_INPUTS *)
 let gates = 3            (* Config.hpp N_GATES *)

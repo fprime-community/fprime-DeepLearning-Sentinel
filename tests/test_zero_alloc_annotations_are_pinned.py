@@ -16,16 +16,23 @@ tree without it the figures were prose.
    an `assume` is how an annotation stops meaning anything -- it asserts the property
    instead of proving it.
 
-3. **(!) 559 unchecked array accesses.** Not a target and not an achievement: a
-   disclosure. `master:docs/DESIGN.md` argues the language case on
-   `[@zero_alloc strict]` and says nothing about bounds, and a reader could reasonably
-   have concluded the training arithmetic was checked. It is not. The number is pinned
-   so that it moves deliberately and visibly, in either direction.
+3. **(!) Where the bounds checks are.** This began as a disclosure -- **559 unchecked
+   array accesses**, in every module carrying the annotation, while
+   `master:docs/DESIGN.md` argued the language case on `[@zero_alloc strict]` and said
+   nothing about bounds. A reader could reasonably have concluded the training
+   arithmetic was checked. It was not.
 
-`scripts/oxcaml_checked.sh` is the measurement that says what the number COSTS:
-against a bounds-checked accessor every annotated module still holds
-`[@zero_alloc strict]`, so the accesses are a choice rather than something the
-annotation forced.
+   **D82 changed that rather than documenting it.** Measured first: the annotation did
+   NOT force the unchecked accesses -- OCaml's bounds-failure path raises a
+   preallocated exception and allocates nothing, so `strict` holds either way. The
+   flown modules now compile against a bounds-checked accessor, and what is pinned
+   below is the split: **502** accesses resolving through an accessor, and **24**
+   genuinely unchecked, all of them in drivers that say they are not part of the claim.
+
+`scripts/oxcaml_checked.sh` is the standing measurement: it compiles the annotated
+modules as they fly and against the unchecked comparison arm, and both must hold
+`[@zero_alloc strict]`. If the flown arm ever stops holding, the checks have become
+unaffordable and D82 has to be revisited rather than quietly reverted.
 """
 from __future__ import annotations
 
@@ -50,10 +57,22 @@ UNCHECKED = re.compile(r"\bArray1?\.unsafe_(?:get|set)\b")
 #: `acc_checked_int.ml` are excluded from the access count: they are the instrument,
 #: they contain the primitive by construction, and counting them would make the
 #: disclosure drift every time the instrument is touched.
-EXCLUDED = {"acc.ml", "acc_checked.ml", "acc_checked_int.ml"}
+EXCLUDED = {"acc.ml", "acc_int.ml", "acc_unchecked.ml"}
 STRICT_SITES = 56
 ASSUME_SITES = 0
-UNCHECKED_ACCESSES = 559
+
+#: (!) D82 SPLIT THIS FIGURE IN TWO, AND THE SPLIT IS THE POINT. The call sites keep
+#: spelling `Array.unsafe_get`, deliberately -- a module that opens `Acc` or `Acc_int`
+#: resolves that name to the CHECKED operation, so the diff stayed small and the sites
+#: stayed greppable. Counting the spelling therefore no longer says what is checked;
+#: whether the module opens an accessor does.
+CHECKED_THROUGH_ACCESSOR = 502
+
+#: What is genuinely unchecked, and it is only the drivers: `*_check.ml` and
+#: `deep_f32_exhaustive.ml`, each of which opens with its own "not annotated and not
+#: part of the claim". They are apparatus, they carry no `[@zero_alloc strict]`, and
+#: nothing they compute reaches the flown object.
+GENUINELY_UNCHECKED = 24
 
 
 def _modules():
@@ -95,13 +114,44 @@ def test_there_is_no_assume_anywhere() -> None:
         "arithmetic holds 'with zero assume annotations'.")
 
 
-def test_the_unchecked_access_count_is_disclosed_and_pinned() -> None:
-    per_file = {p.name: len(UNCHECKED.findall(p.read_text(encoding="utf-8")))
-                for p in _modules()}
-    total = sum(per_file.values())
-    assert total == UNCHECKED_ACCESSES, (
-        f"{total} unchecked array accesses, pinned at {UNCHECKED_ACCESSES}. This "
-        "number is a disclosure, not a target: it is what stops 'memory safe' being "
-        "a claim this tree supports. Moving it DOWN is progress and moving it UP is a "
-        "decision -- either way, move the constant deliberately and say which. "
-        f"Per file: { {k: v for k, v in per_file.items() if v} }")
+def test_every_annotated_module_opens_an_accessor() -> None:
+    """(!) D82's actual claim, and the one worth guarding.
+
+    A module carrying `[@zero_alloc strict]` performs the training arithmetic. If it
+    does not open an accessor, its `Array.unsafe_get` is the raw primitive and its
+    accesses are unchecked -- which is what every one of them was until 2026-09-22.
+    """
+    missing = []
+    for p in _modules():
+        text = p.read_text(encoding="utf-8")
+        if DEFINITION.search(text) and not re.search(r"^open Acc", text, re.M):
+            missing.append(p.name)
+    assert not missing, (
+        f"these modules carry `[@zero_alloc strict]` and do NOT open an accessor, so "
+        f"their element accesses are unchecked: {missing}. D82 made the flown "
+        "retrainer bounds-checked; a new annotated module has to opt in the same way.")
+
+
+def test_the_checked_and_unchecked_counts_are_both_pinned() -> None:
+    checked = unchecked = 0
+    drivers = {}
+    for p in _modules():
+        text = p.read_text(encoding="utf-8")
+        n = len(UNCHECKED.findall(text))
+        if re.search(r"^open Acc", text, re.M):
+            checked += n
+        else:
+            unchecked += n
+            if n:
+                drivers[p.name] = n
+    assert checked == CHECKED_THROUGH_ACCESSOR, (
+        f"{checked} accesses resolve through an accessor, pinned at "
+        f"{CHECKED_THROUGH_ACCESSOR}. Moving it is fine; moving it silently is not.")
+    assert unchecked == GENUINELY_UNCHECKED, (
+        f"{unchecked} genuinely unchecked accesses, pinned at {GENUINELY_UNCHECKED}. "
+        f"Found in: {drivers}. Every one of these should be in a driver that says it "
+        "is not part of the claim -- if a module on the flight path appears here, D82 "
+        "has been undone.")
+    assert all(n.endswith("_check.ml") or n.endswith("_exhaustive.ml")
+               for n in drivers), (
+        f"an unchecked access is outside the drivers: {drivers}")

@@ -10,14 +10,20 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s64ex"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 SHARDS="${SHARDS:-10}"
 rm -rf "${B}"; mkdir -p "${B}"; cd "${B}"
 cp "${SRC}/deep_f32.ml" "${SRC}/deep_f32_exhaustive.ml" .
 
 START=$(date +%s)
 echo "== Section 64 =="
-echo "   ocamlopt $(ocamlopt -version)"
-ocamlopt -g -O3 -o s64ex deep_f32.ml deep_f32_exhaustive.ml
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
+ocamlopt -I "${SRC}" -g -O3 -o s64ex -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" deep_f32.ml deep_f32_exhaustive.ml
 
 echo
 echo "-- EX1 validation: shard 0 of 1021 covers exactly the indices deep_f32_check samples"

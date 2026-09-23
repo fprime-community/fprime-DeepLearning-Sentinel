@@ -107,6 +107,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D79 A build-dependent gate SKIPS loudly and never inside a green pass. `check_references` skips a citation into an absent `fprime/lib/`; `make -C flight lint` reports PARTIAL and exits non-zero](#d79-a-build-dependent-gate-skips-loudly-and-never-inside-a-green-pass-check-references-skips-a-citation-into-an-absent-fprimelib-make--c-flight-lint-reports-partial-and-exits-non-zero)
 - [D80 `oxcaml/` and the ground toolkit move onto `master`. The toolkit's import closure is cut free of `sentinel_data` first, so no cloud client or credential reader travels with it](#d80-oxcaml-and-the-ground-toolkit-move-onto-master-the-toolkits-import-closure-is-cut-free-of-sentinel-data-first-so-no-cloud-client-or-credential-reader-travels-with-it)
 - [D81 `master`'s README is rewritten for a first-time reader, the omissions table moves to `docs/OMISSIONS.md`, and every figure the README states gains a Figure row](#d81-masters-readme-is-rewritten-for-a-first-time-reader-the-omissions-table-moves-to-docsomissionsmd-and-every-figure-the-readme-states-gains-a-figure-row)
+- [D82 The flown retrainer is bounds-checked. `[@zero_alloc strict]` never required unchecked access, and the 559 accesses were a choice nobody had recorded](#d82-the-flown-retrainer-is-bounds-checked-zero-alloc-strict-never-required-unchecked-access-and-the-559-accesses-were-a-choice-nobody-had-recorded)
 
 <!-- /toc -->
 
@@ -7086,3 +7087,140 @@ count and the in-range population, and the all-38 sentence's pair. **55 rows in 
 register.** What is still unguarded there is recorded in the report rather than here: about
 thirty measured figures, most of them one seeded run's tick coordinates and the vector
 agreement table, each of which needs its own source read. **That is an audit, not a rider.**
+
+## D82. The flown retrainer is bounds-checked. `[@zero_alloc strict]` never required unchecked access, and the 559 accesses were a choice nobody had recorded
+
+**DATE** 2026-09-22 | **STATUS** resolved by the owner as a design decision, after the
+premise it rested on was measured and refuted. **D70, D73, D74 and D78 are untouched.
+`Objective.md` is not edited.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** No earlier entry has a subject this could
+extend. D70 argues *which language*; D74 argues *where it is permitted*. This is about
+what the code inside that permission actually does, and it **supersedes nothing** -- it
+records a property the record never stated in either direction.
+
+**CONTEXT.** `oxcaml/retrainer/` performed **559 unchecked array accesses** across 19
+modules -- 268 `Array.unsafe_get`, 221 `Array.unsafe_set`, 31 and 39 of the
+`Bigarray.Array1` forms -- and **every module carrying `[@zero_alloc strict]` was among
+them**. Nothing in `docs/`, `README.md` or `master:docs/DESIGN.md` said so. The customer
+document argues the whole OxCaml case on the annotation -- *"a compile error,
+transitively across callees"* -- and says nothing about bounds, so a reader could
+reasonably have concluded the training arithmetic was checked. It was not.
+
+**(!) AND THE AVAILABLE DEFENCE DOES NOT HOLD, WHICH IS WHY THIS IS A DECISION RATHER
+THAN A DISCLOSURE.** The reasonable defence was that the annotation forced it: `strict`
+refuses a function whose paths reach an exceptional return -- 47.9 recorded the
+compiler's own *"may allocate ON A PATH TO EXCEPTIONAL RETURN"* under both `-g` and no
+`-g` -- and a bounds-checked access raises `Invalid_argument`. If that held there would
+be nothing to decide. **Measured on switch 5.2.0+ox: it does not.** OCaml's
+bounds-failure path raises a **preallocated** exception and allocates nothing, so
+`strict` is satisfied with the checks in place.
+
+**DECISION.** The retrainer compiles against a bounds-checked accessor.
+
+```
+  acc.ml           the flown accessor. Array.get / Array.set underneath, and
+                   monomorphic F32 / F64 / U8 for Bigarray
+  acc_int.ml       the same, specialised to `int array`, for window56 and shadow59
+  acc_unchecked.ml the comparison arm. NOT a build option -- it exists so that
+                   "the checks are in and strict still holds" stays a measurement
+```
+
+Call sites keep spelling `Array.unsafe_get`: a module opts in with one line, `open Acc`,
+so the diff is 14 lines rather than 502 and every site stays greppable. What decides
+whether a module is checked is **whether it opens an accessor**, and that is what the
+guard asserts.
+
+**EVIDENCE, AND IT IS THE WHOLE LADDER RATHER THAN A SAMPLE.**
+
+```
+  all 20 ladder scripts            PASS bounds-checked (e1, e3, s48-s72)
+  [@zero_alloc strict] sites       56, unchanged.  assume: 0, unchanged
+  EX1, every one of 75,360 indices worst ratio 0.306952, margin 3.258x -- BIT-IDENTICAL
+  accesses now checked             502.  Genuinely unchecked: 24, all in drivers
+  cycle_complete.o                 builds and links; 1,242,004 B against 1,216,876 B
+                                   unchecked -- +25,128 B, +2.07%
+  the other direction              a read past an 8-element array: "CAUGHT: index out
+                                   of bounds" checked, 6.30428e-321 unchecked
+```
+
+**EX1 re-earning bit-identically is the point**: bounds-checking changes no arithmetic,
+so every numeric figure Stages 48-72 measured stands unmoved. 72.4's rule -- *"a module
+edited after measurement is a module whose figures have to be re-earned"* -- is
+satisfied by re-earning them, not by arguing they did not move.
+
+**ALTERNATIVES, AND WHAT EACH COSTS.**
+
+```
+  1  check the flown modules            TAKEN. Costs +2.07% object size and an
+                                        unquantified run-time cost -- see c.5
+  2  check only a test build, fly       REFUSED. It buys a guard nothing flies behind,
+     unchecked                          and leaves the customer document's silence
+                                        about bounds exactly as it was
+  3  disclose and change nothing        REFUSED once the defence was refuted. "We chose
+                                        not to" is a defensible position; "the compiler
+                                        made us" was the only one on offer and it is false
+```
+
+**CONSEQUENCES.**
+
+1. **"Memory safe" is still NOT a claim this tree supports, and the reason has changed.**
+   Before, because the arithmetic was unchecked. Now, because 24 unchecked accesses
+   remain in `*_check.ml` and `deep_f32_exhaustive.ml`, and because bounds-checking is
+   not the whole of memory safety. What may be claimed is narrower and now true: **every
+   element access on the flight path is bounds-checked, and all 56 `[@zero_alloc strict]`
+   sites still hold with zero `assume`.**
+
+2. **There are two accessors, and the reason is a real limit.** Wrapping `Array` at
+   `'a array` defeats OCaml's representation specialisation; the generic path may
+   allocate and `strict` then refuses the **caller**. `window56.ml` and `shadow59.ml`
+   hold `int array` and were refused; specialised to `int` both hold. The failure
+   appears only where the element type differs from the majority, which is exactly how
+   such a wrapper hides a defect.
+
+3. **(!) A RULE 19 FINDING, RECORDED BECAUSE IT WAS FOUND RATHER THAN ANTICIPATED.**
+   `ocamlopt 5.2.0+ox` answers a **duplicate module definition** with an internal
+   compiler error, not a diagnostic:
+
+   ```
+     Fatal error: Cannot create parameter Acc.next_depth/195N with kind V?:
+                  it must have a subkind of R
+     Fatal error: exception Misc.Fatal_error
+   ```
+
+   Deterministic: a compiled `Acc` on the include path AND the same module recompiled
+   from another directory in one command, under `-zero-alloc-check all`. It emitted
+   about 7,400 lines of flambda2 IR. The cause was this project's build wiring and is
+   fixed -- every script now builds the accessor once and passes `acc.cmx`, never the
+   source -- but the compiler's response to it is the finding, and it is the kind of
+   thing rule 19's *no stability promise* is about. **No workaround was needed and no
+   claim is weakened by it.**
+
+4. **`cycle_c.ml`'s five entry points are guarded, and `sentinel_cycle.h`'s CPP-25 claim
+   becomes true.** 72.2 found the gap and 72.9 carried it as owed; it stayed open
+   because 72.4 forbids editing a measured module without re-earning its figures. This
+   entry re-earns them, so the repair lands with them. It is load-bearing now rather
+   than tidy: a checked access raises, and an exception reaching a caller built
+   `-fno-exceptions` is undefined behaviour. A bad index now returns status **-6**.
+
+5. **(!) THE RUN-TIME COST IS REAL, IS NOT QUANTIFIED HERE, AND THAT IS A STOP RATHER
+   THAN AN OMISSION.** The checked build is materially slower on the gradient sweeps.
+   **Stop 35 and `master:docs/DESIGN.md` forbid quoting any timing figure from this
+   work**, so no number is produced. The object-size cost (+25,128 B, +2.07%) is a size
+   figure and is quotable. **Whether to lift stop 35 for one scoped cycle-cost
+   measurement is an owner decision and is owed**; until it is taken, this entry rests
+   on a cost that is described and not measured, and says so.
+
+6. **A latent defect found on the way, unrelated to this decision.**
+   `scripts/oxcaml_s52.sh` exited non-zero **exactly when its check passed**: under
+   `set -o pipefail`, `grep '^  OUT'` matches nothing when no entry is outside
+   tolerance, and that 1 killed the script before it printed its own verdict. A guard
+   silent about success is the same family as FC6's grep and the FPP walk into the tool
+   virtualenv, both also found this session. Fixed with `|| true` and a comment saying
+   why.
+
+7. **The figures are guarded rather than remembered.**
+   `tests/test_zero_alloc_annotations_are_pinned.py` asserts the claim itself -- every
+   module carrying `[@zero_alloc strict]` opens an accessor -- plus 56 sites, 0
+   `assume`, 502 checked and 24 unchecked. `tests/test_zero_alloc_rejects_a_deliberate_allocation.py`
+   re-runs `scripts/oxcaml_checked.sh` and requires the two arms to differ.

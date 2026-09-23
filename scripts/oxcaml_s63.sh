@@ -10,12 +10,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s63"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}/boxed"; cd "${B}"
 cp "${SRC}/zalloc_u.ml" "${SRC}/zalloc_u_check.ml" .
 
 START=$(date +%s)
 echo "== Section 63 =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   OW4  assume annotations in zalloc_u.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' zalloc_u.ml)"
 echo "   Float_u from an INSTALLED, VERSIONED library: stdlib_upstream_compatible $(
     grep -m1 '^version' "$(ocamlopt -where)/stdlib_upstream_compatible/META" | cut -d'"' -f2)"
@@ -26,8 +32,8 @@ echo "-- OW1, OW2, OW3: torch's Adam as executed"
 
 echo
 echo "-- OW4: the unboxed checksum holds strict and returns its float"
-ocamlopt -g -zero-alloc-check all -warn-error +a -alert @all \
-    -I +stdlib_upstream_compatible stdlib_upstream_compatible.cmxa \
+ocamlopt -I "${SRC}" -g -zero-alloc-check all -warn-error +a -alert @all \
+    -I +stdlib_upstream_compatible "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" stdlib_upstream_compatible.cmxa \
     -o ow4 zalloc_u.ml zalloc_u_check.ml
 echo "   clean: checksum_unboxed holds strict, returning float#, with no slot"
 ./ow4
@@ -45,7 +51,7 @@ let[@zero_alloc strict] checksum_boxed () =
   done;
   !s
 BOXED
-if (cd boxed && ocamlopt -g -zero-alloc-check all -c b.ml >b.log 2>&1); then
+if (cd boxed && ocamlopt -I "${SRC}" -g -zero-alloc-check all -c -I .. b.ml >b.log 2>&1); then
     echo "   (!) THE BOXED RETURN COMPILED. 47.13.4's finding does not reproduce."; exit 2
 else
     echo "   rejected, as 47.13.4 found: $(grep -m1 'Error' boxed/b.log | cut -c1-90)"

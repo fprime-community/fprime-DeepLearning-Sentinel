@@ -22,6 +22,13 @@
  * allocates nothing. Objective.md:986 rule 5 is satisfied literally rather than
  * by argument. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 external to_f : float32 -> float = "%floatoffloat32"
 external of_f : float -> float32 = "%float32offloat"
 external add : float32 -> float32 -> float32 = "%addfloat32"
@@ -70,17 +77,17 @@ let[@zero_alloc strict] run_cycle n_samples seed =
   for k = 0 to budget - 1 do
     let s = k mod n_samples in
     for j = 0 to ins - 1 do
-      Bigarray.Array1.unsafe_set Gru_f32.x j (to_f (drive s j))
+      F32.set Gru_f32.x j (to_f (drive s j))
     done;
     Gru_f32.forward ();
 
     (* Dropout on the new hidden state, then carry it as the next state. *)
     for i = 0 to hs - 1 do
-      let h = Bigarray.Array1.unsafe_get Gru_f32.h_new i in
+      let h = F32.get Gru_f32.h_new i in
       if keep seed k i then
-        Bigarray.Array1.unsafe_set Gru_f32.h i h
+        F32.set Gru_f32.h i h
       else begin
-        Bigarray.Array1.unsafe_set Gru_f32.h i 0.0;
+        F32.set Gru_f32.h i 0.0;
         Array.unsafe_set masked_units 0 ((Array.unsafe_get masked_units 0) + 1)
       end
     done;
@@ -88,8 +95,8 @@ let[@zero_alloc strict] run_cycle n_samples seed =
     (* The loss seed: drive the state towards zero. One squared-error derivative
        per unit, which is 2*h; the 2 is folded into the learning rate. *)
     for i = 0 to hs - 1 do
-      Bigarray.Array1.unsafe_set Gru_f32.g_h_new i
-        (Bigarray.Array1.unsafe_get Gru_f32.h i)
+      F32.set Gru_f32.g_h_new i
+        (F32.get Gru_f32.h i)
     done;
     Gru_f32.zero_grads ();
     Gru_f32.backward ();
@@ -97,22 +104,22 @@ let[@zero_alloc strict] run_cycle n_samples seed =
     (* SGD. Every block, in a fixed order. *)
     let step = of_f lr in
     for i = 0 to (240 * ins) - 1 do
-      let p = of_f (Bigarray.Array1.unsafe_get Gru_f32.w_ih i) in
-      let g = of_f (Bigarray.Array1.unsafe_get Gru_f32.g_w_ih i) in
-      Bigarray.Array1.unsafe_set Gru_f32.w_ih i (to_f (add p (mul step g)))
+      let p = of_f (F32.get Gru_f32.w_ih i) in
+      let g = of_f (F32.get Gru_f32.g_w_ih i) in
+      F32.set Gru_f32.w_ih i (to_f (add p (mul step g)))
     done;
     for i = 0 to (240 * hs) - 1 do
-      let p = of_f (Bigarray.Array1.unsafe_get Gru_f32.w_hh i) in
-      let g = of_f (Bigarray.Array1.unsafe_get Gru_f32.g_w_hh i) in
-      Bigarray.Array1.unsafe_set Gru_f32.w_hh i (to_f (add p (mul step g)))
+      let p = of_f (F32.get Gru_f32.w_hh i) in
+      let g = of_f (F32.get Gru_f32.g_w_hh i) in
+      F32.set Gru_f32.w_hh i (to_f (add p (mul step g)))
     done;
     for i = 0 to 239 do
-      let p = of_f (Bigarray.Array1.unsafe_get Gru_f32.b_ih i) in
-      let g = of_f (Bigarray.Array1.unsafe_get Gru_f32.g_b_ih i) in
-      Bigarray.Array1.unsafe_set Gru_f32.b_ih i (to_f (add p (mul step g)));
-      let q = of_f (Bigarray.Array1.unsafe_get Gru_f32.b_hh i) in
-      let d = of_f (Bigarray.Array1.unsafe_get Gru_f32.g_b_hh i) in
-      Bigarray.Array1.unsafe_set Gru_f32.b_hh i (to_f (add q (mul step d)))
+      let p = of_f (F32.get Gru_f32.b_ih i) in
+      let g = of_f (F32.get Gru_f32.g_b_ih i) in
+      F32.set Gru_f32.b_ih i (to_f (add p (mul step g)));
+      let q = of_f (F32.get Gru_f32.b_hh i) in
+      let d = of_f (F32.get Gru_f32.g_b_hh i) in
+      F32.set Gru_f32.b_hh i (to_f (add q (mul step d)))
     done;
 
     Array.unsafe_set steps_taken 0 ((Array.unsafe_get steps_taken 0) + 1)

@@ -8,17 +8,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s53"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}/v5"; cd "${B}"
 cp "${SRC}/adam.ml" "${SRC}/gru_deep.ml" "${SRC}/adam_check.ml" .
 
 START=$(date +%s)
 echo "== Section 53 =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   AD4  assume annotations in adam.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' adam.ml)"
 
 echo
 echo "-- AD1, AD2: the update and BOTH bias-correction forms must compile clean"
-ocamlopt -g -zero-alloc-check all -warn-error +a -alert @all -o s53 adam.ml gru_deep.ml adam_check.ml
+ocamlopt -I "${SRC}" -g -zero-alloc-check all -warn-error +a -alert @all -o s53 -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" adam.ml gru_deep.ml adam_check.ml
 echo "   clean: update_block, begin_step_pow ( ** ) and begin_step_running (no pow) all hold"
 echo "   53.3's reading confirmed: ( ** ) and sqrt are [@@noalloc] and are accepted"
 
@@ -42,7 +48,7 @@ assert s.count(old) == 1, f"anchor matched {s.count(old)} times"
 io.open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, new))
 print("   variant written: Array.make inside update_block")
 PY
-if (cd v5 && ocamlopt -g -zero-alloc-check all -c adam.ml >a.log 2>&1); then
+if (cd v5 && ocamlopt -I "${SRC}" -I .. -g -zero-alloc-check all -c -I .. adam.ml >a.log 2>&1); then
     echo "   (!) BUILT -- the gate cannot fail. AD5 FAILED."; exit 1
 else
     echo "   rejected: $(grep -m1 -oE 'called function may allocate.*' v5/a.log)"

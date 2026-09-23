@@ -7,6 +7,12 @@ eval "$(opam env --switch=5.2.0+ox --set-switch)"
 
 OCAML_LIB="$(ocamlopt -where)"
 SRC="${ROOT}/oxcaml/retrainer"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 BUILD="${ROOT}/oxcaml/_build"
 STD="-std=c++14"; SAFETY="-fno-exceptions -fno-rtti"; DETERM="-ffp-contract=off"
 WARN="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror"
@@ -15,9 +21,9 @@ mkdir -p "${BUILD}"
 cd "${BUILD}"
 
 echo "-- ocamlopt: retrainer + thrash + runtime, one object (unix for the timed slices)"
-ocamlopt -output-complete-obj -o "${BUILD}/e2_complete.o" \
+ocamlopt -I "${SRC}" -output-complete-obj -o "${BUILD}/e2_complete.o" \
     -warn-error +a -alert @all \
-    -I "${OCAML_LIB}/unix" unix.cmxa \
+    -I "${OCAML_LIB}/unix" "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" unix.cmxa \
     -I "${SRC}" "${SRC}/retrainer.ml" "${SRC}/thrash.ml" \
     "${SRC}/retrainer_stubs.c" "${SRC}/thrash_stubs.c"
 echo "   $(wc -c < "${BUILD}/e2_complete.o") bytes"

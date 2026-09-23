@@ -23,6 +23,13 @@
  * copy loops, which are the part 54.2a's list governs, ARE annotated. That split
  * is retrainer.ml's and is not a new position. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 type u8 = Shadow59.u8
 type f32 = Shadow59.f32
 
@@ -56,7 +63,7 @@ let loaded = ref 0
 (* The flying file's bytes, copied in. Fixed extent, checked before the copy. *)
 let[@zero_alloc strict] copy_in (src : u8) n =
   for i = 0 to n - 1 do
-    Bigarray.Array1.unsafe_set Shadow59.file i (Bigarray.Array1.unsafe_get src i)
+    U8.set Shadow59.file i (U8.get src i)
   done
 
 let load (src : u8) =
@@ -81,7 +88,7 @@ let[@zero_alloc strict] weights_end () =
 
 let[@zero_alloc strict] copy_out (dst : u8) n =
   for i = 0 to n - 1 do
-    Bigarray.Array1.unsafe_set dst i (Bigarray.Array1.unsafe_get Shadow59.file i)
+    U8.set dst i (U8.get Shadow59.file i)
   done
 
 (* (!) RETURNS THE BYTE COUNT, POSITIVE, not a status of 0. A candidate of zero
@@ -106,7 +113,7 @@ let export (dst : u8) =
    later section gives 61's surface a metrics entry of its own, this one should
    move there and be deleted here rather than duplicated. *)
 let[@zero_alloc strict] copy_loss (out : f32) =
-  Bigarray.Array1.unsafe_set out 0 (Array.unsafe_get Deep_f32.loss_out 0)
+  F32.set out 0 (Array.unsafe_get Deep_f32.loss_out 0)
 
 let loss (out : f32) =
   guard (fun () ->

@@ -12,6 +12,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s65a"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}"; cd "${B}"
 cp "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c" "${SRC}/sentinel_cycle.h" .
 
@@ -19,10 +25,10 @@ cp "${SRC}/deep_f32.ml" "${SRC}/cycle_c.ml" "${SRC}/cycle_stubs.c" "${SRC}/senti
 FFLAGS="-Wold-style-cast -pedantic -Wall -Wextra -Wconversion -Wdouble-promotion -Wshadow -Werror"
 
 echo "== Section 65.10 / R6: the domain lock, both directions =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 
 set -e
-ocamlopt -output-complete-obj -O3 -o cycle_ml.o deep_f32.ml cycle_c.ml
+ocamlopt -I "${SRC}" -output-complete-obj -O3 -o cycle_ml.o -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" deep_f32.ml cycle_c.ml
 clang++ -std=c++14 -fno-exceptions -fno-rtti ${FFLAGS} -O2 -I. -I"$(ocamlopt -where)" \
     -c "${SRC}/domain_lock_probe.cpp" -o probe.o
 clang -std=c11 -pedantic -Wall -Wextra -Wconversion -Wshadow -Werror -O2 \

@@ -16,6 +16,13 @@
  * reads `rec_` at the third gate block as well as r, z, n and the incoming h, so rec_n has to
  * be on the tape too. 50.1 under-specified this and the OBSERVED section says so. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 let hs = Gru_cell.h_size
 let ins = Gru_cell.in_size
 

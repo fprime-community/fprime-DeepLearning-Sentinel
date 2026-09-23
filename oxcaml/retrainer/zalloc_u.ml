@@ -26,6 +26,13 @@
  * accumulator, not a contortion -- but it IS a second structural constraint, and a
  * reader weighing `float#` should meet it here rather than discover it. *)
 
+
+(* D82: every element access below is bounds-checked. `acc.ml`
+   supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
+   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
+   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+open Acc
+
 module F = Stdlib_upstream_compatible.Float_u
 
 let n = 16

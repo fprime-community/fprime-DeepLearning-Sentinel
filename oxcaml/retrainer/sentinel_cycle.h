@@ -5,6 +5,15 @@
  * array crossing is always a pointer and a length, never a bare array.
  * CPP-25 (:279-293): no exceptions -- a refusal is a status code.
  *
+ * (!) AND THAT CPP-25 LINE WAS NOT TRUE UNTIL 2026-09-22. `cycle_c.ml` had no `try`
+ * anywhere while this header claimed compliance for its surface -- found by reading
+ * at 72.2, carried at 72.9 as owed, and left standing because the module had been
+ * measured at Stage 61 and 72.4 forbids editing a measured module without
+ * re-earning its figures. D82 re-earns them, so the repair lands with them: all five
+ * entry points are wrapped in `cycle_c.ml`'s `guard`, and an exception becomes
+ * status -6 instead of crossing into a caller built `-fno-exceptions`.
+ * `sentinel_retrainer.h` and `sentinel_shadow.h` already had theirs.
+ *
  * (!) THE BUFFERS ARE THE CALLER'S. sentinel_cycle_load and sentinel_cycle_export
  * wrap the caller's memory with CAML_BA_EXTERNAL and the wrapper does not outlive
  * the call. Nothing here allocates after init, which is CPP-1 (:41-50).

@@ -108,10 +108,16 @@ def test_bounds_checking_and_strict_are_not_in_tension() -> None:
     against a bounds-checked accessor, because the bounds-failure path raises a
     preallocated exception and does not allocate.
 
-    Both directions are in the script: the flight variant must hold `strict` at every
-    module (it substitutes nothing, so a failure there is a regression), and a
-    deliberate out-of-range read must be CAUGHT under the checked accessor and NOT
-    caught under the flight one.
+    D82 then took the other choice: the flown modules compile against the checked
+    accessor. So the script's arms are now **as-flown-checked** and
+    **comparison-unchecked**, and both must hold `[@zero_alloc strict]` at every
+    annotated module -- if the flown arm ever stops holding, the checks have become
+    unaffordable and D82 has to be revisited rather than quietly reverted.
+
+    The other direction is what stops the comparison being vacuous: a deliberate
+    out-of-range read must be CAUGHT under the flown accessor and NOT caught under
+    the unchecked one. Two arms that behave identically would mean the checks are
+    doing nothing.
     """
     script = ROOT / "scripts" / "oxcaml_checked.sh"
     assert script.exists(), f"{script} is missing"
@@ -126,11 +132,12 @@ def test_bounds_checking_and_strict_are_not_in_tension() -> None:
         f"checking anything:\n{out[-2000:]}")
     # And the flight accessor must NOT catch it -- otherwise the two variants are the
     # same build and the comparison means nothing.
-    flight_line = next((ln for ln in out.splitlines() if ln.strip().startswith("flight")
-                        and "8-element" in ln), "")
-    assert flight_line and "CAUGHT" not in flight_line, (
-        "the flight accessor caught the out-of-range read too; the variants are not "
-        f"distinct and the measurement is vacuous: {flight_line!r}")
+    unchecked_line = next((ln for ln in out.splitlines()
+                           if ln.strip().startswith("unchecked") and "8-element" in ln), "")
+    assert unchecked_line and "CAUGHT" not in unchecked_line, (
+        "the unchecked comparison arm caught the out-of-range read too, so the two "
+        "accessors are not distinct and the measurement is vacuous: "
+        f"{unchecked_line!r}")
 
 
 def _rejection_log() -> str | None:

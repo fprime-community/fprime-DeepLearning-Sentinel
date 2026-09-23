@@ -9,20 +9,26 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"; B="${ROOT}/oxcaml/_build/s55"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 rm -rf "${B}"; mkdir -p "${B}/v7"; cd "${B}"
 cp "${SRC}/gru_f32.ml" "${SRC}/cycle55.ml" "${SRC}/cycle55_check.ml" .
 
 START=$(date +%s)
 echo "== Section 55 arm B =="
-echo "   ocamlopt $(ocamlopt -version)"
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
 echo "   DT6  assume annotations in cycle55.ml: $(grep -cE '\[@+zero_alloc[^]]*assume' cycle55.ml)"
 echo "   primitives used: $(grep -oE '"%[a-z0-9_]+"' cycle55.ml | sort -u | tr '\n' ' ')"
 echo "   C externals called: $(grep -cE 'external .*= "[a-z]' cycle55.ml)"
 
 echo
 echo "-- DT6: the cycle must compile clean under -zero-alloc-check all"
-ocamlopt -g -zero-alloc-check all -warn-error +a -alert @all -o s55 \
-    gru_f32.ml cycle55.ml cycle55_check.ml
+ocamlopt -I "${SRC}" -g -zero-alloc-check all -warn-error +a -alert @all -o s55 \
+    "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" gru_f32.ml cycle55.ml cycle55_check.ml
 echo "   clean: run_cycle holds [@zero_alloc strict]"
 
 echo
@@ -45,7 +51,7 @@ io.open(sys.argv[2], "w", encoding="utf-8").write(s.replace(old, new))
 print("   variant written: the dropout seed drawn from the clock")
 PY
 cp gru_f32.ml cycle55_check.ml v7/
-if (cd v7 && ocamlopt -g -I "$(ocamlfind query unix 2>/dev/null || echo .)" unix.cmxa \
+if (cd v7 && ocamlopt -I "${SRC}" -I .. -g -I "$(ocamlfind query unix 2>/dev/null || echo .)" "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" unix.cmxa \
         -o s55v gru_f32.ml cycle55.ml cycle55_check.ml >b.log 2>&1); then
     rm -f "${B}/v7/cycle55.crc"
     set +e

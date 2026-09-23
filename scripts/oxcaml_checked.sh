@@ -1,124 +1,94 @@
 #!/usr/bin/env bash
-# The bounds-checked pass over the training modules, and the measurement that decides
-# what "safe" may be claimed for the retrainer.
+# D82's measurement: the flown retrainer is bounds-checked, and the annotation still
+# holds. Both arms, and the direction that shows the checks do something.
 #
-# (!) WHAT THIS EXISTS TO SETTLE. `oxcaml/retrainer/` performs 559 unchecked array
+# (!) WHAT THIS SETTLED. Until 2026-09-22 this tree performed 559 unchecked array
 # accesses across 19 modules, including every module carrying `[@zero_alloc strict]`,
-# and nothing in the record said so or costed it. The reasonable guess was that the
-# two could not coexist: `strict` refuses a function whose paths reach an exceptional
-# return -- 47.9 recorded the compiler's own "may allocate ON A PATH TO EXCEPTIONAL
-# RETURN" -- and a bounds-checked access raises `Invalid_argument`. If that were true,
-# the unchecked accesses would be forced by the annotation and there would be nothing
-# to decide.
+# and nothing in the record said so. The available defence was that the annotation
+# forced it -- `strict` refuses a function whose paths reach an exceptional return
+# (47.9: "may allocate ON A PATH TO EXCEPTIONAL RETURN") and a checked access raises.
 #
-# (!) IT IS NOT TRUE, AND THAT IS THE FINDING. Both variants below compile the same
-# modules under `-zero-alloc-check all`. OCaml's bounds-failure path raises a
-# preallocated exception and does not allocate, so `strict` is satisfied either way.
-# The flown object is unchecked by CHOICE, not by constraint.
+# Measured, that defence does not hold: OCaml's bounds-failure path raises a
+# PREALLOCATED exception and allocates nothing. D82 therefore takes the other choice
+# and the flown modules are compiled against the checked accessor.
 #
-# (!) AND NOT ONE MODULE IS EDITED TO RUN THIS. 72.4's rule governs -- "a module
-# edited after measurement is a module whose figures have to be re-earned" -- so
-# Stages 48-72's figures stay attached to the files they were measured on. The
-# accessor is injected into COPIES, exactly as this ladder's own negative controls
-# inject their allocations (`oxcaml_e3.sh:31`, `oxcaml_s60.sh:49`).
+# This script is what keeps that a measurement. Arm A compiles the annotated modules
+# as they now fly -- `acc.ml` and `acc_int.ml`, every access checked. Arm B compiles
+# the same modules against `acc_unchecked.ml`, the comparison arm. Both must hold
+# `[@zero_alloc strict]`; if arm A ever stops holding, the checks have become
+# unaffordable and D82 has to be revisited rather than quietly reverted.
 #
-# No timing figure is produced. Stop 35.
+# No timing figure is produced for what the checks cost. Stop 35.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 eval "$(opam env --switch=5.2.0+ox --set-switch)"
 SRC="${ROOT}/oxcaml/retrainer"
+# D82: the checked accessor, built ONCE here so every -I "${SRC}" sees the same
+# one. (!) NEVER also pass "${SRC}/acc.ml" to a command that has a compiled Acc
+# on its include path: ocamlopt 5.2.0+ox answers that duplicate with an INTERNAL
+# COMPILER ERROR ("Cannot create parameter Acc.next_depth ... Misc.Fatal_error"),
+# not a diagnostic. Recorded in D82 as a rule-19 finding.
+( cd "${SRC}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
 B="${ROOT}/oxcaml/_build/checked"
 rm -rf "${B}"; mkdir -p "${B}"
 
-# Dependency order. Every module here carries at least one `[@zero_alloc strict]`.
+# Every module carrying at least one `[@zero_alloc strict]`, in dependency order.
 MODULES="zalloc window56 gru_cell gru_seq gru_deep adam head57 gru_f32 cycle55 deep_f32 shadow59"
 
-echo "== the bounds-checked pass =="
-echo "   ocamlopt $(ocamlopt -version)"
-echo -n "   unchecked accesses in oxcaml/retrainer/: "
-grep -rhoE 'Array1?\.unsafe_(get|set)' "${SRC}"/*.ml | grep -c . || true
+echo "== D82: the flown retrainer is bounds-checked =="
+echo "   ocamlopt -I "${SRC}" $(ocamlopt -version)"
+echo -n "   direct Array1.unsafe_* left in the retrainer's own modules: "
+grep -rhoE 'Array1?\.unsafe_(get|set)' "${SRC}"/*.ml \
+  | grep -c . || echo 0
+echo "   (the accessor files hold the primitive by construction; they are the instrument)"
 
-# Inject `open Acc` after each module's first comment block, into a COPY.
-inject() {   # $1 = module name, $2 = destination dir
-    "${ROOT}/.venv/bin/python" - "$1" "$2" <<'PY'
-import io, pathlib, re, sys
-name, dest = sys.argv[1], sys.argv[2]
-src = pathlib.Path(dest).parent.parent.parent / "retrainer" / f"{name}.ml"
-s = io.open(src, encoding="utf-8").read()
-m = re.search(r"\*\)\s*\n", s)
-i = m.end() if m and m.start() < 4000 else 0
-io.open(pathlib.Path(dest) / f"{name}.ml", "w", encoding="utf-8").write(
-    s[:i] + "\nopen Acc\n" + s[i:])
-PY
-}
-
-for VARIANT in flight checked; do
-    D="${B}/${VARIANT}"; mkdir -p "${D}"
-    if [ "${VARIANT}" = flight ]; then cp "${SRC}/acc.ml" "${D}/acc.ml"
-    else cp "${SRC}/acc_checked.ml" "${D}/acc.ml"; fi
-    for m in ${MODULES}; do inject "$m" "${D}"; done
-
+run_arm() {   # $1 = label, $2 = file to install as acc.ml, $3 = file as acc_int.ml
+    local label="$1" accfile="$2" accint="$3"
+    local D="${B}/${label}"; mkdir -p "${D}"
+    cp "${SRC}/${accfile}" "${D}/acc.ml"
+    cp "${SRC}/${accint}"  "${D}/acc_int.ml"
+    for m in ${MODULES}; do cp "${SRC}/${m}.ml" "${D}/"; done
+    ( cd "${D}" && ocamlopt -c -g -O3 acc.ml acc_int.ml >/dev/null )
     echo
-    echo "-- ${VARIANT}: every module under -zero-alloc-check all"
-    ( cd "${D}" && ocamlopt -c -g -O3 acc.ml >/dev/null )
-    FAILED=0
+    echo "-- ${label}: every annotated module under -zero-alloc-check all"
+    local failed=0
     for m in ${MODULES}; do
-        if ( cd "${D}" && ocamlopt -c -g -zero-alloc-check all -O3 "${m}.ml" \
+        if ( cd "${D}" && ocamlopt -I "${SRC}" -c -g -zero-alloc-check all -O3 -I . "${m}.ml" \
                  >"${m}.log" 2>&1 ); then
             printf "   %-12s strict HOLDS\n" "${m}"
         else
             printf "   %-12s REJECTED\n" "${m}"
             sed -n '1,6p' "${D}/${m}.log" | sed 's/^/        /'
-            FAILED=1
+            failed=1
         fi
     done
-    if [ "${VARIANT}" = flight ] && [ "${FAILED}" -ne 0 ]; then
-        echo "   (!) the FLIGHT variant must hold strict at every module: it re-exports"
-        echo "       Stdlib.Array unchanged and substitutes nothing. A failure here is a"
-        echo "       real regression, not a property of checking."
-        exit 1
-    fi
-done
+    return ${failed}
+}
+
+# Arm A: as flown. `window56` and `shadow59` hold `int array` and take the
+# int-specialised accessor -- wrapping `Array` at `'a array` defeats representation
+# specialisation and `strict` refuses the caller, which is why there are two.
+run_arm "as-flown-checked" acc.ml acc_int.ml || {
+    echo "   (!) THE FLOWN CONFIGURATION DOES NOT HOLD strict. D82's premise is gone;"
+    echo "       report it rather than reverting quietly."; exit 1; }
+
+# Arm B: the comparison. `acc_unchecked.ml` re-exports Stdlib.Array unchanged, so it
+# serves both the polymorphic and the int modules and no second file is needed.
+run_arm "comparison-unchecked" acc_unchecked.ml acc_unchecked.ml || {
+    echo "   (!) the UNCHECKED arm does not hold strict -- that is a regression in the"
+    echo "       modules, not a property of checking."; exit 1; }
 
 # ---------------------------------------------------------------------------
-# (!) The two modules the polymorphic checked accessor cannot carry, and why that
-# is a property of the WRAPPER rather than of bounds-checking. `window56.ml` and
-# `shadow59.ml` hold `int array`; wrapping at `'a array` defeats representation
-# specialisation. Against an int-specialised accessor both hold `strict` while
-# fully bounds-checked, which is what makes the conclusion general.
-# ---------------------------------------------------------------------------
-echo
-echo "-- the int-specialised accessor, for the two modules holding int arrays"
-D="${B}/checked_int"; mkdir -p "${D}"
-cp "${SRC}/acc_checked_int.ml" "${D}/acc.ml"
-( cd "${D}" && ocamlopt -c -g -O3 acc.ml >/dev/null )
-for m in window56 shadow59; do
-    inject "$m" "${D}"
-    if ( cd "${D}" && ocamlopt -c -g -zero-alloc-check all -O3 "${m}.ml" \
-             >"${m}.log" 2>&1 ); then
-        printf "   %-12s strict HOLDS, bounds-checked\n" "${m}"
-    else
-        printf "   %-12s REJECTED even specialised -- report this\n" "${m}"
-        sed -n '1,6p' "${D}/${m}.log" | sed 's/^/        /'
-        exit 1
-    fi
-done
-
-# ---------------------------------------------------------------------------
-# The other direction: a bad index must be CAUGHT in the checked build and must
-# NOT be caught in the flight build. Without this the checked pass proves only
-# that it compiles.
+# The direction that shows the checks are not decoration.
 # ---------------------------------------------------------------------------
 echo
 echo "-- the negative direction: one deliberate out-of-range read"
-for VARIANT in flight checked; do
-    D="${B}/${VARIANT}_oob"; mkdir -p "${D}"
-    if [ "${VARIANT}" = flight ]; then cp "${SRC}/acc.ml" "${D}/acc.ml"
-    else cp "${SRC}/acc_checked.ml" "${D}/acc.ml"; fi
+for arm in checked unchecked; do
+    D="${B}/${arm}_oob"; mkdir -p "${D}"
+    if [ "${arm}" = checked ]; then cp "${SRC}/acc.ml" "${D}/acc.ml"
+    else cp "${SRC}/acc_unchecked.ml" "${D}/acc.ml"; fi
     cat > "${D}/oob.ml" <<'ML'
-(* One read one past the end of a preallocated array. The flight accessor returns
-   whatever is there; the checked accessor raises Invalid_argument. *)
 open Acc
 let a = Array.make 8 1.5
 let () =
@@ -126,10 +96,10 @@ let () =
           with Invalid_argument m -> "CAUGHT: " ^ m in
   print_endline v
 ML
-    ( cd "${D}" && ocamlopt -g -O3 -o oob acc.ml oob.ml >/dev/null 2>&1 )
-    printf "   %-8s reading a.(8) of an 8-element array -> %s\n" \
-        "${VARIANT}" "$( cd "${D}" && ./oob )"
+    ( cd "${D}" && ocamlopt -I "${SRC}" -g -O3 -o oob acc.ml oob.ml >/dev/null 2>&1 )
+    printf "   %-10s reading a.(8) of an 8-element array -> %s\n" \
+        "${arm}" "$( cd "${D}" && ./oob )"
 done
 
 echo
-echo "== the bounds-checked pass done =="
+echo "== D82 measurement done =="
