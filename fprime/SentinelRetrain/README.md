@@ -54,7 +54,7 @@ be registered once, so `SentinelRef` must be added before this deployment's topo
 ## (!) The OCaml runtime starts on the ticking thread, and moving it breaks the process
 
 `Retrainer.cpp`'s `schedIn_handler` boots the runtime lazily on the first tick -- the handler
-opens at `:99`, the reasoning is the comment at `:104-112` and the call is `:113-115` -- and
+opens at `:187`, the reasoning is the comment at `:192-200` and the call is `:201-203` -- and
 that comment says why:
 
 > *"`caml_startup` grants the lock to its CALLER; an `ActiveRateGroup` runs this handler on

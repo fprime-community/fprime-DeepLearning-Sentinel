@@ -181,6 +181,43 @@ def test_the_index_row_for_models_reaches_the_highest_section() -> None:
         "the section.")
 
 
+def test_the_index_row_for_decisions_reaches_the_highest_entry() -> None:
+    """(!) The same gap as the MODELS row, one row down, and it had drifted four.
+
+    `docs/INDEX.md` said "D1 to D78" while `docs/DECISIONS.md` carried D82. 47.14
+    recorded the MODELS row going thirteen sections stale and declined to close the
+    gap; the MODELS row was guarded afterwards and these two were not, so they went
+    the same way. A guard that covers one row of a table and not its neighbours is
+    the same claim-versus-scope mistake D80's lesson is about.
+    """
+    text = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    highest = max(int(n) for n in re.findall(r"^## D(\d+)\.", text, re.M))
+    row = next(ln for ln in (ROOT / "docs" / "INDEX.md")
+               .read_text(encoding="utf-8").splitlines() if "](DECISIONS.md)" in ln)
+    named = {int(n) for n in re.findall(r"\bD(\d+)\b", row)}
+    assert named and max(named) >= highest, (
+        f"docs/DECISIONS.md reaches D{highest}; docs/INDEX.md's row names up to "
+        f"D{max(named) if named else 'nothing'}. Extend the row in the same commit as "
+        "the entry.")
+
+
+def test_the_index_row_for_the_changelog_reaches_the_newest_version() -> None:
+    """It said "0.1.0 to 0.6.74" while the changelog's newest entry was 0.6.78."""
+    versions = re.findall(r"^## \[(\d+\.\d+\.\d+)\]",
+                          (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
+    assert versions, "CHANGELOG.md no longer carries `## [x.y.z]` headings"
+    newest = max(versions, key=lambda v: tuple(int(p) for p in v.split(".")))
+    row = next(ln for ln in (ROOT / "docs" / "INDEX.md")
+               .read_text(encoding="utf-8").splitlines() if "](../CHANGELOG.md)" in ln)
+    named = re.findall(r"\b(\d+\.\d+\.\d+)\b", row)
+    assert named, "docs/INDEX.md's CHANGELOG row no longer names a version"
+    top = max(named, key=lambda v: tuple(int(p) for p in v.split(".")))
+    assert tuple(int(p) for p in top.split(".")) >= tuple(
+        int(p) for p in newest.split(".")), (
+        f"CHANGELOG.md's newest entry is {newest}; docs/INDEX.md's row names up to "
+        f"{top}. Move the row in the same commit as the release.")
+
+
 #: `docs/MODELS.md` 54.2b, made a standing rule by D72. Sections below this were
 #: written before the rule existed; judging them by it would rewrite the record
 #: rather than improve it (D72 consequence 3).

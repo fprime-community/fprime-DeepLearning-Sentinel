@@ -3,7 +3,7 @@ nothing reproduced that until this file.
 
 `docs/MODELS.md` 65.6 records the first real tick of the retrainer inside a deployment
 dying with `Fatal error: no domain lock held`, and records the fix:
-`fprime/SentinelRef/Retrainer/Retrainer.cpp:97-108` boots the runtime lazily, inside
+`fprime/SentinelRef/Retrainer/Retrainer.cpp:113-144` boots the runtime lazily, inside
 `schedIn_handler`, on the `Svc.ActiveRateGroup` task that then owns the domain for the
 life of the process.
 
@@ -61,7 +61,7 @@ OCAML_ENTRY = re.compile(r"\bsentinel_(?:retrainer|cycle|shadow)_\w+\s*\(")
 OCAML_ENTRY_BEFORE_72 = re.compile(r"\bsentinel_(?:retrainer|cycle)_\w+\s*\(")
 
 #: The only two functions permitted to contain one. `boot` is included because
-#: `schedIn_handler` is the only thing that calls it (`Retrainer.cpp:106-108`),
+#: `schedIn_handler` is the only thing that calls it (`Retrainer.cpp:201-203`),
 #: so it inherits the ticking thread.
 ON_THE_TICKING_THREAD = {"boot", "schedIn_handler"}
 
@@ -98,7 +98,7 @@ def test_a_cross_thread_call_into_ocaml_is_fatal() -> None:
     proc = _run("cross")
     assert proc.returncode != 0, (
         "the cross-thread call into OCaml returned instead of aborting. The fix at "
-        "Retrainer.cpp:97-108 exists because OCaml 5 makes this fatal; if it is not "
+        "Retrainer.cpp:113-144 exists because OCaml 5 makes this fatal; if it is not "
         "fatal in this switch, the reason for booting on the ticking thread is gone "
         "and 65.6's account needs re-reading, not this test relaxing.")
     assert proc.returncode != 4, (

@@ -7266,3 +7266,32 @@ property being costed would be worthless.
 **What is still not claimed.** Nothing about seconds, and nothing about what these counts
 cost on any hardware. `tests/test_zero_alloc_rejects_a_deliberate_allocation.py` pins all
 three numbers, so they move deliberately or not at all.
+
+### D82.2 Rider, 2026-09-22: the Figure register moves 55 -> 57, and the two records that state a count are superseded rather than edited
+
+**D81 and D81.1 are not edited.** D81 consequence 4 records **46 in the register** and
+D81.1 records **55 rows in the register**; both were correct when written, and the
+register is a living count that moves whenever a customer document gains a figure --
+which is exactly what D69 asks for. A record stating a count that has since moved is the
+condition riders exist for.
+
+**It is now 57.** D82 added two:
+
+```
+  detector_ocaml_symbols/SENTINELRETRAIN_README    0
+  retrainer_ocaml_symbols/SENTINELRETRAIN_README   3,019
+```
+
+**(!) And they are the first rows whose document is not in `CUSTOMER_DOCS`.**
+`fprime/` moves to `master` whole, so `fprime/SentinelRetrain/README.md` is on the public
+branch stating two figures that nothing re-derived -- D69's condition exactly, on a file
+the register had never looked at because the register's scope was the four curated
+documents. 72.5 had already found one of those two figures stale at six sites while the
+guard watched a band (`> 100`) instead of a number. D82 pins the numbers and these rows
+re-derive them from the guard, so there is one source of truth and a build that moves the
+count fails the guard first and the rows second.
+
+**The lesson is the register's SCOPE, not its size.** "Every figure a customer document
+states" was read as "every figure in the four curated documents", and `master` carries
+more prose than that. Whether the remaining `fprime/` and `flight/` READMEs on `master`
+state figures nothing re-derives is **not audited here** and is owed.

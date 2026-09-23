@@ -296,3 +296,32 @@ def test_the_fprime_component_unit_tests_pass():
                             capture_output=True, text=True, timeout=1800, env=env)
     assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-2000:]
     assert "100% tests passed" in result.stdout, result.stdout[-2000:]
+
+
+def test_cmake_and_the_makefile_build_the_same_binaries() -> None:
+    """(!) They did not, for months, and "the flight suite" meant two things.
+
+    `flight/Makefile`'s TESTS carried eight binaries and `flight/CMakeLists.txt`'s
+    foreach carried six -- `TrailingVectors` and `ThresholdVectors` were absent from
+    the CMake build. Whichever one you ran decided what "green" covered, and nothing
+    said so. Carried as inspection item 7.6 and closed 2026-09-22.
+
+    The two are kept in step by the same argument `test_the_two_builds_use_the_same_flags`
+    already makes about the flag sets: a second build of the same code that differs
+    from the first is a build nobody can reason about.
+    """
+    makefile = (FLIGHT / "Makefile").read_text(encoding="utf-8")
+    m = re.search(r"^TESTS\s*:?=\s*((?:.*\\\n)*.*)$", makefile, re.M)
+    assert m, "flight/Makefile no longer declares TESTS in the form this guard reads"
+    from_make = set(re.findall(r"[A-Za-z][A-Za-z0-9_]*", m.group(1).replace("\\", " ")))
+
+    cmake = (FLIGHT / "CMakeLists.txt").read_text(encoding="utf-8")
+    c = re.search(r"foreach\(binary\s+((?:[^)]|\n)*?)\)", cmake)
+    assert c, "flight/CMakeLists.txt no longer declares the binaries in a foreach"
+    from_cmake = set(re.findall(r"[A-Za-z][A-Za-z0-9_]*", c.group(1)))
+
+    assert from_make == from_cmake, (
+        f"the two builds disagree about which binaries exist.\n"
+        f"  only in Makefile: {sorted(from_make - from_cmake)}\n"
+        f"  only in CMake:    {sorted(from_cmake - from_make)}\n"
+        "Whichever one CI runs decides what a green flight suite covers.")

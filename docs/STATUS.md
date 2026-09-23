@@ -12,10 +12,21 @@ carries**, and "cross-channel means sensor-to-sensor" is retired as the sole the
 A ten-minute read. Every number is read from a named artifact under `runs/`, or from a
 test that pins it.
 
+**(!) THIS PAGE IS SILENT ABOUT THE RETRAINER, AND THAT IS A GAP RATHER THAN A
+JUDGEMENT.** It was written on 2026-09-09, six days before D70 registered OxCaml as a
+candidate, and the whole Phase 5 track -- the retraining engine, the hub crossing, the
+sanity gate, D82's bounds-checking -- arrived after it and never reached this file.
+**`master:docs/STATUS.md` is the current status document for that work**: roadmap row E,
+and the four paragraphs after it naming what is unenforceable, what nothing onboard
+scores, and what has never run on flight hardware. The record is `docs/DECISIONS.md`
+D70, D73, D74, D76, D77, D78, D82 and `docs/MODELS.md` 47 to 76. Noted here in 2026-09-22
+rather than back-filled, because a status page rewritten to cover a track it did not
+watch would be a record pretending to be a status.
+
 **(!) This document was rewritten on 2026-09-09 and is a status, not a record.** The
 previous version had grown to an eighty-item changelog of its own. Nothing is lost:
 `CHANGELOG.md` carries every work item version by version, `docs/MODELS.md` carries every
-pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D78 (was D75, was D63) with superseded
+pre-registration beside its outcome, `docs/DECISIONS.md` carries D1 to D82 (was D78, was D75, was D63) with superseded
 entries marked and never deleted, and `docs/NARRATIVE.md` carries what happened in order
 with the errors in it. This page says where the project **is**.
 
@@ -162,7 +173,7 @@ last artifact and never transcribed.
 
 ## 5. What we did, and why
 
-- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D78 (was D75, was D63),
+- [x] Repository stood up documentation-first - decisions recorded before code, D1 to D82 (was D78, was D75, was D63),
       superseded entries marked and never deleted.
 - [x] Ingested ESA-ADB (3 real ESA missions, 11.53 GB, 234 checksummed objects) and
       SMAP/MSL (162 arrays, verified 82/82 against the canonical labels before upload).
@@ -566,7 +577,7 @@ seed.
   the Level 1 baseline reference), `src/sentinel_export` (the `model.bin` writer and
   reader), `flight/` (the C++ core, Level 1, and their golden vectors), `fprime/` (the F'
   library: the component, a deployment, `settings.ini`; the framework checkout and tool venv
-  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**807 tests**, zero R2 operations).
+  are gitignored and rebuilt by `scripts/fprime_setup.sh`), `scripts/`, `tests/` (**810 tests**, zero R2 operations).
 - **Evidence**: `third_party/telemanom/`, the published source pinned at commit
   `2e6c5b6c`, vendored as evidence and never a dependency (D53). `docs/TELEMANOM_EXCERPTS.md`
   indexes every citation into it.
@@ -596,7 +607,7 @@ seed.
 ## 9. Verify
 
 ```bash
-.venv/bin/python -m pytest -q                                    # 807 tests
+.venv/bin/python -m pytest -q                                    # 810 tests
 .venv/bin/python scripts/check_no_list.py                        # 117 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves;
                                                                  # citations into an absent

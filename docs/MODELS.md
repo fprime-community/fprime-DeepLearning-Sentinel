@@ -693,6 +693,7 @@ prediction that failed and why. This document follows the same discipline.
   - [72.7 Cost and stops](#727-cost-and-stops)
   - [72.8 OBSERVED -- HO1 HOLDS, and the shape mismatch is the finding](#728-observed----ho1-holds-and-the-shape-mismatch-is-the-finding)
   - [72.9 Owed](#729-owed)
+  - [72.10 Rider, 2026-09-22: three citations in this section went stale, and one of them is a shape that never added up](#7210-rider-2026-09-22-three-citations-in-this-section-went-stale-and-one-of-them-is-a-shape-that-never-added-up)
 - [73 Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)](#73-pre-registration-e5-e-ho2-and-ho3----the-downlink-the-approval-and-the-reload-phase-5)
   - [73.1 REQUIREMENTS DERIVED FROM:](#731-requirements-derived-from)
   - [73.2 What changes in the exported component, and what it costs](#732-what-changes-in-the-exported-component-and-what-it-costs)
@@ -21550,6 +21551,46 @@ defaults to `False`, into `subprocess.call` and dies with `TypeError: expected s
 os.PathLike object, not bool`. It is framework code at v4.3.0, it is gitignored here, and
 `fprime-util generate -f` clears it. Recorded so the next person does not debug their own
 change for it.
+
+### 72.10 Rider, 2026-09-22: three citations in this section went stale, and one of them is a shape that never added up
+
+**Nothing above is edited.** 72.4, 72.5 and 11 are correct as written about what they
+measured; what moved is the code they point at, and one annotation that was wrong when
+it was written. Recorded here because a reader checking a `file:line` and finding
+something else stops trusting the rest.
+
+**(!) 72.4's shape line does not add up, and the NUMBER is the right one.**
+`docs/MODELS.md` 72.4 reads *"SentinelModel.bin (what flies) 8 channels, 8 predictions
+-> 66,960 weights"*. **8 x 8 does not give 66,960.** Re-derived from
+`flight/include/sentinel/ModelFile.hpp`'s `maxParameters()`, with
+`MAX_OUTPUTS = MAX_PREDICTIONS * MAX_CHANNELS` and `MAX_PREDICTIONS` = 10:
+
+```
+  fixed part, 8 inputs, hidden [80,80]   240*8 + 240*80 + 240 + 240
+                                       + 240*80 + 240*80 + 240 + 240   = 60,480
+  head                                   81 * n_out
+
+  8 channels x 10 predictions  n_out = 80   60,480 + 6,480 = 66,960   <- what flies
+  8 channels x  8 predictions  n_out = 64   60,480 + 5,184 = 65,664   <- the words imply this
+```
+
+Cross-checked against the file length the same line states:
+`64 + 20*8 + 4*66,960 + 96 + 8*8` = **268,224 B**, exactly. **The flown shape is 8
+channels, 10 predictions.** The weight count, the byte count and the whole finding stand;
+only "8 predictions" is wrong.
+
+**Two citations whose targets moved.**
+
+```
+  11 (L2)     `Footprint.cpp:42`'s flownWeights     -> Footprint.cpp:78
+  72.5        fprime/SentinelRetrain/README.md:84   -> :104
+```
+
+Neither changes what those sections measured. 72.5's own subject was a figure going
+stale at six sites while a guard watched a band instead of a number; the sixth site has
+since moved down twenty lines, which is the same failure one level out. **D82 pins the
+symbol counts exactly and adds two `Figure` rows that re-derive them**, so that site is
+now checked rather than cited.
 
 ## 73. Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)
 
