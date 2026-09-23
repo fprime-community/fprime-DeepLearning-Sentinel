@@ -7402,3 +7402,69 @@ rule 19 requires beside every argument for it -- unchanged by this decision:
    deployment, is. `fprime/library.cmake` exports the Monitor and not this, and a
    mission adopting Sentinel inherits none of it. That sentence stays in the customer
    document.
+
+### D83.1 Rider, 2026-09-23: master builds the retrainer from a clean clone, and the shape mismatch is now a cost rather than a barrier
+
+**D83 is not edited.** Two measurements landed after it and belong beside it.
+
+**(!) THE LARGEST UNPROVEN CLAIM IS PROVEN.** That `master` alone can build the
+retraining engine was established by **reading** `fprime/library.cmake`, the per-module
+CMake files and the two setup scripts -- never by executing them. D80 moved `oxcaml/`
+across and nothing since had checked that what arrived was sufficient.
+
+Executed 2026-09-23 from a fresh `git clone --branch master --single-branch`, 238
+tracked files, nothing outside the clone: `fprime_setup.sh`, `oxcaml_setup.sh` and
+`oxcaml_s61.sh` all **rc=0**, and `cycle_complete.o` built.
+
+**And the object is code-identical to the development tree's**, which is the part worth
+checking rather than assuming:
+
+```
+  symbols        4,816  =  4,816        __text      395,632  =  395,632
+  OCaml symbols  3,083  =  3,083        __cstring    13,940  =   13,940
+```
+
+The files differ by 6,152 B in total size and nothing else: both build with `-g`, both
+embed their build path in DWARF, and the clone's path is 83 characters longer. **This
+proves the branch is sufficient. It does not prove portability** -- same host, same
+architecture, and C4 and E4 are untouched.
+
+**(!) AND 72.4's SHAPE MISMATCH IS FEASIBLE TO CLOSE, MEASURED RATHER THAN ARGUED.**
+72.4 refused route 2 -- parameterising `Deep_f32` -- because *"every `[@zero_alloc
+strict]` figure from Stage 48 to 63 was measured at fixed shapes; this would void them
+all to make one arm pass."* That reasoning is about **runtime** parameterisation. A
+second **compile-time** instantiation was never costed.
+
+Measured: `deep_f32.ml` at the mission shape -- `ins` 8, `n_out` 80, **n_params 66,960**,
+which is what `SentinelRef` flies -- **holds `[@zero_alloc strict]`**. It reaches the
+annotation by construction because the shapes are still constants; only their values
+differ.
+
+**So the mismatch is a cost, not a barrier, and the three routes are:**
+
+```
+  1  a generated second instantiation    The ladder already generates variants by
+     at the mission shape                 substitution (oxcaml_e3.sh:31, s60:49), so
+                                          the two cannot drift. Costs: the new shape
+                                          must re-earn its OWN figures -- its gradient
+                                          check and its strict result -- and HO1 must
+                                          be re-run against a mission-shaped flying
+                                          file. Touches no flown rule, no
+                                          param_version, no format field
+  2  a functor over the shapes            One module instead of two, but the arrays
+                                          become functor-local and whether `strict`
+                                          survives functor application is UNMEASURED.
+                                          Cheaper to write, and it puts the annotation
+                                          -- the whole case for the language -- at risk
+                                          for a tidiness gain
+  3  export the flown model at the        No OCaml change at all; the deployment flies
+     maxima instead                        a 16-channel model. Changes WHAT FLIES, which
+                                          is a mission decision and not this one's
+```
+
+**Route 1 is recommended and is not taken here.** Taking it means re-earning a second
+shape's figures, which is the same scale of work D82 was, and doing it badly would be
+worse than the honest sentence `master` currently carries: *"The retraining engine can
+produce a candidate; it cannot yet produce a candidate for this mission."* That sentence
+stays true until route 1 lands. **What has changed is that it is now a scheduling
+decision rather than an open question.**
