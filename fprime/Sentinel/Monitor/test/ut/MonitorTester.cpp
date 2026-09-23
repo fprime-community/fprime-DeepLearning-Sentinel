@@ -31,6 +31,12 @@ const char* const G1_PATH = SENTINEL_VECTORS_DIR "/g1.bin";
 const char* const G2_PATH = SENTINEL_VECTORS_DIR "/g2.bin";
 const char* const WIDE_PATH = "MonitorTester_wide.bin";
 
+//! D68's flight configuration: 3 channels at `param_version` 2, the FUSED
+//! statistic. g1 and g2 are version 1, where the cut is the smoothed residual
+//! and the residual argmax IS the rule -- so only this tier can show the
+//! difference between the two.
+const char* const P1_PATH = SENTINEL_VECTORS_DIR "/p1.bin";
+
 //! Put the process in the build cache, so the short relative paths above resolve
 //! there rather than into the source tree. Called by every reload test before it
 //! writes anything. Idempotent, and a failure is not fatal -- the test then
@@ -151,6 +157,15 @@ Mode MonitorTester ::loadWorkingAs(const char* path) {
     this->component.configure(path, G1_CHANNELS);
     (void)this->component.loadModel();
     return this->component.activeMode();
+}
+
+void MonitorTester ::tickChannels(const F32* values, U32 n, bool valid) {
+    ChannelVector v;
+    for (U32 c = 0U; c < static_cast<U32>(MAX_CHANNELS); ++c) {
+        v[static_cast<FwSizeType>(c)] = (c < n) ? values[c] : 0.0F;
+    }
+    this->invoke_to_channelsIn(0, v, valid);
+    this->invoke_to_schedIn(0, 0U);
 }
 
 void MonitorTester ::tick(U32 count, F32 value, bool valid) {
@@ -403,6 +418,98 @@ void MonitorTester ::testTheBaselineWarningNamesASynthesisedChannel() {
     this->tick(Config::BASELINE_WINDOW + 2U, 1.0F);
     ASSERT_GT(this->eventHistory_CrossChannelWarning->size(), 0U);
     ASSERT_LT(this->eventHistory_CrossChannelWarning->at(0).channelId, G1_CHANNELS);
+}
+
+
+// ----------------------------------------------------------------------
+// (!) The warning names the channel the rule that fired picked.
+//
+// This scanned `smoothed()` -- the residual stream -- which was CORRECT when it
+// was written: 20's row 8 records that the core "reduces into a local and
+// discards" the index, so the component took its own argmax at "zero core
+// change". D68 then adopted `max(z_residual, z_derivative)` and the core gained
+// `fusedChannel()` with it. The scan was never updated, so whenever the
+// DERIVATIVE term was what crossed, the event named whichever channel had the
+// largest residual: a real channel, a plausible number, the wrong answer, and no
+// flag moved -- which is exactly why nothing caught it.
+// ----------------------------------------------------------------------
+
+void MonitorTester ::testTheWarningNamesTheFusedRulesChannel() {
+    // p1 is `param_version` 2. g1 and g2 are version 1, where the cut IS the
+    // smoothed residual and the two answers agree by construction, so only this
+    // tier can tell the fix from the defect.
+    this->component.configure(P1_PATH, 3U);
+    if (this->component.loadModel() != ModelLoadStatus::OK) {
+        GTEST_SKIP() << "p1.bin not readable from " << P1_PATH;
+    }
+    ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+    ASSERT_EQ(Format::PARAM_VERSION_FUSED,
+              this->component.detector().model().paramVersion);
+
+    const U32 warmup =
+        static_cast<U32>(this->component.detector().model().warmupSteps) + 8U;
+    F32 quiet[3] = {0.0F, 0.0F, 0.0F};
+    for (U32 i = 0U; i < warmup; ++i) {
+        this->tickChannels(quiet, 3U);
+        // The warm-up is ~2,350 ticks and every one writes five telemetry
+        // channels, so the tester's 512-entry history has to be drained as we go
+        // or it asserts before the component can be judged.
+        if ((i % 64U) == 0U) {
+            this->clearHistory();
+        }
+    }
+    this->clearHistory();
+
+    // Channel 1 is held at a high steady level: a large RESIDUAL, and a
+    // derivative that decays towards nothing because the level stops changing.
+    // Channel 2 is stepped hard every other tick: a large DERIVATIVE, on a level
+    // the forecaster tracks better. That is the shape that separates the two
+    // argmaxes, and the assertion below is that at least one tick did separate
+    // them -- a run where they never diverged would prove nothing.
+    U32 warnings = 0U;
+    U32 diverged = 0U;
+    for (U32 i = 0U; i < 400U; ++i) {
+        F32 v[3];
+        v[0] = 0.0F;
+        v[1] = 12.0F;
+        v[2] = ((i % 2U) == 0U) ? 30.0F : -30.0F;
+        const FwSizeType before = this->eventHistory_CrossChannelWarning->size();
+        this->tickChannels(v, 3U);
+        const FwSizeType after = this->eventHistory_CrossChannelWarning->size();
+        if (after == before) {
+            continue;
+        }
+        ++warnings;
+
+        const U32 fused = this->component.detector().fusedChannel();
+        const U32 named = this->eventHistory_CrossChannelWarning->at(
+            static_cast<U32>(after - 1U)).channelId;
+        ASSERT_EQ(this->component.detector().model().channelId[fused], named)
+            << "the event named channel id " << named << " while the fused rule "
+            << "peaked on index " << fused << " (id "
+            << this->component.detector().model().channelId[fused] << ")";
+
+        // What the OLD code would have said, computed here only to prove the two
+        // can differ. If they never differ the test is vacuous and says so.
+        const F32* smoothed = this->component.detector().smoothed();
+        U32 residualPeak = 0U;
+        F32 largest = smoothed[0];
+        for (U32 ch = 1U; ch < 3U; ++ch) {
+            if (smoothed[ch] > largest) {
+                largest = smoothed[ch];
+                residualPeak = ch;
+            }
+        }
+        if (residualPeak != fused) {
+            ++diverged;
+        }
+    }
+
+    ASSERT_GT(warnings, 0U) << "no warning was emitted, so nothing was checked";
+    ASSERT_GT(diverged, 0U)
+        << "the residual argmax and the fused argmax never disagreed across "
+        << warnings << " warnings, so this test would have passed before the fix "
+        << "too. It is vacuous as written and the drive pattern needs changing.";
 }
 
 
