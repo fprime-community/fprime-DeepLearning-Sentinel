@@ -29,6 +29,7 @@ D79: a build-dependent gate skips loudly and never inside a green pass.
 from __future__ import annotations
 
 import pathlib
+import re
 import subprocess
 
 import pytest
@@ -138,6 +139,50 @@ def test_bounds_checking_and_strict_are_not_in_tension() -> None:
         "the unchecked comparison arm caught the out-of-range read too, so the two "
         "accessors are not distinct and the measurement is vacuous: "
         f"{unchecked_line!r}")
+
+
+#: D82.1's cost proxy, measured 2026-09-22 on switch 5.2.0+ox. Shape-determined, so
+#: host-independent and exactly reproducible: `Deep_f32.run_cycle` at `t_max` = 250.
+#: These are COUNTS, not timings -- stop 35 is kept and the wall clock belongs to the
+#: flight-hardware session.
+CHECKS_ONE_STEP = 95_212_816
+CHECKS_PER_STEP = 95_062_092
+CHECKS_FIXED = 150_724
+
+
+@pytest.mark.skipif(not SWITCH_OCAMLOPT.exists(),
+                    reason="no OxCaml switch; run scripts/oxcaml_setup.sh")
+def test_the_bounds_check_cost_is_counted_and_pinned() -> None:
+    """(!) What D82's bounds checks cost, in a currency stop 35 permits.
+
+    D82 c.5 left the run-time cost unquantified because stop 35 forbids quoting a
+    timing figure from this work, and D82.1 kept stop 35 rather than lifting it for a
+    laptop measurement. A COUNT is not a timing figure: it is exact, deterministic,
+    host-independent, and it is the same currency as 19.8 F4's 70,080 MAC per tick.
+
+    `scripts/oxcaml_count.sh` also asserts that the counting build still holds
+    `[@zero_alloc strict]`, so the proxy does not perturb the property being measured.
+    """
+    script = ROOT / "scripts" / "oxcaml_count.sh"
+    assert script.exists(), f"{script} is missing"
+    result = subprocess.run(["bash", str(script)], cwd=ROOT, capture_output=True,
+                            text=True, timeout=1800)
+    assert result.returncode == 0, (
+        f"the bounds-check count failed:\n{result.stdout[-3000:]}\n"
+        f"{result.stderr[-1500:]}")
+    got = {}
+    for label, key in (("one optimiser step", "one"),
+                       ("per additional step", "per"),
+                       ("fixed set-up per cycle", "fixed")):
+        m = re.search(rf"{re.escape(label)}\s+([\d,]+)", result.stdout)
+        assert m, f"the runner no longer reports {label!r}:\n{result.stdout[-2000:]}"
+        got[key] = int(m.group(1).replace(",", ""))
+    assert (got["one"], got["per"], got["fixed"]) == (
+        CHECKS_ONE_STEP, CHECKS_PER_STEP, CHECKS_FIXED), (
+        f"the bounds-check count moved: {got}, pinned at one={CHECKS_ONE_STEP}, "
+        f"per={CHECKS_PER_STEP}, fixed={CHECKS_FIXED}. The count is shape-determined, "
+        "so a change means the cycle's shapes or its access pattern moved -- both are "
+        "things that should move a constant deliberately, not silently.")
 
 
 def _rejection_log() -> str | None:

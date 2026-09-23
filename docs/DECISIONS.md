@@ -7224,3 +7224,45 @@ satisfied by re-earning them, not by arguing they did not move.
    module carrying `[@zero_alloc strict]` opens an accessor -- plus 56 sites, 0
    `assume`, 502 checked and 24 unchecked. `tests/test_zero_alloc_rejects_a_deliberate_allocation.py`
    re-runs `scripts/oxcaml_checked.sh` and requires the two arms to differ.
+
+### D82.1 Rider, 2026-09-22: stop 35 is KEPT, and the cost is counted instead of timed
+
+**D82 is not edited.** Its consequence 5 left an owner decision owed -- whether to lift
+stop 35 for one scoped cycle-cost measurement -- and this rider records the answer
+beside the question, which is the shape D78 c.3 and D76.1 already use.
+
+**THE DECISION. Stop 35 stands, and it is not lifted for a laptop.** The run-time cost
+of D82's bounds checks belongs to the **flight-hardware session**, with E4, C2, C4 and
+the rest of the timing work, measured on the target rather than on a development Mac
+whose power management already defeated C2 once
+(`master:docs/DESIGN.md`: *"this host's power management downclocks an idle core and the
+confound exceeds the effect"*). A number produced here would have to be withdrawn there,
+and a figure that cannot survive its own successor is worse than no figure.
+
+**INSTEAD, A DETERMINISTIC PROXY, AND IT IS NOT A TIMING FIGURE.** The quantity a reader
+actually wants is the per-tick work, and it can be **counted**:
+
+```
+  bounds checks, one optimiser step     95,212,816
+  per additional step                   95,062,092
+  fixed set-up per cycle                   150,724
+```
+
+`Deep_f32.run_cycle` at `t_steps` = `t_max` = 250, measured by `scripts/oxcaml_count.sh`
+against `oxcaml/retrainer/acc_counting.ml` -- `acc.ml` plus one `incr` per access.
+
+**Why this is worth having where a wall clock is not.** It is **shape-determined**: it
+depends on the loop bounds and not on the values in the arrays, so it is exact,
+host-independent, and reproducible by anyone with the switch. It is in the same currency
+as 19.8 F4's **70,080 MAC per tick** for the detector, which is the figure a reader will
+reach for by way of comparison -- while being a different quantity, in a different
+component, and the runner says so rather than inviting the arithmetic.
+
+**And the proxy does not perturb what it measures.** `scripts/oxcaml_count.sh` checks,
+rather than assumes, that `deep_f32.ml` still holds `[@zero_alloc strict]` **with the
+counter in place**: an `int ref` increment allocates nothing. A cost proxy that broke the
+property being costed would be worthless.
+
+**What is still not claimed.** Nothing about seconds, and nothing about what these counts
+cost on any hardware. `tests/test_zero_alloc_rejects_a_deliberate_allocation.py` pins all
+three numbers, so they move deliberately or not at all.
