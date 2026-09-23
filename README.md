@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`a935d8f`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`84af7ec`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -161,15 +161,19 @@ scripts/fprime_setup.sh                     # F' v4.3.0 into the gitignored fpri
    && fprime-util generate -f && fprime-util build -p ./SentinelRef)
 ```
 
-The retrainer, which is an experiment. **This assumes the F' block above has already been
-run.** `oxcaml_setup.sh` compiles a compiler: measured at **373.52 s** and **2.7 GiB** on
+The retrainer. **This assumes the F' block above has already been run**, and the
+`generate -f` below is **not optional**: `Retrainer/CMakeLists.txt` and
+`SentinelRetrain/CMakeLists.txt` register themselves only if the OxCaml object already
+exists, so a build cache generated before `oxcaml_s61.sh` ran omits both. Without the
+regenerate, `fprime-util build -p ./SentinelRetrain` prints `ninja: no work to do`,
+**exits 0, and produces no binary**. `oxcaml_setup.sh` compiles a compiler: measured at **373.52 s** and **2.7 GiB** on
 disk on the development host, well inside its pre-registered ceiling.
 
 ```bash
 scripts/oxcaml_setup.sh
 bash scripts/oxcaml_s61.sh                  # the object SentinelRetrain links
 (cd fprime && source fprime-venv/bin/activate \
-   && fprime-util build -p ./SentinelRetrain)
+   && fprime-util generate -f && fprime-util build -p ./SentinelRetrain)
 ```
 
 What `make -C flight test` proves, on this branch:
