@@ -729,6 +729,12 @@ prediction that failed and why. This document follows the same discipline.
   - [76.6 Cost](#766-cost)
   - [76.7 OBSERVED -- all six held, and part (i) discriminates for the first time](#767-observed----all-six-held-and-part-i-discriminates-for-the-first-time)
   - [76.8 Owed](#768-owed)
+- [77 Pre-registration: the retrainer at a mission's shape, exported opt-in, and the loop closed on the host (Phase 5)](#77-pre-registration-the-retrainer-at-a-missions-shape-exported-opt-in-and-the-loop-closed-on-the-host-phase-5)
+  - [77.1 REQUIREMENTS DERIVED FROM:](#771-requirements-derived-from)
+  - [77.2 What is generated, and what is not allowed to move](#772-what-is-generated-and-what-is-not-allowed-to-move)
+  - [77.3 Predictions](#773-predictions)
+  - [77.4 Falsification](#774-falsification)
+  - [77.5 Cost](#775-cost)
 
 <!-- /toc -->
 
@@ -22408,3 +22414,120 @@ is a property of the data and this fixture happens not to have it.
 
 **A control trained at a different step budget from the candidate**, to check that the
 cancellation is the *data* and not an artefact of the budgets matching exactly.
+
+## 77. Pre-registration: the retrainer at a mission's shape, exported opt-in, and the loop closed on the host (Phase 5)
+
+**D84 is the owner's decision and this is its arm.** D83.1 measured that `deep_f32.ml` at
+`SentinelRef`'s shape holds `[@zero_alloc strict]`, costed three routes for the shape mismatch
+72.4 found, recommended route 1 -- *"a generated second instantiation at the mission shape"* --
+and did not take it. D84 takes it, exports the result from `fprime/library.cmake` behind a
+switch that defaults OFF, and asks for the loop 72 could not close: a candidate the retrainer
+builds, accepted by `RELOAD_MODEL`, and flown by the Monitor. **Everything below is written
+before any of it runs.**
+
+### 77.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D84         the retrainer is exported OPT-IN; OFF changes nothing a
+                                mission sees; ON on an unsupported platform stops with one
+                                message; the status wording is D83's, exactly
+  docs/DECISIONS.md D83.1       route 1, and its cost column verbatim: "the new shape must
+                                re-earn its OWN figures -- its gradient check and its strict
+                                result -- and HO1 must be re-run against a mission-shaped
+                                flying file. Touches no flown rule, no param_version, no
+                                format field"
+  docs/DECISIONS.md D82 c.1     every element access on the flight path is bounds-checked,
+                                and all [@zero_alloc strict] sites hold with zero assume
+  docs/DECISIONS.md D83 c.4     no shadow model may be swapped in; nothing onboard scores a
+                                candidate; stop 35
+  docs/MODELS.md 64             EX1's criterion and its figures at the maxima: 0 outside of
+                                75,360, worst err/allowed 0.306952 at index 11365
+  docs/MODELS.md 72.4, 72.10    the shape the flown file has: 8 channels x 10 predictions,
+                                n_out 80, 66,960 weights, 268,224 B
+  docs/MODELS.md 73.5, 73.6     a commanded reload refuses a width change and rolls back;
+                                a command carries at most 40 characters of path
+  flight/include/sentinel/Config.hpp:23,32
+                                MAX_CHANNELS 16, MAX_PREDICTIONS 10 -- the shape box
+  oxcaml/retrainer/deep_f32.ml:35-41
+                                the template's shape constants
+```
+
+### 77.2 What is generated, and what is not allowed to move
+
+`scripts/oxcaml_shape.py` substitutes **three** lines of `deep_f32.ml` -- `ins`, `n_out`,
+`n_params` -- each by an anchor that must match exactly once. `hs`, `gw`, `t_max` and `tw` do
+not move: hidden `[80, 80]` and window 250 are the flown architecture, and a shape that needs
+them to move is refused by name. `scripts/oxcaml_shape.sh` then runs every gate below against
+**the generated source**, and builds the object the F' component links.
+
+**Stop list, carried from 72 and extended:**
+
+```
+  53. A gate at a generated shape is inherited from the maxima rather than run.
+      Stop. D83.1's cost column is that each shape re-earns its own.
+  54. The flown rule, param_version, the model-file format or
+      src/sentinel_models/reference.py is changed to make a shape pass.
+      Stop and report three routes.
+  55. The option's default is ON, or OFF changes what library.cmake exports.
+      Stop. D84.
+  56. A candidate is described as swapped in, approved for flight, or scored.
+      Stop. D83 c.4: nothing onboard scores a candidate.
+```
+
+### 77.3 Predictions
+
+At **8/10** (`SentinelRef`'s shape, 66,960 parameters) and at **16/10** (the maxima, 75,360):
+
+| # | Prediction | HOLD | NO VERDICT | FAIL |
+|---|---|---|---|---|
+| **SX1** | at 16/10 the generator reproduces the template | byte-identical | -- | any byte differs |
+| **SX2** | at 8/10 exactly three lines differ, and `n_params` is the format's count | 3 lines; **66,960** = `format.parameter_count(8, [80, 80], 10, 8)` | -- | anything else |
+| **SX3** | the weight count identifies the shape | unique over all **160** admissible (channels, predictions) | -- | a collision -- then `shadow59.ml`'s size refusal is not sufficient and the component needs its own header check |
+| **SX4** | `[@zero_alloc strict]` holds at the shape | the generated file carries the template's count, the four flown modules compile under `-zero-alloc-check all -warn-error +a`, **0** `assume` | -- | any module rejected, or any `assume` |
+| **SX5** | a deliberate allocation in the generated cycle fails the build | rejected | -- | builds |
+| **SX6** | bounds-checking survives generation | `forward_deep (t_max + 1)` raises `Invalid_argument` | -- | it returns |
+| **SX7** | HO1 at the shape: the cycle's own weights become a candidate `flight/`'s reader accepts | `Detector::load` **OK**, declaring this shape's channels and predictions; a flying file at another shape **refused** | -- | either direction wrong |
+| **SX8** | **EX1 at 8/10** | **0 outside of 66,960**, every index checked, after shard 0 of 1021 reproduces `deep_f32_check.ml` at the same shape | the shard-0 validation disagrees | any index outside |
+| **SX9** | **EX1 at 16/10 reproduces 64** | **0 outside of 75,360**, worst ratio **0.306952** at index **11365** | -- | any digit differs: the generator is not the identity, or the check is not deterministic |
+| **SX10** | the 16/10 object is `scripts/oxcaml_s61.sh`'s object | equal symbol count, `__text` and `__cstring` | -- | any differs |
+
+In F', on the development host:
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **SX11** | **OFF changes nothing a mission sees** | `library.cmake` exports exactly `sentinel_core` and `Sentinel/Monitor`; `SentinelRef` and the Monitor UT are code-identical to a build at `e039054`; **0** OCaml symbols | any of the three |
+| **SX12** | ON at 8/10 builds the retrainer in its own process | `SentinelRetrain` links and carries the OCaml runtime; `SentinelRef` still carries **0** | either |
+| **SX13** | ON where OxCaml does not run stops the build | one `FATAL_ERROR` naming the supported platforms, for an unsupported system, processor, or a cross-compile | a build proceeds, or the message is not the one |
+| **SX14** | **the loop, on the host** | an 8-channel candidate the retrainer wrote is accepted by `RELOAD_MODEL` and the Monitor runs on it; a 16-channel candidate is refused by width and a flipped byte by CRC, **each rolled back** | any direction wrong |
+| **SX15** | adoption into F's own Ref, both ways | `fprime_ref_patch.sh`, unchanged, gives a Ref code-identical to `e039054`'s; `fprime_ref_retrainer.sh` builds Ref with the Monitor and **0** OCaml symbols, and a second deployment with the runtime | either |
+| **SX16** | nothing that flies moved | `git diff` over the flown rule, `param_version`, the format and `reference.py` is empty | any change |
+
+**SX12's count is predicted to equal 72.11's 3,082** at both shapes -- the module set is the
+same and only constants differ. If it does not, the difference is reported with its cause, not
+absorbed into a new constant.
+
+### 77.4 Falsification
+
+**If SX4, SX7 or SX8 fails at 8/10, route 1 is refuted at the shape that matters** and D83.1's
+sentence stands: *"The retraining engine can produce a candidate; it cannot yet produce a
+candidate for this mission."* It is reported with three routes, and nothing is changed to make
+it pass (stop 54).
+
+**If SX9 fails**, the generator or the check is not what it claims, and no figure at 8/10 is
+reported until that is explained.
+
+**What SX14 does NOT test, named before it runs.** It is a **host** test of whether the shapes
+and the file format meet. The candidate is trained on the component's deterministic drive, not
+telemetry (`Retrainer.cpp`), for one step at a budget that is *"a unit test's value"*, so
+**nothing about the candidate's quality follows**. Nothing scored it before `RELOAD_MODEL`
+accepted it; that is a human's command, which is rule 1, and it is not `Objective.md` section
+12's gate. **No shadow model may be swapped in operationally**, and SX14 holding does not
+change that.
+
+### 77.5 Cost
+
+Two generated shapes. EX1 is **66,960 + 75,360** central-difference checks, sharded across
+ten local processes, preceded by one shard timed to confirm the order before the rest are
+started. Three F' configurations (OFF, ON at 8/10, ON at 16/10) and two Ref builds. **Zero
+bucket operations**; `runs/_weights/` reads **1,313** before and after. **No timing figure is
+recorded here or anywhere** -- stop 35.

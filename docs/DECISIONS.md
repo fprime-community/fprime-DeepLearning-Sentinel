@@ -109,6 +109,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D81 `master`'s README is rewritten for a first-time reader, the omissions table moves to `docs/OMISSIONS.md`, and every figure the README states gains a Figure row](#d81-masters-readme-is-rewritten-for-a-first-time-reader-the-omissions-table-moves-to-docsomissionsmd-and-every-figure-the-readme-states-gains-a-figure-row)
 - [D82 The flown retrainer is bounds-checked. `[@zero_alloc strict]` never required unchecked access, and the 559 accesses were a choice nobody had recorded](#d82-the-flown-retrainer-is-bounds-checked-zero-alloc-strict-never-required-unchecked-access-and-the-559-accesses-were-a-choice-nobody-had-recorded)
 - [D83 OxCaml is the Phase 5 retraining implementation -- the chosen one, host-verified and not flight-qualified. Supersedes D74's "permitted", and `Objective.md` section 12 is NOT edited](#d83-oxcaml-is-the-phase-5-retraining-implementation----the-chosen-one-host-verified-and-not-flight-qualified-supersedes-d74s-permitted-and-objectivemd-section-12-is-not-edited)
+- [D84 The retrainer is exported from the library, OPT-IN and OFF by default. A mission that does nothing sees no change; one that opts in builds it at its own shape](#d84-the-retrainer-is-exported-from-the-library-opt-in-and-off-by-default-a-mission-that-does-nothing-sees-no-change-one-that-opts-in-builds-it-at-its-own-shape)
 
 <!-- /toc -->
 
@@ -7656,3 +7657,176 @@ that the cause is an upstream string comparison between two spellings of one dir
 and that we did not patch someone else's framework to make our own test location work.
 Not that `/tmp` is supported, and not that F' is defective in a way that affects flight --
 it affects one build location on one platform.
+
+### D83.5 Rider, 2026-09-25: consequence 5's second half is superseded by D84, and its first half stays true by default
+
+**D83 is not edited.** Consequence 5 says *"`fprime/library.cmake` exports the Monitor and not
+this, and a mission adopting Sentinel inherits none of it. That sentence stays in the customer
+document."* The owner has decided the retrainer is to be exported, **opt-in**, and that is
+D84. A decision that reverses part of an earlier consequence is a new entry, not a rider (D74
+over D70, D83 over D74), so D84 carries it and this rider only points there.
+
+**What survives, exactly.** With `SENTINEL_WITH_RETRAINER` OFF -- the default -- the
+sentence is still literally true: the library exports the Monitor and the inference core and
+nothing else, and a mission that does nothing inherits none of the retrainer. **What does not
+survive** is the implication that no mission CAN inherit it. The customer document's sentence
+is replaced by the opt-in truth, and the overclaim consequence 5 named before it could happen --
+*"'Chosen' invites 'adopted', and 'adopted' invites 'flight software is written in OxCaml
+here'"* -- is carried into D84 unchanged, because exporting it makes that overclaim easier
+still.
+
+## D84. The retrainer is exported from the library, OPT-IN and OFF by default. A mission that does nothing sees no change; one that opts in builds it at its own shape
+
+**DATE** 2026-09-25 | **STATUS** resolved by the owner as a design decision.
+**`Objective.md` is not edited. D70, D73, D76, D77, D78, D82 and D83 stand; D83 consequence 5
+is superseded in part, as D83.5 records. The status wording is D83's and is not changed.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** D83 consequence 5 says the library does not export
+this and that a mission inherits none of it. This makes it exportable. That supersedes part
+of a consequence rather than extending it, and D74 over D70 and D83 over D74 are the house
+precedents for a new entry.
+
+**CONTEXT.** Until now the `Retrainer` component lived at `fprime/SentinelRef/Retrainer/`,
+registered by the reference deployment on purpose -- *"fprime/library.cmake exports what a
+mission adopting Sentinel consumes, and an OCaml runtime is emphatically not that"* -- and it
+trained only at the 16-channel maxima, so no candidate it built could replace a mission's
+model (72.4; D83 c.4; 75,360 against 66,960). D83.1 costed the shape mismatch and recommended
+a generated compile-time instantiation, *"not taken here"*.
+
+**DECISION.** The retrainer is exported, so that anyone who adopts this repository can use it,
+and it is **opt-in**:
+
+1. `fprime/library.cmake` gains `SENTINEL_WITH_RETRAINER`, **default OFF**. OFF, the exported
+   set is exactly what it was -- `sentinel_core` and `Sentinel/Monitor` -- and nothing about
+   the retrainer is evaluated. A mission that adopts only the detector needs no OxCaml
+   toolchain, links no OCaml runtime, and gets a Monitor with the same code as before.
+2. ON, the component is registered from the library, after a platform check. On a system,
+   processor or cross-compile OxCaml does not support, **the build stops with one message
+   naming the supported platforms**. ON without the generated shape, the build stops naming
+   the command. It never skips silently once a mission has asked for it.
+3. The component moves into the library's namespace: `fprime/Sentinel/Retrainer/`, FPP module
+   `Sentinel`, C++ `Sentinel::Retrainer`. `SentinelRef` no longer registers it;
+   `SentinelRetrain` instances it and builds only when the option is ON.
+4. **D83.1 route 1 is taken.** A mission's shape -- channels 1 to 16, predictions 1 to 10,
+   hidden `[80, 80]` and window 250 fixed -- is generated from `deep_f32.ml` by
+   `scripts/oxcaml_shape.py`, gated by `scripts/oxcaml_shape.sh`, and selected in F' by
+   `SENTINEL_RETRAINER_CHANNELS` and `SENTINEL_RETRAINER_PREDICTIONS`. **Each generated shape
+   re-earns its own figures**: its gradient check (EX1), `[@zero_alloc strict]` on every site
+   with zero `assume`, bounds-checking as D82 requires, and HO1. Proven at 8/10, what
+   `SentinelRef` flies, and at the maxima. Pre-registered as `docs/MODELS.md` 77.
+
+The status wording travels with it, unchanged:
+
+> **the chosen retraining implementation, host-verified, not flight-qualified**
+
+**THE CASE AGAINST, unchanged by exporting it** -- rule 19 requires it beside every argument
+for the language, and an export is an argument for it:
+
+```
+  flight heritage        none
+  qualified compiler     none
+  certification          no precedent for a garbage-collected runtime in flight
+  targets                x86-64 and arm64 Linux, arm64 macOS. No 32-bit ARM, no musl,
+                         no documented cross-compile recipe
+  stability              its own documentation promises none -- and D82 found the
+                         compiler answering a duplicate module with an internal
+                         compiler error rather than a diagnostic
+  Rust                   smaller footprint, Ferrocene qualified, OPS-SAT heritage
+  the comparison         NO RUST COMPARISON HAS BEEN BUILT HERE. On that row this
+                         project is reasoning and not measuring, and D70 c.3's cost
+                         stands exactly as written
+```
+
+**ALTERNATIVES, AND WHAT EACH COSTS.** Four choices, three routes each.
+
+The opt-in mechanism:
+
+```
+  a  option in library.cmake, default OFF    TAKEN. One cache variable; nothing inside
+                                              the if is evaluated when OFF, so the
+                                              exported set cannot change
+  b  a second library root a mission adds     REFUSED. A new top-level tree on both
+     as its own library_locations entry       branches; module naming then depends on
+                                              where that root sits, and a root nested in
+                                              fprime/ is unmeasured in F' v4.3.0
+  c  default ON, or ON-but-skip-if-absent     REFUSED. Every adopter's configure would
+                                              touch OxCaml -- a 2.7 GiB switch whose
+                                              platforms exclude common flight targets --
+                                              and a silent skip means a mission cannot
+                                              tell what it got
+```
+
+Where the component lives:
+
+```
+  a  fprime/Sentinel/Retrainer, module        TAKEN. One exported namespace, the one F'
+     Sentinel                                  asks a library to occupy. Costs a rename
+                                              and FC6's pattern, widened so it cannot go
+                                              blind
+  b  move it, keep FPP module Retrain          REFUSED. A second top-level namespace
+                                              exported to every mission, free to collide
+  c  export SentinelRef/Retrainer in place     REFUSED. The library would export a
+                                              directory inside a reference deployment,
+                                              and the layout would misstate what is
+                                              product
+```
+
+The mission's shape -- D83.1's own three, `:7443-7463`:
+
+```
+  1  a generated second instantiation         TAKEN
+  2  a functor over the shapes                REFUSED, D83.1: strict under functor
+                                              application is unmeasured
+  3  fly the maxima instead                   REFUSED, D83.1: changes what flies
+```
+
+How a mission states its shape:
+
+```
+  a  a script generates and gates the shape;  TAKEN. CMake never runs ocamlopt, as today,
+     CMake selects it and cross-checks the     and one generation step feeds both the OCaml
+     generated header                          and the C++
+  b  derive it from the mission's model.bin   REFUSED. A data file becomes a build input,
+     at generate time                          and may not exist yet
+  c  CMake runs the generator and ocamlopt    REFUSED. The OxCaml environment would have
+                                              to reach inside F's build
+```
+
+**CONSEQUENCES.**
+
+1. **The customer sentence changes, and the default keeps its first half true.** A mission
+   inherits the Monitor and the inference core and nothing else **unless it switches the
+   retrainer on** -- that is the sentence now, everywhere D83 c.5's stood.
+
+2. **The limits are re-affirmed, not retired.** The pre-launch sanity gate is still not
+   enforceable, **no shadow model may be swapped in**, and nothing onboard scores a candidate.
+   E5 is HOST-VERIFIED PENDING TARGET; C2 and C4 are unverified; E4 has never run and D70
+   c.4's precondition is still unmet. **No timing figure from any of this work may be
+   quoted** (stop 35).
+
+3. **(!) THE EXPORTED COMPONENT DOES NOT TRAIN ON TELEMETRY, AND THAT IS SAID WHEREVER IT IS
+   OFFERED.** Its only input is `schedIn`. The window it trains on is *"a deterministic,
+   bounded drive ... Not telemetry"* and its step budget is *"a unit test's value"*. What an
+   adopter gets is the pipeline -- the shape, the cycle, the candidate file and the separate
+   process -- and not a retrainer fed by their own data. Wiring telemetry in is not part of
+   this decision.
+
+4. **(!) THE OVERCLAIM, NAMED AGAIN, BECAUSE EXPORTING MAKES IT EASIER.** "Exported" invites
+   "a mission's flight software can retrain itself". It cannot. One advisory, non-critical
+   background process, in its own deployment, at a shape the mission generates, producing a
+   candidate a human must command in -- that is what is exported.
+
+5. **Records keep their paths.** `fprime/SentinelRef/Retrainer/` and
+   `SentinelRef_Retrainer_ut_exe`, cited by `docs/MODELS.md` 47 to 73 and by D82 and D83,
+   were true at their commits and are not edited. From this entry on:
+
+   ```
+     fprime/SentinelRef/Retrainer/    ->  fprime/Sentinel/Retrainer/
+     SentinelRef_Retrainer            ->  Sentinel_Retrainer
+     SentinelRef_Retrainer_ut_exe     ->  Sentinel_Retrainer_ut_exe
+     module Retrain, Retrain.Retrainer ->  module Sentinel, Sentinel.Retrainer
+   ```
+
+6. **Evidence lands in riders and in `docs/MODELS.md` 77's OBSERVED, never here.** This entry
+   is the decision; it is committed before any of its gates run, and it is not edited
+   afterwards.
