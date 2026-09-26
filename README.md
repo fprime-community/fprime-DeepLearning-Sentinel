@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`9bc7205`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`29c96f7`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -344,9 +344,9 @@ constraint unit-test evidence cannot show.
   proves the shapes and the format meet, and says nothing about whether the candidate is any
   good.
 
-**Building it from this branch has been run, not argued**: every Quick start block was run
-verbatim from a fresh clone of this branch on 2026-09-23 (`docs/datasets/REPRODUCING.md`).
-The opt-in blocks D84 added are re-run the same way before they are called proven.
+**Building it from this branch has been run, not argued**: every block in this README that
+needs no data of your own was run verbatim, in order, from a fresh clone of this branch on
+2026-09-25 -- the opt-in blocks included (`docs/datasets/REPRODUCING.md`).
 
 **The detector's own binary carries no OCaml runtime.** That is asserted by reading the
 symbol table **whenever a `SentinelRef` binary has been built**; on a tree without one --
