@@ -25,7 +25,7 @@ class HubCounter final : public HubCounterComponentBase {
     static const U32 RETRAIN_BASE = 0x30000000U;
 
     //! What one source tick feeds, so SampleCount converts to a tick count.
-    //! Mirrors `Retrain::Retrainer::SAMPLES_PER_TICK`.
+    //! Mirrors `Sentinel::Retrainer::SAMPLES_PER_TICK`.
     static const U32 SAMPLES_PER_TICK = 10U;
 
     explicit HubCounter(const char* const compName);

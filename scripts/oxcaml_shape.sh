@@ -132,7 +132,11 @@ let () =
   | () -> print_endline "NOT RAISED"
   | exception Invalid_argument m -> print_endline ("RAISED: Invalid_argument " ^ m)
 ML
-( cd sg4 && ocamlopt -I "${SRC}" -g -O3 -I .. -o probe "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" \
+# (!) -I .. BEFORE -I "${SRC}": ${SRC} holds the MAXIMA deep_f32.cmi from every other
+# runner, and the first interface found wins. The first run had them the other way
+# round and ocamlopt refused the link as "inconsistent assumptions", which is the
+# right refusal -- and the reason this order is not cosmetic.
+( cd sg4 && ocamlopt -I .. -I "${SRC}" -g -O3 -o probe "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" \
       ../deep_f32.cmx probe.ml >probe.log 2>&1 )
 SG4_OUT="$(cd sg4 && ./probe)"
 echo "   forward_deep (t_max + 1) -> ${SG4_OUT}"

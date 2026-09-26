@@ -102,3 +102,9 @@ TEST(Reload, AReloadThatChangesTheChannelWidthIsRefused) {
     Sentinel::MonitorTester tester;
     tester.testAReloadThatChangesTheChannelWidthIsRefused();
 }
+
+// D84 / docs/MODELS.md 77, SX14. Skips unless the loop guard drives it.
+TEST(Loop, ARetrainedCandidateIsCommandedIn) {
+    Sentinel::MonitorTester tester;
+    tester.testARetrainedCandidateIsCommandedIn();
+}

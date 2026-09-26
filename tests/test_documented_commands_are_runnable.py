@@ -97,9 +97,11 @@ def test_the_check_would_catch_a_bare_python() -> None:
 def test_the_retrainer_block_regenerates_before_it_builds() -> None:
     """(!) A build that exits 0 having produced nothing, documented as the way to do it.
 
-    `Retrainer/CMakeLists.txt` and `SentinelRetrain/CMakeLists.txt` return early when
-    `${OX_OBJ}` is absent, so a build cache generated BEFORE `oxcaml_s61.sh` has run
-    registers neither the module nor the deployment. The README's retrainer block runs
+    Until D84, `Retrainer/CMakeLists.txt` and `SentinelRetrain/CMakeLists.txt` returned
+    early when `${OX_OBJ}` was absent, so a build cache generated BEFORE `oxcaml_s61.sh`
+    had run registered neither the module nor the deployment. (Since D84 the option
+    decides, and ON without the object is an error; the regenerate is still required,
+    because the option is set AT generate time.) The README's retrainer block runs
     `oxcaml_s61.sh` and then built straight away against the cache the F' block made --
     so `fprime-util build -p ./SentinelRetrain` printed `ninja: no work to do`, **exited
     0**, and left no binary. Found 2026-09-23 by running the block verbatim and then
@@ -122,3 +124,76 @@ def test_the_retrainer_block_regenerates_before_it_builds() -> None:
             "cache first. The deployment is registered only if the OxCaml object exists "
             "at generate time, so this silently produces no binary and still exits 0:\n"
             f"{block}")
+
+
+
+# -- D84: the opt-in retrainer's documented path ----------------------------------------
+
+POWERSIM_FPP = ROOT / "fprime" / "SentinelRef" / "PowerSim" / "PowerSim.fpp"
+LIBRARY = ROOT / "fprime" / "library.cmake"
+
+
+def _master_readme() -> str:
+    probe = subprocess.run(["git", "rev-parse", "--verify", "master"],
+                           cwd=ROOT, capture_output=True, text=True)
+    if probe.returncode != 0:
+        pytest.skip("no `master` ref in this clone")
+    return subprocess.run(["git", "show", "master:README.md"],
+                          cwd=ROOT, capture_output=True, text=True).stdout
+
+
+def _retrainer_block_faults(block: str, channels: int) -> list[str]:
+    """What is wrong with one bash block that builds SentinelRetrain. Empty is right."""
+    faults = []
+    if "fprime-util generate" not in block:
+        faults.append("builds without regenerating")
+    if "-DSENTINEL_WITH_RETRAINER=ON" not in block:
+        faults.append("never switches SENTINEL_WITH_RETRAINER on, so the deployment "
+                      "skips itself and the build exits 0 having built nothing")
+    shape = re.search(r"oxcaml_shape\.sh --channels (\d+) --predictions (\d+)", block)
+    if not shape:
+        faults.append("never generates the shape with scripts/oxcaml_shape.sh")
+    elif int(shape.group(1)) != channels:
+        faults.append(f"generates {shape.group(1)} channels; SentinelRef feeds {channels}")
+    asked = re.search(r"-DSENTINEL_RETRAINER_CHANNELS=(\d+)", block)
+    if not asked or int(asked.group(1)) != channels:
+        faults.append("does not ask F' for the channel count it generated")
+    return faults
+
+
+def _powersim_channels() -> int:
+    m = re.search(r"constant POWERSIM_CHANNELS = (\d+)", POWERSIM_FPP.read_text(encoding="utf-8"))
+    assert m, "PowerSim.fpp no longer declares POWERSIM_CHANNELS"
+    return int(m.group(1))
+
+
+def test_the_retrainer_block_switches_it_on_at_the_deployments_shape() -> None:
+    """D84, and D83.3's lesson one step on: a block that exits 0 and builds nothing."""
+    blocks = [b for b in _bash_blocks(_master_readme()) if "SentinelRetrain" in b]
+    assert blocks, "master:README.md no longer shows how to build SentinelRetrain"
+    channels = _powersim_channels()
+    for block in blocks:
+        faults = _retrainer_block_faults(block, channels)
+        assert not faults, f"master:README.md's retrainer block {faults}:\n{block}"
+
+
+def test_the_retrainer_block_check_can_fail() -> None:
+    """The positive control, one fault at a time."""
+    good = ("bash scripts/oxcaml_shape.sh --channels 8 --predictions 10\n"
+            "fprime-util generate -f -DSENTINEL_WITH_RETRAINER=ON "
+            "-DSENTINEL_RETRAINER_CHANNELS=8\nfprime-util build -p ./SentinelRetrain\n")
+    assert not _retrainer_block_faults(good, 8)
+    assert _retrainer_block_faults(good.replace("-DSENTINEL_WITH_RETRAINER=ON ", ""), 8)
+    assert _retrainer_block_faults(good.replace("--channels 8", "--channels 16"), 8)
+    assert _retrainer_block_faults(good.replace("fprime-util generate -f", "true"), 8)
+    assert _retrainer_block_faults(good.replace("bash scripts/oxcaml_shape.sh", "true"), 8)
+
+
+def test_every_option_the_readme_names_exists() -> None:
+    """A documented `SENTINEL_*` setting that the library does not read is a typo that
+    configures silently -- CMake accepts any -D and ignores what nothing reads."""
+    named = set(re.findall(r"\bSENTINEL_[A-Z_]+\b", _master_readme()))
+    named = {n for n in named if n.startswith(("SENTINEL_WITH_", "SENTINEL_RETRAINER_"))}
+    library = LIBRARY.read_text(encoding="utf-8")
+    missing = sorted(n for n in named if n not in library)
+    assert not missing, f"master:README.md names {missing}, which fprime/library.cmake never reads"

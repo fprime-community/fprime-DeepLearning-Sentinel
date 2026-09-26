@@ -54,6 +54,9 @@ ROOT = Path(__file__).resolve().parents[1]
 #: `docs/DESIGN.md` and `docs/EVIDENCE.md` exist ONLY on `master`.
 MASTER_PREFIXES = (
     "flight/", "fprime/Sentinel/Monitor/", "fprime/SentinelRef/",
+    # D84: the retrainer component, exported opt-in from the library and moved
+    # into its namespace from fprime/SentinelRef/Retrainer/.
+    "fprime/Sentinel/Retrainer/",
     # docs/MODELS.md 65: the retrainer's own deployment, which is where the OCaml
     # runtime lives. D70 consequence 2 makes the separate process a requirement.
     "fprime/SentinelRetrain/",
@@ -87,6 +90,9 @@ MASTER_PREFIXES = (
     "src/sentinel_eval/synthetic.py", "src/sentinel_eval/tasks.py",
     "scripts/oxcaml_setup.sh", "scripts/oxcaml_e1.sh", "scripts/oxcaml_s61.sh",
     "scripts/oxcaml_s72.sh", "scripts/fprime_setup.sh", "scripts/fprime_ref_patch.sh",
+    # D84: a mission's shape is generated and gated by these two, and HO1 at that
+    # shape builds its flying file with the third.
+    "scripts/oxcaml_shape.sh", "scripts/oxcaml_shape.py", "scripts/s72_flying_file.py",
 )
 
 #: Of `MASTER_PREFIXES`, the entries that do not exist on `dev` at all. `LICENSE`

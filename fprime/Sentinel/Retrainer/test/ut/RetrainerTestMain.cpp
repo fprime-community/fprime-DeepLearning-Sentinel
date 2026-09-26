@@ -1,6 +1,6 @@
 // ======================================================================
 // \title  RetrainerTestMain.cpp
-// \brief  Test main for Retrain::Retrainer -- E1, the pipe (docs/MODELS.md 47)
+// \brief  Test main for Sentinel::Retrainer -- E1, the pipe (docs/MODELS.md 47)
 //
 // (!) ONE TEST, DELIBERATELY. The OCaml runtime is process-global and gtest runs
 // every case in one process, so no case can get a fresh runtime and a
@@ -15,7 +15,7 @@ TEST(E1, TheWholeLifecycle) {
     COMMENT("X1 and X3: the runtime boots inside an F' process, the numbers are "
             "hand-checked exactly, state survives the boundary, and an overflow "
             "comes back as a status code rather than an exception.");
-    Retrain::RetrainerTester tester;
+    Sentinel::RetrainerTester tester;
     tester.testTheWholeLifecycle();
 }
 

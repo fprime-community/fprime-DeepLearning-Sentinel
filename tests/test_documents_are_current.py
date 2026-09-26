@@ -84,6 +84,13 @@ CLAIMS = {
     # original two alternatives matched neither.
     "lead": re.compile(
         r"\+26 timesteps|26 timesteps early|26-timestep|26 timesteps ahead"),
+    # D83 c.5, superseded in part by D84 (2026-09-25): the library exports the
+    # retrainer OPT-IN, so "nothing else" and "not the retrainer" are no longer
+    # true of what a mission CAN adopt -- only of what it gets by default. A live
+    # sentence may say the default; it may not say the retrainer cannot be had.
+    "noretrainer": re.compile(
+        r"exports `Sentinel/Monitor` and nothing else|not the retrainer, not an OCaml runtime"
+        r"|inherits none of it|not adopted, not exported"),
 }
 
 #: A hit on a line carrying one of these is corrected in place, which is the
@@ -96,6 +103,8 @@ CORRECTED = re.compile(
 
 BASELINE = {
     ("CHANGELOG.md", "three"): 1,             # 0.3.0, the history entry
+    # D83.5 and D84 quote D83 c.5's sentence in order to supersede it. Records.
+    ("docs/DECISIONS.md", "noretrainer"): 2,
     # Three, since the `lead` pattern was widened 2026-09-10 to catch the claim's
     # rephrasings. All three sit inside decision entries, which are records and
     # are never edited (`docs/DECISIONS.md` header): D9's measured lead table,

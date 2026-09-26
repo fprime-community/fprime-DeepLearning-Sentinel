@@ -3,7 +3,7 @@ nothing reproduced that until this file.
 
 `docs/MODELS.md` 65.6 records the first real tick of the retrainer inside a deployment
 dying with `Fatal error: no domain lock held`, and records the fix:
-`fprime/SentinelRef/Retrainer/Retrainer.cpp:113-144` boots the runtime lazily, inside
+`fprime/Sentinel/Retrainer/Retrainer.cpp:114-145` boots the runtime lazily, inside
 `schedIn_handler`, on the `Svc.ActiveRateGroup` task that then owns the domain for the
 life of the process.
 
@@ -40,7 +40,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROBE = ROOT / "oxcaml" / "_build" / "s65a" / "domain_lock_probe"
-RETRAINER = ROOT / "fprime" / "SentinelRef" / "Retrainer" / "Retrainer.cpp"
+RETRAINER = ROOT / "fprime" / "Sentinel" / "Retrainer" / "Retrainer.cpp"
 RETRAIN_TOP = (ROOT / "fprime" / "SentinelRetrain" / "Top"
                / "SentinelRetrainTopology.cpp")
 

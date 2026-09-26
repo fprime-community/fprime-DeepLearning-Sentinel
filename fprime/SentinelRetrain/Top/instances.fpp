@@ -138,7 +138,7 @@ module SentinelRetrain {
   @ tests/test_detector_binary_has_no_ocaml_runtime.py asserts by symbol that its
   @ binary carries no OCaml runtime. Nobody may cite this instance as evidence
   @ that instancing into the detector's topology became safe.
-  instance retrainer: Retrain.Retrainer base id 0x30000000 \
+  instance retrainer: Sentinel.Retrainer base id 0x30000000 \
   {
     phase Fpp.ToCpp.Phases.configComponents """
     // A crossing measurement needs more than the six ticks RETRAINER_CAPACITY
@@ -152,12 +152,15 @@ module SentinelRetrain {
     // both processes are on one host, which is what a real spacecraft looks
     // like, and it is why this deployment needs no Com stack of its own.
     //
-    // (!) RetrainModel.bin IS NOT SentinelRef's SentinelModel.bin. The cycle is
-    // maxima-shaped -- 16 inputs, 75,360 parameters (deep_f32.ml:28-34) -- and
-    // SentinelRef flies an 8-channel model with 66,960 weights, so no candidate
-    // this process builds can replace that one. docs/MODELS.md 72 reports that
-    // rather than hiding it, and 72.9 carries it as owed. The file is built by
-    // scripts/s72_flying_file.py and is a run artifact, cited by path.
+    // (!) RetrainModel.bin IS THE FLYING FILE AT THE SHAPE THIS BUILD WAS
+    // GENERATED FOR, and not SentinelRef's own SentinelModel.bin. Until D84 the
+    // cycle was maxima-shaped -- 16 inputs, 75,360 parameters -- and SentinelRef
+    // flies 8 channels and 66,960 weights, so no candidate fitted it
+    // (docs/MODELS.md 72.4). D84 generates the cycle at SENTINEL_RETRAINER_CHANNELS
+    // and _PREDICTIONS; at 8 and 10 the candidate is SentinelRef's shape. The
+    // file is built by `scripts/s72_flying_file.py --channels C --predictions P`,
+    // seeded and NOT trained, and is a run artifact, cited by path. A mission
+    // points this at its own flown model instead.
     //
     // Absent, the component still ticks and still cycles; it produces no
     // candidate and says so once. Degrade rather than die.

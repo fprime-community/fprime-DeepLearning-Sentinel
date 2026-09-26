@@ -59,6 +59,13 @@ class MonitorTester final : public MonitorGTestBase {
     void testTheReloadCommandIsDispatchedInsideTheTick();
     void testAReloadThatChangesTheChannelWidthIsRefused();
 
+    // D84 / docs/MODELS.md 77, SX14: the loop closed on the host.
+    //! A candidate the RETRAINER wrote, offered by RELOAD_MODEL. Driven by
+    //! tests/test_retrained_candidate_reloads_in_the_monitor.py through the
+    //! environment -- SENTINEL_LOOP_DIR, _CANDIDATE, _CHANNELS, _EXPECT -- and
+    //! skipped without it, because the candidate comes from another process.
+    void testARetrainedCandidateIsCommandedIn();
+
   private:
     void connectPorts();
     void initComponents();

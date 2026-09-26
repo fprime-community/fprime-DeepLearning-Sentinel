@@ -207,6 +207,25 @@ def _cycle_parameters() -> int:
     return int(re.search(r"^let n_params\s*=\s*(\d+)", text, re.M).group(1))
 
 
+def _mission_parameters() -> int:
+    """D84: the parameter count at `SentinelRef`'s shape, as the generator computes it.
+
+    `fprime/SentinelRetrain/README.md` states 66,960 -- the flown 8-channel model's
+    weights and, since D84, the generated cycle's extent at that shape. It was on
+    `master` unguarded before D84 as well. Derived from the channel count the
+    deployment declares (`PowerSim.fpp`) through `scripts/oxcaml_shape.py`, which is
+    the function the build's generated `deep_f32.ml` takes its `n_params` from.
+    """
+    import importlib.util
+    channels = int(re.search(r"constant POWERSIM_CHANNELS = (\d+)",
+                             _dev("fprime/SentinelRef/PowerSim/PowerSim.fpp")).group(1))
+    spec = importlib.util.spec_from_file_location(
+        "oxcaml_shape", ROOT / "scripts" / "oxcaml_shape.py")
+    shape = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(shape)
+    return shape.parameter_count(channels, shape.MAX_PREDICTIONS)
+
+
 def _symbol_guard_constant(name: str) -> int:
     """A count pinned by `tests/test_detector_binary_has_no_ocaml_runtime.py`.
 
@@ -489,6 +508,15 @@ FIGURES = (
            "fprime/SentinelRetrain/README.md",
            r"OCaml symbols in SentinelRef's binary and ([\d,]+) in this one",
            _retrainer_ocaml_symbols, "OCaml symbols in SentinelRetrain's binary"),
+    # D84: the two shapes this README names. Both were on `master` unguarded.
+    Figure("cycle_parameters/SENTINELRETRAIN_README",
+           "fprime/SentinelRetrain/README.md",
+           r"maxima -- 16 inputs, ([\d,]+) parameters",
+           _cycle_parameters, "Deep_f32's parameter extent at the maxima"),
+    Figure("mission_parameters/SENTINELRETRAIN_README",
+           "fprime/SentinelRetrain/README.md",
+           r"8 channels and ([\d,]+) weights",
+           _mission_parameters, "the generated cycle's extent at SentinelRef's shape"),
     Figure("refusal_codes/README", "README.md",
            r"exercising all (\d+) refusal codes",
            _refusal_codes, "refusal codes in Status.hpp"),

@@ -1,8 +1,26 @@
-# Retrain::Retrainer -- E1, the pipe
+# Sentinel::Retrainer -- the retrainer, exported opt-in
 
-**Test apparatus, not product.** `fprime/library.cmake` exports `Sentinel/Monitor` and
-nothing here. A mission adopting Sentinel does not inherit an OCaml runtime, and will not
-unless E1 to E4 all pass and a decision beyond `docs/DECISIONS.md` D70 says so.
+**Exported OPT-IN, OFF by default** (`docs/DECISIONS.md` D84). `fprime/library.cmake`
+registers this component only when `SENTINEL_WITH_RETRAINER` is ON, so a mission that does
+nothing inherits no OCaml runtime. Its status is D83's, exactly: **the chosen retraining
+implementation, host-verified, not flight-qualified.** E1 and E3 passed; E2 returned **NO
+VERDICT**; E4 has never run, because it needs flight hardware.
+
+**The case against, beside it** (D83, D84): no flight heritage; no qualified compiler; no
+certification precedent for a garbage-collected runtime in flight; x86-64 and arm64 Linux and
+arm64 macOS only -- no 32-bit ARM, no musl, no documented cross-compile recipe; no stability
+promise in its own documentation; Rust's footprint is smaller, with Ferrocene qualified and
+OPS-SAT heritage -- and **no Rust comparison has been built here**.
+
+**What it trains on.** Its only input is `schedIn`. The window its cycle trains on is a
+deterministic drive the component fills itself -- **not telemetry** -- and its step budget
+is a unit test's value. What a mission adopts is the pipeline: the shape, the cycle, the
+candidate file and the separate process. **No candidate may be swapped in operationally**;
+nothing onboard scores one, and a human's `RELOAD_MODEL` is the only way a model changes.
+
+**Where it lived.** `fprime/SentinelRef/Retrainer/` until D84, with the FPP module `Retrain`
+and the UT executable `SentinelRef_Retrainer_ut_exe`, which is what `docs/MODELS.md` 47 to 73
+cite. D84 consequence 5 maps those names to these.
 
 ## 1. What it is for
 
@@ -73,3 +91,23 @@ being measured.
 - **Not that any of this builds for a flight target.** That is E4.
 - **Not that the arithmetic is useful.** It is a sum and a mean, chosen because both are
   exact in F64.
+
+## 6. The mission's shape (D84, `docs/MODELS.md` 77)
+
+Until D84 the cycle was fixed at `Config.hpp`'s maxima -- 16 inputs, 75,360 parameters -- and
+no candidate it built could replace an 8-channel model (72.4). D83.1 route 1 is now taken:
+`scripts/oxcaml_shape.sh --channels C --predictions P` generates `deep_f32.ml` at the
+mission's shape by substituting three lines, runs every gate against the generated source --
+`[@zero_alloc strict]` with zero `assume`, a deliberate allocation rejected, an out-of-range
+read raising, HO1 on the cycle's own weights, and (with `EX1=1`) the exhaustive gradient
+check -- and builds the object this component links, beside the generated
+`sentinel_cycle_shape.h` that `Retrainer.hpp` reads its extents from. The F' build selects it
+with `SENTINEL_RETRAINER_CHANNELS` and `SENTINEL_RETRAINER_PREDICTIONS` and stops, naming the
+command, if it is absent or disagrees. Hidden `[80, 80]` and window 250 are fixed.
+
+## 7. Where it may be switched on
+
+`retrainer_platform.cmake` refuses any system, processor or cross-compile OxCaml does not
+support, with one message naming the supported platforms. **This project has built it only
+on arm64 macOS**; Linux is OxCaml's claim, not a result here.
+

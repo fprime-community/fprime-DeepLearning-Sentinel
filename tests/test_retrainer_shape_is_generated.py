@@ -224,3 +224,61 @@ def test_every_gate_holds_at_the_generated_shape(
                  "HO1 at this shape: all checks passed",
                  f"== shape c{channels}-p{predictions}: every gate passed =="):
         assert gate in log, (gate, log[-4000:])
+
+
+# -- SX8, SX9: EX1, from the committed run logs -----------------------------------------
+#
+# EX1 is sharded across ten processes and is not re-run by the suite; the full gate
+# log of each shape's run is committed, as `tests/fixtures/oxcaml_e3_x8_rejection.log`
+# is for E3's X8, and these checks make the log evidence rather than decoration.
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def _ex1(name: str) -> dict:
+    text = (FIXTURES / name).read_text(encoding="utf-8")
+    m = re.search(r"EXHAUSTIVE: checked ([\d,]+)\s+outside (\d+)\s+worst ratio ([\d.]+) at idx "
+                  r"(\d+)\s+worst \|err\| ([\d.e+-]+)", text)
+    assert m, f"{name} carries no EXHAUSTIVE line"
+    return {"text": text, "checked": int(m.group(1).replace(",", "")),
+            "outside": int(m.group(2)), "ratio": m.group(3), "idx": int(m.group(4)),
+            "worst": m.group(5)}
+
+
+def _ex1_faults(run: dict, n_params: int) -> list[str]:
+    faults = []
+    if run["checked"] != n_params:
+        faults.append(f"checked {run['checked']}, not every one of {n_params}")
+    if run["outside"] != 0:
+        faults.append(f"{run['outside']} outside the band")
+    if "shard 0 of 1021 reproduces deep_f32_check.ml at this shape: True" not in run["text"]:
+        faults.append("the shard-0 validation did not hold")
+    if "EX1 -> HOLD" not in run["text"]:
+        faults.append("no HOLD verdict")
+    for gate in ("strict HOLDS", "rejected:", "RAISED: Invalid_argument",
+                 "HO1 at this shape: all checks passed"):
+        if gate not in run["text"]:
+            faults.append(f"the log lacks '{gate}'")
+    return faults
+
+
+def test_ex1_holds_at_the_mission_shape() -> None:
+    """SX8: 66,960 = `SentinelRef`'s flown shape (8 channels, 10 predictions)."""
+    run = _ex1("oxcaml_shape_c8_p10_gates.log")
+    assert not _ex1_faults(run, shape.parameter_count(8, 10)), _ex1_faults(run, 66960)
+
+
+def test_ex1_at_the_maxima_reproduces_section_64() -> None:
+    """SX9: the generated maxima are the template, so 64's figures must come back exactly."""
+    run = _ex1("oxcaml_shape_c16_p10_gates.log")
+    assert not _ex1_faults(run, 75360), _ex1_faults(run, 75360)
+    assert (run["ratio"], run["idx"], run["worst"]) == ("0.306952", 11365, "8.819351553e-05"), (
+        "EX1 at the generated maxima no longer reproduces docs/MODELS.md 64 "
+        "(worst err/allowed 0.306952 at index 11365)")
+
+
+def test_the_ex1_log_check_can_fail() -> None:
+    run = _ex1("oxcaml_shape_c8_p10_gates.log")
+    assert _ex1_faults(dict(run, outside=1), 66960)
+    assert _ex1_faults(dict(run, checked=66959), 66960)
+    assert _ex1_faults(dict(run, text=run["text"].replace("EX1 -> HOLD", "EX1 -> FAIL")), 66960)

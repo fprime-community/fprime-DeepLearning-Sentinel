@@ -20,16 +20,16 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Top/")
 # consumes, and a simulated battery is not that.
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PowerSim/")
 
-# E1, the OxCaml pipe (docs/MODELS.md 47, docs/DECISIONS.md D70). Registered HERE for
-# the same reason PowerSim is: fprime/library.cmake exports what a mission adopting
-# Sentinel consumes, and an OCaml runtime is not that. The module skips itself with a
-# message if the OxCaml switch is absent, so a clone without it still builds.
-add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Retrainer/")
+# The retrainer is NOT registered here any more. Until D84 it lived in this
+# deployment's directory so the library would not export it; D84 exports it opt-in,
+# from fprime/library.cmake, and it moved to fprime/Sentinel/Retrainer/. This
+# deployment never instanced it and still does not: SentinelRef carries no OCaml
+# runtime, which tests/test_detector_binary_has_no_ocaml_runtime.py reads by symbol.
 
 # The Passive Adapter Pattern example (docs/DESIGN.md 8). Registered HERE for the
-# same reason PowerSim and Retrainer are: fprime/library.cmake exports what a
-# mission adopting Sentinel consumes, and example code is not that. A mission
-# copies this directory rather than linking it.
+# same reason PowerSim is: fprime/library.cmake exports what a mission adopting
+# Sentinel consumes, and example code is not that. A mission copies this directory
+# rather than linking it.
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ExampleAdapter/")
 
 # The hub tap (docs/MODELS.md 70.6). Registered HERE for the same reason the

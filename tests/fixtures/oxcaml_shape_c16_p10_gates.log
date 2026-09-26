@@ -1,0 +1,68 @@
+== D84: the retraining cycle at channels 16, predictions 10 ==
+   shape: 16 channels, 10 predictions, hidden [80, 80], window 250, 75,360 parameters
+   ocamlopt 5.2.0+ox
+
+-- SG1: the annotation count is the template's, and nothing is assumed
+   strict sites: template 10, generated 10; assume: 0
+
+-- SG2: the flown modules at this shape under -zero-alloc-check all
+   deep_f32: strict HOLDS
+   cycle_c: strict HOLDS
+   shadow59: strict HOLDS
+   shadow_c: strict HOLDS
+
+-- SG3: a deliberate allocation in the generated cycle must FAIL the build
+   rejected: called function may allocate (external call to caml_array_make)
+
+-- SG4: an out-of-range read inside a flown function RAISES
+   forward_deep (t_max + 1) -> RAISED: Invalid_argument index out of bounds
+
+-- SG5: the component's object at this shape (E1's surface, 61's cycle, 72's shadow)
+   cycle_complete.o (1241524 bytes)
+
+-- SG6: HO1 at this shape
+   wrote flying.bin -- 302,048 B, 16 channels, hidden (80, 80), 75,360 float32 weights
+   matches deep_f32.ml:41's n_params: True
+   wrote other.bin -- 268,224 B, 8 channels, hidden (80, 80), 66,960 float32 weights
+== HO1 at the generated shape: 16 channels, 10 predictions, 75360 parameters ==
+   the flying file at this shape is readable                      ok
+   a flying file at another shape is readable                     ok
+   the runtime boots                                              ok
+   a starting model is seeded                                     ok
+   the window loads at this shape's extent                        ok
+   one cycle runs                                                 ok
+   the cycle's weights export at this shape's parameter count     ok
+   the flying bytes load into the shadow                          ok
+   the cycle's weights fit the flying file                        ok
+   the candidate is the flying file's size                        ok
+   HO1  Detector::load(candidate) -> OK
+   Detector::load accepts the candidate                           ok
+   the candidate declares this shape's channels                   ok
+   the candidate declares this shape's predictions                ok
+   the other-shape flying bytes load into the shadow              ok
+   the cycle's weights are REFUSED by a file at another shape     ok
+   the candidate is written                                       ok
+   HO1 at this shape: all checks passed
+
+-- EX1 at this shape: every parameter index against 51's criterion
+   validation: deep_f32_check.ml at stride 1021 and exhaustive shard 0 of 1021
+      AS4  T = 250, S = 4.707457e+00, atol = 2.873204e-04, h_rel = 3.906250e-03
+           outside 0 of 74 checked; worst |err| 5.725114e-05; worst err/allowed 0.1992
+   SHARD 0 1021 checked=74 outside=0 worst=5.725113690e-05 ratio=0.199228 idx=40840 S=4.707457e+00 atol=2.873204e-04
+   shard 0 of 1021 reproduces deep_f32_check.ml at this shape: True
+   10 shards
+   SHARD 0 10 checked=7536 outside=0 worst=8.211570147e-05 ratio=0.285798 idx=12330 S=4.707457e+00 atol=2.873204e-04
+   SHARD 1 10 checked=7536 outside=0 worst=8.371285227e-05 ratio=0.291350 idx=36821 S=4.707457e+00 atol=2.873204e-04
+   SHARD 2 10 checked=7536 outside=0 worst=8.778294792e-05 ratio=0.305523 idx=992 S=4.707457e+00 atol=2.873204e-04
+   SHARD 3 10 checked=7536 outside=0 worst=7.114498243e-05 ratio=0.247615 idx=7143 S=4.707457e+00 atol=2.873204e-04
+   SHARD 4 10 checked=7536 outside=0 worst=7.285486924e-05 ratio=0.253567 idx=14844 S=4.707457e+00 atol=2.873204e-04
+   SHARD 5 10 checked=7536 outside=0 worst=8.819351553e-05 ratio=0.306952 idx=11365 S=4.707457e+00 atol=2.873204e-04
+   SHARD 6 10 checked=7536 outside=0 worst=7.570022055e-05 ratio=0.263465 idx=18256 S=4.707457e+00 atol=2.873204e-04
+   SHARD 7 10 checked=7536 outside=0 worst=7.586365828e-05 ratio=0.264027 idx=16857 S=4.707457e+00 atol=2.873204e-04
+   SHARD 8 10 checked=7536 outside=0 worst=8.049002024e-05 ratio=0.280139 idx=56398 S=4.707457e+00 atol=2.873204e-04
+   SHARD 9 10 checked=7536 outside=0 worst=6.972810897e-05 ratio=0.242676 idx=40449 S=4.707457e+00 atol=2.873204e-04
+   EXHAUSTIVE: checked 75,360  outside 0  worst ratio 0.306952 at idx 11365  worst |err| 8.819351553e-05
+   margin 3.258x
+   EX1 -> HOLD  (band: 0 outside of 75,360, every index checked)
+
+== shape c16-p10: every gate passed ==

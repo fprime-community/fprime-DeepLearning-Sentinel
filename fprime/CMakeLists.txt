@@ -29,7 +29,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/library.cmake")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SentinelRef/")
 
 # The retrainer's own deployment (docs/MODELS.md 65, 47.15b's named discharger for
-# C5). AFTER SentinelRef, and the order is load-bearing: SentinelRef registers the
-# Retrainer module and an F' module may be registered once, so the target must
-# already exist when this deployment's topology names Retrain.Retrainer.
+# C5). AFTER library.cmake, and the order is load-bearing: the library registers the
+# Retrainer module when SENTINEL_WITH_RETRAINER is ON (docs/DECISIONS.md D84), and an
+# F' module may be registered once, so the target must already exist when this
+# deployment's topology names Sentinel.Retrainer. OFF, the deployment skips itself.
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SentinelRetrain/")

@@ -1,14 +1,27 @@
 """(!) The detector's process must never contain an OCaml runtime, and PUBLIC linkage
 means one wiring mistake would put it there silently.
 
-`fprime/SentinelRef/Retrainer/CMakeLists.txt:46` is
+`fprime/Sentinel/Retrainer/CMakeLists.txt` links
 
     target_link_libraries(${FPRIME_CURRENT_MODULE} PUBLIC "${OX_OBJ}")
 
 and `${OX_OBJ}` is `cycle_complete.o`, built with `-output-complete-obj`, which carries a
 whole OCaml runtime. **PUBLIC**, so anything that links the `Retrainer` module transitively
-links the runtime. `SentinelRef` is clean today only because its topology never names
+links the runtime. `SentinelRef` is clean only because its topology never names
 `Retrainer` and `register_fprime_deployment` depends on `_Top` alone.
+
+**(!) AND SINCE D84 THE LIBRARY EXPORTS IT, OPT-IN.** With `SENTINEL_WITH_RETRAINER` ON
+the module is registered from `fprime/library.cmake`, so the claim this file guards is
+now two claims, and the build cache says which mode it is in:
+
+* **OFF** (the default): no `Sentinel_Retrainer` target exists at all, and `SentinelRef`
+  carries **0** OCaml symbols.
+* **ON**: `SentinelRetrain` carries the runtime -- read from its own binary, which
+  before D84 was stated in prose only -- and `SentinelRef` STILL carries **0**.
+
+A binary the current configuration did not produce is never read as evidence: F' leaves
+old binaries in place across a reconfigure, and an exact count checked against a stale
+artifact is the failure D82.3 recorded.
 
 `docs/DECISIONS.md` D70 consequence 2 makes the separate process a **requirement**, and
 `docs/MODELS.md`'s 47.15b ground 1 refuses reading (b) precisely because it "puts the garbage
@@ -47,7 +60,13 @@ DETECTOR_BINARIES = (
 #: cannot see the runtime here, it cannot see it anywhere, and a clean detector binary
 #: would mean nothing.
 POSITIVE_CONTROL = (FPRIME / "build-fprime-automatic-native-ut" / "bin" / "Darwin"
-                    / "SentinelRef_Retrainer_ut_exe")
+                    / "Sentinel_Retrainer_ut_exe")
+
+#: The retrainer's own deployment, which carries the runtime by design (D70 c.2).
+RETRAINER_BINARY = FPRIME / "build-artifacts" / "Darwin" / "SentinelRetrain" / "bin" / "SentinelRetrain"
+
+NATIVE_CACHE = FPRIME / "build-fprime-automatic-native"
+UT_CACHE = FPRIME / "build-fprime-automatic-native-ut"
 
 #: (!) THE EXACT COUNT, AND NOT JUST `> 100`. `docs/MODELS.md` 72.5 recorded that this
 #: file asserted `> 100` in the control and `0` in the detector, "never the exact
@@ -80,6 +99,22 @@ RETRAINER_OCAML_SYMBOLS = 3082
 DETECTOR_OCAML_SYMBOLS = 0
 
 
+def _retrainer_option(cache: pathlib.Path) -> bool | None:
+    """SENTINEL_WITH_RETRAINER as the build cache has it, or None with no cache."""
+    cmake_cache = cache / "CMakeCache.txt"
+    if not cmake_cache.exists():
+        return None
+    m = re.search(r"^SENTINEL_WITH_RETRAINER:BOOL=(\S+)$",
+                  cmake_cache.read_text(encoding="utf-8", errors="replace"), re.M)
+    # Before D84 there was no option; an absent entry is OFF, which is what it meant.
+    return bool(m) and m.group(1).upper() in ("ON", "TRUE", "1", "YES")
+
+
+def _configured_targets(cache: pathlib.Path) -> str:
+    ninja = cache / "build.ninja"
+    return ninja.read_text(encoding="utf-8", errors="replace") if ninja.exists() else ""
+
+
 def _ocaml_symbols(binary: pathlib.Path) -> int:
     out = subprocess.run(["nm", "-C", str(binary)], capture_output=True, text=True)
     return len(OCAML_SYMBOL.findall(out.stdout))
@@ -93,6 +128,9 @@ def _require_nm():
 def test_the_check_can_see_an_ocaml_runtime_when_one_is_there() -> None:
     """Both directions. A guard that has only ever passed is not known to work."""
     _require_nm()
+    if _retrainer_option(UT_CACHE) is not True:
+        pytest.skip("the unit-test cache is not configured with SENTINEL_WITH_RETRAINER=ON; "
+                    f"{POSITIVE_CONTROL.name} is not a current artifact to control against")
     if not POSITIVE_CONTROL.exists():
         pytest.skip(f"{POSITIVE_CONTROL.name} is not built; nothing to control against")
     found = _ocaml_symbols(POSITIVE_CONTROL)
@@ -126,7 +164,47 @@ def test_no_detector_binary_contains_an_ocaml_runtime() -> None:
             offenders[str(binary.relative_to(ROOT))] = found
     assert not offenders, (
         f"OCaml symbols in the detector's own binary: {offenders}. "
-        "fprime/SentinelRef/Retrainer/CMakeLists.txt:46 links ${OX_OBJ} PUBLIC, so this is "
+        "fprime/Sentinel/Retrainer/CMakeLists.txt links ${OX_OBJ} PUBLIC, so this is "
         "what a transitive dependency on the Retrainer module looks like -- the garbage "
         "collector in the process that owns the 1 Hz rate group, which docs/DECISIONS.md "
         "D70 consequence 2 forbids and docs/MODELS.md 47.15b ground 1 refuses by name.")
+
+
+def test_off_means_no_retrainer_target_exists() -> None:
+    """D84, SX11: with the option OFF the library registers nothing of the retrainer."""
+    mode = _retrainer_option(NATIVE_CACHE)
+    if mode is None:
+        pytest.skip("no F' build cache; run fprime-util generate in fprime/")
+    if mode:
+        pytest.skip("the build cache is configured with SENTINEL_WITH_RETRAINER=ON")
+    targets = _configured_targets(NATIVE_CACHE)
+    assert targets, "the build cache has no build.ninja; regenerate it"
+    assert "Sentinel_Retrainer" not in targets, (
+        "SENTINEL_WITH_RETRAINER is OFF and the build still configures a "
+        "Sentinel_Retrainer target. D84: OFF must export exactly what it did before -- "
+        "sentinel_core and Sentinel/Monitor.")
+    # (!) NOT the bare word: CMake gives every add_subdirectory its edit_cache and
+    # rebuild_cache utility targets even when the directory returns at once, so
+    # `SentinelRetrain/CMakeFiles/edit_cache.util` is always there. What must be
+    # absent is the deployment itself -- its topology module and its executable.
+    assert not re.search(r"^build [^:]*(SentinelRetrain_Top\b|bin/\S*/SentinelRetrain\b)",
+                         targets, re.M), (
+        "SENTINEL_WITH_RETRAINER is OFF and the build still configures the "
+        "SentinelRetrain deployment; it must skip itself by the option (D84).")
+
+
+def test_on_means_the_retrainers_own_binary_carries_the_runtime() -> None:
+    """D84, SX12: ON, the runtime is in SentinelRetrain -- read from that binary."""
+    _require_nm()
+    mode = _retrainer_option(NATIVE_CACHE)
+    if mode is None:
+        pytest.skip("no F' build cache; run fprime-util generate in fprime/")
+    if not mode:
+        pytest.skip("the build cache is configured with SENTINEL_WITH_RETRAINER=OFF")
+    if not RETRAINER_BINARY.exists():
+        pytest.skip("SentinelRetrain is not built; run fprime-util build -p ./SentinelRetrain")
+    assert "Sentinel_Retrainer" in _configured_targets(NATIVE_CACHE)
+    found = _ocaml_symbols(RETRAINER_BINARY)
+    assert found == RETRAINER_OCAML_SYMBOLS, (
+        f"SentinelRetrain carries {found} OCaml symbols; this guard pins "
+        f"{RETRAINER_OCAML_SYMBOLS}, the same object the unit-test executable links.")

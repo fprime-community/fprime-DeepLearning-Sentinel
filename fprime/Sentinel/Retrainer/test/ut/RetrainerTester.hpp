@@ -1,6 +1,6 @@
 // ======================================================================
 // \title  RetrainerTester.hpp
-// \brief  Test harness for Retrain::Retrainer -- E1, the pipe
+// \brief  Test harness for Sentinel::Retrainer -- E1, the pipe, and 72's candidate
 //
 // (!) THIS IS THE PROCESS E1 RUNS IN. `docs/MODELS.md` 47.9 X1 asks for an F'
 // component linked against the OxCaml library and running in its own process,
@@ -13,13 +13,13 @@
 // that can end the approach.
 // ======================================================================
 
-#ifndef Retrain_RetrainerTester_HPP
-#define Retrain_RetrainerTester_HPP
+#ifndef Sentinel_RetrainerTester_HPP
+#define Sentinel_RetrainerTester_HPP
 
-#include "SentinelRef/Retrainer/Retrainer.hpp"
-#include "SentinelRef/Retrainer/RetrainerGTestBase.hpp"
+#include "Sentinel/Retrainer/Retrainer.hpp"
+#include "Sentinel/Retrainer/RetrainerGTestBase.hpp"
 
-namespace Retrain {
+namespace Sentinel {
 
 class RetrainerTester final : public RetrainerGTestBase {
   public:
@@ -52,6 +52,6 @@ class RetrainerTester final : public RetrainerGTestBase {
     Retrainer component;
 };
 
-}  // namespace Retrain
+}  // namespace Sentinel
 
 #endif

@@ -2,7 +2,8 @@
 
 **This deployment carries the OCaml runtime, and `SentinelRef` carries none of it.** That is
 the whole reason it exists as a second deployment rather than four more instances in the
-first one.
+first one -- and it is the pattern a mission copies when it switches the retrainer on
+(`docs/DECISIONS.md` D84: exported **opt-in**, OFF by default).
 
 `docs/DECISIONS.md` D70 consequence 2: *"The retrainer is a separate OS process. That is a
 requirement of this decision, not an implementation detail left to whoever builds it, and its
@@ -19,7 +20,7 @@ discharged.
 ## What is in it, and what is deliberately not
 
 ```
-  retrainer          Retrain.Retrainer             0x30000000   passive
+  retrainer          Sentinel.Retrainer            0x30000000   passive
   rateGroup_1Hz      Svc.ActiveRateGroup           0x30001000   active
   chronoTime         Svc.ChronoTime                0x30010000   passive
   rateGroupDriver    Svc.RateGroupDriver           0x30011000   passive
@@ -45,11 +46,12 @@ Base ids are `0xDSSCCxxx` with `D = 3`. `D = 2` is not available: `SentinelRef` 
 merged for the ground system, where a duplicated id is refused outright
 (`Top/instances.fpp:9-13`).
 
-The component itself lives at `fprime/SentinelRef/Retrainer/` and is registered by that
-deployment (`fprime/SentinelRef/CMakeLists.txt:27`). This deployment only instances it. The
-registration order in `fprime/CMakeLists.txt:29` and `:35` is load-bearing: an F' module may
-be registered once, so `SentinelRef` must be added before this deployment's topology names
-`Retrain.Retrainer`.
+The component itself lives at `fprime/Sentinel/Retrainer/` and is registered by the library
+when `SENTINEL_WITH_RETRAINER` is ON (`fprime/library.cmake`, D84). This deployment only
+instances it, and skips itself when the option is OFF. The order in `fprime/CMakeLists.txt` is
+load-bearing: an F' module may be registered once, so the library is included before this
+deployment's topology names `Sentinel.Retrainer`. Until D84 the component lived at
+`fprime/SentinelRef/Retrainer/` as FPP module `Retrain`, which is what the records cite.
 
 ## (!) The OCaml runtime starts on the ticking thread, and moving it breaks the process
 
@@ -72,23 +74,31 @@ is never called. What moves is only *which* thread holds it.
 ## Building and running it
 
 ```
+scripts/oxcaml_setup.sh
+bash scripts/oxcaml_shape.sh --channels 8 --predictions 10
 source fprime/fprime-venv/bin/activate
 cd fprime
-fprime-util generate -f
+fprime-util generate -f -DSENTINEL_WITH_RETRAINER=ON -DSENTINEL_RETRAINER_CHANNELS=8
 fprime-util build -p ./SentinelRetrain
 ```
 
-This deployment **needs the OxCaml switch**, unlike `SentinelRef`. Without it the `Retrainer`
-module skips itself and the deployment has nothing to instance.
+This deployment **needs the OxCaml switch and the generated shape**, unlike `SentinelRef`.
+`oxcaml_shape.sh` generates the cycle at 8 channels and 10 predictions -- `SentinelRef`'s shape
+-- runs its gates against the generated source and builds the object this deployment links.
+With the option OFF this deployment skips itself; ON without the shape, the build stops and
+names the command.
 
 **The OxCaml sources and the scripts that build the switch are on both branches** since
 D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
-`scripts/oxcaml_s61.sh` to build the object this deployment links. **OxCaml is the CHOSEN retraining implementation --
-host-verified, not flight-qualified** (D83). Chosen is not qualified: it has never run
-on flight hardware, its sanity gate is not a usable gate yet, and it trains at the
-compile-time maxima rather than at `SentinelRef`'s flown shape, so no candidate it
-builds can replace what that deployment flies. `docs/DESIGN.md`, on `master`, states the case for it
-and the case against it in the same passage.
+`scripts/oxcaml_shape.sh` to build the object at a mission's shape. **OxCaml is the chosen
+retraining implementation, host-verified, not flight-qualified** (D83). Chosen is not
+qualified: it has never run on flight hardware, its sanity gate is not a usable gate yet, and
+it trains on a deterministic drive rather than telemetry. Since D84 it is generated at the
+mission's shape, so a candidate for `SentinelRef`'s 8 channels is what it builds; that makes
+the shapes meet, not the candidate good. **The case against, beside it:** no flight heritage,
+no qualified compiler, no certification precedent for a garbage-collected runtime in flight,
+x86-64 and arm64 Linux and arm64 macOS only, no stability promise, and Rust's footprint is
+smaller with Ferrocene qualified -- and **no Rust comparison has been built here**.
 
 ```
 ./SentinelRetrain -a 127.0.0.1 -p 0        # run the cycle with no hub
@@ -105,10 +115,12 @@ cycle across a hub into `SentinelRef`'s process, and **writes a candidate model 
 **3,082** in this one, checked by symbol on every test run
 (`tests/test_detector_binary_has_no_ocaml_runtime.py`).
 
-**(!) The candidate is not a replacement for `SentinelRef`'s model.** The training cycle is
-fixed at `Config.hpp`'s maxima -- 16 inputs, 75,360 parameters -- and `SentinelModel.bin` is an
-8-channel model with 66,960 weights, so the shapes do not meet. `docs/MODELS.md` 72.4 measured
-that and 72.9 carries it as owed.
+**(!) The shapes meet since D84, and that is all that follows.** Until D84 the training cycle
+was fixed at `Config.hpp`'s maxima -- 16 inputs, 75,360 parameters -- against `SentinelModel.bin`'s
+8 channels and 66,960 weights, so no candidate could be loaded in its place (`docs/MODELS.md`
+72.4). Generated at 8 channels and 10 predictions, the cycle's candidate has that file's shape,
+and `RELOAD_MODEL` accepts it on the host (`docs/MODELS.md` 77). **It is trained for one step on
+a deterministic drive, nothing scores it, and no candidate may be swapped in operationally.**
 
 **Not proved.** C2 -- that the separate process actually isolates the detector's timing -- is
 UNVERIFIED and deferred to hardware: this host downclocks an idle core and the confound
