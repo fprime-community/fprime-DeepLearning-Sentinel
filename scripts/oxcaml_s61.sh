@@ -80,15 +80,20 @@ echo "-- FC6: Retrainer must stay uninstanced"
 # failed a deployment that instances nothing of the kind -- and took the
 # `-output-complete-obj` build below down with it, because the script exits here.
 # A guard's scope is part of its claim, so this matches an FPP instancing --
-# `instance retrainer`, or the `Retrain.Retrainer` type -- and nothing else.
+# `instance retrainer`, or the component's type -- and nothing else.
 # 61.5a narrowed stop 32 to permit the separate deployment; this is that
 # narrowing enforced rather than remembered. It still exits 1 on a real
 # instancing: `fprime/SentinelRetrain/Top/` matches both alternatives.
-if grep -rqE '^[[:space:]]*instance[[:space:]]+retrainer\b|Retrain\.Retrainer' \
+#
+# (!) D84 RENAMED THE TYPE, AND A GUARD THAT MATCHES ONLY THE OLD NAME GOES BLIND.
+# The component moved to the library's `Sentinel` module, so the type is now
+# `Sentinel.Retrainer`; the old `Retrain.Retrainer` is kept in the pattern too, so
+# neither spelling can be instanced into the detector's topology unnoticed.
+if grep -rqE '^[[:space:]]*instance[[:space:]]+retrainer\b|(Retrain|Sentinel)\.Retrainer' \
         "${ROOT}/fprime/SentinelRef/Top/"; then
     echo "   (!) INSTANCED -- stop 32."; exit 1
 else
-    echo "   uninstanced: no Retrainer instance and no Retrain.Retrainer in Top/"
+    echo "   uninstanced: no Retrainer instance and no Sentinel.Retrainer in Top/"
 fi
 
 echo

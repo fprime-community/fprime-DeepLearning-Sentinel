@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "Sentinel/Monitor/FppConstantsAc.hpp"
@@ -645,6 +646,85 @@ void MonitorTester ::testAReloadThatChangesTheChannelWidthIsRefused() {
     ASSERT_CMD_RESPONSE_SIZE(1);
     ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 13U,
                         Fw::CmdResponse::VALIDATION_ERROR);
+}
+
+// ----------------------------------------------------------------------
+// D84 / docs/MODELS.md 77, SX14: a candidate the RETRAINER wrote
+// ----------------------------------------------------------------------
+//
+// (!) WHAT THIS IS AND IS NOT. It is a host test that the retrainer's output and
+// this component's input MEET: the shape, the format, the command. The candidate
+// was trained for one step on the retrainer's deterministic drive -- not
+// telemetry -- so nothing about its quality follows, and nothing scored it before
+// the command. That is a human's RELOAD_MODEL, which is rule 1; it is not
+// Objective.md section 12's gate, and no shadow model may be swapped in
+// operationally (D83 c.4, D84 c.2).
+//
+// Both directions, from one body: _EXPECT is "accept" for the retrainer's
+// candidate at this topology's width, "width" for a valid file at another, and
+// "crc" for the retrainer's candidate with one byte flipped. Each refusal must
+// leave the flying model flying.
+
+void MonitorTester ::testARetrainedCandidateIsCommandedIn() {
+    const char* const dir = std::getenv("SENTINEL_LOOP_DIR");
+    const char* const candidate = std::getenv("SENTINEL_LOOP_CANDIDATE");
+    const char* const channels = std::getenv("SENTINEL_LOOP_CHANNELS");
+    const char* const expect = std::getenv("SENTINEL_LOOP_EXPECT");
+    if ((dir == nullptr) || (candidate == nullptr) || (channels == nullptr)
+        || (expect == nullptr)) {
+        GTEST_SKIP() << "run by tests/test_retrained_candidate_reloads_in_the_monitor.py";
+    }
+    // The command carries 40 characters (73.6), so the candidate is named
+    // relative to the loop directory, which the process moves into.
+    ASSERT_EQ(0, ::chdir(dir)) << dir;
+    const U32 width = static_cast<U32>(std::strtoul(channels, nullptr, 10));
+
+    // The flying model: the retrainer's own flying file at this width.
+    this->component.configure("loop_flying.bin", width);
+    (void)this->component.loadModel();
+    ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+    this->clearHistory();
+
+    this->sendCmd_RELOAD_MODEL(0, 20U, Fw::CmdStringArg(candidate));
+    this->invoke_to_schedIn(0, 0U);
+
+    if (std::strcmp(expect, "accept") == 0) {
+        ASSERT_EVENTS_ModelReloadAccepted_SIZE(1);
+        ASSERT_EVENTS_ModelReloadAccepted(0, candidate);
+        ASSERT_EVENTS_ModelLoaded_SIZE(1);
+        ASSERT_EVENTS_ModelReloadRolledBack_SIZE(0);
+        ASSERT_EVENTS_ModelRefused_SIZE(0);
+        ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+        ASSERT_CMD_RESPONSE_SIZE(1);
+        ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 20U, Fw::CmdResponse::OK);
+
+        // And it RUNS on it: ticks with channel data score through the model,
+        // not the baseline, and nothing degrades.
+        this->clearHistory();
+        this->tick(20U, 0.5F);
+        ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+        ASSERT_TLM_Score_SIZE(20);
+        ASSERT_TLM_ActiveMode(19, Mode::MODEL);
+        ASSERT_EVENTS_DegradedToBaseline_SIZE(0);
+        ASSERT_EVENTS_ModelRefused_SIZE(0);
+    } else if (std::strcmp(expect, "width") == 0) {
+        ASSERT_EVENTS_ModelReloadWidthRefused_SIZE(1);
+        ASSERT_EVENTS_ModelReloadAccepted_SIZE(0);
+        ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+        ASSERT_CMD_RESPONSE_SIZE(1);
+        ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 20U,
+                            Fw::CmdResponse::VALIDATION_ERROR);
+    } else if (std::strcmp(expect, "crc") == 0) {
+        ASSERT_EVENTS_ModelRefused_SIZE(1);
+        ASSERT_EVENTS_ModelReloadRolledBack_SIZE(1);
+        ASSERT_EVENTS_ModelReloadAccepted_SIZE(0);
+        ASSERT_EQ(Mode::MODEL, this->component.activeMode());
+        ASSERT_CMD_RESPONSE_SIZE(1);
+        ASSERT_CMD_RESPONSE(0, Monitor::OPCODE_RELOAD_MODEL, 20U,
+                            Fw::CmdResponse::EXECUTION_ERROR);
+    } else {
+        FAIL() << "SENTINEL_LOOP_EXPECT must be accept, width or crc; got " << expect;
+    }
 }
 
 }  // namespace Sentinel

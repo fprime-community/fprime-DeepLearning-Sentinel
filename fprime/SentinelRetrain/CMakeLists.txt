@@ -7,23 +7,21 @@
 # building one is permitted; reading (b), Retrainer into SentinelRef, stays
 # rejected on all three of 47.15b's grounds.
 #
-# (!) THE Retrainer MODULE IS NOT REGISTERED HERE. fprime/SentinelRef/CMakeLists.txt
-# already registers it and an F' module may be registered once; fprime/CMakeLists.txt
-# adds SentinelRef first, so the target exists by the time this file is read. Keeping
-# the directory where it is keeps the UT target name SentinelRef_Retrainer_ut_exe and
-# every record citation that names it -- docs/MODELS.md 47.15 and 61.1 among them.
+# (!) THE Retrainer MODULE IS NOT REGISTERED HERE. fprime/library.cmake registers it
+# when SENTINEL_WITH_RETRAINER is ON (docs/DECISIONS.md D84), and an F' module may be
+# registered once; fprime/CMakeLists.txt includes the library first, so the target
+# exists by the time this file is read. Until D84 it was registered by SentinelRef,
+# and this comment argued for keeping it there to keep the UT target name
+# SentinelRef_Retrainer_ut_exe that records cite. The records keep that name --
+# they were true at their commits -- and D84 consequence 5 maps it to
+# Sentinel_Retrainer_ut_exe.
 #
-# The ${OX_OBJ} guard is repeated here by FILE EXISTENCE rather than by
-# if(TARGET ...), which is order- and sub-build-dependent: without the object the
-# Retrainer module returns early, its target never exists, and a topology naming
-# Retrain.Retrainer would fail at FPP time with a worse message than this one.
+# OFF, this deployment is skipped by NAME rather than by file existence: the
+# option is the mission's statement of intent, and a missing object with the
+# option ON is an error the Retrainer module raises itself, naming the command.
 #####
-set(OX_OBJ "${CMAKE_CURRENT_LIST_DIR}/../../oxcaml/_build/cycle_complete.o")
-if(NOT EXISTS "${OX_OBJ}")
-    set(OX_OBJ "${CMAKE_CURRENT_LIST_DIR}/../../oxcaml/_build/retrainer_complete.o")
-endif()
-if(NOT EXISTS "${OX_OBJ}")
-    message(STATUS "SentinelRetrain: ${OX_OBJ} absent; skipping. Run scripts/oxcaml_s61.sh")
+if(NOT SENTINEL_WITH_RETRAINER)
+    message(STATUS "SentinelRetrain: SENTINEL_WITH_RETRAINER is OFF; skipping (docs/DECISIONS.md D84)")
     return()
 endif()
 

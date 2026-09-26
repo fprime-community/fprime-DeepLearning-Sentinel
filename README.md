@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`e039054`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`9bc7205`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -112,15 +112,18 @@ coupled power and thermal plant with declared limits, on a real 1 Hz clock
   flight/                     The C++14 inference core. No allocation after init, no
                               exceptions, no RTTI, no STL containers, -Werror
   fprime/Sentinel/Monitor/    The F' component: Monitor.fpp, its SDD, its unit tests
+  fprime/Sentinel/Retrainer/  The retrainer component, exported OPT-IN and OFF by
+                              default (D84). Host-verified, not flight-qualified
   fprime/SentinelRef/         Reference deployment, topology, and the physics testbed.
                               Apparatus, not product. Also ExampleAdapter/, the adapter
                               a mission copies
-  fprime/SentinelRetrain/     The retraining engine's own deployment and OS process, and
-                              the only place an OCaml runtime exists. EXPERIMENT
+  fprime/SentinelRetrain/     The retrainer's own deployment and OS process, and the
+                              only place an OCaml runtime exists. The pattern a mission
+                              copies when it switches the retrainer on
   oxcaml/                     The retrainer's OxCaml sources and its C stubs
   src/                        The ground toolkit and its import closure. Reaches no bucket
                               and reads no credential (D80)
-  scripts/                    The six build scripts this branch's commands call
+  scripts/                    The build scripts this branch's commands call
   docs/                       Design, evidence, status, the normative file format
   requirements-toolkit.txt    numpy, pyarrow, torch. Nothing else
 ```
@@ -161,19 +164,21 @@ scripts/fprime_setup.sh                     # F' v4.3.0 into the gitignored fpri
    && fprime-util generate -f && fprime-util build -p ./SentinelRef)
 ```
 
-The retrainer. **This assumes the F' block above has already been run**, and the
-`generate -f` below is **not optional**: `Retrainer/CMakeLists.txt` and
-`SentinelRetrain/CMakeLists.txt` register themselves only if the OxCaml object already
-exists, so a build cache generated before `oxcaml_s61.sh` ran omits both. Without the
-regenerate, `fprime-util build -p ./SentinelRetrain` prints `ninja: no work to do`,
-**exits 0, and produces no binary**. `oxcaml_setup.sh` compiles a compiler: measured at **373.52 s** and **2.7 GiB** on
-disk on the development host, well inside its pre-registered ceiling.
+The retrainer -- **optional, and off unless you switch it on** (see
+[OPTIONAL: the retrainer](#optional-the-retrainer)). **This assumes the toolkit and F' blocks
+above have already been run.** `oxcaml_shape.sh` generates the training cycle at
+`SentinelRef`'s shape -- 8 channels, 10 predictions -- runs its gates against the generated
+source, and builds the object the deployment links. The `generate -f` is **not optional**: the
+option is read at generate time, and without it `SentinelRetrain` skips itself.
+`oxcaml_setup.sh` compiles a compiler: measured at **373.52 s** and **2.7 GiB** on disk on the
+development host, well inside its pre-registered ceiling.
 
 ```bash
 scripts/oxcaml_setup.sh
-bash scripts/oxcaml_s61.sh                  # the object SentinelRetrain links
+bash scripts/oxcaml_shape.sh --channels 8 --predictions 10
 (cd fprime && source fprime-venv/bin/activate \
-   && fprime-util generate -f && fprime-util build -p ./SentinelRetrain)
+   && fprime-util generate -f -DSENTINEL_WITH_RETRAINER=ON -DSENTINEL_RETRAINER_CHANNELS=8 \
+   && fprime-util build -p ./SentinelRetrain)
 ```
 
 What `make -C flight test` proves, on this branch:
@@ -217,9 +222,10 @@ are the implementation and **46** are neither blank nor a comment -- which is th
 forty lines" the other documents mean. `fprime/README.md` and `docs/DESIGN.md` 8 carry the
 recipe in full.
 
-- **A mission inherits the Monitor and the inference core and nothing else.**
+- **By default, a mission inherits the Monitor and the inference core and nothing else.**
   `fprime/library.cmake` exports `Sentinel/Monitor` and `sentinel_core` -- not the testbed,
-  not the retrainer, not an OCaml runtime.
+  and no OCaml runtime. The retrainer is exported too, but only if you switch it on: the
+  next section.
 - **Make the model with the ground toolkit**, from your own healthy telemetry:
   `PYTHONPATH=src .venv/bin/python -m sentinel_toolkit fit --telemetry healthy.npy --out SentinelModel.bin`.
   `--telemetry` takes a **`.npy` array, 2-D and finite, one row per timestep and one column
@@ -231,9 +237,78 @@ recipe in full.
   refused model is not fatal: the component degrades to its Level 1 statistical baseline,
   names the refusal code in an event, and keeps ticking.
 
+### OPTIONAL: the retrainer
+
+**Off unless you switch it on, and a mission that does not switch it on sees no change** --
+no OxCaml toolchain, no OCaml runtime, and the same Monitor code (`docs/DECISIONS.md` D84, on
+`dev`). **Status: the chosen retraining implementation, host-verified, not flight-qualified**
+(D83). Read the case against, at the end of this section, before you switch it on.
+
+**What you get, and what you do not.** A background process, in **its own deployment**, that
+retrains a candidate model at **your** channel count and writes it as a model file your
+detector can load. **It trains on a deterministic drive and not telemetry** -- its only input
+is the rate-group tick -- so what you adopt is the pipeline: the shape, the training cycle,
+the candidate file and the separate process. **No candidate may be swapped in
+operationally**: nothing onboard scores one, the pre-launch sanity gate is not usable yet,
+and a human's `RELOAD_MODEL` is the only way a model changes.
+
+**1. The setting**, in your project's `settings.ini`:
+
+```ini
+[fprime]
+library_locations: ./path/to/fprime-DeepLearning-Sentinel/fprime
+default_cmake_options: SENTINEL_WITH_RETRAINER=ON
+    SENTINEL_RETRAINER_CHANNELS=8
+    SENTINEL_RETRAINER_PREDICTIONS=10
+```
+
+Use your own channel count, 1 to 16, and prediction count, 1 to 10. Hidden `[80, 80]` and
+window 250 are fixed. `-DSENTINEL_WITH_RETRAINER=ON` on `fprime-util generate` does the same.
+
+**2. The toolchain and your shape**, from this repository's root. `oxcaml_shape.sh` generates
+the training cycle at your shape and **re-runs its gates against the generated source** --
+`[@zero_alloc strict]` with zero `assume`, a deliberate allocation rejected, an out-of-range
+read raising, and a candidate that `flight/`'s reader loads. `EX1=1` in front of it adds the
+exhaustive gradient check, which is ten local processes for several minutes.
+
+```bash
+scripts/oxcaml_setup.sh
+bash scripts/oxcaml_shape.sh --channels 8 --predictions 10
+```
+
+**3. A second deployment.** The retrainer never runs in the detector's process: OCaml 5's
+collector stops the world across domains. Add `fprime/SentinelRetrain/` to your project with
+`add_fprime_subdirectory(...)` after the library, or copy it; point its `configureShadow` at
+your own flown model (`fprime/SentinelRetrain/Top/instances.fpp`).
+
+**4. The hub link**, so its events and telemetry reach your ground system: a
+`Svc.GenericHub` over `Drv.Udp` on each side -- `fprime/SentinelRef/Top/instances.fpp:85-143`
+and `topology.fpp:75-105` are the detector's end, `fprime/SentinelRetrain/Top/topology.fpp:63-90`
+the retrainer's. Over a stream transport the hub dropped every tick (`docs/DESIGN.md` 9).
+
+**The proof, against F' v4.3.0's own `Ref`**: the setting, `SentinelRetrain` as a second
+deployment, Ref asserted to carry the Monitor and **no** OCaml runtime, the second deployment
+the runtime, and a standalone candidate that `flight/`'s reader loads. It reverts Ref after.
+
+```bash
+bash scripts/fprime_ref_retrainer.sh --channels 8 --predictions 10
+```
+
+**Where it can be switched on.** OxCaml supports x86-64 and arm64 Linux and arm64 macOS only;
+switched on anywhere else -- or cross-compiling -- the build stops with one message naming
+those. **This project has built it on arm64 macOS only.**
+
+**The case against, stronger on every row measured by anybody.** No flight heritage; no
+qualified compiler; no certification precedent for a garbage-collected runtime in flight;
+64-bit Linux and arm64 macOS only, with no 32-bit ARM, no musl and no documented
+cross-compile recipe; no stability promise in its own documentation. **Rust's footprint is
+smaller**, with a qualified toolchain in Ferrocene and OPS-SAT heritage -- and **no Rust
+comparison has been built here**, so on that row this project is reasoning rather than
+measuring.
+
 ## The retrainer
 
-**An EXPERIMENT, not a feature.** A frozen model goes stale over a ten-year mission.
+**Optional, and off by default** ([above](#optional-the-retrainer)). A frozen model goes stale over a ten-year mission.
 `SentinelRetrain` trains a candidate in **its own OS process**, downlinks it, and **a human
 approves it** before `RELOAD_MODEL` changes anything. Nothing the detector does depends on
 it.
@@ -262,11 +337,16 @@ constraint unit-test evidence cannot show.
   engine **HOST-VERIFIED PENDING TARGET** (E5), and two claims unverified: whether the
   retrainer's process disturbs the detector's timing (C2), and whether the toolchain builds
   for a flight target at all (C4).
-- It trains at the compile-time maxima, **75,360 parameters**, and `SentinelRef` flies a
-  narrower model, so **no candidate it builds can replace what that deployment flies**.
+- **It trains on a deterministic drive, not telemetry, for one step per tick.** Until D84 it
+  trained only at the compile-time maxima, **75,360 parameters**, and no candidate fitted
+  `SentinelRef`'s narrower model. It is now generated at the mission's shape, so its candidate
+  for `SentinelRef` has that model's shape and `RELOAD_MODEL` accepts it on the host -- which
+  proves the shapes and the format meet, and says nothing about whether the candidate is any
+  good.
 
-**Building it from this branch is argued from the build files, not demonstrated** -- every
-path they reference is here, but no one has run them from a clean clone of this branch.
+**Building it from this branch has been run, not argued**: every Quick start block was run
+verbatim from a fresh clone of this branch on 2026-09-23 (`docs/datasets/REPRODUCING.md`).
+The opt-in blocks D84 added are re-run the same way before they are called proven.
 
 **The detector's own binary carries no OCaml runtime.** That is asserted by reading the
 symbol table **whenever a `SentinelRef` binary has been built**; on a tree without one --
@@ -310,7 +390,7 @@ transferring to no mission.
 
 | Document | What it holds |
 |---|---|
-| `docs/DESIGN.md` | What it does, the rule it flies, the five safety rules, the retraining experiment |
+| `docs/DESIGN.md` | What it does, the rule it flies, the five safety rules, onboard retraining |
 | `docs/EVIDENCE.md` | The result, the split, the alarm rate, the reproduction, the caveats |
 | `docs/STATUS.md` | Where it is and what is next |
 | `docs/FPRIME.md` | The F' v4.3.0 toolchain this is built against |

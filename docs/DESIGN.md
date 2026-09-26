@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`e039054`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`9bc7205`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -182,8 +182,9 @@ measurement would be a defect.
 deployment, unmodified, and then proves the result by symbol rather than by string -- so
 this recipe is executed and checked rather than described.
 
-**There is no manifest and nothing to generate.** `fprime/library.cmake` is the only file
-an adopting project needs from here, and it already exists.
+**There is no manifest and nothing to generate for the detector.** `fprime/library.cmake` is
+the only file an adopting project needs from here, and it already exists. (The retrainer,
+which is optional and off by default, adds a generated shape -- section 9.)
 
 ```
   1  settings.ini      add one line:  library_locations: <path to this repo's fprime/>
@@ -217,8 +218,8 @@ F's **Passive Adapter Pattern**.
 holds the latest value of each channel and emits the vector on the rate-group tick; the
 conversion is the only thing it does. **Copy the directory, rename it, and replace its
 `valueIn` port with your own types.** It is example code and is deliberately not exported:
-`fprime/library.cmake` exports `Sentinel/Monitor` and nothing else, so adopting Sentinel
-does not drag this -- or the testbed, or the OxCaml experiment -- into your build.
+`fprime/library.cmake` exports `Sentinel/Monitor`, so adopting Sentinel does not drag this --
+or the testbed -- into your build, and the retrainer comes only if you switch it on.
 
 You wire exactly two input ports:
 
@@ -281,15 +282,17 @@ omissions table in `README.md`). **`scripts/fprime_ref_patch.sh` is here since D
 because it is the executable form of this recipe and a branch that names a command should
 carry it. The guards that keep this document's figures true still run on `dev`.
 
-## 9. Onboard retraining, and the language it is being tried in
+## 9. Onboard retraining, and the language it is written in
 
 **Status: the chosen retraining implementation, host-verified, not flight-qualified**
 (D83). Chosen is not qualified, and the distinction is the whole of this section: it has
 never run on flight hardware, its sanity gate is not a usable gate, and nothing onboard
-scores a candidate. **Nothing in section 1's chain depends on any of it,
-`fprime/library.cmake` exports the Monitor and not this, and a mission adopting Sentinel
-inherits none of it** -- adoption is of a language for one advisory background process,
-not of this component by anybody.
+scores a candidate. **Nothing in section 1's chain depends on any of it.** Since D84
+`fprime/library.cmake` exports the retrainer **opt-in and OFF by default**: a mission that
+does nothing inherits none of it -- no toolchain, no OCaml runtime, the same Monitor code --
+and one that switches it on gets one advisory background process, in its own deployment, at
+its own channel count. Exporting it changes nothing about its status, and the case against
+below is unchanged by it.
 
 ### Why a retrainer at all
 The flying model is frozen so that a degrading spacecraft cannot teach the detector that
@@ -432,12 +435,15 @@ already wired and has not changed, and it would have left the detector scoring w
 unwired slots of the vector held. The commanded path now refuses a width change, restores the
 previous model and names both widths.
 
-**And the candidate the retrainer writes is not a replacement for the model this deployment
-flies.** The training cycle is fixed at the configuration maxima and the reference deployment's
-model is narrower, so the two weight blocks are different sizes and the writer refuses the
-mismatch -- correctly, because writing one architecture's numbers into another's container
-produces a file that loads and means nothing. **The retraining engine can produce a candidate;
-it cannot yet produce a candidate for this mission.**
+**The candidate now has the mission's shape, and that is all it has.** Until D84 the training
+cycle was fixed at the configuration maxima and the reference deployment's model is narrower, so
+the writer refused the mismatch -- correctly, because one architecture's numbers in another's
+container load and mean nothing. D84 generates the cycle at the mission's channel count instead,
+and each generated shape re-earns its own gradient check and its `[@zero_alloc strict]` result.
+At `SentinelRef`'s 8 channels its candidate has the flown model's shape, and on the host the
+detector's `RELOAD_MODEL` accepts it and runs on it. **That proves the shapes, the format and the
+command meet. It says nothing about whether the candidate is better** -- it is one training step
+on a deterministic drive, not telemetry -- **and no candidate may be swapped in operationally.**
 
 **Also not proven:** that any of this runs on flight hardware
 (**E5 is HOST-VERIFIED PENDING TARGET**); that the separate process actually isolates the

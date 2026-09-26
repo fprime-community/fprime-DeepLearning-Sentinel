@@ -1,13 +1,17 @@
-# (!) THIS COMPONENT IS NOT IN THE `SentinelRef` MODULE, AND THE BUILD IS WHY.
-# Same trap `PowerSim.fpp` records: a component declared in the deployment's own
-# namespace has its autocoded names placed in the same scope as the deployment's
-# INSTANCE names, F' builds at -Wshadow -Werror, and the topology then will not
-# compile. Apparatus gets its own namespace for the same reason product does.
+# (!) THIS COMPONENT IS IN THE LIBRARY'S `Sentinel` MODULE SINCE D84, AND NOT IN A
+# DEPLOYMENT'S. `PowerSim.fpp` records the trap that kept it out of `SentinelRef`'s:
+# a component declared in the deployment's own namespace has its autocoded names in
+# the same scope as the deployment's INSTANCE names, F' builds at -Wshadow -Werror,
+# and the topology then will not compile. It lived in its own `Retrain` module until
+# D84 exported it; a library exports ONE namespace, so it now shares `Sentinel` with
+# the Monitor, and no deployment is named that.
 #
-# E1, the pipe (`docs/MODELS.md` 47.9, predictions X1 to X3). This component exists
-# to prove a chain -- compile, link, OCaml runtime startup, the C boundary, and F'
-# integration -- and for no other purpose. It carries NO machine learning.
-module Retrain {
+# E1, the pipe (`docs/MODELS.md` 47.9, predictions X1 to X3), then 61's float32
+# retraining cycle and 72's candidate file. Its window is a deterministic drive and
+# not telemetry: what it proves is the chain -- compile, link, OCaml runtime startup,
+# the C boundary, F' integration, a candidate at the mission's shape -- and it trains
+# on nothing a mission has flown.
+module Sentinel {
 
     @ How many samples the E1 accumulator is sized for. Fixed at init and never
     @ grown: CPP-1 forbids allocation after initialisation, and the OCaml side
@@ -47,12 +51,13 @@ module Retrain {
         FILE_WRITE    = 4
     }
 
-    @ The E1 pipe: an F' component that calls into an OxCaml static library.
+    @ The retrainer: an F' component that calls into an OxCaml object.
     @
-    @ (!) THIS IS TEST APPARATUS AND IT LIVES IN THE DEPLOYMENT, NOT THE LIBRARY.
-    @ `fprime/library.cmake` exports `Sentinel/Monitor` and nothing here. A mission
-    @ adopting Sentinel does not inherit an OCaml runtime, and will not until E1 to
-    @ E4 have all passed and a decision beyond D70 says so.
+    @ (!) EXPORTED OPT-IN, OFF BY DEFAULT (D84). `fprime/library.cmake` registers
+    @ it only when SENTINEL_WITH_RETRAINER is ON, so a mission that does nothing
+    @ inherits no OCaml runtime. Its status is D83's, exactly: the chosen
+    @ retraining implementation, host-verified, not flight-qualified. E2 returned
+    @ NO VERDICT and E4 has never run.
     @
     @ (!) AND IT RUNS IN ITS OWN PROCESS, WHICH IS A REQUIREMENT AND NOT A CHOICE.
     @ D70 consequence 2: OCaml 5's minor collector is stop-the-world across all
@@ -177,8 +182,7 @@ module Retrain {
         # parameter, so F' does not require a command recv port, and it therefore
         # declares none at all -- which also means the -Wshadow collision the
         # header of this file describes cannot arise here. Objective.md 11 rule 3
-        # is about the product and this is apparatus, but a piece of apparatus
-        # that commands nothing is one less thing to reason about.
+        # governs it now that it is exported: it commands nothing.
 
         @ Port for requesting the current time
         time get port timeCaller

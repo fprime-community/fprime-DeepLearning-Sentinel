@@ -4,7 +4,11 @@
 // ======================================================================
 #include "RetrainerTester.hpp"
 
-namespace Retrain {
+#include <unistd.h>
+
+#include <cstdlib>
+
+namespace Sentinel {
 
 RetrainerTester::RetrainerTester()
     : RetrainerGTestBase("RetrainerTester", RetrainerTester::MAX_HISTORY_SIZE),
@@ -24,6 +28,19 @@ RetrainerTester::~RetrainerTester() {}
 
 void RetrainerTester::testTheWholeLifecycle()
 {
+    // -- D84 / docs/MODELS.md 77, SX14: the candidate, when the loop guard asks --
+    // tests/test_retrained_candidate_reloads_in_the_monitor.py sets
+    // SENTINEL_LOOP_DIR to a directory holding a flying file at this build's
+    // shape. The candidate is written beside it, for the Monitor's RELOAD_MODEL.
+    // Without it the lifecycle below is unchanged and no candidate is attempted.
+    // It rides inside THIS test because the OCaml runtime is process-global and
+    // cannot be booted twice (the finding recorded in the header).
+    const char* const loopDir = std::getenv("SENTINEL_LOOP_DIR");
+    if (loopDir != nullptr) {
+        ASSERT_EQ(0, ::chdir(loopDir)) << loopDir;
+        this->component.configureShadow("loop_flying.bin", "loop_candidate.bin");
+    }
+
     // -- boot: the OCaml runtime starts inside this F' process ----------------
     ASSERT_TRUE(this->component.boot());
     ASSERT_TRUE(this->component.armed());
@@ -46,6 +63,17 @@ void RetrainerTester::testTheWholeLifecycle()
     ASSERT_TLM_CycleSteps(0, Retrainer::CYCLE_BUDGET);
     ASSERT_EVENTS_StepComplete_SIZE(1);
     ASSERT_EVENTS_CallRefused_SIZE(0);
+    if (loopDir != nullptr) {
+        // The cycle's own weights, at this build's shape, left the process as a
+        // candidate file -- and nothing on that path refused.
+        ASSERT_TRUE(this->component.shadowArmed());
+        ASSERT_EVENTS_CandidateWritten_SIZE(1);
+        ASSERT_EVENTS_CandidateRefused_SIZE(0);
+        ASSERT_GT(this->component.candidateBytes(), 0U);
+    } else {
+        ASSERT_FALSE(this->component.shadowArmed());
+        ASSERT_EVENTS_CandidateWritten_SIZE(0);
+    }
 
     // -- a second tick: the OCaml accumulator kept its state across the return --
     // This is what makes it a boundary test rather than a function call.
@@ -80,4 +108,4 @@ void RetrainerTester::testTheWholeLifecycle()
     ASSERT_TRUE(this->component.armed());
 }
 
-}  // namespace Retrain
+}  // namespace Sentinel

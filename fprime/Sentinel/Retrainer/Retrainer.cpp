@@ -1,9 +1,10 @@
 // ======================================================================
 // \title  Retrainer.cpp
-// \brief  E1, the pipe. docs/MODELS.md 47.
+// \brief  E1, the pipe (docs/MODELS.md 47), 61's cycle and 72's candidate,
+//         at the shape D84 generated (docs/MODELS.md 77).
 // ======================================================================
-#include "SentinelRef/Retrainer/Retrainer.hpp"
-#include "SentinelRef/Retrainer/FppConstantsAc.hpp"
+#include "Sentinel/Retrainer/Retrainer.hpp"
+#include "Sentinel/Retrainer/FppConstantsAc.hpp"
 
 #include "sentinel_retrainer.h"
 #include "sentinel_cycle.h"
@@ -11,7 +12,7 @@
 
 #include <Os/File.hpp>
 
-namespace Retrain {
+namespace Sentinel {
 
 namespace {
 
@@ -49,7 +50,7 @@ Retrainer::Retrainer(const char* const compName)
     }
     // 61 / E5-c: a deterministic, bounded drive, filled once. Not telemetry --
     // a real deployment writes this from the window 56's gate admitted.
-    for (U32 t = 0U; t < 250U; ++t) {
+    for (U32 t = 0U; t < CYCLE_T_MAX; ++t) {
         for (U32 c = 0U; c < CYCLE_INS; ++c) {
             const U32 mix = ((t * 2654435761U) + (c * 40503U)) & 0xFFFFU;
             m_window[(t * CYCLE_INS) + c] = static_cast<F32>(mix) / 65535.0F;
@@ -267,4 +268,4 @@ void Retrainer::schedIn_handler(FwIndexType portNum, U32 context)
     this->log_ACTIVITY_LO_StepComplete(count, m_export[1], m_export[2]);
 }
 
-}  // namespace Retrain
+}  // namespace Sentinel

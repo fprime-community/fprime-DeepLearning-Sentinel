@@ -29,3 +29,34 @@ if (NOT TARGET sentinel_core)
 endif()
 
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Sentinel/Monitor")
+
+# ----------------------------------------------------------------------------------
+# D84: the retrainer, OPT-IN. OFF by default, and OFF means OFF.
+#
+# With SENTINEL_WITH_RETRAINER OFF nothing below the option is evaluated: the
+# exported set is exactly `sentinel_core` and `Sentinel/Monitor`, as before D84, no
+# OxCaml toolchain is needed, and no OCaml runtime reaches any binary.
+# tests/test_library_export_is_opt_in.py checks that by configuring this file.
+#
+# ON, it registers `Sentinel/Retrainer` -- after refusing any platform OxCaml does
+# not support, with one message -- at the shape SENTINEL_RETRAINER_CHANNELS and
+# SENTINEL_RETRAINER_PREDICTIONS name, which `scripts/oxcaml_shape.sh` must have
+# generated and gated first. The component runs in its OWN deployment, never
+# beside the detector (D70 consequence 2); fprime/SentinelRetrain/ is the pattern.
+#
+# Status, D83's words exactly: the chosen retraining implementation,
+# host-verified, not flight-qualified. The case against sits beside it in D84.
+# ----------------------------------------------------------------------------------
+option(SENTINEL_WITH_RETRAINER
+       "Export the OxCaml retrainer (docs/DECISIONS.md D84). Needs scripts/oxcaml_setup.sh."
+       OFF)
+if (SENTINEL_WITH_RETRAINER)
+    set(SENTINEL_RETRAINER_CHANNELS "16" CACHE STRING
+        "Channels the retrainer is generated for, 1..16 (scripts/oxcaml_shape.sh)")
+    set(SENTINEL_RETRAINER_PREDICTIONS "10" CACHE STRING
+        "Predictions the retrainer is generated for, 1..10 (scripts/oxcaml_shape.sh)")
+    include("${CMAKE_CURRENT_LIST_DIR}/Sentinel/Retrainer/retrainer_platform.cmake")
+    sentinel_retrainer_check_platform("${CMAKE_SYSTEM_NAME}" "${CMAKE_SYSTEM_PROCESSOR}"
+                                      "${CMAKE_CROSSCOMPILING}")
+    add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Sentinel/Retrainer")
+endif()

@@ -7,5 +7,5 @@ register_fprime_module(
         "${CMAKE_CURRENT_LIST_DIR}/SentinelRetrainTopology.cpp"
     DEPENDS
         Fw_Logger
-        SentinelRef_Retrainer
+        Sentinel_Retrainer
 )
