@@ -695,6 +695,7 @@ prediction that failed and why. This document follows the same discipline.
   - [72.9 Owed](#729-owed)
   - [72.10 Rider, 2026-09-22: three citations in this section went stale, and one of them is a shape that never added up](#7210-rider-2026-09-22-three-citations-in-this-section-went-stale-and-one-of-them-is-a-shape-that-never-added-up)
   - [72.11 Rider, 2026-09-23: the symbol count moves again, and this time the guard agreed with a stale artifact](#7211-rider-2026-09-23-the-symbol-count-moves-again-and-this-time-the-guard-agreed-with-a-stale-artifact)
+  - [72.12 Rider, 2026-09-25: the shape mismatch 72.4 found is closed at 8/10, and the component this section cites has moved](#7212-rider-2026-09-25-the-shape-mismatch-724-found-is-closed-at-810-and-the-component-this-section-cites-has-moved)
 - [73 Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)](#73-pre-registration-e5-e-ho2-and-ho3----the-downlink-the-approval-and-the-reload-phase-5)
   - [73.1 REQUIREMENTS DERIVED FROM:](#731-requirements-derived-from)
   - [73.2 What changes in the exported component, and what it costs](#732-what-changes-in-the-exported-component-and-what-it-costs)
@@ -735,6 +736,9 @@ prediction that failed and why. This document follows the same discipline.
   - [77.3 Predictions](#773-predictions)
   - [77.4 Falsification](#774-falsification)
   - [77.5 Cost](#775-cost)
+  - [77.6 OBSERVED -- all sixteen held; SX11's Monitor-UT clause was mis-specified and is reported as such](#776-observed----all-sixteen-held-sx11s-monitor-ut-clause-was-mis-specified-and-is-reported-as-such)
+  - [77.7 What this does NOT establish](#777-what-this-does-not-establish)
+  - [77.8 Disclosures, against this work](#778-disclosures-against-this-work)
 
 <!-- /toc -->
 
@@ -21627,6 +21631,26 @@ rather than passing on them, which is D79's posture and the honest one.
 `fprime/SentinelRetrain/README.md` states the figure and is corrected on both branches;
 the `Figure` row re-derives it from the guard, so it follows without being restated.
 
+### 72.12 Rider, 2026-09-25: the shape mismatch 72.4 found is closed at 8/10, and the component this section cites has moved
+
+**72.4, 72.6 and 72.9 are not edited.** 72.4's finding -- *"no candidate the retrainer builds can
+be loaded by `SentinelRef` as a replacement for `SentinelModel.bin`"* -- was true of the
+maxima-shaped cycle and stays true of it. D84 takes D83.1's route 1: the cycle is generated at
+the mission's shape, and at 8 channels and 10 predictions its candidate is the flown file's
+shape, 66,960 weights and 268,224 B. `RELOAD_MODEL` accepts it on the host (77). The owed item
+72.9 carried is discharged **for the shape**, not for the candidate's quality: it is trained
+for one step on a deterministic drive and nothing scores it.
+
+**The paths this section cites were true at their commits and are not edited.** From D84 on:
+
+```
+  fprime/SentinelRef/Retrainer/    ->  fprime/Sentinel/Retrainer/
+  SentinelRef_Retrainer_ut_exe     ->  Sentinel_Retrainer_ut_exe
+  module Retrain, Retrain.Retrainer ->  module Sentinel, Sentinel.Retrainer
+```
+
+The same map covers every citation of the component in 47 to 73, 47.15 and 61.1 among them.
+
 ## 73. Pre-registration: E5-e, HO2 and HO3 -- the downlink, the approval and the reload (Phase 5)
 
 **65.3 registered both bands and they are quoted, not re-registered.** HO2: *"it reaches the
@@ -22531,3 +22555,58 @@ ten local processes, preceded by one shard timed to confirm the order before the
 started. Three F' configurations (OFF, ON at 8/10, ON at 16/10) and two Ref builds. **Zero
 bucket operations**; `runs/_weights/` reads **1,313** before and after. **No timing figure is
 recorded here or anywhere** -- stop 35.
+
+### 77.6 OBSERVED -- all sixteen held; SX11's Monitor-UT clause was mis-specified and is reported as such
+
+Run 2026-09-25, Darwin arm64, switch 5.2.0+ox, F' v4.3.0, in the development tree. The two
+gate logs are committed as `tests/fixtures/oxcaml_shape_c8_p10_gates.log` and
+`..._c16_p10_gates.log`.
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **SX1** | the maxima reproduce the template | byte-identical (`cmp`, and G3) | **HELD** |
+| **SX2** | three lines at 8/10 | `ins` 8, `n_out` 80, `n_params` **66,960** = `format.parameter_count` | **HELD** |
+| **SX3** | the count identifies the shape | unique over all **160** admissible shapes | **HELD** |
+| **SX4** | strict at the shape | the generated file carries the template's annotation count; `deep_f32`, `cycle_c`, `shadow59`, `shadow_c` compile under `-zero-alloc-check all -warn-error +a`; **0** `assume` -- at both shapes | **HELD** |
+| **SX5** | a deliberate allocation fails | rejected, *"called function may allocate (external call to caml_array_make)"*, at both shapes | **HELD** |
+| **SX6** | bounds-checking survives generation | `forward_deep (t_max + 1)` raised `Invalid_argument "index out of bounds"`, at both shapes | **HELD** |
+| **SX7** | HO1 on the cycle's own weights | `Detector::load` **OK**, declaring the shape's channels and predictions; a flying file at the other shape **refused**; at both shapes | **HELD** |
+| **SX8** | **EX1 at 8/10** | **0 outside of 66,960**, every index checked; worst err/allowed **0.382244** at index 17808, margin **2.616x**; shard 0 of 1021 reproduced `deep_f32_check.ml` at the same shape | **HELD** |
+| **SX9** | **EX1 at 16/10 reproduces 64** | **0 outside of 75,360**; worst **0.306952** at index **11365**, worst `\|err\|` 8.819351553e-05, margin 3.258x -- 64's figures to the digit | **HELD** |
+| **SX10** | the 16/10 object is `oxcaml_s61.sh`'s | `__text` and `__cstring` byte-identical; **4,816** symbols each, **3,085** OCaml each. Four symbol NAMES differ: OCaml embeds the source path in anonymous-function names, and `s61` compiles `${SRC}/retrainer.ml` by absolute path where the shape script compiles a local copy. Normalised for that path, the symbol sets are identical | **HELD**, with that disclosed |
+| **SX11** | OFF changes nothing a mission sees | `library.cmake` configured OFF and unset exports exactly `sentinel_core` and `Sentinel/Monitor` (G1). `SentinelRef` at D84, OFF, against `e039054`'s build: same size, 8,594 symbols, **0** OCaml, `__text` and `__cstring` sizes equal, `__text` content identical; the ONLY string that differs is F's embedded `git describe` (`wi9-224-ge039054-dirty` -> `wi9-225-gbc0b800-dirty`), and the Mach-O UUID follows from it | **HELD** for the exported set and for `SentinelRef` |
+| | *(the Monitor UT clause)* | **Not met as drafted, and the prediction was wrong, not the build.** D84 adds a test to the Monitor's own UT (the loop's receiving end), so that executable cannot be code-identical by construction. `Monitor.cpp`, `.hpp` and `.fpp` are unchanged (SX16), and the component's code is shown identical through `SentinelRef` above | **MIS-SPECIFIED** |
+| **SX12** | ON builds the retrainer in its own process | `SentinelRetrain` links at 8/10 and at 16/10 with **3,082** OCaml symbols at both, as predicted; `SentinelRef` **0** | **HELD** |
+| **SX13** | ON where OxCaml does not run stops | the platform function refuses Darwin/x86_64, Linux/armv7l, Linux/i686, Windows, a generic ARM target and a cross-compile with ONE message (G1, under `cmake -P`); ON at a shape never generated stopped `fprime-util generate` naming the command. **An unsupported host itself was not available**, so the refusal was exercised through the function, not a whole configure on such a host | **HELD**, as scoped |
+| **SX14** | **the loop, on the host** | G4: the retrainer's 8-channel candidate (268,224 B) accepted by `RELOAD_MODEL` and flown for twenty ticks in `Mode::MODEL`; a 16-channel file refused by width, a flipped byte refused by CRC, each rolled back; the flipped file offered as `accept` FAILS the Monitor's assertions. And once with the real deployments: `SentinelRetrain -p 0` wrote the candidate, then `SentinelRef` under `fprime-gds` logged `ModelLoaded` (8 channels) -> command `RELOAD_MODEL RetrainCandidate.bin` -> `ModelLoaded` (8 channels), `ModelReloadAccepted`, `OpCodeCompleted` | **HELD** |
+| **SX15** | adoption into F's own Ref, both ways | `fprime_ref_patch.sh`, unchanged: Ref's instruction stream identical to `e039054`'s once address immediates are masked -- the 2,700 differing instructions are `add`/`adrp`/`ldrb` offsets, moved because F's embedded version string gained `-dirty`. `fprime_ref_retrainer.sh`: Ref carries the Monitor and **0** OCaml symbols, the second deployment **3,082**, and its standalone candidate loads in `flight/`'s reader (MW2 OK; only the weights and two CRCs differ; a flipped byte -> `BAD_STATIC_CRC`) | **HELD** |
+| **SX16** | nothing that flies moved | `git diff e039054` over `Objective.md`, `flight/`, `src/sentinel_models/reference.py`, `src/sentinel_export/`, `Monitor.cpp/.hpp/.fpp` and `docs/MODEL_FILE.md`: **empty** | **HELD** |
+
+### 77.7 What this does NOT establish
+
+- **That any candidate is good.** One step, a deterministic drive, a seeded and untrained flying
+  file. SX14 proves the shapes, the format and the command meet; nothing about quality follows.
+- **That the sanity gate is enforceable, or that a shadow model may be swapped in.** Neither;
+  D83 c.4 and D84 c.2 stand, and `RELOAD_MODEL` is a human's command (rule 1).
+- **Any Linux build.** The platform check admits x86-64 and arm64 Linux because OxCaml supports
+  them; this project has built the retrainer on arm64 macOS only.
+- **C2, C4, E4.** Unchanged: the timing isolation, a flight-target toolchain, flight hardware.
+- **That the hub crosses in F's Ref.** Ref has no hub; the crossing is 70 and 71's, in
+  `SentinelRef`.
+- **No timing figure**, here or anywhere (stop 35). The EX1 runs were sharded across ten local
+  processes; their durations are not recorded.
+
+### 77.8 Disclosures, against this work
+
+- **Rule 10 was breached once, and caught.** The first real-deployment run left two `fprime-gds`
+  children re-parented to launchd after the script stopped their parent. One survived a manual
+  kill and was still alive when the second run started; the second run's before-check printed
+  it and **proceeded anyway**. Its cleanup killed it. A third run, with a before-check that
+  refuses to start, is the one recorded above.
+- **`fprime-cli` exits 0 on an unknown command name.** The first run sent
+  `sentinelMonitor.RELOAD_MODEL`, which is not the dictionary's name
+  (`SentinelRef.sentinelMonitor.RELOAD_MODEL`), and the status said success. The detector's
+  own log is what was read.
+- **G1's configures ran concurrently with the 16/10 EX1 shards**, which strained "one run at a
+  time"; nothing in G1 is timed and its results are pass/fail.
+

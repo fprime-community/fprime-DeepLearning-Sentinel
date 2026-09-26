@@ -7830,3 +7830,53 @@ How a mission states its shape:
 6. **Evidence lands in riders and in `docs/MODELS.md` 77's OBSERVED, never here.** This entry
    is the decision; it is committed before any of its gates run, and it is not edited
    afterwards.
+
+### D84.1 Rider, 2026-09-25: every gate D84 pre-registered held, and what a presenter may now say
+
+**D84 is not edited.** Its evidence is `docs/MODELS.md` 77.6, and the summary belongs beside
+the decision:
+
+```
+  OFF (the default)  library.cmake exports sentinel_core and Sentinel/Monitor, exactly;
+                     SentinelRef code-identical to e039054's build; Ref, via the
+                     unchanged fprime_ref_patch.sh, instruction-identical; 0 OCaml
+  ON at 8/10         SentinelRetrain 3,082 OCaml symbols, SentinelRef 0; EX1 0 outside
+                     of 66,960; strict held, 0 assume; a deliberate allocation rejected;
+                     an out-of-range read raised; HO1 on the cycle's own weights OK
+  ON at 16/10        the template byte for byte; EX1 reproduces MODELS 64 to the digit;
+                     the object code-identical to oxcaml_s61.sh's
+  the loop           the retrainer's 8-channel candidate accepted by RELOAD_MODEL and
+                     flown, in a unit test and once with the real deployments; another
+                     width and a flipped byte refused and rolled back
+  F's Ref            ON: Ref 0 OCaml symbols, the second deployment 3,082, its candidate
+                     loads in flight/'s reader
+  unsupported        one message, from the platform function under cmake -P; no
+                     unsupported host was available to configure on
+```
+
+**(!) ONE PREDICTION WAS MIS-SPECIFIED, AND IT IS REPORTED RATHER THAN QUIETLY DROPPED.** 77's
+SX11 predicted the Monitor's unit-test executable would be code-identical OFF. It cannot be:
+D84 adds the loop's receiving test to it. The component's own sources are unchanged and its
+code is shown identical through `SentinelRef`.
+
+**The Figure register moves 57 -> 59**: `fprime/SentinelRetrain/README.md`'s 75,360 and 66,960,
+both on `master` unguarded before D84. The collected suite moves 816 -> 883.
+
+**What a presenter may now say, and no more:**
+
+> *"The retrainer is an opt-in part of the Sentinel F' library. A mission that does nothing
+> gets exactly the detector it had, with no OCaml in its build. A mission that switches it on
+> builds a separate retraining process at its own channel count -- proven at 8 and at 16
+> channels -- and on a development Mac, a candidate that process wrote for the reference
+> deployment's 8-channel model was accepted by the detector's RELOAD_MODEL command and run.
+> It is the chosen retraining implementation, host-verified, not flight-qualified: it has no
+> flight heritage, no qualified compiler and no certification precedent for a
+> garbage-collected runtime; it runs on 64-bit Linux and arm64 macOS only, with no stability
+> promise; Rust would be smaller and has a qualified compiler in Ferrocene, and no Rust
+> comparison has been built here. It trains on a synthetic drive rather than telemetry, and
+> no candidate may be swapped in operationally."*
+
+**Not** that the retrainer is qualified, certified or flight-ready; **not** that a candidate is
+better than the model it would replace; **not** that it builds on Linux or on a flight target;
+**not** any timing figure.
+

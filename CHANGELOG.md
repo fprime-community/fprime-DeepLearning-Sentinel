@@ -14,6 +14,39 @@ tracks documentation and Phase 1 research milestones rather than a released flig
   noted in the component's FPP and SDD and no code implements it. It makes the component
   `queued` (D32 consequence 2).
 
+## [0.6.79] - 2026-09-25 - The retrainer is exported opt-in, and a mission builds it at its own shape
+
+**`docs/DECISIONS.md` D84, with D83.5 and D84.1.** The OxCaml retrainer is exported from
+`fprime/library.cmake` behind `SENTINEL_WITH_RETRAINER`, **OFF by default**: a mission that
+does nothing sees no change -- the exported set, the detector's code and the OCaml symbol
+count (0) are what they were. Switched on, the library registers `Sentinel/Retrainer`
+(moved from `fprime/SentinelRef/Retrainer/`) after a platform check that refuses anything
+OxCaml does not support with one message, at a shape `scripts/oxcaml_shape.sh` generates
+from `deep_f32.ml` and gates -- D83.1's route 1, taken. Proven at 8/10 (66,960 parameters,
+`SentinelRef`'s) and at 16/10 (75,360); the loop closes on the host, both ways
+(`docs/MODELS.md` 77). Status unchanged: the chosen retraining implementation,
+host-verified, not flight-qualified; the case against beside it.
+
+**(!) D82 and D83 have no entry of their own here**, and are not backfilled: this file is a
+record. Their commits carry what changed; `docs/DECISIONS.md` carries why.
+
+### Guards added
+
+- `tests/test_library_export_is_opt_in.py`: OFF and unset export exactly what they did; ON
+  adds the retrainer; the platform refusal is one message; two mutants of `library.cmake`.
+- `tests/test_retrainer_shape_is_generated.py`: the generator is the template at the maxima,
+  moves three lines at 8/10, the count is unique over 160 shapes, and EX1's committed logs.
+- `tests/test_retrained_candidate_reloads_in_the_monitor.py`: the loop, both ways.
+- `tests/test_retrainer_status_wording.py`: no live document calls the retrainer certified,
+  qualified or flight-ready; master's OPTIONAL section carries the status and the case against.
+- The symbol guard reads the mode from the build cache and `SentinelRetrain`'s own binary;
+  the documented retrainer block must switch it on at the deployment's shape; the retired
+  "exports `Sentinel/Monitor` and nothing else"; FC6 widened past the rename.
+
+**Figure rows 57 -> 59. Suite 816 -> 883 collected.**
+
+**Gates.** R2: **zero operations.** `runs/_weights/` reads **1,313**.
+
 ## [0.6.78] - 2026-09-21 - The sweep found nothing stale on master, and corrected two of D81's own claims
 
 **`docs/DECISIONS.md` D81.1, a rider.** D81 said `master` had been calling the example

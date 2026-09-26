@@ -93,6 +93,8 @@ MASTER_PREFIXES = (
     # D84: a mission's shape is generated and gated by these two, and HO1 at that
     # shape builds its flying file with the third.
     "scripts/oxcaml_shape.sh", "scripts/oxcaml_shape.py", "scripts/s72_flying_file.py",
+    # D84: the opt-in proven against F's own Ref, beside fprime_ref_patch.sh.
+    "scripts/fprime_ref_retrainer.sh",
 )
 
 #: Of `MASTER_PREFIXES`, the entries that do not exist on `dev` at all. `LICENSE`

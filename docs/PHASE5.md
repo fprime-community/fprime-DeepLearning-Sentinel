@@ -465,3 +465,23 @@ qualified compiler, no certification precedent for a garbage-collected runtime i
 64-bit Linux and arm64 macOS only, no stability promise, Rust smaller with Ferrocene
 qualified and OPS-SAT heritage, and **no Rust comparison built here**. D70 consequence 3's
 cost stands as written: on that comparison this project is reasoning and not measuring.
+
+## 11. Rider, 2026-09-25: the engine is exported opt-in, and its candidate now has a mission's shape
+
+**Sections 1 to 10 stand.** `docs/DECISIONS.md` D84 exports the retrainer from the library,
+**opt-in and OFF by default**, and takes D83.1's route 1: the training cycle is generated at a
+mission's channel and prediction count, and each generated shape re-earns its own gradient
+check, its `[@zero_alloc strict]` result and HO1 (`docs/MODELS.md` 77). Section 10's sentence
+*"the candidate this engine builds cannot replace `SentinelRef`'s model, 75,360 parameters
+against 66,960"* was true of the maxima-shaped cycle; at 8 channels the candidate has the
+flown file's shape, and `RELOAD_MODEL` accepts it on the host.
+
+**What that does not buy, restated for this document's reader:** the pre-launch sanity gate is
+still not enforceable and **no shadow model may be swapped in**; nothing onboard scores a
+candidate; the cycle trains on a deterministic drive and not on telemetry; E5 is HOST-VERIFIED
+PENDING TARGET with C2 and C4 unverified; and **no timing figure from any of this work may be
+quoted**. **The case against OxCaml is unchanged by exporting it** -- no flight heritage, no
+qualified compiler, no certification precedent for a garbage-collected runtime in flight,
+64-bit Linux and arm64 macOS only, no stability promise, Rust smaller with Ferrocene qualified
+and OPS-SAT heritage, and **no Rust comparison built here**.
+
