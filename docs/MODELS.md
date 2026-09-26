@@ -739,6 +739,15 @@ prediction that failed and why. This document follows the same discipline.
   - [77.6 OBSERVED -- all sixteen held; SX11's Monitor-UT clause was mis-specified and is reported as such](#776-observed----all-sixteen-held-sx11s-monitor-ut-clause-was-mis-specified-and-is-reported-as-such)
   - [77.7 What this does NOT establish](#777-what-this-does-not-establish)
   - [77.8 Disclosures, against this work](#778-disclosures-against-this-work)
+- [78 Pre-registration: the retrainer learns, the ground judges, a human swaps -- three arms on the testbed and the gate on real telemetry (Phase 5)](#78-pre-registration-the-retrainer-learns-the-ground-judges-a-human-swaps----three-arms-on-the-testbed-and-the-gate-on-real-telemetry-phase-5)
+  - [78.1 REQUIREMENTS DERIVED FROM:](#781-requirements-derived-from)
+  - [78.2 What changed before any run, and why each is not a result](#782-what-changed-before-any-run-and-why-each-is-not-a-result)
+  - [78.3 (!) THE PLANT'S DEFAULT OPERATING POINT DRAINS ITS BATTERY, AND THE ARMS CANNOT RUN ON IT](#783-the-plants-default-operating-point-drains-its-battery-and-the-arms-cannot-run-on-it)
+  - [78.4 The constants](#784-the-constants)
+  - [78.5 The ageing premise, decided by a ladder fixed now](#785-the-ageing-premise-decided-by-a-ladder-fixed-now)
+  - [78.6 Predictions](#786-predictions)
+  - [78.7 Falsification, and what each failure would mean](#787-falsification-and-what-each-failure-would-mean)
+  - [78.8 Cost](#788-cost)
 
 <!-- /toc -->
 
@@ -22610,3 +22619,132 @@ gate logs are committed as `tests/fixtures/oxcaml_shape_c8_p10_gates.log` and
 - **G1's configures ran concurrently with the 16/10 EX1 shards**, which strained "one run at a
   time"; nothing in G1 is timed and its results are pass/fail.
 
+
+## 78. Pre-registration: the retrainer learns, the ground judges, a human swaps -- three arms on the testbed and the gate on real telemetry (Phase 5)
+
+**D85 is the owner's decision and this is its arm.** Every constant below is fixed before any
+detector, retrainer or gate outcome is seen. The only runs made before this section are the
+plant-only scenario checks in 78.3, which decide nothing but whether a scenario is what it
+claims to be.
+
+### 78.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D85          the design, decisions 1-5, C1-C16, SC1-SC5
+  docs/DECISIONS.md D78          control, floor, m = K * F, part (i); c.5, c.6
+  docs/DECISIONS.md D74.4        part (ii), kept by D78 c.1
+  docs/DECISIONS.md D73          a fixed step budget; the flight N is owed (stop 23)
+  docs/DECISIONS.md D76          the shadow is warm-started from the flying weights
+  docs/MODELS.md 56              the window rule: W 6,550, k 2, G-limit/G-rate/G-suff;
+                                 56.8's measured failure (89% contaminated)
+  docs/MODELS.md 67.3, 69.7      K = 2.0330; the cold seed spread 31.9283% (the floor's bound)
+  docs/MODELS.md 69, 76          HELD 9,000 with a 2,350 warm-up
+  docs/MODELS.md 42.9            fault-attributable leads, counted against a same-seed control
+  Objective.md 11 rules 1, 5     a human approves every swap; fixed work per cycle
+```
+
+### 78.2 What changed before any run, and why each is not a result
+
+- **The flown cycle learns.** `deep_f32`'s loss becomes MSE against the P x C future block (it
+  was 57's test functional); `run_cycle` no longer resets Adam per call (at one step per tick
+  that was sign descent); `shadow_c` gains the warm start; `window56` is linked, its nominal
+  rate settable once. At 8/10, `oxcaml_shape.sh` holds every gate: strict on six modules with
+  zero `assume`, a deliberate allocation rejected, an out-of-range read raising, HO1, and a
+  loss that falls on a structured window. **EX1 is re-run at 8/10, 16/10 and 12/10 under 51's
+  criterion as part of this section; a shape whose EX1 fails is not used.**
+- **The testbed plant gains two opt-in modes, and its default is bit-identical** (hash
+  9d72497a2ff277b3 before and after).
+
+### 78.3 (!) THE PLANT'S DEFAULT OPERATING POINT DRAINS ITS BATTERY, AND THE ARMS CANNOT RUN ON IT
+
+Plant only, no detector, seeds 1-3: **a HEALTHY run crosses SoC's 0.30 yellow at tick 74,675 to
+74,682.** Over an orbit the array delivers about 3.1 A at the bus against a mean load of about
+4.6 A. 42.9's runs were 22,000 ticks and could not see it. A scenario whose healthy state is a
+slow march to a limit cannot host an ageing arm, and D85's trend rule would refuse it, rightly.
+
+**So every arm runs on an ORBIT-BALANCED operating point, chosen from the energy balance before
+any detector ran:** housekeeping 0.60 A (from 2.35 A) and a shunt regulator above SoC 0.92.
+Balanced and healthy, seed 1, 100,000 ticks: every channel inside yellow; SoC settles into
+0.877-0.920. The cell's thermal transient from its 17 C initial state takes about 43,000 ticks
+to settle, so **every run is spun up 60,000 ticks before tick 0.**
+
+**Healthy ageing, chosen the same way:** a solar-array loss and a radiator-emissivity loss, each
+`1 - exp(-(t - 5,000) / 8,000)`. At 10% solar loss the orbit goes energy-negative and SoC keeps
+falling (0.796-0.840 at tick 108,000); at 6% it creeps; **at 5% it is flat** (0.001 over
+108,000 ticks). Emissivity loss 0.30. Inside yellow throughout, seeds 1-3.
+
+**The slow failure:** RESISTANCE_RISE at 4.0e-5 from tick 5,000 -- a fifth of 42's rate -- first
+crosses a yellow limit (CellTemp) at tick 56,352 to 56,356, seeds 1-3.
+
+### 78.4 The constants
+
+```
+  flying model   toolkit `fit --tier 3` on the balanced healthy run, seed 7, 20,000 ticks
+                 (the unchanged toolkit command; 42 used the same seed and length).
+                 Held-out sanity rate 4 / 3,825 = 0.1046% -> window56 nominal 1,046 ppm,
+                 G-rate ceiling 14 per 6,550. Its sidecar holds the 10,000 training rows.
+  retrainer      guard G 260 ticks each side (ring 780); budget B = 1 step per admitted
+                 tick; schedule E = 6,550 admitted steps per candidate. B AND E ARE
+                 EXPERIMENTAL -- the flight N stays owed (D73 c.4, stop 23).
+  ground gate    N = 6 start-offset controls; K 2.0330; floor bound 31.9283%; HELD 9,000,
+                 warm 2,350; part (ii) candidate gap <= flying gap; trend window 4 blocks
+                 of 5,400 ticks (the orbit) ending at the candidate's last training tick;
+                 horizon H = 100,000 ticks.
+  seeds          1, 2, 3 for every arm.
+```
+
+### 78.5 The ageing premise, decided by a ladder fixed now
+
+Arm (a) needs the frozen model's false alarms to RISE under ageing, or there is nothing to
+recover. That is checked on the **frozen detector alone, before any retrainer or gate runs**:
+the warmed emission rate over ticks [40,000, 60,000) of the aged run against the same window of
+the no-change run, same seed. **The ladder is emissivity loss 0.30, then 0.45, then 0.60, solar
+loss 5% throughout; the first rung at which the aged rate is at least twice the healthy rate on
+every seed is the arm's scenario.** If no rung qualifies, arm (a) is INCONCLUSIVE and SC1 is not
+met. The ladder does not extend after it is seen.
+
+### 78.6 Predictions
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **LC1** | the cycle learns at 8/10 | loss falls on a structured window; EX1 0 outside every index at 8/10 (and 16/10, 12/10) | any |
+| **LC2** | the replica is the detector | on a full arm run, the retrainer's replica and the detector emit on exactly the same ticks | one tick differs |
+| **A1** | (a) the gate CERTIFIES the gated candidate -- the first whose first data tick is at or after 23,421 (ageing at 90%) | CERTIFY, every seed | any REFUSE |
+| **A2** | (a) after the approved swap, the warmed false-alarm rate over [swap + 2,350, swap + 22,350) recovers at least half-way from the aged frozen model's rate to the healthy rate, same window, same seed | recovery >= 50%, every seed | < 50% on any seed |
+| **A3** | (a) a fault injected after the swap (RESISTANCE_RISE 2.0e-4 at swap + 22,350) is caught: a fault-attributable warning (absent from the same-seed no-fault run) before the first any-colour crossing | caught, every seed; lead in ticks reported | any seed not caught |
+| **B1** | (b) the slow failure is not learned: every gated candidate whose training data overlaps [5,000, first yellow) is REFUSED, and no swap happens | every seed | any CERTIFY |
+| **B2** | (b) the detector keeps warning: fault-attributable warnings before the first yellow crossing | every seed | none on a seed |
+| **B3** | (b) REPORTED, NOT TARGETED: the share of admitted training ticks that fall after the failure's onset, against 56.8's 89% | -- | -- |
+| **C1** | (c) no change: every gated candidate is NOT certified | 0 of all, every seed | any CERTIFY |
+| **R1** | real data, m1-g8.9.10, three placements: the stationary candidate is NOT certified | at every placement | any certifies -- **D78 c.6: the gate cannot be built from held-out residuals alone**, reported with the margin untouched |
+| **R2** | real data: the drifted candidate (76's gain 2.000 plateau) IS certified | at every placement | none certifies |
+| **E1** | the end-to-end F' run: tap, hub, retrainer, a candidate, the gate, `approve`, uplink, `RELOAD_MODEL`, `ModelReloadAccepted` | every step, from the detector's own log | any step |
+
+**Stops, carried and added:**
+
+```
+  57. B, E, G, H, the ladder, the seeds or HELD changed after any prediction's number is seen.
+  58. The flown rule, param_version, the model format or reference.py changed. Stop, report.
+  59. A candidate swapped in without a CERTIFY report and an approve command.
+  60. R2 beyond 1,000 operations in one run or 5,000 in total.
+```
+
+### 78.7 Falsification, and what each failure would mean
+
+- **A1 fails**: the gate cannot tell healthy ageing from nothing, at these constants.
+- **A2 fails** with A1 holding: the gate certified a candidate that does not recover the rate.
+- **B1 fails**: D85's layered defence admits a slow failure -- 56.8's failure mode, one layer
+  further on.
+- **C1 or R1 fails**: D78 c.6.
+
+**Any of these keeps D83 c.4's restriction** (D85's SC1-SC4), and it is reported, not tuned.
+
+### 78.8 Cost
+
+- **Measured: one control, 6,550 steps at 8/10.** Six controls per flying model, cached; each
+  arm run trains continuously while the retrainer runs.
+- **Extrapolated:** arms (a), (b) and (c) at three seeds are several CPU-hours, run in
+  parallel on local cores.
+- **Real data:** one bundle load, projected before it is spent (about 16 operations), within
+  1,000 per run.
+- **No timing figure is recorded here or anywhere** (stop 35). Ticks, never hours.

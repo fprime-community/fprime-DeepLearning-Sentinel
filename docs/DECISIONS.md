@@ -110,6 +110,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D82 The flown retrainer is bounds-checked. `[@zero_alloc strict]` never required unchecked access, and the 559 accesses were a choice nobody had recorded](#d82-the-flown-retrainer-is-bounds-checked-zero-alloc-strict-never-required-unchecked-access-and-the-559-accesses-were-a-choice-nobody-had-recorded)
 - [D83 OxCaml is the Phase 5 retraining implementation -- the chosen one, host-verified and not flight-qualified. Supersedes D74's "permitted", and `Objective.md` section 12 is NOT edited](#d83-oxcaml-is-the-phase-5-retraining-implementation----the-chosen-one-host-verified-and-not-flight-qualified-supersedes-d74s-permitted-and-objectivemd-section-12-is-not-edited)
 - [D84 The retrainer is exported from the library, OPT-IN and OFF by default. A mission that does nothing sees no change; one that opts in builds it at its own shape](#d84-the-retrainer-is-exported-from-the-library-opt-in-and-off-by-default-a-mission-that-does-nothing-sees-no-change-one-that-opts-in-builds-it-at-its-own-shape)
+- [D85 The retrainer is made to learn: from the spacecraft's own healthy telemetry, judged on the ground against a reproduced control, swapped only by a human's one command](#d85-the-retrainer-is-made-to-learn-from-the-spacecrafts-own-healthy-telemetry-judged-on-the-ground-against-a-reproduced-control-swapped-only-by-a-humans-one-command)
 
 <!-- /toc -->
 
@@ -7903,3 +7904,144 @@ than accepted from the block's `rc=0`.
 its evidence is the development tree's two committed logs. Same host, same architecture: C4
 and E4 are untouched.
 
+
+## D85. The retrainer is made to learn: from the spacecraft's own healthy telemetry, judged on the ground against a reproduced control, swapped only by a human's one command
+
+**DATE** 2026-09-25 | **STATUS** resolved by the owner as a design decision.
+**`Objective.md` is not edited. D70, D73, D76, D78, D82, D83 and D84 stand; D78's floor is
+applied with one recorded departure (below). The status wording is D83's and is not changed:
+the chosen retraining implementation, host-verified, not flight-qualified.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** It chooses between D78 consequence 3's two routes,
+which D78 left to "whoever costs the downlink and the onboard budget together"; it changes
+what the flown cycle computes; and it pre-registers the conditions under which D83 c.4's
+"no shadow model may be swapped in" is replaced. Each is a decision, not a correction.
+
+**CONTEXT, READ FROM SOURCE AND NOT FROM THE BRIEF.**
+- **(!) The onboard cycle has never learned anything.** Its loss is 57's head-only TEST
+  functional, `sum(coeff_y * y)` with `coeff_y = 1` (`deep_f32.ml`, `cycle_c.ml`'s
+  `seed_from`) -- a gradient-check vehicle with no target. The ground trains MSE against the
+  10-step future block (`lstm.py:668`).
+- It does not warm-start (`sentinel_cycle_init(7)`), contrary to D76.
+- `window56` is linked into no object, and `admit` is hard-coded to 1. 56.8 measured it
+  admitting a slow resistance fault as healthy -- 11,225 ticks, 89% of what it admits -- and
+  56.9 did not adopt it.
+- The Retrainer stops cycling at tick 410 (E1's accumulator overflows before the cycle runs);
+  Monitor's warning event is silent after its tenth (`throttle 10`, never cleared).
+- D78's floor is "controls differing only in SEED"; a warm-started, deterministic onboard
+  trainer has no seed.
+- `model.bin` cannot hold a training segment without a format change.
+
+**THE OWNER'S DECISIONS.**
+1. **D78 c.3's second route: the control is reproduced ON THE GROUND.** The toolkit trained the
+   flying model, so it keeps that model's training segment with every model it produces.
+2. **A human approves every swap** (`Objective.md` 11 rule 1). Everything else is automated,
+   and approval is ONE command after an automated report.
+3. **The floor is a START-OFFSET floor** (ruling 2026-09-25): N = 6 controls differing only
+   in where the stored segment enters training -- the onboard analogue of a seed.
+   `m = K * F`, `K = 2.0330` imported (stop 44). **This departs from D78's word "seed" and is
+   recorded here; D78 is not edited.** Pre-registered sanity bound: the offset floor must
+   not exceed 69.7's cold seed spread, 31.9283%.
+4. **Healthy data only, layered, and the human sees the numbers** (ruling 2026-09-25).
+   - Onboard: `window56`'s three gates, linked in, plus a guard band. Nothing within G ticks
+     of any detector crossing, on any channel, on either side, is trained on.
+   - Ground: a model-independent trend-to-limit refusal plus D78's part (i) and D74.4's
+     part (ii).
+   - **The report the human approves from shows the trend-to-limit result for EVERY channel
+     -- slope, projected ticks to its yellow limit, the horizon H, the margin -- not a
+     pass/fail alone.**
+   - **The named assumption:** healthy ageing does not carry a channel toward its yellow limit
+     within H ticks, and a failure the detector exists for either does, or makes the detector
+     warn. A failure that does neither is not stopped by this design, and arm (b) is where
+     that is tested.
+5. **R2:** up to 1,000 operations per run and 5,000 in total for this decision's work.
+
+**ALTERNATIVES, AND WHAT EACH COSTS** -- one row per choice, the taken route first and the
+refused ones after it, as the owner approved them on 2026-09-25.
+
+```
+  C1  telemetry path   TAKEN  a SampleTap in the library, byte-identical to Monitor,
+                              copying each sample over GenericHub's SERIAL port as
+                              serialized values (D70) to Retrainer.sampleIn
+                       REFUSED a second producer on the adapter; a shared file
+  C2  OFF unchanged    TAKEN  SentinelRef selects a loop topology only when ON
+                       REFUSED an always-on tap (breaks D84 SX11); a third deployment
+  C3  detector verdict TAKEN  a replica of the flight core in the RETRAINER's process --
+                              deterministic, so identical to the detector's, Monitor untouched
+                       REFUSED a Monitor output port; tapping throttled events
+  C4  onboard loss     TAKEN  MSE of the head against the future block -- lstm.train's own
+                              objective; every flown figure re-earned
+                       REFUSED keeping the test functional; a Gaussian head
+  C5  warm start       TAKEN  the flying file's weights copied into the cycle at boot
+                       REFUSED a separate uplinked weights file; the LCG seed
+  C6  healthy data     TAKEN  layered, decision 4 above
+                       REFUSED window56 alone (measured insufficient); manual clearing only
+  C7  fixed work       TAKEN  B steps per admitted tick at t_steps 250, a candidate every
+                              E admitted steps, written once; B and E EXPERIMENTAL, and the
+                              flight N stays owed (D73 c.4, stop 23)
+                       REFUSED a whole cycle in one tick; candidates on command
+  C8  floor            TAKEN  start offset, decision 3
+                       REFUSED onboard seeded noise; seeded lstm.train controls (recipe
+                              mismatch)
+  C9  the control      TAKEN  the SAME OxCaml cycle, host-built, on the stored segment at the
+                              candidate's step count
+                       REFUSED a NumPy or torch re-implementation
+  C10 the segment      TAKEN  a sidecar beside model.bin, bound by sha256 and static_crc32;
+                              the FORMAT IS UNCHANGED
+                       REFUSED a provenance tag; a format bump
+  C11 approval         TAKEN  `sentinel_toolkit approve --report R`: re-checks the report,
+                              uplinks, commands RELOAD_MODEL, verifies ModelReloadAccepted
+                              from the event log; refuses a REFUSE report
+                       REFUSED printed commands only; an automatic swap (rule 1)
+  C12 simulation       TAKEN  a committed host harness running the flown code tick by tick,
+                              plus one end-to-end F' run with an accelerated reference clock
+                       REFUSED F' at 1 Hz for every arm; a Python replica
+  C13 ageing physics   TAKEN  solar-array degradation and radiator-emissivity fouling,
+                              saturating, inside yellow throughout
+                       REFUSED resistance drift (it is the fault); capacity fade (trends to
+                              a limit)
+  C14 slow failure     TAKEN  RESISTANCE_RISE at 2.0e-5, the existing mechanism
+  C15 real data        TAKEN  m1-g8.9.10's longest healthy run, three placements, onboard
+                              recipe at 12/10; spent held-back sets untouched
+  C16 Ref              TAKEN  fprime_ref_retrainer.sh extended as far as Ref allows, and
+                              what it cannot prove stated
+```
+
+**THE CRITERIA FOR LIFTING D83 c.4's RESTRICTION, PRE-REGISTERED HERE BEFORE ANY RUN.**
+"No candidate may be swapped in operationally" is replaced by **"swaps are made by a human,
+from the ground gate's report"** only if ALL of these hold; otherwise it stays, and this
+decision's rider states which evidence is missing:
+
+```
+  SC1  arm (a), healthy ageing, every seed: the gate CERTIFIES; after approval the warmed
+       false-alarm rate recovers at least half-way from the aged frozen model's rate to
+       the healthy baseline; a fault injected AFTER the swap is caught, fault-attributable,
+       lead in ticks
+  SC2  arm (b), slow failure, every seed: its data is EXCLUDED onboard and/or the gate
+       REFUSES; no swap; the detector keeps warning
+  SC3  arm (c), no change: NOT certified on any seed
+  SC4  real data: the stationary arm is not certified at any placement (D78 c.6 does not
+       trigger), and the drifted arm certifies at the ladder's target
+  SC5  the end-to-end F' run and the fresh-clone how-to both pass
+```
+
+**Either way the status wording is unchanged.** E4, C2 and C4 are hardware and toolchain
+questions; no software result answers them.
+
+**CONSEQUENCES.**
+1. **Flown modules change** (`deep_f32` gains a target and an MSE loss; the cycle gains a warm
+   start; `window56` is linked). Every flown figure -- strict with zero `assume`, bounds,
+   EX1 -- is re-earned per shape, and the pins that move are moved with riders.
+2. **The synthetic drive and E1's per-tick accumulator leave the operational path**, kept only
+   as unit-test fixtures.
+3. **The detector's per-tick work does not depend on the retrainer.** The tap's work is fixed
+   and connectionless; the retrainer being absent, slow or dead changes nothing the Monitor
+   computes. That is asserted by a byte-identity guard, not argued.
+4. **Pre-registration of the arms is `docs/MODELS.md` 78**, written after plant-only validity
+   runs (that the ageing scenario stays in limits and the failure eventually crosses) and
+   before any detector, retrainer or gate outcome is seen.
+5. **Nothing here is a timing claim** (stop 35), and every rate and lead is in ticks.
+6. **The case against OxCaml is unchanged by making it learn** -- no flight heritage, no
+   qualified compiler, no certification precedent for a garbage-collected runtime in flight,
+   x86-64 and arm64 Linux and arm64 macOS only, no stability promise, Rust smaller with
+   Ferrocene qualified and OPS-SAT heritage, and **no Rust comparison built here**.
