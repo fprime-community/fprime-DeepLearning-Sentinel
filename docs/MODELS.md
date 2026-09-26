@@ -748,6 +748,7 @@ prediction that failed and why. This document follows the same discipline.
   - [78.6 Predictions](#786-predictions)
   - [78.7 Falsification, and what each failure would mean](#787-falsification-and-what-each-failure-would-mean)
   - [78.8 Cost](#788-cost)
+  - [78.9 Before any arm ran: the arm lengths, and one filter](#789-before-any-arm-ran-the-arm-lengths-and-one-filter)
 
 <!-- /toc -->
 
@@ -22748,3 +22749,29 @@ met. The ladder does not extend after it is seen.
 - **Real data:** one bundle load, projected before it is spent (about 16 operations), within
   1,000 per run.
 - **No timing figure is recorded here or anywhere** (stop 35). Ticks, never hours.
+
+### 78.9 Before any arm ran: the arm lengths, and one filter
+
+78.4 fixes every constant the gate and the retrainer use, but not how long each arm runs, and
+the runner's first lengths (80,000 ticks for (a) and (c), 70,000 for (b)) cannot produce the
+candidates 78.6 predicts about. **Measured 2026-09-25, before the ladder, the controls or any
+arm:** on the healthy balanced plant, seed 1, 12,000 ticks, the replica crossed 16 times, on a
+roughly 900-tick orbital rhythm; the guard band needs 780 clear ticks; so of the 5,451 ticks
+56's rule admitted, 531 were trained on, about one in ten. At that rate one candidate
+(6,550 admitted steps) takes about 65,000 ticks, so arm (a)'s gated candidate -- first data
+at or after 23,421 -- could not complete, with 9,000 ticks held out after it, inside 80,000.
+
+**Fixed now, and not moved after any number 78.6 names is seen (stop 57):**
+
+- **Every arm runs 400,000 ticks**, (a), (b) and (c) alike, every seed. That is about six
+  candidates at the healthy rate, and a length set from the design, not from any arm.
+- **Arm (b) with no yellow crossing** is gated to the end of the run. As first written, a run
+  that never reached yellow (`first_yellow` = -1) gated no candidate at all, and B1 would have
+  held vacuously.
+- **A vacuous prediction is reported as vacuous.** If an arm yields no candidate that its
+  rule gates, the prediction is reported as "no candidate", not as HOLD.
+
+This is also a finding about the design, stated before it is measured further: the guard band
+is keyed on the detector's crossings, so a plant whose false alarms rise -- arm (a)'s premise --
+also admits less training data. Whether that stops arm (a) from producing a candidate is what
+the arm measures.

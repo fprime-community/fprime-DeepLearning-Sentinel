@@ -50,6 +50,8 @@ A_FIRST_DATA_MIN = 23_421                 # ageing at 90%: 5,000 + 8,000 ln 10
 PREMISE = (40_000, 60_000)                # 78.5's window
 POST_FA = (WARM, WARM + 20_000)           # after the swap: [swap + 2,350, swap + 22,350)
 SPAN = 250 + 10
+#: 78.9: one length for every arm, fixed before any arm ran.
+ARM_TICKS = 400_000
 
 NAMES = ["SolarInput", "ChargeCurrent", "LoadCurrent", "BusVoltage", "CellTemp",
          "RadiatorTemp", "HeaterDuty", "StateOfCharge"]
@@ -156,7 +158,7 @@ def ladder() -> dict:
 
 # -- 78.6: the arms ----------------------------------------------------------------------
 def arm_c(seed: int) -> dict:
-    run = loopsim(RUNS / "c" / f"s{seed}", seed, 80_000, retrain=True)
+    run = loopsim(RUNS / "c" / f"s{seed}", seed, ARM_TICKS, retrain=True)
     n = len(emitted(run))
     gates = [run_gate(run, c) for c in candidates(run) if c["last_data_tick"] + 1 + HELD_LEN <= n]
     res = {"arm": "c", "seed": seed, "gates": gates,
@@ -166,15 +168,16 @@ def arm_c(seed: int) -> dict:
 
 
 def arm_b(seed: int) -> dict:
-    run = loopsim(RUNS / "b" / f"s{seed}", seed, 70_000, retrain=True,
+    run = loopsim(RUNS / "b" / f"s{seed}", seed, ARM_TICKS, retrain=True,
                   fault=(SLOW_START, SLOW_RATE))
     fy = first_yellow(run)
-    ctrl = loopsim(RUNS / "b" / f"s{seed}_ctrl", seed, 70_000, retrain=False)
+    ctrl = loopsim(RUNS / "b" / f"s{seed}_ctrl", seed, ARM_TICKS, retrain=False)
     n = len(emitted(run))
+    end = fy if fy >= 0 else n          # 78.9: no yellow crossing -> gated to the end
     gates = [run_gate(run, c) for c in candidates(run)
              if c["last_data_tick"] + 1 + HELD_LEN <= n and c["last_data_tick"] >= SLOW_START
-             and c["first_data_tick"] < fy]
-    attr = attributable(emitted(run), emitted(ctrl), SLOW_START, fy if fy > 0 else n)
+             and c["first_data_tick"] < end]
+    attr = attributable(emitted(run), emitted(ctrl), SLOW_START, end)
     admitted = column(run, 5)
     ends = [t - GUARD - 1 for t in range(n) if admitted[t] == 1]
     after = sum(1 for e in ends if e >= SLOW_START)
@@ -188,7 +191,7 @@ def arm_b(seed: int) -> dict:
 
 
 def arm_a(seed: int, emis: float) -> dict:
-    run = loopsim(RUNS / "a" / f"s{seed}", seed, 80_000, retrain=True, ageing=emis)
+    run = loopsim(RUNS / "a" / f"s{seed}", seed, ARM_TICKS, retrain=True, ageing=emis)
     n = len(emitted(run))
     pick = next((c for c in candidates(run) if c["first_data_tick"] >= A_FIRST_DATA_MIN
                  and c["last_data_tick"] + 1 + HELD_LEN <= n), None)
