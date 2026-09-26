@@ -7880,3 +7880,26 @@ both on `master` unguarded before D84. The collected suite moves 816 -> 883.
 better than the model it would replace; **not** that it builds on Linux or on a flight target;
 **not** any timing figure.
 
+### D84.2 Rider, 2026-09-25: the opt-in path runs verbatim from a fresh clone of what a stranger downloads
+
+**D84 and D84.1 are not edited.** `master` at 9ccb488 was cloned **from GitHub** -- not from the
+development tree -- into an ordinary user directory, and every `bash` block in its README was
+run in order, verbatim. All held; `docs/datasets/REPRODUCING.md` carries the table. The one
+block not run needs the reader's own telemetry, which the README says.
+
+```
+  SentinelRef       0 OCaml symbols       the detector-only build, OFF by default
+  SentinelRetrain   3,082 OCaml symbols   ON at 8 channels, every generated-shape gate passed
+  F' Ref            0; second deployment 3,082; candidate loads in flight/'s reader
+```
+
+**(!) A DEFECT IN THE RUNNER, FOUND BY LOOKING, AND THE SAME ONE D83.2 FOUND.** Each block ran
+as one `bash` script, so a block's status is its LAST command's. Two blocks carry several
+commands. Every command was therefore checked from its own log -- the flight round trip, the
+selftest's 8/8, the switch's completion, the shape's gates, both binaries by symbol -- rather
+than accepted from the block's `rc=0`.
+
+**Not established**: EX1 was not re-run in the clone (it is `EX1=1`, not a Quick start step);
+its evidence is the development tree's two committed logs. Same host, same architecture: C4
+and E4 are untouched.
+

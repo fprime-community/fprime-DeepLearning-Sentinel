@@ -20,9 +20,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | Command | What it proves | Measured |
 |---|---|---|
-| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **With the F' and OxCaml build trees: 799 passed, 3 skipped**, measured 2026-09-22. Without them, **794 passed, 8 skipped** -- each skip names the script that would satisfy it. **There is no state in which nothing skips, and the entry here claimed "795 passed" once they are built.** Three tests skip BECAUSE the checkout is present and say so: `test_flight_lint_reports_partial_honestly.py` (a full run is expected once clang-tidy has all three configs) and two in `test_references_resolve.py` (citations into `fprime/lib/` are checked rather than announced) |
-| `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **117 files clean** |
-| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 775 / 742 / 512 / 39 / 4, all resolving, plus **1 citation into the absent `fprime/lib/` announced as SKIPPED** rather than broken (D79) |
+| `.venv/bin/python -m pytest -q` | The whole suite, **zero R2 operations by construction** -- `tests/test_ops_guard.py` fails if a test would spend one | **With the F' and OxCaml build trees, the retrainer ON at 8/10: 877 passed, 6 skipped**, measured 2026-09-25 at D84. Without the build trees the last measurement is **807 passed, 9 skipped**, at `e039054` before D84 added its guards (was 799/3 and 794/8, 2026-09-22) -- each skip names the script that would satisfy it. **There is no state in which nothing skips, and the entry here claimed "795 passed" once they are built.** Three tests skip BECAUSE the checkout is present and say so: `test_flight_lint_reports_partial_honestly.py` (a full run is expected once clang-tidy has all three configs) and two in `test_references_resolve.py` (citations into `fprime/lib/` are checked rather than announced) |
+| `.venv/bin/python scripts/check_no_list.py` | No source file can LIST the bucket, glob it, or read the manifest snapshot | **118 files clean** (was 117, D84) |
+| `.venv/bin/python scripts/check_references.py` | Every section citation, repository path, `file:line` range, relative link and pytest node id resolves | 800 / 820 / 513 / 39 / 4 at D84 (was 775 / 742 / 512 / 39 / 4), all resolving, plus **1 citation into the absent `fprime/lib/` announced as SKIPPED** rather than broken (D79) |
 | `PYTHONPATH=src .venv/bin/python -m sentinel_eval selftest` | The referee scores a known-answer oracle correctly and a silent detector at zero | **8/8, oracle 1.0** |
 | `make -C flight test` | The C++ core against its committed golden vectors | green: 7 categories, worst eps 5.072e-06 against a 1e-05 tolerance |
 | `make -C flight lint` | clang-tidy, three configurations, at `-Werror` | `clean (3 of 3)` with the F' checkout present; **`PARTIAL (1 of 3)` and non-zero** without it, which is a fresh clone's normal state -- `LINT_ALLOW_PARTIAL=1` accepts it (D79) |
@@ -105,6 +105,41 @@ Both are upstream, D31 pins v4.3.0, and neither is patched here. **Clone anywher
 ordinary and it does not arise**: `$HOME` works, and so does a deliberately symlinked
 path under `$HOME`, so the trigger is the two spellings reaching CMake by different
 routes rather than symlinks as such.
+
+## D84: the opt-in retrainer, run verbatim from a fresh clone of `master`
+
+**2026-09-25, `git clone --branch master --single-branch` from GitHub into `~/sentinel-d84-clone`,
+an ordinary user directory. `HEAD` 9ccb488, 244 tracked files.** Every `bash` block in
+`master:README.md`, extracted as written and run in order, each command's result read from its
+own log rather than from the block's last status:
+
+```
+  make -C flight test                                             round trip byte-identical
+  LINT_ALLOW_PARTIAL=1 make -C flight lint                        PARTIAL 1 of 3, as documented
+  python3 -m venv .venv && pip install -r requirements-toolkit.txt
+  sentinel_toolkit selftest                                       8/8
+  sentinel_toolkit fit / verify                                   NOT RUN: needs the reader's
+                                                                  own telemetry, as the README says
+  scripts/fprime_setup.sh; generate -f; build -p ./SentinelRef    SentinelRetrain: OFF; skipping
+  scripts/oxcaml_setup.sh                                         switch 5.2.0+ox
+  bash scripts/oxcaml_shape.sh --channels 8 --predictions 10     every gate passed, HO1 OK
+  generate -f -DSENTINEL_WITH_RETRAINER=ON
+    -DSENTINEL_RETRAINER_CHANNELS=8; build -p ./SentinelRetrain   linked
+  (OPTIONAL) oxcaml_setup.sh; oxcaml_shape.sh 8 10               every gate passed
+  (OPTIONAL) bash scripts/fprime_ref_retrainer.sh 8 10           PASS
+```
+
+```
+  SentinelRef       2,092,392 B      0 OCaml symbols
+  SentinelRetrain   1,426,512 B  3,082 OCaml symbols, at 8 channels
+  F' Ref (ON)                    0 OCaml symbols; its second deployment 3,082;
+                                 the candidate loads in flight/'s reader (MW2 OK)
+```
+
+**The detector-only build is what a stranger gets first**: the F' block configures with the
+retrainer OFF and says so. The opt-in blocks switch it on at `SentinelRef`'s shape. No
+orphaned process before or after. Same host and architecture as every earlier run: this
+proves the branch is sufficient, not that it is portable (C4, E4).
 
 ## (!) What you cannot recompute, and it is most of the numbers
 
