@@ -41,6 +41,9 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROBE = ROOT / "oxcaml" / "_build" / "s65a" / "domain_lock_probe"
 RETRAINER = ROOT / "fprime" / "Sentinel" / "Retrainer" / "Retrainer.cpp"
+#: D85: the OCaml calls moved into the loop class the component, the simulation and the
+#: tests all run. The guard follows them there, or it would pass on an empty file.
+LOOP = ROOT / "fprime" / "Sentinel" / "Retrainer" / "RetrainLoop.cpp"
 RETRAIN_TOP = (ROOT / "fprime" / "SentinelRetrain" / "Top"
                / "SentinelRetrainTopology.cpp")
 
@@ -54,16 +57,25 @@ RETRAIN_TOP = (ROOT / "fprime" / "SentinelRetrain" / "Top"
 #: could see, and worthless. That is 65.8's blind symbol check and 7's invisible
 #: citation a third time, so the widening is shown to fail first
 #: (`test_the_pattern_would_catch_a_shadow_call_off_the_ticking_thread`).
-OCAML_ENTRY = re.compile(r"\bsentinel_(?:retrainer|cycle|shadow)_\w+\s*\(")
+OCAML_ENTRY = re.compile(r"\bsentinel_(?:retrainer|cycle|shadow|window)_\w+\s*\(")
 
 #: The pattern this replaced, kept so the both-directions test can show what it
 #: missed. Never used to judge the source.
 OCAML_ENTRY_BEFORE_72 = re.compile(r"\bsentinel_(?:retrainer|cycle)_\w+\s*\(")
 
 #: The only two functions permitted to contain one. `boot` is included because
-#: `schedIn_handler` is the only thing that calls it (`Retrainer.cpp:201-203`),
+#: `schedIn_handler` is the only thing that calls it (`Retrainer.cpp:143-148`),
 #: so it inherits the ticking thread.
 ON_THE_TICKING_THREAD = {"boot", "schedIn_handler"}
+
+#: D85. In `Retrainer.cpp` the loop is entered only from `boot` and from `feed`, and
+#: `feed` only from `schedIn_handler`. In `RetrainLoop.cpp` OCaml is called only from
+#: `boot` and `tick` and the two helpers they alone call. `sampleIn_handler` -- the hub
+#: thread -- must reach neither.
+COMPONENT_LOOP_CALLERS = {"boot", "feed"}
+LOOP_OCAML_HOLDERS = {"boot", "tick", "warmFromFlying", "emitCandidate"}
+LOOP_HELPERS = {"warmFromFlying", "emitCandidate"}
+LOOP_CALL = re.compile(r"\bm_loop\.(?:boot|tick)\s*\(")
 
 
 def _require_probe():
@@ -76,12 +88,12 @@ def _run(mode: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, timeout=120)
 
 
-def _functions(source: str) -> dict[str, range]:
-    """`Retrainer::name` -> the line range of its body, 1-indexed."""
+def _functions(source: str, cls: str = "Retrainer") -> dict[str, range]:
+    """`Cls::name` -> the line range of its body, 1-indexed."""
     lines = source.splitlines()
     starts = []
     for i, line in enumerate(lines, start=1):
-        match = re.match(r"^[A-Za-z_][\w:&*<>, ]*\bRetrainer::(\w+)\s*\(", line)
+        match = re.match(rf"^[A-Za-z_][\w:&*<>, ]*\b{cls}::(\w+)\s*\(", line)
         if match:
             starts.append((match.group(1), i))
     spans = {}
@@ -116,6 +128,54 @@ def test_the_same_calls_succeed_on_the_thread_that_booted_the_runtime() -> None:
     assert proc.returncode == 0, (
         "the same-thread call did not succeed, so the cross-thread abort above is not "
         f"evidence about threads at all:\n{proc.stdout[-800:]}\n{proc.stderr[-800:]}")
+
+
+def _holders(source: str, spans: dict[str, range], pattern: re.Pattern) -> dict:
+    found = {}
+    for number, line in enumerate(source.splitlines(), start=1):
+        if pattern.search(line) and not line.lstrip().startswith("//"):
+            holder = next((n for n, span in spans.items() if number in span), None)
+            found[number] = (holder, line.strip())
+    return found
+
+
+def test_the_loop_is_entered_only_on_the_ticking_thread() -> None:
+    """D85: the component reaches OCaml only through RetrainLoop, and only from its
+    boot and its rate-group path. The hub's sample handler reaches neither."""
+    source = RETRAINER.read_text()
+    spans = _functions(source)
+    assert {"boot", "feed", "schedIn_handler", "sampleIn_handler"} <= set(spans), sorted(spans)
+    direct = _holders(source, spans, OCAML_ENTRY)
+    assert not direct, f"Retrainer.cpp calls OCaml directly, bypassing the loop: {direct}"
+    calls = _holders(source, spans, LOOP_CALL)
+    assert calls and all(h in COMPONENT_LOOP_CALLERS for h, _ in calls.values()), calls
+    feeds = _holders(source, spans, re.compile(r"\bthis->feed\s*\("))
+    assert feeds and all(h == "schedIn_handler" for h, _ in feeds.values()), feeds
+    hub = "\n".join(source.splitlines()[spans["sampleIn_handler"].start - 1:
+                                        spans["sampleIn_handler"].stop - 1])
+    assert not LOOP_CALL.search(hub) and not OCAML_ENTRY.search(hub) \
+        and "feed(" not in hub, "sampleIn_handler reaches the loop or OCaml from the hub thread"
+
+    loop = LOOP.read_text()
+    lspans = _functions(loop, "RetrainLoop")
+    assert LOOP_OCAML_HOLDERS <= set(lspans), sorted(lspans)
+    entries = _holders(loop, lspans, OCAML_ENTRY)
+    assert entries, "RetrainLoop.cpp contains no OCaml entry point; this guard is blind"
+    outside = {n: v for n, v in entries.items() if v[0] not in LOOP_OCAML_HOLDERS}
+    assert not outside, f"OCaml entry points outside {sorted(LOOP_OCAML_HOLDERS)}: {outside}"
+    for helper in LOOP_HELPERS:
+        uses = _holders(loop, lspans, re.compile(rf"\b{helper}\s*\(\)"))
+        callers = {h for h, _ in uses.values()} - {helper}
+        assert callers <= {"boot", "tick", "emitCandidate"}, (helper, uses)
+
+
+def test_the_loop_guard_can_fail() -> None:
+    """Both directions: a sample handler that feeds the loop is caught."""
+    bad = ("void Retrainer::sampleIn_handler(FwIndexType p, V& v, bool b, U32 s)\n{\n"
+           "    this->feed(v, b);\n}\n")
+    spans = _functions(bad)
+    feeds = _holders(bad, spans, re.compile(r"\bthis->feed\s*\("))
+    assert feeds and any(h == "sampleIn_handler" for h, _ in feeds.values())
 
 
 def test_every_ocaml_entry_point_sits_on_the_ticking_thread() -> None:
@@ -187,8 +247,9 @@ def test_the_pattern_would_catch_a_shadow_call_off_the_ticking_thread() -> None:
 
 
 def test_the_guard_reads_a_file_that_actually_contains_shadow_entry_points() -> None:
-    """A pattern that matches nothing in the real source is not a guard either."""
-    source = RETRAINER.read_text()
+    """A pattern that matches nothing in the real source is not a guard either.
+    Since D85 the calls live in RetrainLoop.cpp, so that is the file read."""
+    source = LOOP.read_text()
     found = [m.group(0) for m in OCAML_ENTRY.finditer(source)
              if "shadow" in m.group(0)]
     assert found, (

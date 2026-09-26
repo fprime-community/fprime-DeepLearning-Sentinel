@@ -92,7 +92,10 @@ UT_CACHE = FPRIME / "build-fprime-automatic-native-ut"
 #: Measured 2026-09-23, Darwin arm64, switch 5.2.0+ox, in a clean clone of `master`,
 #: against the object `scripts/oxcaml_s61.sh` links: the accessor pair, E1's five entry
 #: points, 61's five and 72's four. `SentinelRef` measured **0** in the same clone.
-RETRAINER_OCAML_SYMBOLS = 3082
+#:
+#: D85 moved it 3,082 -> **3,149**: `window56.ml` and `window_c.ml` joined `${OX_OBJ}`,
+#: for the loop's healthy-data gate. Measured 2026-09-25 at 8/10, in a fresh generate.
+RETRAINER_OCAML_SYMBOLS = 3149
 
 #: The detector's own binary. Not a band either: D70 consequence 2 permits no runtime
 #: at all in the process that owns the 1 Hz rate group, so the only passing value is 0.

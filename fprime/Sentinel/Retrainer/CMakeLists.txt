@@ -58,13 +58,18 @@ endif()
 message(STATUS "Retrainer: ${SENTINEL_RETRAINER_CHANNELS} channels, "
                "${SENTINEL_RETRAINER_PREDICTIONS} predictions, from ${OX_SHAPE_DIR}")
 
+# D85: the component is a shell around RetrainLoop, which runs a replica of the flight
+# core (sentinel_core) and takes the tap's samples (Sentinel_SampleTap's port type).
 register_fprime_module(
     AUTOCODER_INPUTS
         "${CMAKE_CURRENT_LIST_DIR}/Retrainer.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/Retrainer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/RetrainLoop.cpp"
     DEPENDS
         Svc_Sched
+        Sentinel_SampleTap
+        sentinel_core
 )
 
 # PUBLIC: Retrainer.hpp includes the generated sentinel_cycle_shape.h, and every
@@ -79,10 +84,13 @@ register_fprime_ut(
         "${CMAKE_CURRENT_LIST_DIR}/Retrainer.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/Retrainer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/RetrainLoop.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test/ut/RetrainerTestMain.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test/ut/RetrainerTester.cpp"
     DEPENDS
         Svc_Sched
+        Sentinel_SampleTap
+        sentinel_core
     UT_AUTO_HELPERS
 )
 

@@ -21,8 +21,8 @@
 
 (* D82: every element access below is bounds-checked. `acc_int.ml`
    supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
-   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
-   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+   call sites keep their spelling and every `[@zero_alloc strict]` site still
+   holds. `scripts/oxcaml_checked.sh` is the measurement. *)
 open Acc_int
 
 let w = 6550                    (* 42.3 departure 2's data floor *)
@@ -31,6 +31,17 @@ let k = 2.0                     (* 56.3: beyond the 1.75x the ground already saw
 
 (* 24. Computed once at init, not per tick. *)
 let ceiling = int_of_float (ceil (k *. nominal *. float_of_int w))
+
+(* D85: THE NOMINAL RATE IS THE FLYING MODEL'S OWN, set once at init. 56's G-rate is
+   defined as "k x the model's own calibrated nominal rate x W"; 0.001830 is 42.9's
+   model's figure, and a mission flies its own. `set_nominal_ppm` recomputes the
+   ceiling from the model's pre-launch figure BEFORE the first push. W and k do not
+   move (stop 24), and unset, the ceiling is 42.9's 24 exactly as 56 measured it. *)
+let ceil_slot = Array.make 1 ceiling
+
+let set_nominal_ppm ppm =
+  Array.unsafe_set ceil_slot 0
+    (int_of_float (ceil (k *. (float_of_int ppm /. 1.0e6) *. float_of_int w)))
 
 let limit_ring = Array.make w 0
 let emit_ring = Array.make w 0
@@ -65,11 +76,11 @@ let[@inline] emits () = Array.unsafe_get st 3
 
 (* The rule. 1 admits, 0 refuses. *)
 let[@zero_alloc strict] admits_all () =
-  if full () && (limits () = 0) && (emits () <= ceiling) then 1 else 0
+  if full () && (limits () = 0) && (emits () <= Array.unsafe_get ceil_slot 0) then 1 else 0
 
 (* WS4's comparison arm and WS7's control: the same rule with G-limit removed. *)
 let[@zero_alloc strict] admits_rate_only () =
-  if full () && (emits () <= ceiling) then 1 else 0
+  if full () && (emits () <= Array.unsafe_get ceil_slot 0) then 1 else 0
 
 (* Candidate (a) alone, read literally: "windows the flying detector was quiet
    through" is a window with NO emission in it. *)

@@ -11,10 +11,9 @@
 #include "Fw/Test/UnitTest.hpp"
 #include "RetrainerTester.hpp"
 
-TEST(E1, TheWholeLifecycle) {
-    COMMENT("X1 and X3: the runtime boots inside an F' process, the numbers are "
-            "hand-checked exactly, state survives the boundary, and an overflow "
-            "comes back as a status code rather than an exception.");
+TEST(Retrainer, TheWholeLifecycle) {
+    COMMENT("E1's pipe as a fixture (X1, X3), then D85: configuration checked, an "
+            "absent flying model degrades, samples queue and drain, gaps are counted.");
     Sentinel::RetrainerTester tester;
     tester.testTheWholeLifecycle();
 }

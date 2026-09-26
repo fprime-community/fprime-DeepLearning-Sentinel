@@ -5,9 +5,10 @@
 and the deployment 8. D84 generates the cycle at the mission's shape, and this is
 the check that the two now meet:
 
-1. `Sentinel_Retrainer_ut_exe`, built at the shape the build cache names, boots
-   the OCaml runtime, runs the cycle and writes `loop_candidate.bin` from the
-   cycle's OWN weights into a flying file at that shape.
+1. The generated cycle at the shape the build cache names -- `oxcaml_shape.sh`'s
+   harness, the same object the Retrainer links -- warm-starts from a flying file at
+   that shape, TRAINS on a window (D85: an MSE loss against the future block, so the
+   weights move for a reason), and writes the candidate from its OWN weights.
 2. `Sentinel_Monitor_ut_exe`, configured on that flying file, receives
    `RELOAD_MODEL loop_candidate.bin`: **accepted**, and the Monitor then runs on it
    -- twenty ticks, every one scored in `Mode::MODEL`, nothing degraded.
@@ -53,7 +54,7 @@ def _cache_value(name: str) -> str | None:
 def _shape() -> tuple[int, int]:
     if (_cache_value("SENTINEL_WITH_RETRAINER") or "").upper() not in ("ON", "TRUE", "1"):
         pytest.skip("the unit-test cache is not configured with SENTINEL_WITH_RETRAINER=ON")
-    for exe in (RETRAINER_UT, MONITOR_UT):
+    for exe in (MONITOR_UT,):
         if not exe.exists():
             pytest.skip(f"{exe.name} is not built; run fprime-util check in its directory")
     pytest.importorskip("numpy")
@@ -80,15 +81,16 @@ def _monitor(loop: pathlib.Path, candidate: str, channels: int, expect: str):
 @pytest.fixture(scope="module")
 def loop(tmp_path_factory):
     channels, predictions = _shape()
+    shape_dir = ROOT / "oxcaml" / "_build" / f"shape-c{channels}-p{predictions}"
+    if not (shape_dir / "candidate.bin").exists():
+        pytest.skip(f"no trained candidate in {shape_dir}; run scripts/oxcaml_shape.sh")
     d = tmp_path_factory.mktemp("loop")
-    _flying(d / "loop_flying.bin", channels, predictions)
-    env = dict(os.environ, SENTINEL_LOOP_DIR=str(d))
-    r = subprocess.run([str(RETRAINER_UT)], capture_output=True, text=True, env=env,
-                       cwd=str(d), timeout=600)
-    assert r.returncode == 0, (r.stdout + r.stderr)[-4000:]
+    (d / "loop_flying.bin").write_bytes((shape_dir / "flying.bin").read_bytes())
+    (d / "loop_candidate.bin").write_bytes((shape_dir / "candidate.bin").read_bytes())
     cand = d / "loop_candidate.bin"
-    assert cand.exists(), "the retrainer wrote no candidate"
     assert cand.stat().st_size == (d / "loop_flying.bin").stat().st_size
+    assert cand.read_bytes() != (d / "loop_flying.bin").read_bytes(), (
+        "the candidate is the flying file unchanged: the cycle trained nothing")
     # The two refusals' inputs.
     other = 16 if channels != 16 else 8
     _flying(d / "loop_wide.bin", other, predictions)

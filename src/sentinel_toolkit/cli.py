@@ -72,6 +72,17 @@ def cmd_fit(args) -> int:
     print(f"  wrote      {out} ({len(result.model_bytes):,} bytes)")
     _verify(result.model_bytes)
 
+    # D85: the training segment is kept with every model, so the ground can
+    # reproduce D78's control for any candidate this model's retrainer produces.
+    from . import segment
+    side = segment.write(out, result.model_bytes, values[:result.train_steps], {
+        "window": args.window, "hidden": list(args.hidden), "n_predictions": args.predictions,
+        "max_epochs": args.epochs, "seed": args.seed, "train_fraction": args.train_fraction,
+        "holdout_rate": result.calibration.holdout_rate,
+        "fit_rate": result.calibration.fit_rate})
+    print(f"  wrote      {side} (the training segment, {result.train_steps:,} timesteps; "
+          "mission telemetry -- keep it with the model)")
+
     from .report import render
     print()
     print(render(result.calibration, channels=values.shape[1],
@@ -98,6 +109,38 @@ def cmd_selftest(args) -> int:
     """
     from .selftest import run
     return run(seed=args.seed, steps=args.steps, log=print)
+
+
+def cmd_gate(args) -> int:
+    """D85: judge a downlinked candidate. Writes the report; transmits nothing."""
+    import json as _json
+    from . import gate as gate_mod
+    telemetry = np.load(args.telemetry) if args.telemetry.endswith(".npy") else \
+        np.fromfile(args.telemetry, dtype=np.float32).reshape(-1, args.channels)
+    limits = _json.loads(Path(args.limits).read_text())
+    res = gate_mod.gate(
+        flying=Path(args.flying), candidate=Path(args.candidate), telemetry=telemetry,
+        names=limits["names"], first_data=args.first, last_data=args.last,
+        windows=args.windows, budget=args.budget, tools=Path(args.tools),
+        yellow_low=np.asarray(limits["low"], dtype=np.float64),
+        yellow_high=np.asarray(limits["high"], dtype=np.float64),
+        block=args.block, blocks=args.blocks, horizon=args.horizon,
+        workdir=Path(args.workdir), cache=Path(args.cache) if args.cache else None,
+        uplink_dest=args.dest, dictionary=args.dictionary, reload_command=args.reload_command)
+    out = Path(args.report)
+    out.write_text(gate_mod.to_json(res))
+    Path(str(out) + ".txt").write_text(gate_mod.render(res) + "\n")
+    print(gate_mod.render(res))
+    print(f"  report     {out} (and {out.name}.txt)")
+    return 0 if res.verdict == "CERTIFY" else 1
+
+
+def cmd_approve(args) -> int:
+    """D85: the human's one command. Refuses anything but a CERTIFY report."""
+    from .approve import approve
+    return approve(Path(args.report), Path(args.candidate),
+                   Path(args.event_log) if args.event_log else None,
+                   dry_run=args.dry_run, timeout=args.timeout)
 
 
 def main(argv=None) -> int:
@@ -131,12 +174,49 @@ def main(argv=None) -> int:
     selftest = sub.add_parser("selftest", help="the generated fixture, end to end")
     selftest.add_argument("--steps", type=int, default=120_000)
 
+    gate = sub.add_parser("gate", help="D85: judge a downlinked candidate against a "
+                                       "control reproduced on the ground")
+    gate.add_argument("--flying", required=True, help="the flying model.bin (its "
+                      ".segment.npz sidecar must sit beside it)")
+    gate.add_argument("--candidate", required=True)
+    gate.add_argument("--telemetry", required=True,
+                      help="downlinked telemetry: .npy, or .f32 with --channels")
+    gate.add_argument("--channels", type=int, default=0)
+    gate.add_argument("--first", type=int, required=True, help="first tick the candidate trained on")
+    gate.add_argument("--last", type=int, required=True, help="last tick the candidate trained on")
+    gate.add_argument("--windows", type=int, required=True, help="windows the candidate trained on")
+    gate.add_argument("--budget", type=int, default=1, help="steps per window (EXPERIMENTAL)")
+    gate.add_argument("--tools", required=True, help="ground_tools, built by oxcaml_shape.sh")
+    gate.add_argument("--limits", required=True,
+                      help='JSON: {"names": [...], "low": [...], "high": [...]} (yellow)')
+    gate.add_argument("--block", type=int, required=True,
+                      help="the trend's block length in ticks, e.g. one orbit")
+    gate.add_argument("--blocks", type=int, default=4)
+    gate.add_argument("--horizon", type=int, default=100_000)
+    gate.add_argument("--workdir", required=True)
+    gate.add_argument("--cache", default=None, help="where reproduced controls are kept")
+    gate.add_argument("--dest", default="RetrainApproved.bin")
+    gate.add_argument("--dictionary", default="<the deployment's dictionary.json>")
+    gate.add_argument("--reload-command", dest="reload_command",
+                      default="SentinelRef.sentinelMonitor.RELOAD_MODEL")
+    gate.add_argument("--report", required=True, help="where the JSON report is written")
+
+    appr = sub.add_parser("approve", help="D85: the human's one command -- uplink a "
+                                          "CERTIFIED candidate and reload it")
+    appr.add_argument("--report", required=True)
+    appr.add_argument("--candidate", required=True)
+    appr.add_argument("--event-log", dest="event_log", default=None,
+                      help="the detector's own event log; its ModelReloadAccepted is the evidence")
+    appr.add_argument("--dry-run", dest="dry_run", action="store_true")
+    appr.add_argument("--timeout", type=float, default=60.0)
+
     args = parser.parse_args(argv)
     if getattr(args, "quantile", None) is None:
         from .calibrate import DEFAULT_QUANTILE
         args.quantile = DEFAULT_QUANTILE
 
-    handlers = {"fit": cmd_fit, "verify": cmd_verify, "selftest": cmd_selftest}
+    handlers = {"fit": cmd_fit, "verify": cmd_verify, "selftest": cmd_selftest,
+                "gate": cmd_gate, "approve": cmd_approve}
     try:
         return handlers[args.command](args)
     except ToolkitError as exc:

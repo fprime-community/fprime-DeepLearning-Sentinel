@@ -112,7 +112,7 @@ smaller with Ferrocene qualified -- and **no Rust comparison has been built here
 the OCaml runtime inside a real F' deployment, runs one training cycle per tick, carries that
 cycle across a hub into `SentinelRef`'s process, and **writes a candidate model file that
 `flight/`'s own reader loads** (72.8, HO1). **0** OCaml symbols in `SentinelRef`'s binary and
-**3,082** in this one, checked by symbol on every test run
+**3,149** in this one (3,082 until D85 added the window gate), checked by symbol on every test run
 (`tests/test_detector_binary_has_no_ocaml_runtime.py`).
 
 **(!) The shapes meet since D84, and that is all that follows.** Until D84 the training cycle

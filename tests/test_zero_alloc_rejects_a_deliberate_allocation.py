@@ -145,9 +145,16 @@ def test_bounds_checking_and_strict_are_not_in_tension() -> None:
 #: host-independent and exactly reproducible: `Deep_f32.run_cycle` at `t_max` = 250.
 #: These are COUNTS, not timings -- stop 35 is kept and the wall clock belongs to the
 #: flight-hardware session.
-CHECKS_ONE_STEP = 95_212_816
-CHECKS_PER_STEP = 95_062_092
-CHECKS_FIXED = 150_724
+#:
+#: (!) D85 MOVED ALL THREE, FOR TWO REASONS THAT ARE BOTH CHANGES TO WHAT FLIES:
+#: the loss is now MSE against the future block, which adds 3 checked reads per output
+#: -- 160 outputs at the maxima, +480 per step (95,062,092 -> 95,062,572) -- and
+#: `run_cycle` no longer resets Adam on every call, which removes the 150,720 checked
+#: writes of the reset from the per-cycle overhead (150,724 -> 1). The reset now happens
+#: once, at the warm start. Was 95,212,816 / 95,062,092 / 150,724 (D82.1).
+CHECKS_ONE_STEP = 95_062_573
+CHECKS_PER_STEP = 95_062_572
+CHECKS_FIXED = 1
 
 
 @pytest.mark.skipif(not SWITCH_OCAMLOPT.exists(),

@@ -39,22 +39,23 @@ constexpr double CAPACITY_AS = 190000.0;  // amp-seconds, 52.8 Ah
 
 //! The bus load: a duty-cycled instrument plus a steady housekeeping draw.
 //! Deterministic in the tick, so it repeats exactly.
-double loadCurrent(uint32_t seed, uint32_t tick) {
+double loadCurrent(uint32_t seed, uint32_t tick, double housekeeping) {
     const double phase = std::fmod(static_cast<double>(tick), 900.0);
     const double instrument = (phase < 420.0) ? 4.10 : 0.55;
-    const double housekeeping = 2.35;
     return housekeeping + instrument + 0.06 * plantNoise(seed, tick, 3u);
 }
 
 //! Solar input over the orbit, zero through eclipse.
-double solarInput(uint32_t seed, uint32_t tick) {
+double solarInput(uint32_t seed, uint32_t tick, double peakFactor) {
     const double phase = std::fmod(static_cast<double>(tick), ORBIT) / ORBIT;
     if (phase > (1.0 - ECLIPSE)) {
         return 0.0;
     }
     const double lit = phase / (1.0 - ECLIPSE);          // 0 .. 1 across daylight
     const double s = std::sin(lit * 3.14159265358979);
-    const double w = SOLAR_PEAK * s * s + 0.8 * plantNoise(seed, tick, 5u);
+    // D85: `peakFactor` is 1.0 exactly unless healthy ageing is configured, and
+    // SOLAR_PEAK * 1.0 is SOLAR_PEAK bit for bit, so the unaged run is unchanged.
+    const double w = (SOLAR_PEAK * peakFactor) * s * s + 0.8 * plantNoise(seed, tick, 5u);
     return (w > 0.0) ? w : 0.0;      // an array does not generate negative power
 }
 
@@ -73,6 +74,28 @@ void PowerPlant::reset(uint32_t seed) {
     }
 }
 
+void PowerPlant::configureAgeing(uint32_t start, double tau, double solarLoss,
+                                 double emisLoss) {
+    m_ageing = true;
+    m_ageStart = start;
+    m_ageTau = (tau > 0.0) ? tau : 1.0;
+    m_solarLoss = solarLoss;
+    m_emisLoss = emisLoss;
+}
+
+void PowerPlant::configureBalance(double housekeeping, double shuntSoc) {
+    m_balanced = true;
+    m_housekeeping = housekeeping;
+    m_shuntSoc = shuntSoc;
+}
+
+double PowerPlant::ageing() const {
+    if (!m_ageing || (m_tick < m_ageStart)) {
+        return 0.0;
+    }
+    return 1.0 - std::exp(-static_cast<double>(m_tick - m_ageStart) / m_ageTau);
+}
+
 void PowerPlant::step(bool faultActive, double faultRate) {
     // (!) THE FAULT TOUCHES ONE SCALAR AND NOTHING ELSE. Every other channel
     // moves because the physics couples it. That is what makes the anomaly
@@ -82,8 +105,14 @@ void PowerPlant::step(bool faultActive, double faultRate) {
         m_r *= (1.0 + faultRate);
     }
 
-    const double solar = solarInput(m_seed, m_tick);
-    const double load = loadCurrent(m_seed, m_tick);
+    // D85: healthy ageing. Both factors are exactly 1.0 when it is not configured.
+    const double g = ageing();
+    const double peakFactor = m_ageing ? (1.0 - (m_solarLoss * g)) : 1.0;
+    const double emis = m_ageing ? (RAD_EMIS * (1.0 - (m_emisLoss * g))) : RAD_EMIS;
+
+    const double solar = solarInput(m_seed, m_tick, peakFactor);
+    // 2.35 A is the pre-D85 housekeeping draw, and it is what an unbalanced plant uses.
+    const double load = loadCurrent(m_seed, m_tick, m_balanced ? m_housekeeping : 2.35);
 
     // Open-circuit voltage falls with state of charge; the bus sags under load
     // by the cell's own internal resistance, which is the quantity degrading.
@@ -91,7 +120,13 @@ void PowerPlant::step(bool faultActive, double faultRate) {
     const double bus = vOc - (load * m_r);
 
     // Charge current is whatever the array can supply beyond the load.
-    const double charge = (bus > 1.0) ? ((solar / bus) - load) : -load;
+    double charge = (bus > 1.0) ? ((solar / bus) - load) : -load;
+
+    // D85: the shunt regulator, only on the balanced operating point. Above the
+    // shunt threshold a surplus is dumped rather than charged into the battery.
+    if (m_balanced && (m_soc >= m_shuntSoc) && (charge > 0.0)) {
+        charge = 0.0;
+    }
 
     // Coulomb count, clamped at both rails.
     m_soc += (charge * DT) / CAPACITY_AS;
@@ -109,7 +144,7 @@ void PowerPlant::step(bool faultActive, double faultRate) {
 
     const double toRad = K_CELL_RAD * (m_cell - m_rad);
     m_cell += ((ohmic - toRad) * DT) / CELL_C;
-    m_rad += ((toRad + (m_duty * HEATER_W) - (RAD_EMIS * (m_rad - T_SINK))) * DT) / RAD_C;
+    m_rad += ((toRad + (m_duty * HEATER_W) - (emis * (m_rad - T_SINK))) * DT) / RAD_C;
 
     m_v[CH_SOLAR_INPUT] = solar;
     m_v[CH_CHARGE_CURRENT] = charge;

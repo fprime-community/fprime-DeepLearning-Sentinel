@@ -156,7 +156,7 @@ def _repository_files(project_root):
 
 
 def test_the_repository_holds_code_and_docs_only(project_root):
-    """8 MiB, raised from 4 by D64. The byte count is not what keeps data out.
+    """12 MiB, raised from 8 by D85; from 4 by D64. The byte count is not what keeps data out.
 
     784 KB was the original agreement, raised to 4 MiB when the golden vectors were
     committed, and to 8 MiB when prose reached 92% of that. The cap exists to stop a
@@ -170,9 +170,13 @@ def test_the_repository_holds_code_and_docs_only(project_root):
     megabytes is still a defect worth failing on, and it is raised rather than left to
     strangle the additive documentation work D64 records. **The format refusals are
     unchanged, and they are the part that matters.**
+
+    D85 reached 8.0 MiB with no data file added: the largest files are still
+    `docs/MODELS.md` and `docs/DECISIONS.md`, and the rest of the growth is code and
+    tests. Raised on the same ground as D64, and the format refusals are unchanged.
     """
     total = sum(p.stat().st_size for p in _repository_files(project_root))
-    assert total < 8 * 1024 * 1024, f"repository is {total / 1048576:.1f} MiB"
+    assert total < 12 * 1024 * 1024, f"repository is {total / 1048576:.1f} MiB"
 
 
 def test_no_gitignored_output_is_mistaken_for_repository_content(project_root):

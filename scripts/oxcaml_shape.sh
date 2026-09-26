@@ -17,7 +17,8 @@
 # generated source, and the script exits non-zero on the first that fails:
 #
 #   SG1  strict sites in the generated deep_f32.ml equal the template's; assume 0
-#   SG2  -zero-alloc-check all over deep_f32, cycle_c, shadow59, shadow_c
+#   SG2  -zero-alloc-check all over deep_f32, cycle_c, shadow59, shadow_c, and --
+#        since D85 -- window56 and window_c, 56's healthy-window rule, now flown
 #   SG3  a deliberate allocation in the generated cycle must FAIL the build (AS7a)
 #   SG4  an out-of-range read inside a flown function RAISES (D82: bounds-checked)
 #   SG5  the object links: -output-complete-obj, the same module set as s61's tail
@@ -80,14 +81,16 @@ cd "${B}"
 # generated interface is the one found first (ocamlopt searches the current
 # directory before any -I) and nothing is written back into ${SRC}.
 cp "${SRC}/cycle_c.ml" "${SRC}/shadow59.ml" "${SRC}/shadow_c.ml" "${SRC}/retrainer.ml" \
-   "${SRC}/cycle_stubs.c" "${SRC}/shadow_stubs.c" "${SRC}/retrainer_stubs.c" \
-   "${SRC}/sentinel_cycle.h" "${SRC}/sentinel_shadow.h" "${SRC}/sentinel_retrainer.h" .
+   "${SRC}/window56.ml" "${SRC}/window_c.ml" \
+   "${SRC}/cycle_stubs.c" "${SRC}/shadow_stubs.c" "${SRC}/retrainer_stubs.c" "${SRC}/window_stubs.c" \
+   "${SRC}/sentinel_cycle.h" "${SRC}/sentinel_shadow.h" "${SRC}/sentinel_retrainer.h" \
+   "${SRC}/sentinel_window.h" .
 
 echo
 echo "-- SG1: the annotation count is the template's, and nothing is assumed"
 STRICT_T=$(grep -cE '\[@+zero_alloc strict\]' "${SRC}/deep_f32.ml")
 STRICT_G=$(grep -cE '\[@+zero_alloc strict\]' deep_f32.ml)
-ASSUME=$(cat deep_f32.ml cycle_c.ml shadow59.ml shadow_c.ml | grep -cE '\[@+zero_alloc[^]]*assume' || true)
+ASSUME=$(cat deep_f32.ml cycle_c.ml shadow59.ml shadow_c.ml window56.ml window_c.ml | grep -cE '\[@+zero_alloc[^]]*assume' || true)
 echo "   strict sites: template ${STRICT_T}, generated ${STRICT_G}; assume: ${ASSUME}"
 if [ "${STRICT_T}" != "${STRICT_G}" ] || [ "${ASSUME}" != "0" ]; then
     echo "   (!) SG1 FAILED"; exit 1
@@ -98,7 +101,8 @@ fi
 
 echo
 echo "-- SG2: the flown modules at this shape under -zero-alloc-check all"
-for m in deep_f32 cycle_c shadow59 shadow_c; do
+# D85: window56 (56's healthy-window rule) and its C surface are flown now too.
+for m in deep_f32 cycle_c shadow59 shadow_c window56 window_c; do
     ocamlopt -I "${SRC}" -c -g -zero-alloc-check all -warn-error +a -alert @all -O3 -I . "${m}.ml"
     echo "   ${m}: strict HOLDS"
 done
@@ -149,7 +153,8 @@ ocamlopt -I "${SRC}" -output-complete-obj -O3 -o cycle_complete.o \
     -I . "${SRC}/acc.cmx" "${SRC}/acc_int.cmx" \
     retrainer.ml retrainer_stubs.c \
     deep_f32.ml cycle_c.ml cycle_stubs.c \
-    shadow59.ml shadow_c.ml shadow_stubs.c
+    shadow59.ml shadow_c.ml shadow_stubs.c \
+    window56.ml window_c.ml window_stubs.c
 echo "   cycle_complete.o ($(wc -c < cycle_complete.o | tr -d ' ') bytes)"
 
 echo
@@ -169,6 +174,18 @@ clang++ -std=c++14 -fno-exceptions -fno-rtti ${FFLAGS} -O2 \
     -c "${SRC}/shape_harness.cpp" -o shape_harness.o
 clang++ -o shape_harness shape_harness.o cycle_complete.o flightobj/*.o -lm
 ./shape_harness flying.bin other.bin candidate.bin
+
+echo
+echo "-- SG7: the ground tools at this shape (D85): the same object, the same flight core"
+# `ground_tools train` reproduces a control exactly as the retrainer trains a candidate;
+# `ground_tools residual` is D78's res_held on the flight core itself. The ground gate
+# (`sentinel_toolkit gate`) runs these, so they are built with the shape they judge.
+clang++ -std=c++14 -fno-exceptions -fno-rtti ${FFLAGS} -O2 \
+    -I. -I"${ROOT}/flight/include" -I"$(ocamlopt -where)" \
+    -c "${SRC}/ground_tools.cpp" -o ground_tools.o
+clang++ -o ground_tools ground_tools.o cycle_complete.o flightobj/*.o -lm
+./ground_tools >/dev/null 2>&1 && { echo "   (!) ground_tools accepted no arguments"; exit 1; } || true
+echo "   ground_tools built"
 
 if [ "${EX1:-0}" = "1" ]; then
     SHARDS="${SHARDS:-10}"

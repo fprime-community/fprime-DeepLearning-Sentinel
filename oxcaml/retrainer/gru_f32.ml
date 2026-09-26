@@ -18,8 +18,8 @@
 
 (* D82: every element access below is bounds-checked. `acc.ml`
    supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
-   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
-   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+   call sites keep their spelling and every `[@zero_alloc strict]` site still
+   holds. `scripts/oxcaml_checked.sh` is the measurement. *)
 open Acc
 
 external to_f : float32 -> float = "%floatoffloat32"

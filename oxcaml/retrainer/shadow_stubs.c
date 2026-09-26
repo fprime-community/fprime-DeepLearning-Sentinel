@@ -118,3 +118,21 @@ int32_t sentinel_shadow_loss(float *out, uint32_t n)
     r = caml_callback(*f, ba);
     CAMLreturnT(int32_t, (int32_t)Int_val(r));
 }
+
+/* D85: the onboard warm start. No buffer crosses; the weights are already inside
+   the OCaml side, loaded by sentinel_shadow_load. */
+int32_t sentinel_shadow_warm(void)
+{
+    if (!shadow_ready()) {
+        return SENTINEL_SHD_ERR_NO_RUNTIME;
+    }
+    CAMLparam0();
+    CAMLlocal1(r);
+    const value *f = caml_named_value("sentinel_shd_warm");
+    if (f == NULL) {
+        CAMLreturnT(int32_t, SENTINEL_SHD_ERR_NO_RUNTIME);
+    }
+    r = caml_callback(*f, Val_unit);
+    CAMLreturnT(int32_t, (int32_t)Int_val(r));
+}
+

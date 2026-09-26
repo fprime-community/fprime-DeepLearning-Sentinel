@@ -59,19 +59,29 @@ let[@zero_alloc strict] seed_from salt =
     F32.set Deep_f32.coeff_y i 1.0
   done
 
-let init salt = guard (fun () -> seed_from salt; ok)
+let init salt = guard (fun () -> seed_from salt; Deep_f32.adam_reset (); ok)
 
-(* The caller's window, copied in. Fixed extent, checked before the copy. *)
-let[@zero_alloc strict] copy_window (w : f32) n =
-  for i = 0 to n - 1 do
+(* The caller's window, copied in. Fixed extent, checked before the copy.
+
+   D85: THE WINDOW NOW CARRIES ITS TARGET. It is (t_max + P) rows of `ins` values:
+   the first t_max rows are the input sequence and the last P rows are the future
+   block the forecast is trained against -- lstm.py's SequenceSampler pair, laid out
+   in the head's (prediction, channel) order, which is row-major over those P rows.
+   Until D85 it was t_max rows and nothing to learn from. *)
+let[@zero_alloc strict] copy_window (w : f32) n_in =
+  for i = 0 to n_in - 1 do
     F32.set Deep_f32.x_seq i (F32.get w i)
+  done;
+  for i = 0 to Deep_f32.n_out - 1 do
+    F32.set Deep_f32.tgt i (F32.get w (n_in + i))
   done
 
 let load_window (w : f32) =
   guard (fun () ->
     let n = Bigarray.Array1.dim w in
-    if n <> Deep_f32.t_max * Deep_f32.ins then err_shape
-    else begin copy_window w n; ok end)
+    let n_in = Deep_f32.t_max * Deep_f32.ins in
+    if n <> n_in + Deep_f32.n_out then err_shape
+    else begin copy_window w n_in; ok end)
 
 let run budget t_steps admit =
   guard (fun () ->

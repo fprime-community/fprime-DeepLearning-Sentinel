@@ -104,12 +104,15 @@ def test_off_exports_exactly_what_it_did_before_d84(tmp_path: pathlib.Path) -> N
 
 
 def test_on_exports_the_retrainer_as_well(tmp_path: pathlib.Path) -> None:
-    """On this host (the only one the project has built on) the platform check passes."""
+    """On this host (the only one the project has built on) the platform check passes.
+
+    Since D85 ON also exports `Sentinel/SampleTap`, the component a mission puts in front
+    of its Monitor to copy each sample to the retrainer; OFF still exports neither."""
     rc, exported, core, log = _exports(tmp_path, LIBRARY, "-DSENTINEL_WITH_RETRAINER=ON")
     if rc != 0 and SUPPORTED_MESSAGE in " ".join(log.split()):
         pytest.skip("this host is not one OxCaml supports; the refusal is tested below")
     assert rc == 0, log[-3000:]
-    assert exported == BEFORE_D84 | {"Sentinel/Retrainer"}, exported
+    assert exported == BEFORE_D84 | {"Sentinel/SampleTap", "Sentinel/Retrainer"}, exported
     assert core
 
 

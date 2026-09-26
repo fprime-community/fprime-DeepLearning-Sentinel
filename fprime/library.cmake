@@ -58,5 +58,7 @@ if (SENTINEL_WITH_RETRAINER)
     include("${CMAKE_CURRENT_LIST_DIR}/Sentinel/Retrainer/retrainer_platform.cmake")
     sentinel_retrainer_check_platform("${CMAKE_SYSTEM_NAME}" "${CMAKE_SYSTEM_PROCESSOR}"
                                       "${CMAKE_CROSSCOMPILING}")
+    # D85: the telemetry path to the retrainer, exported with it and only with it.
+    add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Sentinel/SampleTap")
     add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Sentinel/Retrainer")
 endif()

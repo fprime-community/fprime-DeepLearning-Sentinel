@@ -221,7 +221,7 @@ def test_every_gate_holds_at_the_generated_shape(
     log = result.stdout + result.stderr
     assert result.returncode == 0, log[-4000:]
     for gate in ("strict HOLDS", "rejected:", "RAISED: Invalid_argument",
-                 "HO1 at this shape: all checks passed",
+                 "the cycle at this shape: all checks passed",
                  f"== shape c{channels}-p{predictions}: every gate passed =="):
         assert gate in log, (gate, log[-4000:])
 
@@ -245,7 +245,8 @@ def _ex1(name: str) -> dict:
             "worst": m.group(5)}
 
 
-def _ex1_faults(run: dict, n_params: int) -> list[str]:
+def _ex1_faults(run: dict, n_params: int,
+                harness: str = "HO1 at this shape: all checks passed") -> list[str]:
     faults = []
     if run["checked"] != n_params:
         faults.append(f"checked {run['checked']}, not every one of {n_params}")
@@ -255,8 +256,7 @@ def _ex1_faults(run: dict, n_params: int) -> list[str]:
         faults.append("the shard-0 validation did not hold")
     if "EX1 -> HOLD" not in run["text"]:
         faults.append("no HOLD verdict")
-    for gate in ("strict HOLDS", "rejected:", "RAISED: Invalid_argument",
-                 "HO1 at this shape: all checks passed"):
+    for gate in ("strict HOLDS", "rejected:", "RAISED: Invalid_argument", harness):
         if gate not in run["text"]:
             faults.append(f"the log lacks '{gate}'")
     return faults

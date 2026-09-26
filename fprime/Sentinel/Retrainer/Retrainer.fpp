@@ -49,6 +49,10 @@ module Sentinel {
         FILE_OPEN     = 3
         @ Os::File::write, short or refused
         FILE_WRITE    = 4
+        @ D85: the flying model file could not be read or was refused by the replica
+        FLYING_READ   = 5
+        @ D85: the training loop (window rule, cycle, warm start) returned a failure
+        LOOP          = 6
     }
 
     @ The retrainer: an F' component that calls into an OxCaml object.
@@ -70,101 +74,85 @@ module Sentinel {
         # Ports
         # ----------------------------------------------------------------------
 
-        @ The rate-group tick. Passive with a sync Svc.Sched input, which is what
-        @ F's own component-and-port-selection.md prescribes for cyclic work and
-        @ what `Sentinel.Monitor` already does (D32).
+        @ The rate-group tick. Every OCaml entry point runs on THIS thread, through
+        @ RetrainLoop: OCaml 5 pins the domain lock to the thread that booted the
+        @ runtime (docs/MODELS.md 65.10), and the boot happens here, on the first tick.
         sync input port schedIn: Svc.Sched
 
+        @ D85: the detector's samples, from the SampleTap in the detector's process,
+        @ over the hub. The handler runs on the hub's receive thread, so it only
+        @ queues -- under a short lock, into a fixed queue -- and never calls OCaml.
+        sync input port sampleIn: SentinelTappedSample
+
         # ----------------------------------------------------------------------
-        # Telemetry
+        # Telemetry -- five channels, in the id range HubCounter counts
         # ----------------------------------------------------------------------
 
-        @ Samples accumulated since init
-        telemetry SampleCount: U32
+        @ Samples received from the tap (one per detector tick)
+        telemetry SamplesReceived: U32
 
-        @ The accumulator's running sum, F64 -- the shape
-        @ `flight/src/TrailingWindow.cpp` already uses, never differenced float32
-        @ prefix sums, which is D37's defect
-        telemetry Sum: F64
+        @ Training steps taken on admitted, healthy windows since boot
+        telemetry Admitted: U32
 
-        @ The accumulator's mean, or 0 when nothing has been fed
-        telemetry Mean: F64
+        @ Candidates written since boot
+        telemetry Candidates: U32
 
-        @ The OCaml side's last verdict
+        @ The last status the loop returned
         telemetry LastStatus: RetrainerStatus
 
-        @ Optimiser steps the last retraining cycle took (docs/MODELS.md 61).
-        @ D73 fixes it per cycle, so a value other than the budget is a defect
-        @ and not a measurement.
-        telemetry CycleSteps: I32
+        @ Samples the sequence numbers say were lost in transit, fed to the loop as
+        @ missed (invalid) ticks
+        telemetry SamplesMissed: U32
 
         # ----------------------------------------------------------------------
         # Events
         # ----------------------------------------------------------------------
 
-        @ The OCaml runtime started and the five registered closures resolved
-        event RuntimeBooted(
-                             capacity: U32
-                           ) \
+        @ The OCaml runtime started, the replica loaded the flying model, and the cycle
+        @ warm-started from its weights
+        event RetrainerReady(
+                              channels: U32
+                              schedule: U32
+                            ) \
             severity activity high \
             id 0 \
-            format "OxCaml retrainer booted, accumulator sized {}"
+            format "Retrainer ready: {} channels, a candidate every {} admitted steps"
 
-        @ The runtime could not be started, or its closures were absent. The
-        @ component does nothing further; it raises no other event and it never
-        @ retries, because a runtime that did not start is not a transient fault.
+        @ The runtime could not be started, or its closures were absent. The component
+        @ does nothing further and never retries.
         event RuntimeUnavailable() \
             severity warning high \
             id 1 \
             format "OxCaml retrainer runtime unavailable; component is inert"
 
-        @ One step completed and the accumulator was read back across the boundary
-        event StepComplete(
-                            count: U32
-                            sum: F64
-                            mean: F64
-                          ) \
-            severity activity low \
-            id 2 \
-            format "OxCaml retrainer step: {} samples, sum {}, mean {}" \
-            throttle 10
-
-        @ The OCaml side refused a call and said why. One event over all seven
-        @ refusal codes, the way `Sentinel.Monitor`'s ModelRefused covers its own.
+        @ The loop refused a call and said why
         event CallRefused(
                            status: RetrainerStatus
                          ) \
             severity warning low \
             id 3 \
-            format "OxCaml retrainer refused a call: {}"
+            format "OxCaml retrainer refused a call: {}" \
+            throttle 10
 
-        @ HO1/HO2: a candidate model file was written by this process, with the
-        @ metrics the ground needs beside it.
+        @ A candidate model file was written, with what the ground gate needs to judge
+        @ it: its own static_crc32, the steps it was trained for, and the first and last
+        @ ticks of the data it was trained on (docs/DECISIONS.md D85).
         @
-        @ (!) crc32 IS THE FILE'S OWN static_crc32, read back from offset 44 of
-        @ the exported bytes (`shadow59.ml:36,93`). It crosses by a DIFFERENT path
-        @ from the file itself -- this event over the hub, the file over
-        @ FileDownlink -- so the ground checks the bytes it received against a
-        @ number that did not travel with them.
-        @
-        @ (!) AND THIS IS NOT THE PRE-LAUNCH SANITY REPORT. Parts (i) and (ii) of
-        @ `Objective.md` section 12's gate are computed on the GROUND from the
-        @ downlinked candidate. Nothing onboard scores a held-out window; that is
-        @ owed and `docs/MODELS.md` 72.6 carries it.
+        @ (!) THIS IS NOT A CERTIFICATION. Nothing onboard scores a candidate; the ground
+        @ gate does, and a human approves every swap (Objective.md 11 rule 1).
         event CandidateWritten(
                                 sizeBytes: U32
                                 crc32: U32
-                                steps: I32
-                                loss: F32
-                                samples: U32
+                                steps: U32
+                                firstTick: U32
+                                lastTick: U32
                               ) \
             severity activity high \
             id 4 \
-            format "Candidate written: {} B, static_crc32 {}, {} steps, loss {}, {} samples" \
+            format "Candidate written: {} B, static_crc32 {}, {} steps on ticks {}..{}" \
             throttle 5
 
-        @ The candidate could not be built or written. One event over every
-        @ failure on that path, the way CallRefused covers the accumulator's.
+        @ The candidate could not be built or written
         event CandidateRefused(
                                 stage: CandidateStage
                                 code: I32
@@ -174,15 +162,22 @@ module Sentinel {
             format "Candidate refused at {}: code {}" \
             throttle 5
 
+        @ Samples were lost between the tap and here
+        event SamplesLost(
+                           missed: U32
+                         ) \
+            severity warning low \
+            id 6 \
+            format "{} samples lost in transit; fed to the loop as missed ticks" \
+            throttle 5
+
         # ----------------------------------------------------------------------
         # Framework ports
         # ----------------------------------------------------------------------
         #
-        # (!) NO COMMAND PORTS, AND NO PARAMETERS. This component declares no
-        # parameter, so F' does not require a command recv port, and it therefore
-        # declares none at all -- which also means the -Wshadow collision the
-        # header of this file describes cannot arise here. Objective.md 11 rule 3
-        # governs it now that it is exported: it commands nothing.
+        # (!) NO COMMAND PORTS, AND NO PARAMETERS. It commands nothing and is commanded
+        # by nothing: a candidate reaches the detector only through the ground gate and
+        # a human's RELOAD_MODEL (Objective.md 11 rules 1 and 3).
 
         @ Port for requesting the current time
         time get port timeCaller

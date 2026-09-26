@@ -40,7 +40,9 @@ int32_t sentinel_cycle_boot(void);
 /* Seeds a reproducible starting model. */
 int32_t sentinel_cycle_init(int32_t salt);
 
-/* Copies the caller's window in. `n` is in float32 elements. */
+/* Copies the caller's window in. `n` is in float32 elements and must be
+   (t_max + P) * channels: t_max input rows, then the P-row future block the
+   forecast is trained against (D85 -- until then it was t_max rows and no target). */
 int32_t sentinel_cycle_load(const float *window, uint32_t n);
 
 /* Runs one retraining cycle: exactly `budget` optimiser steps (D73), over

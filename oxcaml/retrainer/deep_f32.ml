@@ -20,8 +20,8 @@
 
 (* D82: every element access below is bounds-checked. `acc.ml`
    supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
-   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
-   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+   call sites keep their spelling and every `[@zero_alloc strict]` site still
+   holds. `scripts/oxcaml_checked.sh` is the measurement. *)
 open Acc
 
 external to_f : float32 -> float = "%floatoffloat32"
@@ -84,6 +84,15 @@ let h_cur1 = mk hs
 let h_final1 = mk hs
 let y = mk n_out
 let coeff_y = mk n_out
+(* D85: the TARGET -- the P x C block of values that follows the input window, in the
+   head's own (prediction, channel) order. Until D85 this module had no target: its
+   loss was 57's head-only TEST functional, sum(coeff_y * y), a vehicle for proving
+   gradients, and the flown cycle therefore learned nothing. The loss is now the
+   ground's own objective, lstm.py's MSE against the future block, with coeff_y kept
+   as a per-output weight (1.0 in flight; the gradient checks fill it). *)
+let tgt = mk n_out
+let inv_n = of_f (1.0 /. float_of_int n_out)
+let two_inv_n = of_f (2.0 /. float_of_int n_out)
 
 let proj = mk gw
 let rec_ = mk gw
@@ -211,7 +220,9 @@ let[@zero_alloc strict] forward_deep t_steps =
       acc := add !acc (mul (get p (o_hw + (i * hs) + j)) (get h_final1 j))
     done;
     set y i !acc;
-    let term = mul (get coeff_y i) !acc in
+    (* D85: coeff_y * (y - target)^2 / n_out -- lstm.py:668's MSE, per output. *)
+    let d = sub !acc (get tgt i) in
+    let term = mul (get coeff_y i) (mul (mul d d) inv_n) in
     Array.unsafe_set loss_out 0 ((Array.unsafe_get loss_out 0) +. (to_f term));
     Array.unsafe_set s_out 0 ((Array.unsafe_get s_out 0) +. (Float.abs (to_f term)))
   done
@@ -223,7 +234,8 @@ let[@zero_alloc strict] backward_deep t_steps =
   zero_grads ();
   for j = 0 to hs - 1 do set carry1 j zero; set carry0 j zero done;
   for i = 0 to n_out - 1 do
-    let gy = get coeff_y i in
+    (* D85: d loss / d y = coeff_y * 2 (y - target) / n_out. *)
+    let gy = mul (get coeff_y i) (mul two_inv_n (sub (get y i) (get tgt i))) in
     set g (o_hb + i) (add (get g (o_hb + i)) gy);
     for j = 0 to hs - 1 do
       let idx = (i * hs) + j in
@@ -285,7 +297,11 @@ let[@zero_alloc strict] run_cycle budget t_steps admit =
   Array.unsafe_set steps_taken 0 0;
   if admit = 0 then ()                     (* 56's gate refused the window *)
   else begin
-    adam_reset ();
+    (* D85: THE OPTIMISER'S STATE PERSISTS ACROSS CYCLES. It was reset here on every
+       call, which at a budget of 1 per tick makes every step a FIRST Adam step --
+       m = g, v = g^2, update = lr * g / |g| -- i.e. sign descent moving every weight by
+       lr per tick regardless of its gradient. The reset now happens where a training
+       run begins: the warm start (shadow_c.ml) and the seed (cycle_c.ml). *)
     for _ = 1 to budget do
       forward_deep t_steps;
       backward_deep t_steps;

@@ -58,7 +58,9 @@ UNCHECKED = re.compile(r"\bArray1?\.unsafe_(?:get|set)\b")
 #: they contain the primitive by construction, and counting them would make the
 #: disclosure drift every time the instrument is touched.
 EXCLUDED = {"acc.ml", "acc_int.ml", "acc_unchecked.ml"}
-STRICT_SITES = 56
+#: D85 moved it 56 -> 57: `shadow_c.ml`'s `copy_weights_in`, the onboard warm start
+#: (D76), is annotated. Moved with its reason, in the commit that added it.
+STRICT_SITES = 57
 ASSUME_SITES = 0
 
 #: (!) D82 SPLIT THIS FIGURE IN TWO, AND THE SPLIT IS THE POINT. The call sites keep
@@ -66,7 +68,9 @@ ASSUME_SITES = 0
 #: resolves that name to the CHECKED operation, so the diff stayed small and the sites
 #: stayed greppable. Counting the spelling therefore no longer says what is checked;
 #: whether the module opens an accessor does.
-CHECKED_THROUGH_ACCESSOR = 502
+#: D85 moved it 502 -> 505: the MSE loss reads the target block in the forward and
+#: the backward pass (`deep_f32.ml`), and the warm start writes through the accessor.
+CHECKED_THROUGH_ACCESSOR = 505
 
 #: What is genuinely unchecked, and it is only the drivers: `*_check.ml` and
 #: `deep_f32_exhaustive.ml`, each of which opens with its own "not annotated and not

@@ -63,6 +63,9 @@ module SentinelRetrain {
     connections Hub {
       retrainer.logOut -> hub.eventIn
       retrainer.tlmOut -> hub.tlmIn
+      # D85: the detector's samples, from SentinelRef's SampleTap (its hub.serialIn[0]),
+      # arrive on this hub's matching serial output. The handler only queues.
+      hub.serialOut[0] -> retrainer.sampleIn
     }
 
     connections HubTransport {
