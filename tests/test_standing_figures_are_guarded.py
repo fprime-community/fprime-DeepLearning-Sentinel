@@ -32,8 +32,10 @@ ROOT = Path(__file__).resolve().parents[1]
 #: changes it has changed what every earlier figure was measured against.
 WEIGHT_STORE = 1313
 
-#: D64. The hard cap on tracked content.
-CAP_MIB = 8.0
+#: D64. The hard cap on tracked content. D64.1 (2026-09-27) raised it from 8.0 on D64's own
+#: ground: what grew is prose and test vectors, never data, and the kind guards in
+#: `tests/test_no_local_persistence.py` are what keep data out.
+CAP_MIB = 12.0
 
 #: `docs/MODELS.md` 39's N8: under 6 MiB holds, 6 to 7 is no verdict, above the
 #: stop is **a stop -- report rather than trimming coverage to fit**. This test

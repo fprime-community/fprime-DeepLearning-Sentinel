@@ -7,8 +7,9 @@
 SMAP/MSL is read from R2 INTO MEMORY in each phase and nothing but results is written
 (D86.4: no dataset copy on the Mac). Every object is checked against its manifest sha256;
 every operation is counted and committed to the ledger. The cached univariate fits are read
-under their original key (79.2). `eval` refuses unless `runs/d86/a6_frozen.json` is
-byte-identical to `tests/fixtures/d86/a6_frozen.json` at HEAD and the tracked tree is clean.
+under their original key (79.2). `eval` refuses unless the frozen file is byte-identical
+to the fixture committed at HEAD and the tracked tree is clean. A6 failed at TUNE and was
+never frozen (MODELS 79.14), so that fixture does not exist.
 No wall-clock figure is printed (stop 35).
 """
 from __future__ import annotations

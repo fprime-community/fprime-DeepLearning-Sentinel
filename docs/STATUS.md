@@ -494,7 +494,7 @@ operations between them.
   39's N8 middle band -- **but D77 re-derived N8 as a vectors-only figure**, so the band that
   applies to a new tier is the **vectors'**: they are **2.0924 MiB**, inside N8's HOLD band
   with **5,146,037 B** under its 7 MiB stop. The binding limit on the tree as a whole is now
-  D64's 8 MiB cap, **522,581 B** away, and it is prose rather than vectors that is spending it -- it was 768,620 B on 2026-09-20 and five sections of record have cost the difference.
+  D64's cap -- **12 MiB since D64.1** (2026-09-27; it was 8 MiB, and tracked content had reached 8.34 MiB) -- **3,833,893 B** away, and it is prose and test vectors, not data, that spend it; moving the vectors out of the tree is owed (D64.1 R3).
 - **The stride reduction** (`docs/MODELS.md` 43), which 37.7a recorded and declined to
   register. Its cost half is **arithmetic once 41's R6 lands** -- `mean(S) = m(1 + (R-1)/S)` --
   and its structural half is derivable from A6's committed table. **(!) The lever is confounded

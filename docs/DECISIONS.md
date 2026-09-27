@@ -8240,3 +8240,32 @@ MODELS 79.12 records the measurement and the disclosure.
   - fault sizes set against the model's residual floor;
   - a context model that sees at least an orbit and more than 20,000 ticks;
   - an excess-over-control attribution rule (MODELS 80.7).
+
+### D64.1 Rider, 2026-09-27: the tracked-content cap is raised to 12 MiB, and moving the test vectors out of the tree is owed
+
+**D64 is not edited.** D64 consequence 5 said that when tracked content reaches 8 MiB, "the same
+question is asked again, and the answer may then be that prose belongs somewhere else."
+
+**It reached 8.02 MiB before D86 began, and 8.33 MiB after D86's records.** So the question was
+asked and three routes were costed:
+
+```
+  R1  raise the cap to 12 MiB           TAKEN now  one constant and this rider
+  R2  move closed MODELS sections and   REFUSED    about 1.3 MiB saved, but hundreds of "MODELS
+      reorg_plan.json to an archive tag            26.18"-style citations must keep resolving
+  R3  generate the flight vectors at    OWED       about 2.2 MiB saved (flight/test is 2.17 MiB;
+      build time from their                        t3 0.53, d2 0.39, t2 0.26); needs sha256
+      deterministic generators, pinned             pins so they stay a checked cross-language
+      by sha256                                    reference, and makes `make test` depend on
+                                                   the Python generators
+```
+
+**Why R1 is right on D64's own ground.**
+- What grew is prose (the models record at 1.47 MiB, the decisions record at 0.49 MiB) and
+  test vectors (2.17 MiB) -- never data.
+- The format refusals in `tests/test_no_local_persistence.py` are what keep data out. D64 found
+  the byte count "was never the guard".
+- The working-tree backstop in that file was already 12 MiB (D85).
+
+**The owner's decision:** R1 now, and **R3 later as planned work** -- its own pre-registration,
+with the pins and the Makefile change -- before the cap is next approached.
