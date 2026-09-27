@@ -1,0 +1,95 @@
+[WARNING] Running as root is not recommended
+== D84: the retraining cycle at channels 8, predictions 10 ==
+   shape: 8 channels, 10 predictions, hidden [80, 80], window 250, 66,960 parameters
+   ocamlopt 5.2.0+ox
+
+-- SG1: the annotation count is the template's, and nothing is assumed
+   strict sites: template 10, generated 10; assume: 0
+
+-- SG2: the flown modules at this shape under -zero-alloc-check all
+   deep_f32: strict HOLDS
+   cycle_c: strict HOLDS
+   shadow59: strict HOLDS
+   shadow_c: strict HOLDS
+   window56: strict HOLDS
+   window_c: strict HOLDS
+
+-- SG3: a deliberate allocation in the generated cycle must FAIL the build
+   rejected: called function may allocate (external call to caml_array_make)
+
+-- SG4: an out-of-range read inside a flown function RAISES
+   forward_deep (t_max + 1) -> RAISED: Invalid_argument index out of bounds
+
+-- SG5: the component's object at this shape (E1's surface, 61's cycle, 72's shadow)
+   cycle_complete.o (5470400 bytes)
+
+-- SG6: HO1 at this shape
+   wrote flying.bin -- 268,224 B, 8 channels, hidden (80, 80), 66,960 float32 weights
+   wrote other.bin -- 302,048 B, 16 channels, hidden (80, 80), 75,360 float32 weights
+   matches deep_f32.ml:41's n_params: True
+== the cycle at the generated shape: 8 channels, 10 predictions, 66960 parameters ==
+   the flying file at this shape is readable                          ok
+   a flying file at another shape is readable                         ok
+   the runtime boots                                                  ok
+   the cycle initialises                                              ok
+   the other-shape flying bytes load into the shadow                  ok
+   a warm start from a file at ANOTHER shape is REFUSED               ok
+   the flying bytes load into the shadow                              ok
+   the cycle warm-starts from the flying file                         ok
+   the warm-started weights export                                    ok
+   the warm start is the flying file's weights, bit for bit           ok
+   the window loads with its target block ((t_max + P) x C)           ok
+   a window without its target block is REFUSED                       ok
+   step 1 runs                                                        ok
+   loss at step 1 1.360592e-01, at step 30 2.209741e-03
+   the forecast loss FALLS over 30 steps on one window                ok
+   a refused window (admit 0) takes no step                           ok
+   the trained weights export                                         ok
+   training moved the weights off the flying model's                  ok
+   the cycle's weights fit the flying file                            ok
+   the candidate is the flying file's size                            ok
+   HO1  Detector::load(candidate) -> OK
+   Detector::load accepts the candidate                               ok
+   the candidate declares this shape's channels                       ok
+   the candidate declares this shape's predictions                    ok
+   the cycle's weights are REFUSED by a file at another shape         ok
+   the window rule resets                                             ok
+   a push of 2 is REFUSED at the boundary                             ok
+   W - 1 quiet ticks: REFUSED (G-suff)                                ok
+   W quiet ticks: ADMITTED                                            ok
+   one limit tick in the window: REFUSED (G-limit)                    ok
+   the candidate is written                                           ok
+   the cycle at this shape: all checks passed
+
+-- SG7: the ground tools at this shape (D85): the same object, the same flight core
+   ground_tools built
+
+-- EX1 at this shape: every parameter index against 51's criterion
+   validation: deep_f32_check.ml at stride 1021 and exhaustive shard 0 of 1021
+      AS4  T = 250, S = 3.126570e-03, atol = 1.908307e-07, h_rel = 3.906250e-03
+           outside 0 of 66 checked; worst |err| 1.129311e-07; worst err/allowed 0.5916
+   SHARD 0 1021 checked=66 outside=0 worst=1.129311253e-07 ratio=0.591595 idx=39819 S=3.126570e-03 atol=1.908307e-07
+   shard 0 of 1021 reproduces deep_f32_check.ml at this shape: True
+   16 shards
+   SHARD 0 16 checked=4185 outside=0 worst=1.544590188e-07 ratio=0.809365 idx=36736 S=3.126570e-03 atol=1.908307e-07
+   SHARD 1 16 checked=4185 outside=0 worst=1.332805721e-07 ratio=0.698423 idx=14385 S=3.126570e-03 atol=1.908307e-07
+   SHARD 2 16 checked=4185 outside=0 worst=1.310276608e-07 ratio=0.686615 idx=9842 S=3.126570e-03 atol=1.908307e-07
+   SHARD 3 16 checked=4185 outside=0 worst=1.227110428e-07 ratio=0.643036 idx=48243 S=3.126570e-03 atol=1.908307e-07
+   SHARD 4 16 checked=4185 outside=0 worst=1.472294175e-07 ratio=0.771392 idx=34532 S=3.126570e-03 atol=1.908307e-07
+   SHARD 5 16 checked=4185 outside=0 worst=1.579132994e-07 ratio=0.827476 idx=1173 S=3.126570e-03 atol=1.908307e-07
+   SHARD 6 16 checked=4185 outside=0 worst=1.590238724e-07 ratio=0.833018 idx=36598 S=3.126570e-03 atol=1.908307e-07
+   SHARD 7 16 checked=4185 outside=0 worst=1.668008881e-07 ratio=0.874024 idx=15239 S=3.126570e-03 atol=1.908307e-07
+   SHARD 8 16 checked=4185 outside=0 worst=1.507423730e-07 ratio=0.789904 idx=19512 S=3.126570e-03 atol=1.908307e-07
+   SHARD 9 16 checked=4185 outside=0 worst=1.567250212e-07 ratio=0.821226 idx=15545 S=3.126570e-03 atol=1.908307e-07
+   SHARD 10 16 checked=4185 outside=0 worst=1.505757185e-07 ratio=0.789043 idx=21466 S=3.126570e-03 atol=1.908307e-07
+   SHARD 11 16 checked=4185 outside=0 worst=1.522611452e-07 ratio=0.797583 idx=35259 S=3.126570e-03 atol=1.908307e-07
+   SHARD 12 16 checked=4185 outside=0 worst=1.441430931e-07 ratio=0.755325 idx=54860 S=3.126570e-03 atol=1.908307e-07
+   SHARD 13 16 checked=4185 outside=0 worst=1.494517215e-07 ratio=0.783163 idx=4365 S=3.126570e-03 atol=1.908307e-07
+   SHARD 14 16 checked=4185 outside=0 worst=1.417324010e-07 ratio=0.740121 idx=60190 S=3.126570e-03 atol=1.908307e-07
+   SHARD 15 16 checked=4185 outside=0 worst=1.356816078e-07 ratio=0.710990 idx=36975 S=3.126570e-03 atol=1.908307e-07
+   EXHAUSTIVE: checked 66,960  outside 0  worst ratio 0.874024 at idx 15239  worst |err| 1.668008881e-07
+   margin 1.144x
+   EX1 -> HOLD  (band: 0 outside of 66,960, every index checked)
+
+== shape c8-p10: every gate passed ==
+exit=0

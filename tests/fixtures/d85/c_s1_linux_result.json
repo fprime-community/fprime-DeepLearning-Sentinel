@@ -1,0 +1,195 @@
+{
+  "arm": "c",
+  "seed": 1,
+  "gates": [
+    {
+      "index": 1,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 37.9706% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 56.9901% < m = 77.1941%"
+      ],
+      "first": 6030,
+      "last": 46016,
+      "part_i": 0.5699007705902959,
+      "m": 0.7719413769794624,
+      "F": 0.37970554696481185,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_1.json"
+    },
+    {
+      "index": 2,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 69.5860% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 55.1361% < m = 141.4683%"
+      ],
+      "first": 45758,
+      "last": 80446,
+      "part_i": 0.5513608931447578,
+      "m": 1.4146832421516535,
+      "F": 0.6958599321946156,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_2.json"
+    },
+    {
+      "index": 3,
+      "verdict": "CERTIFY",
+      "reasons": [],
+      "first": 80188,
+      "last": 111356,
+      "part_i": 0.7118852797582659,
+      "m": 0.31146437234803753,
+      "F": 0.15320431497689993,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_3.json"
+    },
+    {
+      "index": 4,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 91.8985% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 68.5057% < m = 186.8296%"
+      ],
+      "first": 111098,
+      "last": 140663,
+      "part_i": 0.6850568909623164,
+      "m": 1.8682959534186394,
+      "F": 0.9189847286860008,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_4.json"
+    },
+    {
+      "index": 5,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 91.2550% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 76.7325% < m = 185.5213%",
+        "PART (ii): candidate gap 13.7702% > flying gap 7.3111%"
+      ],
+      "first": 140405,
+      "last": 162709,
+      "part_i": 0.7673253335197434,
+      "m": 1.8552134300110992,
+      "F": 0.9125496458490404,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_5.json"
+    },
+    {
+      "index": 6,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 71.3851% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 76.0207% < m = 145.1260%"
+      ],
+      "first": 162451,
+      "last": 188479,
+      "part_i": 0.7602069312387616,
+      "m": 1.4512600811793133,
+      "F": 0.7138514909883489,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_6.json"
+    },
+    {
+      "index": 7,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 80.0492% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 71.9822% < m = 162.7400%"
+      ],
+      "first": 188221,
+      "last": 210269,
+      "part_i": 0.7198222353182018,
+      "m": 1.6273997999425542,
+      "F": 0.8004917855103563,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_7.json"
+    },
+    {
+      "index": 8,
+      "verdict": "CERTIFY",
+      "reasons": [],
+      "first": 210011,
+      "last": 240797,
+      "part_i": 0.4229919555025886,
+      "m": 0.4073709963410383,
+      "F": 0.20037924069898588,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_8.json"
+    },
+    {
+      "index": 9,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 90.9146% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 60.4680% < m = 184.8295%",
+        "PART (ii): candidate gap 13.2796% > flying gap 7.0853%"
+      ],
+      "first": 240539,
+      "last": 265848,
+      "part_i": 0.6046795039380352,
+      "m": 1.8482946186012572,
+      "F": 0.9091463938028811,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_9.json"
+    },
+    {
+      "index": 10,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 62.0431% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 65.9156% < m = 126.1337%"
+      ],
+      "first": 265590,
+      "last": 290918,
+      "part_i": 0.6591555094636047,
+      "m": 1.2613371841555179,
+      "F": 0.6204314727769394,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_10.json"
+    },
+    {
+      "index": 11,
+      "verdict": "CERTIFY",
+      "reasons": [],
+      "first": 290660,
+      "last": 311289,
+      "part_i": 0.5461913260652075,
+      "m": 0.2755086212135468,
+      "F": 0.13551825932786365,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_11.json"
+    },
+    {
+      "index": 12,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 90.7058% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 75.0439% < m = 184.4048%"
+      ],
+      "first": 311031,
+      "last": 346939,
+      "part_i": 0.750439137343316,
+      "m": 1.8440480132190133,
+      "F": 0.9070575569203214,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_12.json"
+    },
+    {
+      "index": 13,
+      "verdict": "REFUSE",
+      "reasons": [
+        "FLOOR: F = 72.9860% exceeds 31.9283%; the floor is not a floor",
+        "PART (i): improvement 76.5701% < m = 148.3806%"
+      ],
+      "first": 346681,
+      "last": 372110,
+      "part_i": 0.7657009622720118,
+      "m": 1.4838060821189365,
+      "F": 0.7298603453610116,
+      "trend_inside": [],
+      "report": "runs/d85/c/s1/gate_13.json"
+    }
+  ],
+  "certified": 3
+}

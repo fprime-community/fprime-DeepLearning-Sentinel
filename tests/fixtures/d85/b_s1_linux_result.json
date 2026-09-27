@@ -1,0 +1,12 @@
+{
+  "arm": "b",
+  "seed": 1,
+  "first_yellow": 60344,
+  "gates": [],
+  "certified": 0,
+  "attributable_before_yellow": 62,
+  "first_attributable": 6120,
+  "admitted_steps": 0,
+  "admitted_after_onset": 0,
+  "share_after_onset": null
+}

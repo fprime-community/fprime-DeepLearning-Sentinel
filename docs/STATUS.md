@@ -608,7 +608,7 @@ seed.
 
 ```bash
 .venv/bin/python -m pytest -q                                    # 931 tests
-.venv/bin/python scripts/check_no_list.py                        # 122 files, no LIST, no glob
+.venv/bin/python scripts/check_no_list.py                        # 124 files, no LIST, no glob
 .venv/bin/python scripts/check_references.py                     # every citation resolves;
                                                                  # citations into an absent
                                                                  # fprime/lib/ SKIP (D79)
