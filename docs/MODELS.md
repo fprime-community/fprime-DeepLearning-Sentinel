@@ -23077,3 +23077,11 @@ as `tests/fixtures/d86/smap_frozen_linux_stop62.json`.
 - **Predictions P1-P9 are unchanged.**
 - A0's and A2's `z_res` still carry the unfloored degeneracy, because they are the flown
   rule's own term. On arm64 that is exactly D65's measurement.
+- **The first arm64 TUNE run then showed an implementation fault in item 2, not a new
+  decision.**
+  - A-1 and R-1 have one unique training value, but `np.std` of that constant returned
+    1.1e-16, not 0. The unit fallback therefore never fired, and their floor was 1e-19.
+  - A3 and A4 came out at 0/19 TUNE with their rate unmatched (0.0141%, stop 67).
+  - The same run held RG1-RG3 exactly: 5.288128 13/19, 4.431455 15/19, 0.550599 6/19.
+  - "Never moved" is now tested as max = min on the train split, which is what item 2 says.
+    SMAP/MSL was re-scored and TUNE re-run; the numbers that run showed are in its freeze file.

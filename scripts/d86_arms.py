@@ -188,8 +188,11 @@ def channel_scale(x_train, unit):
     is 0 (a channel that never moved in training). MODELS 79.11."""
     x = np.asarray(x_train, np.float64)
     x = x[np.isfinite(x)]
-    s = float(np.std(x)) if x.size else 0.0
-    return s if s > 0 else float(unit)
+    # "Never moved" is max == min, exactly: `np.std` of a constant can return 1.1e-16
+    # rather than 0 (A-1, R-1), which silently defeated the fallback at first.
+    if not x.size or np.ptp(x) == 0:
+        return float(unit)
+    return float(np.std(x))
 
 
 def terms_for(uni, joint, x, sd, span, smoothing, scale):
