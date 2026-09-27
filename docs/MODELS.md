@@ -749,6 +749,16 @@ prediction that failed and why. This document follows the same discipline.
   - [78.7 Falsification, and what each failure would mean](#787-falsification-and-what-each-failure-would-mean)
   - [78.8 Cost](#788-cost)
   - [78.9 Before any arm ran: the arm lengths, and one filter](#789-before-any-arm-ran-the-arm-lengths-and-one-filter)
+- [79 Pre-registration: the rate of change inside the forecaster -- D86's arms on SMAP/MSL and ESA-ADB (Phase 5)](#79-pre-registration-the-rate-of-change-inside-the-forecaster----d86s-arms-on-smapmsl-and-esa-adb-phase-5)
+  - [79.1 REQUIREMENTS DERIVED FROM:](#791-requirements-derived-from)
+  - [79.2 What changed before any run, and why each is not a result](#792-what-changed-before-any-run-and-why-each-is-not-a-result)
+  - [79.3 The algebra, stated before any run](#793-the-algebra-stated-before-any-run)
+  - [79.4 The constants](#794-the-constants)
+  - [79.5 Reproduction gates (TUNE phase; any failure stops the run and nothing is scored on EVAL)](#795-reproduction-gates-tune-phase-any-failure-stops-the-run-and-nothing-is-scored-on-eval)
+  - [79.6 What counts as beating D86.A0, fixed now](#796-what-counts-as-beating-d86a0-fixed-now)
+  - [79.7 Predictions (two-sided; from D65.3: z_res reached the cut on 0 of 30 caught events)](#797-predictions-two-sided-from-d653-z-res-reached-the-cut-on-0-of-30-caught-events)
+  - [79.8 Falsification, and what each failure would mean](#798-falsification-and-what-each-failure-would-mean)
+  - [79.9 Cost](#799-cost)
 
 <!-- /toc -->
 
@@ -22775,3 +22785,195 @@ This is also a finding about the design, stated before it is measured further: t
 is keyed on the detector's crossings, so a plant whose false alarms rise -- arm (a)'s premise --
 also admits less training data. Whether that stops arm (a) from producing a candidate is what
 the arm measures.
+
+## 79. Pre-registration: the rate of change inside the forecaster -- D86's arms on SMAP/MSL and ESA-ADB (Phase 5)
+
+**D86 is the owner's decision and this is its arm.** Every constant, prediction and criterion
+below is fixed before any D86 score, recall or rate is seen. The only D86 work before this
+section was apparatus: the smokes in 79.2, which computed no recall on anything.
+
+### 79.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D86          the arms, A4 primary, TUNE only, EVAL once, attribution,
+                                 both datasets, the cached store untouched, one machine
+  docs/DECISIONS.md D68, D68.3   the flown rule; a version-3 rule owed, a second dataset first
+  docs/DECISIONS.md D65, D65.3   the 0.6820% matched rate; z_residual 0 of 30; derivative-only
+  docs/MODELS.md 37.8, 37.9      the channel-disjoint TUNE/EVAL split; one lever per arm
+  docs/MODELS.md 38.3, 38.5      the multiplier is the rate dial only; raw |dx|, unsmoothed
+  docs/MODELS.md 37.11           stop if a term needs a value at t or later to score t
+  docs/MODELS.md 44.3            two-sided bands
+  docs/DECISIONS.md D47          per-channel proportional windows on SMAP/MSL
+  docs/DECISIONS.md D16          "downloaded" is not "verified"
+  docs/HARNESS.md 1              the underpowered stamp
+```
+
+### 79.2 What changed before any run, and why each is not a result
+
+- **(!) The weight cache has not been reachable since 2026-09-21.** Every file in
+  `runs/_weights` was written by 2026-09-09 under an eight-element key; 8a35810 (D76's warm
+  start) appended `init_weights` as a ninth, so today's `detectors.fit` misses all 1,313 and
+  would refit. **The first smoke found it**: on the remote machine, where the store is
+  immutable, the univariate fits for S-1 and E-2 tried to write it and were refused.
+  `Hyper.as_dict_key` and the digest helpers are unchanged since 2026-09-09, so
+  `scripts/d86_arms.py` rebuilds the eight-element key and loads READ ONLY; a miss is an
+  error, never a refit. **The reproduction gates (79.5) are what prove the lookup right.**
+  `detectors.py` is not changed. Any other script that relies on those fits today is
+  refitting silently or failing on its own store guard; that is reported, not fixed, here.
+- **`telemanom.ewma` is undefined at span 1** -- its closed form divides by (1 - alpha)^k = 0
+  -- and returned NaN for every step of the r = 1 terms in the smoke. Span 1 is "no
+  smoothing", which is the identity, and the runner returns the error unchanged there.
+- **`lstm.train` sets four torch threads at every call** (`lstm.THREADS`, chosen for the
+  Mac's mixed cores). Every D86 fit runs with one thread per worker process. This is not a
+  hyperparameter and was not chosen on any outcome.
+- **The smokes.** SMAP/MSL S-1 and E-2 -- in neither TUNE nor EVAL -- were fitted and
+  scored; ESA-ADB channel_41's three fold fits were started, fit only, and were still running
+  when this section was committed -- they are the fits the run itself makes, and are kept.
+  The SMAP smoke checked that every term is finite and that the univariate forecast and `e_s`
+  are `detectors._smoothed_errors`'s own, bit for bit. No recall, rate or cut was computed. The
+  runner refuses a smoke on a TUNE or EVAL channel.
+- **ESA-ADB's events were counted from the labels before any score:** 30 anomaly events
+  start in the TUNE folds and 16 in the EVAL fold (`d86_arms.py prep-esa`).
+- The data were mirrored once from R2 (177 + 3 Class B, reconciled into the ledger from the
+  Mac) and every object checked against its manifest sha256.
+
+### 79.3 The algebra, stated before any run
+
+Notation: `x(t)` telemetry; `f(t)` today's aggregated forecast (the mean of the predictions
+OF t made at origins t-1 ... t-10, each from inputs through its origin); `e = x - f`;
+`Z_W` the causal trailing standardisation over W samples, t included; `dx(t) = x(t) - x(t-1)`,
+`x(-1) := x(0)`. Today: `z_res = Z_W(EWMA_s(|e|))`, `z_der = Z_W(|dx|)`.
+
+```
+  A2  m(t) = dx(t) - (f(t) - f(t-1)) = e(t) - e(t-1)          z_mot = Z_W(|m|)
+      not z_res: a constant offset e = c gives a large z_res and m = 0
+      not z_der: a forecaster that tracks the motion (df = dx) gives m = 0 however large
+                 dx is; m = dx exactly only where the forecast is flat
+      |dx| - |df| <= |m| <= |dx| + |df|
+      the "expected rate" form dx(t) - (f(t) - x(t-1)) = e(t) is the residual: NOT RUN
+  A3  g forecasts [x, d], d = dx / sd(dx on the train split), and predicts both.
+      z_rate = Z_W(EWMA_r(|d - f_d|)), z_res(g) from g's x head as today
+      at one step, d - f_d = (e_x + [f_x - x(t-1) - sd * f_d]) / sd: the rate residual is
+      the level residual plus g's head disagreement, plus ten-origin averaging, with
+      lighter smoothing -- the only three routes by which A3 can differ from a residual
+  A5  p(t) = f^(t-2)(t) - f^(t-2)(t-1), the slope inside ONE forecast made at origin t-2
+      m5 = dx - p = [x(t) - f^(t-2)(t)] - [x(t-1) - f^(t-2)(t-1)]         z_slope = Z_W(|m5|)
+      a residual difference within one origin: neither the residual nor the derivative
+  K1  Z_W(EWMA_r(|e|)) with the univariate model: A3's lighter smoothing, without the rate
+```
+
+`tests/test_d86_statistics.py` pins every identity above, and causality (moving `x` after t
+leaves every score at or before t unchanged), before any run.
+
+### 79.4 The constants
+
+```
+  arms       D86.frozen  telemanom's rule; SMAP multiplier 0.550599 unchanged, ESA dial solved
+             D86.A0  max(z_res, z_der)                     today's fused rule    reference
+             D86.A1  z_der                                 D65.3                 reference
+             D86.A2  max(z_res, z_mot)                                           secondary
+             D86.A3  max(z_res(g), z_rate)                                       beside A4
+             D86.A4  max(z_res(g), z_rate, z_der)          PRIMARY CANDIDATE (D86 dec. 2)
+             D86.A5  max(z_res, z_slope)                                         secondary
+             D86.K1  max(z_res, Z_W(EWMA_r(|e|)))          control for A3, never a candidate
+  g          `gru-telemanom` at today's Hyper exactly (window 250, 80/80, dropout 0.3, 35
+             epochs, patience 10, seed 0, 10 predictions), inputs [x, d], outputs both;
+             one thread per fit; new fits in runs/_weights_d86 only
+  r          rate-residual EWMA span in {1 (none), 3, 10}, chosen by D86.A4's TUNE catches
+             at the matched rate, ties to the smaller r; A3 and K1 use the same r
+  rate       0.6820% (0.006819635242388942, stage 4), 0.6838% beside it; one cut per arm,
+             matched within 2% by `decision_layer_arms.solve_threshold`'s rule
+  SMAP/MSL   77 scored channels; the 19/19 channel-disjoint split (37.8); the 38 contextual,
+             in-range events; `proportional_config` windows (D47); caught = any alarm in
+             [lo, hi]; the cut is solved on POOLED nominal steps over every scored channel,
+             EVAL's included, as the headline was (disclosed); a TUNE-channels-only cut is
+             REPORTED, NOT TARGETED
+  ESA-ADB    m1-g8.9.10, 12 channels, univariate per channel, forward-chaining 3 folds
+             (seed 25%); TUNE = the test windows of folds 1-2 (30 events), EVAL = fold 3's
+             (16 events); W 2,100, span 105 (the flown values); cuts solved on TUNE nominal
+             steps, EVAL's rate realised and reported; an event is caught if an alarm falls
+             in its segment on any channel it is labelled on, within its own side's window;
+             nominal = observed, scorable, not labelled on that channel (rare events are
+             nominal, as the harness has them)
+  seeds      g's seed 0, as every cached fit
+```
+
+### 79.5 Reproduction gates (TUNE phase; any failure stops the run and nothing is scored on EVAL)
+
+| # | Gate | HOLD | FAIL |
+|---|---|---|---|
+| **RG1** | D86.A0 is D65's fused rule | cut 5.288128 within 1e-5 relative, TUNE 13/19 | either differs (stop 62) |
+| **RG2** | D86.A1 is D65.3's derivative-only arm | cut 4.431455, TUNE 15/19 | either differs (stop 62) |
+| **RG3** | D86.frozen is stage 4's frozen rule | TUNE 6/19 at 0.550599 | differs (stop 62) |
+| **RG4** | EVAL reproduces too (checked in the EVAL phase, reported) | 17, 17, 4 of 19 | reported as a failed reproduction |
+
+### 79.6 What counts as beating D86.A0, fixed now
+
+**The primary comparison is D86.A4 against D86.A0**, per dataset. D86.A4 BEATS D86.A0 only if
+ALL of:
+
+1. strictly more EVAL catches;
+2. no EVAL event D86.A0 catches is lost;
+3. rate matched within 2%;
+4. every gained event is attributed to z_rate or z_res(g) -- a new term -- and not to z_der.
+
+**"The forecaster contributed"** needs, in addition, D86.A4 beating D86.A1 on the same four
+terms. **The claim is made only if it holds on SMAP/MSL EVAL AND D86.A4's ESA-ADB EVAL count
+is not below D86.A0's.** Secondary arms get the same test; a secondary arm that passes is
+reported as exploratory and needs its own pre-registration before any adoption. D86.K1 is a
+control and cannot beat anything in this record.
+
+**SMAP EVAL has a ceiling:** D86.A0 is 17/19, so only 18 or 19 can beat it, and any beat is at
+most two events. Every row carries HARNESS.md 1's underpowered stamp. **This is at least the
+seventh full read of SMAP/MSL EVAL** (D86 context); no claim treats it as an unread held-out
+set.
+
+### 79.7 Predictions (two-sided; from D65.3: z_res reached the cut on 0 of 30 caught events)
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **P1** | D86.A4 (primary) does not beat D86.A0 on SMAP EVAL | 79.6 not met | 79.6 met |
+| **P2** | D86.A4's SMAP EVAL count | 16, 17 or 18 of 19 | <= 15 or 19 |
+| **P3** | D86.A4's SMAP EVAL catches are derivative catches | z_der reaches the cut on all but at most one | two or more without z_der |
+| **P4** | D86.A3, with no raw derivative, loses catches | SMAP EVAL <= 16 | >= 17 |
+| **P5** | D86.A2 behaves like the derivative arm | SMAP EVAL 16-18, no beat | otherwise |
+| **P6** | D86.A5 behaves like the derivative arm | SMAP EVAL 16-18, no beat | otherwise |
+| **P7** | D86.K1 is within one event of D86.A3 on SMAP EVAL | abs(K1 - A3) <= 1 | >= 2 |
+| **P8** | ESA-ADB: D86.A4 within two events of D86.A0 on EVAL (of 16) | abs <= 2 | >= 3 |
+| **P9** | REPORTED, NOT TARGETED: r chosen; the rank correlation of z_mot and z_der on pooled nominal steps; the TUNE-channels-only cuts; every arm's ESA-ADB counts | -- | -- |
+
+### 79.8 Falsification, and what each failure would mean
+
+- **P1 fails**: joining the rate to the forecaster catches an event today's rule misses, at the
+  same false-alarm rate, through a new term -- the finding that would carry a D87 proposal.
+- **P3 fails**: the joint forecaster's own terms carry catches the derivative does not.
+- **P4 fails**: the rate residual alone recovers what the derivative catches; the raw
+  derivative would then be redundant beside a joint model.
+- **P7 fails**: A3 differs from lighter smoothing of the level residual, so its heads carry
+  information of their own.
+- **Any reproduction gate fails**: the cached fits or the scoring path are not what D65
+  measured, and no D86 number is reported.
+
+### 79.9 Cost
+
+- **Fits:** SMAP/MSL 81 joint models; ESA-ADB 12 channels x 3 folds x (univariate + joint).
+  Scoring: every term on every scored step, once. The cached univariate SMAP fits are read,
+  never refitted.
+- **R2:** 180 Class B for the mirror, counted and reconciled; nothing afterwards (the machine
+  reads files).
+- **No timing figure is recorded here or anywhere** (stop 35).
+
+**Stops, carried and added:**
+
+```
+  61. runs/_weights changed (its sha256 manifest is checked before and after every phase).
+  62. A reproduction gate failed. Nothing is scored on EVAL.
+  63. An EVAL figure computed before frozen.json was committed, or from a frozen.json that
+      differs from the committed one, or from an unclean tracked tree.
+  64. A term needs a value at t or later to score t (carries 37.11).
+  65. Any change under flight/, fprime/Sentinel/Monitor, reference.py, or param_version
+      (carries 58).
+  66. R2 beyond 1,000 operations in one run.
+  67. An arm's rate not matched within 2%.
+  68. Any setting -- r, a cut, an arm, a prediction -- changed after any EVAL number is seen.
+```

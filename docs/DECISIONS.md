@@ -111,6 +111,7 @@ STATUS. Updated in the same commit as the decision it records
 - [D83 OxCaml is the Phase 5 retraining implementation -- the chosen one, host-verified and not flight-qualified. Supersedes D74's "permitted", and `Objective.md` section 12 is NOT edited](#d83-oxcaml-is-the-phase-5-retraining-implementation----the-chosen-one-host-verified-and-not-flight-qualified-supersedes-d74s-permitted-and-objectivemd-section-12-is-not-edited)
 - [D84 The retrainer is exported from the library, OPT-IN and OFF by default. A mission that does nothing sees no change; one that opts in builds it at its own shape](#d84-the-retrainer-is-exported-from-the-library-opt-in-and-off-by-default-a-mission-that-does-nothing-sees-no-change-one-that-opts-in-builds-it-at-its-own-shape)
 - [D85 The retrainer is made to learn: from the spacecraft's own healthy telemetry, judged on the ground against a reproduced control, swapped only by a human's one command](#d85-the-retrainer-is-made-to-learn-from-the-spacecrafts-own-healthy-telemetry-judged-on-the-ground-against-a-reproduced-control-swapped-only-by-a-humans-one-command)
+- [D86 The rate of change is joined to the forecaster, as research, on a second machine, before any rule is adopted](#d86-the-rate-of-change-is-joined-to-the-forecaster-as-research-on-a-second-machine-before-any-rule-is-adopted)
 
 <!-- /toc -->
 
@@ -8045,3 +8046,92 @@ questions; no software result answers them.
    qualified compiler, no certification precedent for a garbage-collected runtime in flight,
    x86-64 and arm64 Linux and arm64 macOS only, no stability promise, Rust smaller with
    Ferrocene qualified and OPS-SAT heritage, and **no Rust comparison built here**.
+
+## D86. The rate of change is joined to the forecaster, as research, on a second machine, before any rule is adopted
+
+**DATE** 2026-09-26 | **STATUS** resolved by the owner as a research decision; adoption is D87.
+**`Objective.md` is not edited. D68's flown rule, `param_version` 2, the model format,
+`reference.py`, `flight/` and the Monitor are not changed by this decision (stop 65). D85
+stands; its remaining runs share the machine below and are recorded in D85's own rider.**
+
+**WHY IT IS A NEW ENTRY AND NOT A RIDER.** D68 adopted `max(z_residual, z_derivative)` with
+the derivative outside the forecaster, and D68.3 registered a version-3 rule as owed, not
+argued. This decision authorises research on joining the two -- a forecaster that sees and
+predicts the rate of change -- and names the arm the owner would adopt if the evidence
+carries it. Choosing what to research and naming a primary candidate before any run are
+decisions, not corrections.
+
+**CONTEXT, READ FROM SOURCE AND NOT FROM THE BRIEF.**
+- **(!) The brief said EVAL would now be "looked at a second time". It has been read far more
+  often.** Six full reads reported an EVAL figure (`runs/smap-msl/_forensics/`
+  2026-09-10T173015Z-arms, 2026-09-10T182234Z-arms2, 2026-09-11T011756Z-departures,
+  2026-09-11T013152Z-departures2, 2026-09-14T212406Z-ablation, 2026-09-14T221354Z-lead); ten
+  smoke runs, six of which scored EVAL channel E-1; D65.1's trace of EVAL channel E-10; and,
+  before the split existed, every one of the 38 events was examined by the visibility, stage
+  4, forensics 38 and 37.7a probe runs. **D86's read is recorded as at least the seventh full
+  EVAL read**, and every claim made from it is worded for a set read that often.
+- **"A0" is already a label** (the telemanom base, `scripts/smap_rungs.py:10`, MODELS 27 and
+  35, STATUS). D86's arms are **D86.A0 to D86.A5 and D86.K1**, everywhere.
+- **D65.3: `z_residual` reached the cut on 0 of the 30 events the fused rule caught**; the
+  derivative alone caught a strict superset (32/38, 15/19 TUNE, 17/19 EVAL). Every catch of
+  the flown rule is a derivative catch. The predictions in MODELS 79 follow from that.
+- **The rejected "expected rate" form reduces to the residual**:
+  `dx(t) - (f(t) - x(t-1)) = x(t) - f(t)`. It is not run.
+- **For a forecaster whose two heads agree, the rate residual IS the level residual**:
+  `d(t) - f_d(t) = (e_x(t) + [f_x(t) - x(t-1) - sd * f_d(t)]) / sd` at one step ahead. A joint
+  model can only add information through its heads' disagreement, the averaging over ten
+  origins, and lighter smoothing; D86.K1 separates the last from the first two.
+- **(!) An unrecorded gap, for D87 only:** `fprime/Sentinel/Monitor/Monitor.cpp:344` sends
+  `m_detector.score()` -- the largest EWMA residual in data units -- as `Score`, while the
+  threshold it is compared against in the event is version 2's z-cut. Not changed here.
+
+**THE OWNER'S DECISIONS.**
+1. **Research on the detection rule is authorised; adopting a new flown rule is D87,** a
+   separate decision taken afterwards. Nothing flown changes in D86.
+2. **D86.A4 is the primary candidate for adoption**: the forecaster trained WITH the rate of
+   change as an input and predicting both the reading and the rate, judged on both errors,
+   PLUS the direct rate-of-change term. D86.A3 (the joint forecaster alone) is reported beside
+   it. D86.A0 (today's fused rule), D86.A1 (derivative only) and telemanom's frozen rule are
+   the references. D86.A2, D86.A5 and D86.K1 are registered as secondary arms.
+3. **Every arm is causal, per channel as the headline was, at the matched 0.6820% nominal
+   rate.** Every setting is chosen on TUNE only; EVAL is scored once, after a committed
+   freeze; every caught event records which term crossed the cut. The same arms run on ESA-ADB
+   m1-g8.9.10 as a second dataset.
+4. **The 1,313 cached weights are never overwritten**; new fits go to `runs/_weights_d86`.
+5. **One remote machine, for D86 and D85's remaining runs only** (Vultr, 16 vCPU, 31 GB,
+   Ubuntu 24.04), with the owner's corrections of 2026-09-26:
+   - the repository reaches it by SSH push to a bare repository on it, and returns by SSH
+     fetch; **the machine never talks to GitHub** (enforced in its `/etc/hosts`);
+   - it fetches the datasets from R2 itself, for this task only, with the keys in a chmod-600
+     `.env` that no command line or committed file carries; every operation is counted there
+     and reconciled into the ledger from the Mac;
+   - **D86 first, on every core it needs; D85's arms on spare cores only** (idle CPU class);
+     E1 is deferred; arm (b) stops cleanly if unfinished when D86 is done;
+   - every result, log and fixture is copied back and committed before it is destroyed; the
+     keys are rotated afterwards.
+
+**ALTERNATIVES, AND WHAT EACH COSTS**
+
+```
+  A1  what joins the rate  TAKEN  the forecaster sees [x, d] and predicts both (A3, A4);
+                                  motion mismatch (A2) and one-forecast slope (A5), no refit
+                           REFUSED the "expected rate" form -- it is the residual itself
+  A2  primary candidate    TAKEN  D86.A4, named by the owner before any run
+                           REFUSED choosing the primary after seeing EVAL
+  A3  second dataset       TAKEN  m1-g8.9.10, folds 1-2 TUNE, fold 3 EVAL (chronological, so
+                                  no multi-channel event sits on both sides)
+                           REFUSED m1-g3 and m2-ss1 (spent at Phase 1 closure; recall off)
+  A4  the rate cut on SMAP TAKEN  pooled over every scored channel, EVAL's nominal steps
+                                  included -- the headline protocol, disclosed
+                           REFUSED re-solving on TUNE channels only as the headline (it
+                                  cannot reproduce 5.288128); it is REPORTED, NOT TARGETED
+  A5  where it runs        TAKEN  a second machine, 16 cores, D85 at idle priority
+                           REFUSED the Mac (its owner's working machine); GitHub on the box
+```
+
+**CONSEQUENCES.**
+1. MODELS 79 is the pre-registration, committed before any fit; its stops 61-68 carry every
+   earlier stop.
+2. **Whatever D86 measures, D87 decides.** A recommendation on `param_version` 3 is made from
+   the primary comparison alone, as a recommendation.
+3. **Nothing here is a timing claim** (stop 35).
