@@ -2,11 +2,12 @@
 
     PYTHONPATH=src .venv/bin/python scripts/d86_mirror.py            # project only
     PYTHONPATH=src .venv/bin/python scripts/d86_mirror.py --fetch    # project, then fetch
-    PYTHONPATH=src .venv/bin/python scripts/d86_mirror.py --reconcile runs/_mirror/R2_OPS.json
+    PYTHONPATH=src .venv/bin/python scripts/d86_mirror.py --reconcile runs/_mirror/R2_OPS_*.json
 
 Owner correction (2026-09-26): the remote machine fetches directly, with a separate
 READ-ONLY token that cannot write the ledger. So this script never writes the ledger
-itself: it writes R2_OPS.json (every operation it counted, by class and by name), and
+itself: each run writes its own R2_OPS_<utc>.json (every operation it counted, by class
+and by name -- one file per run, so no run's count can overwrite another's), and
 `--reconcile` on the Mac, with the owner's read-write keys, adds those counts to the
 month-keyed ledger. The counts are the budget's own, so nothing is estimated.
 
@@ -26,6 +27,7 @@ import argparse
 import hashlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,32 +50,37 @@ def sha256(blob: bytes) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
+STARTED = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
 def write_ops(budget, stage: str) -> None:
-    """The budget's own counts, for `--reconcile` on the Mac. Overwritten each stage."""
+    """This run's own counts, for `--reconcile` on the Mac. One file per run."""
     MIRROR.mkdir(parents=True, exist_ok=True)
-    (MIRROR / "R2_OPS.json").write_text(json.dumps({
+    (MIRROR / f"R2_OPS_{STARTED}.json").write_text(json.dumps({
         "producer": "scripts/d86_mirror.py", "stage": stage, "month": r2.current_month(),
         "class_a": budget.class_a, "class_b": budget.class_b,
         "by_operation": dict(budget.by_operation)}, indent=2) + "\n")
 
 
-def reconcile(path: Path) -> int:
-    """Add a read-only run's counts to the ledger, plus this write. Mac only."""
-    counted = json.loads(path.read_text())
-    if counted["month"] != r2.current_month():
-        raise SystemExit(f"  (!) counts are for {counted['month']}, the ledger month is "
-                         f"{r2.current_month()} -- add them by hand to the right month")
+def reconcile(paths: list[Path]) -> int:
+    """Add read-only runs' counts to the ledger, plus this read and write. Mac only."""
+    runs = [json.loads(p.read_text()) for p in paths]
+    for p, counted in zip(paths, runs):
+        if counted["month"] != r2.current_month():
+            raise SystemExit(f"  (!) {p}: counts are for {counted['month']}, the ledger month "
+                             f"is {r2.current_month()} -- add them by hand to the right month")
     cfg = C.load_r2_config()
     client, budget = ops.connect(cfg)
     ledger = ops.load(client, cfg.bucket)
-    a_, b_ = counted["class_a"], counted["class_b"] + budget.class_b   # + this ledger read
+    a_ = sum(c["class_a"] for c in runs)
+    b_ = sum(c["class_b"] for c in runs) + budget.class_b             # + this ledger read
     document = r2.roll_and_add(ledger.document, a_ + 1, b_)            # + this ledger write
     blob = json.dumps(document, indent=2).encode() + b"\n"
     import base64
     r2.put_bytes(client, cfg.bucket, C.LEDGER_KEY, blob,
                  base64.b64encode(hashlib.md5(blob).digest()).decode())
     month = document["months"][r2.current_month()]
-    print(f"  reconciled {path}: +{a_ + 1} A, +{b_} B; month now "
+    print(f"  reconciled {len(paths)} runs: +{a_ + 1} A, +{b_} B; month now "
           f"A {month['class_a']:,}  B {month['class_b']:,}")
     return 0
 
@@ -81,7 +88,7 @@ def reconcile(path: Path) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--fetch", action="store_true", help="fetch after projecting")
-    ap.add_argument("--reconcile", type=Path, help="add R2_OPS.json to the ledger (Mac)")
+    ap.add_argument("--reconcile", type=Path, nargs="+", help="add R2_OPS_*.json to the ledger (Mac)")
     a = ap.parse_args(argv)
     if a.reconcile:
         return reconcile(a.reconcile)
@@ -121,7 +128,7 @@ def main(argv=None) -> int:
         return 2
     if not a.fetch:
         write_ops(budget, "projection")
-        print(f"  projection only; {budget.class_b} B spent on manifests, in R2_OPS.json")
+        print(f"  projection only; {budget.class_b} B spent on manifests, in R2_OPS_{STARTED}.json")
         return 0
 
     for key, want in missing:
@@ -146,12 +153,13 @@ def main(argv=None) -> int:
     print(f"  offline load complete: zero R2 operations after the fallback pass")
 
     lines = sorted(f"{sha256(p.read_bytes())}  {p.relative_to(MIRROR)}"
-                   for p in MIRROR.rglob("*") if p.is_file() and p.name != "MIRROR_SHA256.txt")
+                   for p in MIRROR.rglob("*") if p.is_file() and p.name != "MIRROR_SHA256.txt"
+                   and not p.name.startswith("R2_OPS_"))
     (MIRROR / "MIRROR_SHA256.txt").write_text("\n".join(lines) + "\n")
     print(f"  wrote MIRROR_SHA256.txt ({len(lines)} files)")
     write_ops(budget, "fetched")
     print(budget.report())
-    print("  counts in R2_OPS.json -- reconcile on the Mac with --reconcile")
+    print(f"  counts in R2_OPS_{STARTED}.json -- reconcile on the Mac with --reconcile")
     return 0
 
 
