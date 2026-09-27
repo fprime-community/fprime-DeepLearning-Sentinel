@@ -18,7 +18,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPAMROOT="${ROOT}/oxcaml/.opam"
 SWITCH="5.2.0+ox"
-OX_REPO="git+https://github.com/oxcaml/opam-repository.git"
+# OX_REPO may be overridden: D86's remote machine never talks to GitHub, so it is handed
+# a copy of this repository's checkout over SSH (tests/fixtures/linux_first_build_findings.log).
+OX_REPO="${OX_REPO:-git+https://github.com/oxcaml/opam-repository.git}"
 
 mkdir -p "${ROOT}/oxcaml"
 
