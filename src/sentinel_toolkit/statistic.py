@@ -46,6 +46,34 @@ def derivative(x: np.ndarray) -> np.ndarray:
     return np.abs(np.diff(x, prepend=x[0]))
 
 
+def motion(x: np.ndarray, forecast: np.ndarray) -> np.ndarray:
+    """D86.A2: `|(x[t] - x[t-1]) - (f[t] - f[t-1])|`, the motion mismatch.
+
+    Algebraically `|e[t] - e[t-1]|` with `e = x - f`, the first difference of the
+    SIGNED residual, and `e[-1] := e[0]` as `derivative` does. Causal: `f[t]` is
+    built from inputs before `t` (`windows.aggregate_predictions`). Research only
+    (D86); nothing flown reads it.
+    """
+    e = np.asarray(x, dtype=np.float64) - np.asarray(forecast, dtype=np.float64)
+    return np.abs(np.diff(e, prepend=e[0]))
+
+
+def slope_mismatch(x: np.ndarray, one_step: np.ndarray, two_step: np.ndarray) -> np.ndarray:
+    """D86.A5: `|dx[t] - (two_step[t] - one_step[t])|`, the one-forecast slope mismatch.
+
+    `one_step[t]` and `two_step[t]` are the forecasts OF `t-1` and OF `t` made at
+    the single origin `t-2` (inputs through `t-2`), so their difference is the
+    slope the forecaster predicted into `t`. Algebraically
+    `|[x[t] - two_step[t]] - [x[t-1] - one_step[t]]|`. Steps 0 and 1 have no
+    origin and are 0, as `derivative`'s step 0 is. Research only (D86).
+    """
+    x = np.asarray(x, dtype=np.float64)
+    slope = np.asarray(two_step, dtype=np.float64) - np.asarray(one_step, dtype=np.float64)
+    out = np.abs(np.diff(x, prepend=x[0]) - slope)
+    out[:2] = 0.0
+    return out
+
+
 def fused_per_channel(smoothed_error: np.ndarray, values: np.ndarray,
                       span: int) -> np.ndarray:
     """`max(z_residual, z_derivative)` for every channel. `(T, C) -> (T, C)`.
