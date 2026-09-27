@@ -184,6 +184,32 @@ def terms_for(uni, joint, x, sd, span, smoothing):
     return out, agg[:, 0]
 
 
+def load_cached(det, values, usable, ctx):
+    """The cached univariate fit, READ ONLY, under the key it was written with (79.2).
+
+    Every file in `runs/_weights` was written by 2026-09-09 under an eight-element key;
+    8a35810 (2026-09-21, D76's warm start) appended `init_weights` as a ninth, so today's
+    `fit` misses every one of them and would refit. This rebuilds the eight-element key
+    exactly as `detectors.fit` did at 8a35810^ -- `Hyper.as_dict_key` and the digests are
+    unchanged since -- and loads it. A miss is an error, never a refit.
+    """
+    values = np.asarray(values)
+    usable = np.asarray(usable, dtype=bool) & np.isfinite(values).all(axis=1)
+    key = (det.hyper.as_dict_key(), ctx.channels, ctx.fold, ctx.window, values.shape,
+           D._sample_digest(values), D._digest(usable[::997]), None)
+    D.WEIGHT_STORE = CACHED_STORE
+    cached = D._load_weights(D._digest(key))
+    if cached is None:
+        raise RuntimeError("no cached fit under the pre-D76 key")
+    det._weights, det.report = cached
+    det._impulses = None
+    det._fit_window = ctx.window
+    rows = values[usable] if usable.any() else values
+    with np.errstate(invalid="ignore"):
+        det._fill = np.nan_to_num(np.nanmean(rows, axis=0), nan=0.0).astype(np.float32)
+    return det
+
+
 def fit_into(det, store, values, usable, ctx):
     D.WEIGHT_STORE = store
     try:
@@ -248,7 +274,7 @@ def smap_score_unit(cid):
         train, test = smap_channel(cid)
         uni = registry.build("gru-telemanom"); uni.config = SR.proportional_config(len(test))
         v_tr, v_te = train[:, :1].astype(np.float32), test[:, :1].astype(np.float32)
-        fit_into(uni, CACHED_STORE, v_tr, np.ones(len(v_tr), bool), SR.ctx_for(cid, len(v_tr)))
+        load_cached(uni, v_tr, np.ones(len(v_tr), bool), SR.ctx_for(cid, len(v_tr)))
         joint, sd = smap_joint(cid, train, len(test))
         x = v_te[:, 0].astype(np.float64)
         cfg = uni.config
