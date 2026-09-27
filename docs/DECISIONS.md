@@ -8196,3 +8196,47 @@ MODELS 79.12 records the measurement and the disclosure.
 - `runs/smap-msl/_traces/E-10-trace.npz` (D65.1's evidence) and `runs/m1-g8.9.10/` (README's
   headline figures, and evidence cited in this file from line 1041 on) are cited records. They are reported to the owner
   and not removed.
+
+### D85.1 Rider, 2026-09-27: the gate certifies retrained models on a plant that did not change, so no shadow model may be swapped in
+
+**D85 is not edited.** MODELS 78.10 records the arms.
+
+- **C1 FAILED on every seed.** With no change to the plant, the ground gate certified 2 of 13
+  gated candidates (Mac, seed 1), 3 of 13 (Linux, seed 1), 4 of 14 and 2 of 14.
+  - Every one of the 54 gated candidates beats its control on part (i), by 22.6-82.1%, because
+    it trained on the ticks just before its held-out window.
+  - A candidate certifies when the six start-offset controls happen to agree.
+  - The flying model's held-out residual did not move.
+- **Standing constraint: no shadow model may be swapped in, on the testbed or in any
+  deployment, until a route is registered, run, and holds C1 at zero certifications.** D83
+  c.4's restriction therefore stays: SC1 is not met (arm (a) is INCONCLUSIVE) and C1 failed.
+- **The three routes, for the owner's decision** (MODELS 78.10):
+  1. need before eligibility;
+  2. controls trained on the candidate's own window;
+  3. replication across disjoint held-out windows.
+- **Arm (a) could not run.** On this plant an emissivity loss is absorbed by the heater, and the
+  detector's alarms fall on the same instrument-switching ticks at every ladder rung.
+- **Owed:** E1 (deferred), R1 and R2 (deferred behind D86), LC2 (unmeasured by LoopSim), and an
+  ageing mode that reaches the detector's channels.
+
+### D86.5 Rider, 2026-09-27: neither primary beats the flown rule; no new param_version is recommended, and no further ML experiment runs before the talk
+
+**D86 is not edited.** MODELS 79.14, 80.6 and 80.7 record the results.
+
+- **Neither D86.A4 nor D86.A2 beats D86.A0 on SMAP/MSL (17/19 each) or ESA-ADB (16/16 each).**
+  Each holds every catch and gains none. **No `param_version` 3 is recommended**, and D87 has
+  no adoption case from D86.
+- **What is left.** An exploratory reading: the joint forecaster reaches 17/19 at 0.32-0.39%
+  false alarms, against 0.57% for the flown rule. That is a false-alarm question for its own
+  pre-registration, not an adoption result.
+- **D86.A6 failed at TUNE (0/19 at every k).** A CUSUM referenced to the train split climbs on
+  normal SMAP/MSL test data on 35 of 77 channels. **By the owner's decision, EVAL was not
+  read** for it.
+- **D86b answered nothing.** Both of its predictions failed, and no rule -- neither the
+  derivative nor the flown testbed model's value residual -- detects any of its five
+  rate-normal faults. Its exact-tick attribution counted shifted normal alarms.
+- **The owner's decision: no further ML experiments before the talk.** The rate-normal question
+  is OWED. A stronger test needs:
+  - fault sizes set against the model's residual floor;
+  - a context model that sees at least an orbit and more than 20,000 ticks;
+  - an excess-over-control attribution rule (MODELS 80.7).

@@ -13,7 +13,7 @@ prediction that failed and why. This document follows the same discipline.
 
 ## Contents
 
-> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 43.8 follows 44.7; 42.8 follows 46.4; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
+> **(!) Where this table departs from numeric order, the document does too, and the document wins.** 33.6 follows 33.8; 34.7 follows 34.8; 43.8 follows 44.7; 42.8 follows 46.4; 79.14 follows 80.6; 78.10 follows 80.7; 26.6 appears twice. Nothing is moved or renumbered to tidy this: the numbering is cited from hundreds of places and a table of contents is not a reason to break one.
 
 - [1 What work item 4 built, and what it did not](#1-what-work-item-4-built-and-what-it-did-not)
   - [1.1 One deviation was withdrawn, and it would have been fatal](#11-one-deviation-was-withdrawn-and-it-would-have-been-fatal)
@@ -769,6 +769,10 @@ prediction that failed and why. This document follows the same discipline.
   - [80.3 The constants](#803-the-constants)
   - [80.4 Predictions](#804-predictions)
   - [80.5 Cost and stops](#805-cost-and-stops)
+  - [80.6 OBSERVED (A1, R, A0) -- Q1 and Q2 FAILED as registered, and no rule detects any of the five faults](#806-observed-a1-r-a0----q1-and-q2-failed-as-registered-and-no-rule-detects-any-of-the-five-faults)
+  - [79.14 OBSERVED -- neither primary beats D86.A0 on either dataset; A6 failed at TUNE](#7914-observed----neither-primary-beats-d86a0-on-either-dataset-a6-failed-at-tune)
+  - [80.7 Q3 and Q4 not scored; the rate-normal question is owed](#807-q3-and-q4-not-scored-the-rate-normal-question-is-owed)
+  - [78.10 OBSERVED -- C1 FAILED on every seed: the gate certifies retrained models on a plant that did not change](#7810-observed----c1-failed-on-every-seed-the-gate-certifies-retrained-models-on-a-plant-that-did-not-change)
 
 <!-- /toc -->
 
@@ -23289,3 +23293,217 @@ a finding: a re-registration needs an excess-over-control measure.
 
 Simulated traces deleted after scoring (D86.4): sha256 and the regeneration command are in
 `tests/fixtures/d86b/TRACES_SHA256.txt`; the result is `tests/fixtures/d86b/result_A1_R_A0.json`.
+
+### 79.14 OBSERVED -- neither primary beats D86.A0 on either dataset; A6 failed at TUNE
+
+**79 is not edited.** SMAP/MSL was scored on arm64 (79.11), ESA-ADB on the remote machine. Each
+EVAL was scored once after a committed freeze (`tests/fixtures/d86/{smap,esa}_{frozen,eval}.json`).
+
+**SMAP/MSL** (19/19 split, 77 channels, matched 0.6820%; spans A4 = 1, A2 = 3; RG1-RG4 held):
+
+```
+  arm            EVAL    TUNE   terms that fired on the EVAL catches
+  frozen          4/19    6/19
+  D86.A0         17/19   13/19   z_der on all 17
+  D86.A1         17/19   15/19   z_der
+  D86.A2 (P)     17/19   15/19   z_mot first on 16, z_res on 1
+  D86.A3         17/19   15/19   z_rate
+  D86.A4 (P)     17/19   14/19   z_der and z_rate together, first, on all 17
+  D86.A5         16/19   14/19   z_slope; misses T-13[690]
+  D86.K1          8/19   11/19
+```
+
+**ESA-ADB** (m1-g8.9.10; TUNE = folds 1-2, 30 events; EVAL = fold 3, 16 events; spans A4 = 1,
+A2 = 1). Cuts were solved on TUNE; the EVAL rates are realised:
+
+```
+  arm            EVAL    TUNE   EVAL rate
+  frozen         12/16   28/30   0.9674% (its discrete dial reached only 0.2623% on TUNE)
+  D86.A0         16/16   28/30   0.6941%
+  D86.A1         16/16   28/30   0.7024%
+  D86.A2 (P)     16/16   28/30   0.6925%
+  D86.A3         16/16   28/30   0.7001%
+  D86.A4 (P)     16/16   28/30   0.7023%
+  D86.A5         16/16   28/30   0.6333%
+  D86.K1         14/16   28/30   0.6172%
+```
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| RG1-RG3 | the references reproduce D65 on TUNE | 5.288128 13/19; 4.431455 15/19; 0.550599 6/19 (arm64) | HELD |
+| RG4 | ... and on EVAL | 17, 17, 4 | HELD |
+| P1 | A4 does not beat A0 on SMAP EVAL | 17 = 17; no event gained or lost | HELD |
+| P2 | A4 16-18 of 19 | 17 | HELD |
+| P3 | A4's catches are derivative catches | z_der crossed on all 17 | HELD |
+| P4 | A3, without the raw derivative, loses catches (<= 16) | 17 | **FAILED** |
+| P5 | A2 16-18, no beat | 17, no beat | HELD |
+| P6 | A5 16-18, no beat | 16, no beat | HELD |
+| P7 | K1 within one of A3 | 8 against 17 | **FAILED** |
+| P8 | ESA-ADB: A4 within two of A0 | 16 = 16 | HELD |
+| P10 | A6 catches A-9[4569] | not scored: A6 failed at TUNE | NO VERDICT |
+| P11 | A6 holds every A0 catch | not scored | NO VERDICT |
+
+- **The primary comparisons (79.6, 79.10): neither D86.A4 nor D86.A2 beats D86.A0 on either
+  dataset.** Each keeps every D86.A0 catch and gains none. ESA-ADB is at its ceiling (16/16 for
+  every main arm), so it cannot separate them. Under 79.10 item 4, neither is recommended as a
+  new `param_version`.
+- **P4 and P7 failing together has one reading: A3's rate head behaves like the derivative.**
+  The addendum measured this. z_rate and z_der agree on crossing A4's cut on 99.91% of nominal
+  steps, and z_rate first crosses at the same step as z_der on all 17 EVAL catches (it leads
+  once on TUNE, A-3, by 10 steps). Lighter smoothing of the level residual (K1) does not
+  reproduce it.
+- **REPORTED, NOT TARGETED (P9):**
+  - TUNE-channels-only cuts: A0 5.4500, A1 5.0328, A2 4.9595, A3 5.5190, A4 5.5692, A5 5.1183,
+    K1 4.2755.
+  - Span selection on TUNE: A4 14/14/14 at 1/3/10; A2 13/15/14.
+  - The rank correlation of z_mot with z_der was **not computed** before D86's SMAP/MSL terms
+    were purged (D86.4). It is owed; it needs one R2 read.
+
+**The addendum (EXPLORATORY; a further EVAL read, the eighth).** These do not change the
+verdicts above.
+
+- **The misses.** The two EVAL events every arm misses are E-13[5600] and A-9[4569].
+  - E-13[5600] is a jump masked by a volatile trailing window (z_der 3.74).
+  - A-9[4569] is a drift at normal speed that the one-step forecaster follows.
+- **The events by mechanism.** 32 of the 38 in-range events are rate-abnormal and 6 are
+  rate-normal in context; one is unscored (G-1).
+- **Where the joint model adds a catch.** Its value residual adds one catch no rate term makes
+  -- A-7[6200], on TUNE, 5.12 against a cut of 4.97.
+- **False alarms at matched catches.** At 17/19 the nominal alarm rate is:
+
+  ```
+  A3 0.318%   A4 0.394%   A1 0.410%   A2 0.489%   A0 0.573%
+  ```
+
+  A2 is the cheapest to 18/19, at 0.701%.
+- **Statistical baselines at the matched rate:** POT/EVT 10/19 (from the record); rolling sd
+  5/19, including A-9 (computed).
+
+**D86.A6: FAILED AT TUNE, and EVAL was not read (the owner's decision).**
+- RG1-RG3 held again on arm64.
+- At every k in {0.5, 1, 2}, A6's matched cut was about 3.39e7, and it caught **0 of 19 on
+  TUNE**.
+- **Diagnosis** (one further read; no recall computed; the nominal mask uses every channel's labels, as the headline's rate protocol does). On nominal steps
+  the CUSUM exceeds 1,000 on **35 of 77 channels -- 22 of them channels that move normally in
+  training** (D-5 5.1e7, A-5 3.4e7, P-14 2.0e7). Even the median moving channel reaches 197.5.
+- **Why.** SMAP/MSL's test segments are not distributed like their train splits, and the
+  one-step residual is autocorrelated. So a CUSUM referenced to the train split climbs across
+  normal stretches, which is exactly the one-signed accumulation A6 was built to catch.
+- **This is structural, not a floor artifact:** 13 of the 35 are the channels that never moved,
+  where the 1e-3 floor makes it worse, but 22 are not.
+- **R2:** 330 Class B and 2 Class A over the two reads, in the ledger (2026-09: A 242, B 6,251).
+
+**What may be said.**
+- On SMAP/MSL and ESA-ADB, neither form of joining the rate of change to the forecaster catches
+  anything today's rule misses at the same false-alarm rate.
+- Exploratory and not adjudicated: the joint forecaster reaches today's catch count at a lower
+  false-alarm rate.
+- 32 of the 38 SMAP/MSL events are rate-abnormal, which is why a first difference already
+  catches them.
+
+**What this does NOT establish.**
+- That learning is useless: the benchmarks barely contain the failures it should matter for
+  (80, and 80.7 below).
+- That A4 would behave the same as one 24-input model: D86 measured single-channel models.
+
+**Disclosures, against this work:**
+- SMAP/MSL EVAL has now been read at least eight times in full.
+- The floor (79.11) and the ESA-ADB cap (79.12) were set after TUNE numbers were seen; A2's
+  primacy (79.10) was set before any.
+- ESA-ADB's EVAL is m1-g8.9.10, which Phase 1 tuned on.
+
+### 80.7 Q3 and Q4 not scored; the rate-normal question is owed
+
+- **Q3 and Q4 (A6's clean test on faults (a) and (e)): NO VERDICT.** 80.3 takes k from
+  79.13's TUNE, and no k produced a single TUNE catch (79.14).
+- **The owner's decision: no further ML experiments before the talk.** The rate-normal
+  question -- does a learned value model catch failures whose rate is normal and whose value
+  is wrong -- is OWED, and D86b did not answer it. A stronger test needs:
+  1. **Fault sizes set against the model's own residual floor, not the plant's noise.** The
+     flying model's matched cut is 8.41, so a fault must move its residual that far. D86b sized
+     the faults for rate-normality only.
+  2. **A context model.** One whose window covers at least an orbit (5,400 ticks; the testbed
+     model sees 250), trained on more than 20,000 ticks, and able to predict a channel from the
+     others and the orbital phase. Faults (c) and (e) are invisible to a model that sees only
+     the recent past.
+  3. **A cleaner attribution rule.** An excess of alarms over the same-seed control in a window
+     after onset, with a registered tolerance -- not "absent from the control at that tick",
+     which counted shifted normal alarms as catches (80.6).
+
+### 78.10 OBSERVED -- C1 FAILED on every seed: the gate certifies retrained models on a plant that did not change
+
+**78 is not edited.** Arms (b) and (c) ran on the remote machine (Linux, x86), except arm (c)
+seed 1, which ran on both. Arm (a) was not run.
+
+**C1 first, because it decides what may fly.**
+
+```
+  arm (c), no change to the plant, 400,000 ticks: candidates CERTIFIED of those gated
+    seed 1, Mac      2 of 13   #3 (F 15.3%, part (i) 73.3%)  #11 (F 13.6%, 59.1%)
+    seed 1, Linux    3 of 13   #3, #8 (F 20.0%, 42.3%), #11
+    seed 2, Linux    4 of 14   #2 (F 16.3%), #4 (13.5%), #6 (28.3%), #11 (19.1%)
+    seed 3, Linux    2 of 14   #2 (F 16.8%), #8 (16.1%)
+```
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| **C1** | no change: no gated candidate certified, every seed | 2 (Mac) / 3 (Linux), 4, 2 | **FAILED** |
+| LC1 | the cycle learns; EX1 holds | EX1 held at 8/10, 12/10, 16/10 (Mac) and 8/10 (Linux, margin 1.144x) | HELD |
+| LC2 | the replica and the detector emit on the same ticks | not measured: LoopSim writes both columns from one detector object | NO VERDICT, owed with E1 |
+| A1-A3 | arm (a) | the ladder qualified no rung (78.5); arm (a) is INCONCLUSIVE | NOT RUN |
+| B1 | arm (b): no candidate overlapping the failure certified | 0 training ticks admitted in 400,000, on every seed; no candidate | **VACUOUS** (78.9: "no candidate", not HOLD) |
+| B2 | arm (b): fault-attributable warnings before the first yellow crossing | 62, 67, 73 (first at ticks 6,120; 7,020; 5,220; yellow at 60,344-60,345) | HELD |
+| B3 | reported: share admitted after onset | undefined (0 admitted) | -- |
+| R1, R2 | real data | no script; deferred behind D86 by the owner | OWED |
+| E1 | the end-to-end F' run | deferred by the owner; F' was not built on Linux | OWED |
+
+**Why C1 fails.**
+- Every one of the 54 gated candidates "improves" on its control on part (i), by 22.6-82.1%, because it
+  trained on the ticks just before its HELD window, and the controls trained on the stored
+  segment. Part (i) measures recency, as 74 found.
+- The verdict is then set by the floor. A candidate certifies when the six controls happen to
+  agree closely: F of 13.5-28.3% puts m = K x F below the recency improvement.
+- The flying model's own HELD residual does not move -- 20.45 at tick 111k, 20.63 at 311k on
+  seed 1 -- so there was no drift for any of these candidates to recover.
+
+**What it means for operations.** On a healthy spacecraft this gate would put a certified
+candidate in front of the human approver with no change to justify it, several times in 400,000
+ticks. The human's approval becomes the only barrier. **No shadow model may be swapped in, on
+the testbed or in any deployment, until one of the routes below is registered, run, and holds
+C1 at zero certifications** (D85.1).
+
+**Three routes, for the owner's decision; none is applied:**
+1. **Need before eligibility.** A candidate is gated only after the flying model's own
+   held-out residual, or its warmed false-alarm rate, has degraded by a pre-registered amount
+   against its certification baseline. Here the residual was flat, so nothing would have been
+   gated.
+2. **Controls on the same data.** Train the controls on the candidate's own recent window, at
+   start offsets inside it, so part (i) compares like with like and recency cancels.
+3. **Replication.** Certify only when the candidate passes on two or more disjoint HELD
+   windows, or when consecutive candidates certify in agreement.
+
+Each route is a new pre-registration; 78's constants stay fixed (stop 57).
+
+**The ladder finding (why arm (a) is INCONCLUSIVE).**
+- The emissivity loss reaches the plant: RadiatorTemp differs from healthy by about 4 K at
+  every rung. The bang-bang heater absorbs it, since HeaterDuty switches differently.
+- The detector's alarms in [40,000, 60,000) fall on **exactly the same ticks at all three
+  rungs**, on every seed. They are the instrument's switching, every 900 ticks.
+- The aged runs alarm slightly LESS than healthy (25 vs 26, 27 vs 28, 23 vs 26).
+- So "twice the healthy rate" could not qualify on this plant at any rung. The premise needs
+  an ageing mode that reaches the detector's channels -- that is a new design, not a ladder
+  extension (78.5).
+
+**Platform.**
+- 78.9's pre-fixed rule: arm (c) seed 1's plant trace is **bit-identical on Linux and arm64**
+  (sha256 63b1977c...), so Mac seed 1 is pooled with Linux seeds 2 and 3.
+- The candidates are not identical: Linux certified one more (#8). The retrainer's training
+  numerics differ across platforms even though the plant does not. This is recorded, not
+  resolved.
+
+**Disclosures, against this work.**
+- The owner ruled one core on the Mac and then parallel on the remote machine. The arms ran at
+  idle priority beside D86.
+- R1, R2 and E1 are owed. LC2 has no measurement.
+- Results: `tests/fixtures/d85/`. Raw files are hashed in `tests/fixtures/d85/RAW_SHA256.txt`
+  and kept in `runs/d85` and `runs/d85_linux`.
