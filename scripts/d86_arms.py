@@ -146,6 +146,15 @@ def forecast_parts(det, values):
     return agg, one, two
 
 
+def _one_thread():
+    """One thread per worker: `lstm.train` sets `lstm.THREADS` (4, chosen for the Mac's
+    mixed cores) at every call, which would put 4 x workers threads on the box's cores."""
+    import torch
+    from sentinel_models import lstm
+    lstm.THREADS = 1
+    torch.set_num_threads(1)
+
+
 def ewma(err, span):
     return np.asarray(telemanom.ewma(np.asarray(err, np.float32)[:, None], span,
                                      telemanom.EwmaState()), np.float64)[:, 0]
@@ -224,7 +233,7 @@ def smap_joint(cid, train, n_test):
 
 
 def smap_fit_unit(cid):
-    import torch; torch.set_num_threads(1)
+    _one_thread()
     try:
         train, test = smap_channel(cid)
         smap_joint(cid, train, len(test))
@@ -234,7 +243,7 @@ def smap_fit_unit(cid):
 
 
 def smap_score_unit(cid):
-    import torch; torch.set_num_threads(1)
+    _one_thread()
     try:
         train, test = smap_channel(cid)
         uni = registry.build("gru-telemanom"); uni.config = SR.proportional_config(len(test))
@@ -378,7 +387,7 @@ def esa_models(cid, fold):
 
 
 def esa_fit_unit(unit):
-    import torch; torch.set_num_threads(1)
+    _one_thread()
     try:
         esa_models(*unit)
         return unit, "fitted"
@@ -387,7 +396,7 @@ def esa_fit_unit(unit):
 
 
 def esa_score_unit(unit):
-    import torch; torch.set_num_threads(1)
+    _one_thread()
     cid, fold = unit
     try:
         uni, joint, sd, z, f = esa_models(cid, fold)
