@@ -632,9 +632,11 @@ def run_pool(fn, units, workers):
     return out
 
 
-def limit(units, only):
+def limit(units, only, folds=None):
     """`--only`: a smoke restricted to named units. SMAP smokes may name only channels
     outside TUNE and EVAL (79.2); nothing a smoke writes is read by `tune` or `eval`."""
+    if folds is not None:
+        units = [u for u in units if not isinstance(u, tuple) or u[1] in folds]
     if not only:
         return units
     if any(u in TUNE | EVAL for u in only):
@@ -651,9 +653,9 @@ def phase_fit(ds, workers, only=None):
     (OUT / ds / "fit_status.json").write_text(json.dumps(status, indent=1))
 
 
-def phase_score(ds, workers, only=None):
+def phase_score(ds, workers, only=None, folds=None):
     (OUT / ds / "terms").mkdir(parents=True, exist_ok=True)
-    units = limit(smap_units() if ds == "smap" else esa_units(), only)
+    units = limit(smap_units() if ds == "smap" else esa_units(), only, folds)
     fn = smap_score_unit if ds == "smap" else esa_score_unit
     status = run_pool(fn, units, workers)
     (OUT / ds / "score_status.json").write_text(json.dumps(status, indent=1))
@@ -827,6 +829,7 @@ def main(argv=None) -> int:
     ap.add_argument("--dataset", choices=["smap", "esa"])
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--only", nargs="+", help="smoke: these units only (never TUNE/EVAL)")
+    ap.add_argument("--folds", nargs="+", type=int, help="ESA: these folds only")
     a = ap.parse_args(argv)
     before = store_manifest()
     print(f"  store {CACHED_STORE}: {before.split(':')[0]} files, manifest {before[-16:]}")
@@ -835,7 +838,7 @@ def main(argv=None) -> int:
     elif a.phase == "fit":
         phase_fit(a.dataset, a.workers, a.only); rc = 0
     elif a.phase == "score":
-        phase_score(a.dataset, a.workers, a.only); rc = 0
+        phase_score(a.dataset, a.workers, a.only, a.folds); rc = 0
     elif a.phase == "tune":
         rc = phase_tune(a.dataset)
     else:
