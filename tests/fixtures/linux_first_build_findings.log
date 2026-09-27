@@ -1,0 +1,63 @@
+== The first Linux build of this project (D86's machine), every difference from the Mac ==
+   machine   Vultr, 16 vCPU x86_64, 31 GiB, Ubuntu 24.04.5 LTS, kernel 6.8.0-139, glibc 2.39
+   Mac       arm64 macOS, Apple clang 21.0.0, Python 3.14.6, torch 2.13.0
+   Linux     Ubuntu clang 18.1.3, clang-tidy 18.1.3, opam 2.1.5, cmake 3.28.3,
+             Python 3.12.3, torch 2.13.0+cpu, numpy 2.5.2, pandas 3.0.5, pyarrow 25.0.1
+   No timing figure is recorded here (stop 35).
+
+-- Builds
+L1  oxcaml_setup.sh checked for a command named `bubblewrap`; the Linux package installs
+    `bwrap`, so the Linux branch could never pass. FIXED: command:package pairs.
+L2  The machine never talks to GitHub (D86, the owner's correction), and the ox opam
+    repository and the OxCaml compiler tarball both live there. Shipped from the Mac over
+    SSH: the repository checkout (commit f1bd228d), and opam's download cache, which holds
+    the compiler tarball under its own sha256 (b7f2248d...). oxcaml_setup.sh takes OX_REPO
+    from the environment. GitHub is blocked in the machine's /etc/hosts, so an attempt fails
+    rather than succeeds quietly. The switch built from these alone.
+L3  rsync kept the Mac's uid 501 on the shipped checkout; git then refused to fetch from a
+    repository owned by another user ("dubious ownership"). FIXED: chown to root.
+L4  As root, `chmod -R a-w` protects nothing. runs/_weights was made immutable with
+    `chattr +i`; a later chown was refused, and so was the write in L10.
+L5  shape c8-p10: every gate passed, and the build is silent (0 warnings under -Wall -Wextra
+    -Wconversion -Wdouble-promotion -Wshadow -Wold-style-cast -pedantic -Werror).
+    cycle_complete.o is 5,470,400 bytes (Mac 1,262,812).
+L6  EX1 at 8/10 on Linux: HOLD, 0 of 66,960 outside, margin 1.144x (Mac 1.135x). Not
+    bit-identical to the Mac: shard 0 of 1021's worst |err| is 1.129311253e-07 at index
+    39819 (Mac 9.734420514e-08 at 20420). Both are inside 51's criterion.
+L7  Re-running oxcaml_shape.sh (for EX1) rebuilds the shape directory and removes the
+    loopsim and ground_tools built into it; six D85 arms then failed to start. Build
+    loopsim AFTER the last shape run. loopsim's build is silent under the same flags.
+L8  F' (fprime_setup.sh, SentinelRef, SentinelRetrain) was NOT built on Linux: it serves
+    only E1, which the owner deferred. The Darwin-hardcoded paths in d85_e1.sh and
+    fprime_ref_retrainer.sh and `pgrep -fl` (which prints only the process name on Linux)
+    are therefore not yet exercised; they are owed with E1.
+
+-- Python and the scoring path
+L9  lstm.train sets torch to lstm.THREADS = 4 at every call (chosen for the Mac's mixed
+    cores). With 16 worker processes that is 64 threads on 16 cores. d86_arms.py sets one
+    thread per worker.
+L10 (!) Not Linux-specific, found here. 8a35810 (2026-09-21) appended init_weights to the
+    weight-cache key; every file in runs/_weights predates it, so today's detectors.fit
+    misses all 1,313 and refits. On this machine the immutable store refused the write.
+    d86_arms.py reads the fits under their original eight-element key (docs/MODELS.md 79.2).
+L11 (!) Not Linux-specific. telemanom.ewma returns NaN at span 1 (its closed form divides by
+    (1 - alpha)^k = 0). Span 1 is the identity; d86_arms.py returns the error unchanged.
+L12 `pkill -f <pattern>` run over ssh matched the ssh shell's own command line and killed
+    it (the pod procedure's warning, met again). Use a pattern anchored at the start.
+
+-- Data
+L13 The machine fetched SMAP/MSL and ESA-ADB m1-g8.9.10 directly from R2 with the owner's
+    keys in a chmod-600 .env: 3 + 177 Class B, no Class A, every object checked against its
+    manifest sha256, reconciled into the ledger from the Mac (+1 A, +181 B with the Mac's
+    own read; month 2026-09 then A 240, B 5,921).
+L14 The 1,333 files copied from the Mac (runs/_weights, D85's flying model and controls,
+    ladder.json, the two SMAP reference artifacts) verified by sha256 on arrival.
+
+-- The scoring path across platforms
+L15 (!) D86.A0's matched SMAP/MSL cut is platform-dependent: 5.418254 on x86 Linux against
+    D65's 5.288128 on arm64 (stop 62; docs/MODELS.md 79.11). The weights are the same fits
+    (S-1's e_s agrees to 6e-8), but on a channel that never moves zstat divides float noise
+    by a zero or cancelled trailing sd: A-1's z_res peaks at 30,432 on x86 and 18,445 on
+    arm64. A statistic whose tail is set by float noise cannot be reproduced across
+    platforms. SMAP/MSL is scored on arm64; the flown C++ core's TrailingWindow uses the same
+    1e-12 floor, which is a D87 question.

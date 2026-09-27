@@ -45,7 +45,8 @@ from sentinel_eval.detector import Context                              # noqa: 
 from sentinel_eval.labels import ANOMALY, LabelSet                      # noqa: E402
 from sentinel_models import detectors as D, reference, registry, telemanom  # noqa: E402
 from sentinel_models.windows import aggregate_predictions               # noqa: E402
-from sentinel_toolkit.statistic import derivative, motion, slope_mismatch, zstat  # noqa: E402
+from sentinel_toolkit.statistic import (derivative, motion, slope_mismatch, zstat,  # noqa: E402
+                                        zstat_floored)
 
 
 def _load(name, rel):
@@ -179,23 +180,42 @@ def rate_column(x, sd):
     return (np.diff(x, prepend=x[0]) / sd).astype(np.float32)
 
 
-def terms_for(uni, joint, x, sd, span, smoothing):
-    """Every D86 term for one scored series. `x` float64, univariate."""
+FLOOR_FRACTION = 1e-3                                # MODELS 79.11
+
+
+def channel_scale(x_train, unit):
+    """The channel's training variation, sd of its train-split values; `unit` where that
+    is 0 (a channel that never moved in training). MODELS 79.11."""
+    x = np.asarray(x_train, np.float64)
+    x = x[np.isfinite(x)]
+    s = float(np.std(x)) if x.size else 0.0
+    return s if s > 0 else float(unit)
+
+
+def terms_for(uni, joint, x, sd, span, smoothing, scale):
+    """Every D86 term for one scored series. `x` float64, univariate.
+
+    The reference terms (`zr`, `zd`) are `zstat` exactly as flown. Every NEW term is
+    `zstat_floored`, its trailing sd floored at 1e-3 x the channel's training scale in
+    x's units, and at that divided by d's scale for the rate stream (MODELS 79.11).
+    """
+    fx = FLOOR_FRACTION * scale
+    fd = fx / sd
     v1 = x.astype(np.float32)[:, None]
     agg, one, two = forecast_parts(uni, v1)
     e = x - agg[:, 0].astype(np.float64)
     e_s = ewma(np.abs(e), smoothing)
     out = {"e_s": e_s, "zr": zstat(e_s, span), "zd": zstat(derivative(x), span),
-           **{f"zm{r}": zstat(ewma(motion(x, agg[:, 0]), r), span) for r in R_GRID},
-           "z5": zstat(slope_mismatch(x, one[:, 0], two[:, 0]), span)}
+           **{f"zm{r}": zstat_floored(ewma(motion(x, agg[:, 0]), r), span, fx) for r in R_GRID},
+           "z5": zstat_floored(slope_mismatch(x, one[:, 0], two[:, 0]), span, fx)}
     for r in R_GRID:
-        out[f"zk{r}"] = zstat(ewma(np.abs(e), r), span)
+        out[f"zk{r}"] = zstat_floored(ewma(np.abs(e), r), span, fx)
     if joint is not None:
         v2 = np.stack([x.astype(np.float32), rate_column(x, sd)], axis=1)
         g, _, _ = forecast_parts(joint, v2)
-        out["zrg"] = zstat(ewma(np.abs(x - g[:, 0]), smoothing), span)
+        out["zrg"] = zstat_floored(ewma(np.abs(x - g[:, 0]), smoothing), span, fx)
         for r in R_GRID:
-            out[f"zq{r}"] = zstat(ewma(np.abs(v2[:, 1] - g[:, 1]), r), span)
+            out[f"zq{r}"] = zstat_floored(ewma(np.abs(v2[:, 1] - g[:, 1]), r), span, fd)
     return out, agg[:, 0]
 
 
@@ -291,14 +311,15 @@ def smap_score_unit(cid):
         joint, sd = smap_joint(cid, train, len(test))
         x = v_te[:, 0].astype(np.float64)
         cfg = uni.config
-        t, agg = terms_for(uni, joint, x, sd, cfg.error_window, cfg.smoothing_window)
+        scale = channel_scale(train[:, 0], unit=1.0)       # SMAP/MSL values lie in [-1, 1]
+        t, agg = terms_for(uni, joint, x, sd, cfg.error_window, cfg.smoothing_window, scale)
         # reproduction: the forecast and e_s are the detector's own, bit for bit
         ref = np.asarray(uni._smoothed_errors(v_te, SR.ctx_for(cid, len(v_te))), np.float64)[:, 0]
         if not np.array_equal(ref, t["e_s"]):
             raise RuntimeError("e_s differs from detectors._smoothed_errors")
         t["frozen"] = np.asarray(telemanom.channel_ratios(t["e_s"], cfg), np.float64)
         np.savez(OUT / "smap" / "terms" / f"{cid}.npz", x=x, warmup=uni.warmup_steps,
-                 error_window=cfg.error_window, **t)
+                 error_window=cfg.error_window, scale=scale, **t)
         return cid, "scored"
     except Exception as exc:
         return cid, f"SKIP {type(exc).__name__}: {str(exc).splitlines()[0][:120]}"
@@ -420,7 +441,9 @@ def esa_models(cid, fold):
     v2[~np.isfinite(v2[:, 0]), 1] = np.nan
     joint = registry.build("gru-telemanom")
     fit_into(joint, D86_STORE, v2, usable, esa_ctx(cid, fold, lo, hi, info, rate=True))
-    return uni, joint, sd, z, f
+    xt = x[usable & np.isfinite(x)].astype(np.float64)
+    unit = float(np.max(np.abs(xt))) if xt.size and np.max(np.abs(xt)) > 0 else 1.0
+    return uni, joint, sd, z, f, channel_scale(xt, unit)
 
 
 def esa_fit_unit(unit):
@@ -436,14 +459,14 @@ def esa_score_unit(unit):
     _one_thread()
     cid, fold = unit
     try:
-        uni, joint, sd, z, f = esa_models(cid, fold)
+        uni, joint, sd, z, f, scale = esa_models(cid, fold)
         lo, hi = f["test"]
         warm = uni.warmup_steps
         a = max(0, lo - warm)
         x = z["values"][a:hi].astype(np.float64)
         filled = uni._filled(x.astype(np.float32)[:, None])[:, 0].astype(np.float64)
         cfg = uni.config
-        t, _ = terms_for(uni, joint, filled, sd, cfg.error_window, cfg.smoothing_window)
+        t, _ = terms_for(uni, joint, filled, sd, cfg.error_window, cfg.smoothing_window, scale)
         t["frozen"] = np.asarray(telemanom.channel_ratios(t["e_s"], cfg), np.float64)
         keep = slice(lo - a, None)
         observed = z["valid"][lo:hi] & np.isfinite(z["values"][lo:hi])
@@ -452,7 +475,7 @@ def esa_score_unit(unit):
             if k != "e_s":
                 out[k][~observed] = -np.inf           # nothing measured is never an alarm
         np.savez(OUT / "esa" / "terms" / f"{cid}__f{fold}.npz", lo=lo, hi=hi,
-                 observed=observed, **out)
+                 observed=observed, scale=scale, **out)
         return unit, "scored"
     except Exception as exc:
         return unit, f"SKIP {type(exc).__name__}: {str(exc).splitlines()[0][:120]}"

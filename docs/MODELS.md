@@ -760,6 +760,7 @@ prediction that failed and why. This document follows the same discipline.
   - [79.8 Falsification, and what each failure would mean](#798-falsification-and-what-each-failure-would-mean)
   - [79.9 Cost](#799-cost)
   - [79.10 Rider, 2026-09-26, before any TUNE or EVAL number: D86.A2 is a second primary comparison](#7910-rider-2026-09-26-before-any-tune-or-eval-number-d86a2-is-a-second-primary-comparison)
+  - [79.11 Rider, 2026-09-26: stop 62 fired on Linux; SMAP/MSL is scored on arm64, and the new terms get a floor -- decided after TUNE was seen, before any EVAL](#7911-rider-2026-09-26-stop-62-fired-on-linux-smapmsl-is-scored-on-arm64-and-the-new-terms-get-a-floor----decided-after-tune-was-seen-before-any-eval)
 
 <!-- /toc -->
 
@@ -23017,3 +23018,62 @@ compute no recall, rate or cut) and before the TUNE phase has run on either data
      comparing their EVAL margins after the fact.
   4. If neither meets it, the result is stated for both, and neither is recommended as
      `param_version` 3.
+
+### 79.11 Rider, 2026-09-26: stop 62 fired on Linux; SMAP/MSL is scored on arm64, and the new terms get a floor -- decided after TUNE was seen, before any EVAL
+
+**79 and 79.10 are not edited.** Stop 62 fired at the first TUNE phase, SMAP/MSL, on the Linux
+machine. Nothing was scored on EVAL and no `frozen.json` was committed; the one written is kept
+as `tests/fixtures/d86/smap_frozen_linux_stop62.json`.
+
+**What was seen, all of it TUNE (spans A4 = 1, A2 = 1):**
+
+```
+  gate   RG1 D86.A0  cut 5.418254 (want 5.288128)  TUNE 13/19   FAIL
+         RG2 D86.A1  cut 4.431455 (want 4.431455)  TUNE 15/19   held
+         RG3 frozen  cut 0.550599 (want 0.550599)  TUNE  6/19   held
+  arms   A2 13/19 (cut 5.430913), A3 0/19 and A4 0/19 (cut 5567.466821), A5 9/19, K1 11/19
+```
+
+**Diagnosis.**
+
+- **The cached weights are right.** On the normal channel S-1, the Mac and the Linux machine
+  agree on `e_s` to 6e-8, and no `z_res` differs by more than 0.01.
+- **Flat channels carry noise-driven z values.** On channels that never move, the trailing sd
+  of a forecaster stream is zero or cancellation noise, and `zstat`'s 1e-12 floor turns float
+  noise into z values in the thousands:
+  - A-1's `z_res` peaks at 18,445 on arm64 and 30,432 on x86 (2,349 steps differ);
+  - A-1 alone supplies 330 of D86.A0's 2,570 nominal alarms at the cut.
+- **So D86.A0's matched cut depends on the platform.** D86.A1 (no forecaster) and the frozen
+  rule (a threshold ratio) reproduce exactly.
+- **A3 and A4's cut of 5,567 is the same pathology in the new terms.** Their nominal tail is
+  P-4, D-8, G-3, B-1, D-13, G-7, S-2, M-7 and G-2, most of them the 16 channels that never
+  move, and it pushed A4 to 0/19 by construction.
+
+**The owner's decisions, recorded here before any EVAL:**
+
+1. **SMAP/MSL is scored on arm64 (the Mac), D65's platform**, so RG1-RG3 are tested as
+   registered. The joint fits made on Linux are copied, not refitted. ESA-ADB stays on
+   Linux; it has no reproduction gate. The Linux difference is recorded in
+   `tests/fixtures/linux_first_build_findings.log`.
+2. **Every NEW term is standardised by `zstat_floored`**: its trailing sd is floored at
+   1e-3 x the channel's training variation.
+   - The training variation is the sd of the channel's train-split values. Where that is 0,
+     the dataset's unit is used: 1 for SMAP/MSL, whose values lie in [-1, 1], and max|x| on
+     the train split (or 1) for ESA-ADB.
+   - The rate stream's floor is that value divided by d's scale.
+   - The new terms are z_res(g), z_rate, z_mot, z_slope and K1's term.
+   - **The reference terms -- `z_res` and `z_der` in D86.A0, A1, A2 and A5, and the frozen
+     rule -- are `zstat` exactly as flown**, and must still reproduce D65.
+   - The owner first approved "1e-3 x the stream's own train-split sd". On A-1 every such sd
+     is exactly 0.0, so it would have changed nothing where the pathology lives. The owner
+     then chose the channel-scale form above.
+
+**Disclosed against this work:**
+
+- Both decisions were made **after the TUNE numbers above were seen**, and before any EVAL
+  number exists on either dataset.
+- The floor was chosen from the diagnosis of a numerical degeneracy, not tuned on catches.
+  Its fraction, 1e-3, was not varied.
+- **Predictions P1-P9 are unchanged.**
+- A0's and A2's `z_res` still carry the unfloored degeneracy, because they are the flown
+  rule's own term. On arm64 that is exactly D65's measurement.

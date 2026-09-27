@@ -8150,3 +8150,23 @@ decisions, not corrections.
 - **Wording:** two primaries against the same EVAL events make a small gain by either more
   likely by chance; every claim names its primary and reports the other beside it; if both
   meet the test, the choice for D87 is the owner's (MODELS 79.10 items 1-4).
+
+### D86.2 Rider, 2026-09-26: the flat-channel degeneracy is floored in the new terms only, and SMAP/MSL is scored where D65 was
+
+**D86 is not edited.** Stop 62 fired on the Linux machine: D86.A0's matched cut came out at
+5.418254 against D65's 5.288128.
+
+- **The cause is not the cached fits.** A channel that never moves has a trailing sd of float
+  noise, and `zstat` divides by it, so z values reach the tens of thousands and differ
+  between x86 and arm64.
+- **The same degeneracy put the primary D86.A4 at 0/19 on TUNE by construction.**
+
+The owner decided, after those TUNE numbers were seen and before any EVAL:
+
+- **SMAP/MSL is scored on the Mac.**
+- **Every NEW term's standardisation is floored at 1e-3 x the channel's training variation**,
+  with a unit fallback for channels that never moved.
+- **The flown rule and every reference term are unchanged.**
+
+MODELS 79.11 records what was seen, the diagnosis, and why the first floor offered could not
+work.

@@ -5,7 +5,10 @@ relate to the flown ones; if any fails, the pre-registration is wrong, not the r
 """
 import numpy as np
 
-from sentinel_toolkit.statistic import derivative, motion, slope_mismatch, zstat
+import pytest
+
+from sentinel_toolkit.statistic import (derivative, motion, slope_mismatch, zstat,
+                                        zstat_floored)
 
 RNG = np.random.default_rng(86)
 X = np.cumsum(RNG.normal(size=500))
@@ -72,3 +75,21 @@ def test_every_new_term_is_causal():
         assert np.array_equal(base[: t + 1], after[: t + 1])
         zb, za = zstat(base, 50), zstat(after, 50)
         assert np.array_equal(zb[: t + 1], za[: t + 1])
+
+
+def test_the_floor_is_zstat_where_the_window_varies():
+    assert np.allclose(zstat_floored(X, 50, 1e-12), zstat(X, 50))
+
+
+def test_the_floor_bounds_a_flat_window_and_zstat_does_not():
+    # A-1's shape: a residual that sits near 0.032 with float32-level wobble. The
+    # cumulative-sum variance cancels to 0 while x - mu does not.
+    flat = 0.0319 + np.tile([0.0, 1e-9], 4000)
+    flat[-1] += 5e-9
+    assert zstat(flat, 105).max() > 1e3
+    assert zstat_floored(flat, 105, 1e-3).max() < 1e-4
+
+
+def test_the_floor_must_be_positive():
+    with pytest.raises(ValueError):
+        zstat_floored(X, 50, 0.0)
