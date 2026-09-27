@@ -47,9 +47,12 @@ command -v opam >/dev/null || { echo "opam is not on PATH; ${INSTALL_HINT} opam"
 # A Linux host needs a C toolchain and the usual headers too; a Mac has them from the
 # command line tools.
 DEPS="autoconf automake"
-[ "$(uname -s)" = "Linux" ] && DEPS="${DEPS} cc make patch unzip bubblewrap"
-for dep in ${DEPS}; do
-  command -v "$dep" >/dev/null || { echo "${dep} is not on PATH; ${INSTALL_HINT} ${dep}"; exit 1; }
+# (!) On Linux the bubblewrap PACKAGE installs a command named `bwrap`; checking for
+# `bubblewrap` failed on every Linux host (first Linux run, D86). Command:package pairs.
+[ "$(uname -s)" = "Linux" ] && DEPS="${DEPS} cc make patch unzip bwrap:bubblewrap"
+for pair in ${DEPS}; do
+  dep="${pair%%:*}"; pkg="${pair#*:}"
+  command -v "$dep" >/dev/null || { echo "${dep} is not on PATH; ${INSTALL_HINT} ${pkg}"; exit 1; }
 done
 
 if [ ! -d "${OPAMROOT}" ] || [ ! -f "${OPAMROOT}/config" ]; then
