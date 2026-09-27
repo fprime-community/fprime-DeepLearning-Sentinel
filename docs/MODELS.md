@@ -22832,6 +22832,12 @@ section was apparatus: the smokes in 79.2, which computed no recall on anything.
   The SMAP smoke checked that every term is finite and that the univariate forecast and `e_s`
   are `detectors._smoothed_errors`'s own, bit for bit. No recall, rate or cut was computed. The
   runner refuses a smoke on a TUNE or EVAL channel.
+- **Rider, 2026-09-26, after the SMAP/MSL joint fits and before any score:** 16 SMAP/MSL
+  training series never move (one unique value: A-1, B-1, C-2, D-2, D-7, D-8, D-9, D-12,
+  D-13, D-14, G-2, M-6, P-4, R-1, S-2, T-5), so d = dx / sd(dx) is 0/0 there and the runner
+  refused to fit them. **d's scale is 1 where sd(dx) on the train split is 0**: d is dx
+  itself, identically 0 in training -- the only causal, defined choice. Those 16 were
+  refitted; nothing had been scored.
 - **ESA-ADB's events were counted from the labels before any score:** 30 anomaly events
   start in the TUNE folds and 16 in the EVAL fold (`d86_arms.py prep-esa`).
 - The data were mirrored once from R2 (177 + 3 Class B, reconciled into the ledger from the

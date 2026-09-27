@@ -165,6 +165,14 @@ def ewma(err, span):
                                      telemanom.EwmaState()), np.float64)[:, 0]
 
 
+def unit_scale(sd):
+    """d's scale: sd(dx) on the train split, or 1 where that is 0 -- a training series
+    that never moves (16 SMAP/MSL channels; 79.2's rider, fixed before any score)."""
+    if not np.isfinite(sd):
+        raise RuntimeError("no usable training steps: d's scale is undefined")
+    return sd if sd > 0 else 1.0
+
+
 def rate_column(x, sd):
     return (np.diff(x, prepend=x[0]) / sd).astype(np.float32)
 
@@ -251,9 +259,7 @@ def smap_units():
 
 def smap_joint(cid, train, n_test):
     x_tr = train[:, 0].astype(np.float64)
-    sd = float(np.std(np.diff(x_tr)))
-    if not sd > 0:
-        raise RuntimeError("constant training series: d is undefined")
+    sd = unit_scale(float(np.std(np.diff(x_tr))))
     joint = registry.build("gru-telemanom"); joint.config = SR.proportional_config(n_test)
     v2 = np.stack([x_tr.astype(np.float32), rate_column(x_tr, sd)], axis=1)
     ctx = Context(mission="smap-msl", channels=(cid, f"{cid}/rate"), groups=(0,),
@@ -407,9 +413,7 @@ def esa_models(cid, fold):
     xf = np.nan_to_num(x.astype(np.float64), nan=float(np.nanmean(x[usable])))
     dx = np.diff(xf, prepend=xf[0])
     ok = usable & np.concatenate([[False], usable[:-1]])
-    sd = float(np.std(dx[ok]))
-    if not sd > 0:
-        raise RuntimeError("constant training series: d is undefined")
+    sd = unit_scale(float(np.std(dx[ok])))
     v2 = np.stack([x, (dx / sd).astype(np.float32)], axis=1)
     v2[~np.isfinite(v2[:, 0]), 1] = np.nan
     joint = registry.build("gru-telemanom")
