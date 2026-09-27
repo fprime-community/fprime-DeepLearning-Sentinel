@@ -8177,3 +8177,22 @@ work.
 capped every ESA-ADB fit at its channel's fold-0 sequence count per epoch, drawn from its own
 fold's window. Only the sequence budget moves, and it moves identically for every arm's models.
 MODELS 79.12 records the measurement and the disclosure.
+
+### D86.4 Rider, 2026-09-27: D86b and D86.A6 are authorised, on the Mac, and no data is kept locally
+
+**D86 is not edited.** The owner authorised two further pieces of D86 work, and ruled
+(2026-09-27) that **no dataset copy is kept on the Mac**:
+
+- **D86b** (MODELS 80): five testbed faults whose rate is normal and whose value is wrong,
+  scored with the flown multichannel model. It is the test the SMAP/MSL benchmark cannot give,
+  because 32 of its 38 events are rate-abnormal.
+- **D86.A6** (MODELS 79.13): the accumulated signed residual on SMAP/MSL, a hindsight design
+  for A-9[4569]. Its clean test is D86b's faults (a) and (e).
+
+**How the data rule is applied:**
+- SMAP/MSL is read from R2 into memory in each phase, and nothing but results is written.
+- Simulated testbed traces are regenerated from their seeds, and are deleted after scoring.
+- The mirror, the ESA-ADB scores and D86's SMAP/MSL terms were purged.
+- `runs/smap-msl/_traces/E-10-trace.npz` (D65.1's evidence) and `runs/m1-g8.9.10/` (README's
+  headline figures, and evidence cited in this file from line 1041 on) are cited records. They are reported to the owner
+  and not removed.

@@ -762,6 +762,13 @@ prediction that failed and why. This document follows the same discipline.
   - [79.10 Rider, 2026-09-26, before any TUNE or EVAL number: D86.A2 is a second primary comparison](#7910-rider-2026-09-26-before-any-tune-or-eval-number-d86a2-is-a-second-primary-comparison)
   - [79.11 Rider, 2026-09-26: stop 62 fired on Linux; SMAP/MSL is scored on arm64, and the new terms get a floor -- decided after TUNE was seen, before any EVAL](#7911-rider-2026-09-26-stop-62-fired-on-linux-smapmsl-is-scored-on-arm64-and-the-new-terms-get-a-floor----decided-after-tune-was-seen-before-any-eval)
   - [79.12 Rider, 2026-09-26: ESA-ADB's fits are capped at fold 0's sequence count, before any ESA-ADB score](#7912-rider-2026-09-26-esa-adbs-fits-are-capped-at-fold-0s-sequence-count-before-any-esa-adb-score)
+  - [79.13 Pre-registration: D86.A6, the accumulated signed residual (SMAP/MSL), before it runs](#7913-pre-registration-d86a6-the-accumulated-signed-residual-smapmsl-before-it-runs)
+- [80 Pre-registration: D86b -- faults whose rate is normal and whose value is wrong, on the testbed (Phase 5)](#80-pre-registration-d86b----faults-whose-rate-is-normal-and-whose-value-is-wrong-on-the-testbed-phase-5)
+  - [80.1 REQUIREMENTS DERIVED FROM:](#801-requirements-derived-from)
+  - [80.2 The five faults (onset at tick 20,000 of 100,000; balanced plant; seeds 1, 2, 3)](#802-the-five-faults-onset-at-tick-20000-of-100000-balanced-plant-seeds-1-2-3)
+  - [80.3 The constants](#803-the-constants)
+  - [80.4 Predictions](#804-predictions)
+  - [80.5 Cost and stops](#805-cost-and-stops)
 
 <!-- /toc -->
 
@@ -23108,3 +23115,132 @@ only ones finished are fold-0 univariate models.
   - It applies identically to every arm's models: the univariate models that D86.A0, A1, A2,
     A5, K1 and the frozen rule use on ESA-ADB, and the joint models A3 and A4 use. So it does
     not favour one arm over another.
+
+### 79.13 Pre-registration: D86.A6, the accumulated signed residual (SMAP/MSL), before it runs
+
+**79 is not edited.** A6 is an arm added after D86's EVAL was read: **it is a hindsight design
+for A-9[4569]**, the slow drift every arm missed, and SMAP/MSL EVAL is therefore a hindsight test
+of it. Its clean test is on D86b's faults (a) and (e) (section 80). **This is at least the ninth
+full EVAL read** (79's own, then 79's addendum, which read EVAL again to draw
+catches-versus-false-alarm curves).
+
+**Definition.**
+- `e(t) = x(t) - f(t)`: the univariate cached model's signed one-step residual, exactly as
+  z_res uses it.
+- `u(t) = (e(t) - mu_e) / sigma_e`, with `mu_e` and `sigma_e` the mean and sd of `e` on the
+  channel's TRAIN split. `sigma_e` is floored at 1e-3 x the channel's training scale (79.11).
+- A two-sided Page CUSUM: `S+(t) = max(0, S+(t-1) + u(t) - k)`, `S-(t) = max(0, S-(t-1) - u(t) - k)`,
+  and `S = max(S+, S-)`.
+- **Reset rule:** the floor at 0 is the only reset, plus a reset at the start of each scored
+  series. **There is no reset at an alarm**, so the per-step matched rate means what it means
+  for every other arm.
+- **D86.A6 = max(z_res, z_der, S)**, with one cut at the matched 0.6820%.
+- **k is chosen in {0.5, 1, 2} by A6's own TUNE catches, ties to the smaller k.**
+
+**The algebra, stated before running.** For a slow drift the forecaster lags, so `e` is roughly
+a constant bias `b`:
+- z_res standardises EWMA(|e|) against its trailing window, which absorbs `b` within W steps;
+- z_mot = Z(|delta e|), and delta b = 0;
+- z_der does not involve the forecaster;
+- only S grows, as (b / sigma_e - k) t.
+
+**A6 is none of z_res, z_der or z_mot.** Two alternatives were refused on this algebra:
+- centring `e` on its own trailing window absorbs `b` after 421 steps, and A-9 lasts 3,865;
+- standardising S against a trailing window caps a linear ramp at z = sqrt(3), about 1.73.
+
+**Predictions (the owner's):**
+- **P10:** A6 catches A-9[4569] on SMAP/MSL EVAL. HOLD if caught; FAIL if not.
+- **P11:** A6 holds every one of D86.A0's 17 EVAL catches at the matched rate. FAIL if any is lost.
+
+**Protocol.** TUNE with RG1-RG3 re-checked on arm64, then a committed freeze, then EVAL once.
+SMAP/MSL is read from R2 into memory in each phase; nothing is written but results
+(docs/DECISIONS.md D86.4). The cached univariate fits are read under their original key (79.2).
+
+## 80. Pre-registration: D86b -- faults whose rate is normal and whose value is wrong, on the testbed (Phase 5)
+
+**D86.4 is the owner's decision and this is its arm.** Every constant is fixed before any
+detector sees these runs. The only runs before this section are plant-only scenario checks,
+which decide nothing but whether each fault is rate-normal.
+
+### 80.1 REQUIREMENTS DERIVED FROM:
+
+```
+  docs/DECISIONS.md D86.4        D86b, A6's clean test, run on the Mac, no data kept
+  docs/MODELS.md 79 addendum     32 of 38 SMAP/MSL events are rate-abnormal; D86b is the test
+                                 the benchmarks cannot give
+  docs/MODELS.md 78.3            the balanced plant, 60,000-tick spin-up
+  docs/MODELS.md 42.9            fault-attributable alarms against a same-seed control
+  docs/MODELS.md 79.13           A6's definition, and k frozen on SMAP/MSL TUNE
+```
+
+### 80.2 The five faults (onset at tick 20,000 of 100,000; balanced plant; seeds 1, 2, 3)
+
+```
+  (a) sensor drift        CellTemp reads +5e-5 degC per tick from onset (+4 degC by the end);
+                          the plant is untouched                  sensor=drift,4,20000,5e-5,1
+  (b) wrong level         BusVoltage reads +0.4 V, raised-cosine onset over 2,000 ticks
+                                                                  sensor=offset,3,20000,0.4,2000
+  (c) wrong phase         the instrument's 900-tick schedule jumps 450 ticks against the orbit;
+                          every switch is an ordinary 4.10 <-> 0.55 A step   loadshift=20000,450
+  (d) heater works harder radiator emissivity falls 60% (tau 8,000); the thermostat holds the
+                          temperature and the duty rises           ageing=20000,8000,0,0.6
+  (e) channels disagree   ChargeCurrent reads x1.05, raised-cosine onset over 2,000 ticks
+                                                                  sensor=gain,1,20000,1.05,2000
+```
+
+- **Rate-normal check, plant only, seed 1.** Each channel's |dx| 99.9th percentile and maximum
+  after onset stay within 5% of the same-seed healthy run over the same window. Worst ratio per
+  fault: (a) CellTemp 1.022, (b) 1.000 everywhere, (c) CellTemp 1.009, (d) RadiatorTemp 1.043,
+  (e) ChargeCurrent 1.050 (the gain itself).
+- **(!) The criterion first stated was wrong and was corrected before any detector ran.**
+  "Max |dx| under the healthy 99.9th percentile" cannot hold even for the healthy run itself,
+  because the maximum of any 80,000-tick window exceeds its 99.9th percentile.
+- **The plant's default is bit-identical:** 9d72497a2ff277b3, `test_retrainer_learns.py`. Both
+  new modes are opt-in.
+
+### 80.3 The constants
+
+```
+  model      runs/d85/flying/flying.bin, the testbed's flown model: 8 channels, one GRU, window
+             250, 10 predictions, EWMA span 105, warm-up 2,350; its own cut 20.19107 (q0.999
+             pooled nominal); forward pass in NumPy with the state CARRIED, as flight does
+  terms      per channel: z_res = Z_2100(EWMA_105(|x - f|)), z_der = Z_2100(|dx|), as flown
+             (zstat, 1e-12); S as 79.13 with k frozen by 79.13's TUNE, u standardised on the
+             flying model's own 10,000-row training segment; each rule is the maximum across
+             channels
+  rules      A1 = max_c z_der          (rate only)
+             R  = max_c z_res          (the ML's value residual only)
+             A0 = max_c max(z_res, z_der)   (the flown rule)
+             A6 = max_c max(z_res, z_der, S)
+  rate       r* = the flown rule's alarm rate at its own cut 20.19107 on the three healthy
+             control runs after warm-up; every rule's cut is solved to r* on the same steps
+  caught     a fault-attributable alarm: at or after tick 20,000, in the fault run, absent
+             from the same-seed control at that tick
+  recorded   per fault and seed: caught or not by each rule; the first attributable tick; the
+             term and the channel that crossed there
+```
+
+### 80.4 Predictions
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **Q1** | the rate rule misses rate-normal faults | A1 catches at most 1 of the 5 on every seed | 2 or more on any seed |
+| **Q2** | the ML's value residual catches them | R catches at least 3 of the 5 on every seed | fewer than 3 on any seed |
+| **Q3** | A6's clean test, fault (a) | A6 catches (a) on every seed, with S the crossing term | any seed missed, or not S |
+| **Q4** | A6's clean test, fault (e) | A6 catches (e) on every seed, with S the crossing term | any seed missed, or not S |
+| **Q5** | REPORTED, NOT TARGETED: the flown rule A0 per fault; lead in ticks from onset | -- | -- |
+
+**Falsification.** Q1 and Q2 fail together if the rate rule does as well as the value residual.
+Then the case for learning is not made even on its home ground, and D87 has no argument beyond
+the false-alarm saving. Q2 alone failing means the flown model does not carry the physics these
+faults break.
+
+### 80.5 Cost and stops
+
+- **Cost:** 3 seeds x (1 control + 5 faults) = 18 plant runs of 100,000 ticks (under a second
+  each). Scoring is a NumPy forward pass per run. No R2 operation. Simulated traces are deleted
+  after scoring; their sha256 and the command that regenerates them are committed. No timing
+  figure is recorded (stop 35).
+- **Stops:**
+  - 69: any fault magnitude, onset, seed or rule changed after a detector has seen these runs;
+  - 70: the default plant's hash moves.

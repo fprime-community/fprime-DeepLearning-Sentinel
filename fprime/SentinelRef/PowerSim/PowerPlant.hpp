@@ -115,6 +115,12 @@ class PowerPlant {
     //! unchanged.
     void configureBalance(double housekeeping, double shuntSoc);
 
+    //! D86b / `docs/MODELS.md` 80, fault (c): from `start` the duty-cycled instrument's
+    //! schedule runs `shift` ticks ahead of the orbit -- every switch is an ordinary
+    //! 4.10 <-> 0.55 A step, only its phase against the sun is wrong. Off unless
+    //! configured, and then `step()` is unchanged.
+    void configureLoadShift(uint32_t start, uint32_t shift);
+
     double value(uint32_t channel) const { return m_v[channel]; }
     uint32_t tick() const { return m_tick; }
     double resistance() const { return m_r; }
@@ -136,6 +142,9 @@ class PowerPlant {
     double m_ageTau = 1.0;
     double m_solarLoss = 0.0;  //!< fraction of SOLAR_PEAK lost at saturation
     double m_emisLoss = 0.0;   //!< fraction of RAD_EMIS lost at saturation
+    bool m_loadShifted = false;   //!< D86b fault (c): instrument phase shifted
+    uint32_t m_loadShiftStart = 0u;
+    uint32_t m_loadShift = 0u;
     bool m_balanced = false;   //!< D85: orbit-balanced operating point
     double m_housekeeping = 2.35;
     double m_shuntSoc = 1.0;

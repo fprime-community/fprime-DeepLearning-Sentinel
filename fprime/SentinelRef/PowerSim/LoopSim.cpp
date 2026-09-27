@@ -12,6 +12,11 @@
 //   balance=HOUSEKEEPING,SHUNT_SOC               D85's orbit-balanced operating point
 //   ageing=START,TAU,SOLAR_LOSS,EMIS_LOSS        healthy ageing (optional)
 //   fault=START,RATE                             RESISTANCE_RISE (optional)
+//   loadshift=START,SHIFT                        D86b (c): instrument phase moved (optional)
+//   sensor=KIND,CH,START,PARAM,RAMP              D86b (a)(b)(e): what a faulty SENSOR reports;
+//                                                KIND drift (PARAM per tick), offset (PARAM,
+//                                                raised-cosine onset over RAMP), gain (factor
+//                                                PARAM, same onset). The plant is untouched.
 //   guard=G budget=B schedule=E nominal_ppm=P    the retrainer (EXPERIMENTAL B, E)
 //   retrain=0|1                                  run the retrainer at all
 //   swap=TICK,MODEL.bin                          a human-approved swap: at TICK the
@@ -39,6 +44,7 @@
 #include "RetrainLoop.hpp"
 #include "sentinel/Detector.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -62,7 +68,27 @@ struct Args {
     bool fault = false; unsigned faultStart = 0u; double faultRate = 0.0;
     unsigned guard = 260u, schedule = 6550u; int budget = 1, nominalPpm = 1830;
     bool retrain = true; bool swap = false; unsigned swapTick = 0u;
+    bool loadShift = false; unsigned shiftStart = 0u, shift = 0u;
+    std::string sensorKind; unsigned sensorCh = 0u, sensorStart = 0u, sensorRamp = 1u;
+    double sensorParam = 0.0;
 };
+
+//! D86b: the onset shape of an offset or gain fault, 0 before START, a raised cosine
+//! over RAMP ticks, then 1 -- so no single tick carries a step.
+double onset(unsigned t, unsigned start, unsigned ramp)
+{
+    if (t < start) { return 0.0; }
+    const double u = static_cast<double>(t - start) / static_cast<double>(ramp);
+    return (u >= 1.0) ? 1.0 : 0.5 * (1.0 - std::cos(3.14159265358979 * u));
+}
+
+double sensed(const Args& a, unsigned t, uint32_t c, double v)
+{
+    if (a.sensorKind.empty() || c != a.sensorCh || t < a.sensorStart) { return v; }
+    if (a.sensorKind == "drift") { return v + a.sensorParam * static_cast<double>(t - a.sensorStart); }
+    if (a.sensorKind == "offset") { return v + a.sensorParam * onset(t, a.sensorStart, a.sensorRamp); }
+    return v * (1.0 + (a.sensorParam - 1.0) * onset(t, a.sensorStart, a.sensorRamp));  // gain
+}
 
 std::vector<std::string> split(const std::string& s)
 {
@@ -102,6 +128,15 @@ bool parse(int argc, char** argv, Args& a)
         else if (k == "schedule") { a.schedule = (unsigned)std::atoi(v.c_str()); }
         else if (k == "nominal_ppm") { a.nominalPpm = std::atoi(v.c_str()); }
         else if (k == "retrain") { a.retrain = (v == "1"); }
+        else if (k == "loadshift" && p.size() == 2) {
+            a.loadShift = true; a.shiftStart = (unsigned)std::atoi(p[0].c_str());
+            a.shift = (unsigned)std::atoi(p[1].c_str()); }
+        else if (k == "sensor" && p.size() == 5
+                 && (p[0] == "drift" || p[0] == "offset" || p[0] == "gain")) {
+            a.sensorKind = p[0]; a.sensorCh = (unsigned)std::atoi(p[1].c_str());
+            a.sensorStart = (unsigned)std::atoi(p[2].c_str()); a.sensorParam = std::atof(p[3].c_str());
+            a.sensorRamp = (unsigned)std::atoi(p[4].c_str());
+            if (a.sensorCh >= PLANT_CHANNELS || a.sensorRamp == 0u) { return false; } }
         else if (k == "swap" && p.size() == 2) {
             a.swap = true; a.swapTick = (unsigned)std::atoi(p[0].c_str()); a.swapModel = p[1]; }
         else { return false; }
@@ -179,6 +214,7 @@ int main(int argc, char** argv)
     plant.reset(a.seed);
     if (a.balance) { plant.configureBalance(a.housekeeping, a.shunt); }
     if (a.ageing) { plant.configureAgeing(a.spinup + a.ageStart, a.ageTau, a.solarLoss, a.emisLoss); }
+    if (a.loadShift) { plant.configureLoadShift(a.spinup + a.shiftStart, a.shift); }
     for (unsigned t = 0u; t < a.spinup; ++t) { plant.step(false, 0.0); }
 
     std::FILE* trace = std::fopen((a.out + "/trace.f32").c_str(), "wb");
@@ -200,7 +236,7 @@ int main(int argc, char** argv)
             retraining = false;
         }
         plant.step(a.fault && t >= a.faultStart, a.faultRate);
-        for (uint32_t c = 0u; c < PLANT_CHANNELS; ++c) { row[c] = (float)plant.value(c); }
+        for (uint32_t c = 0u; c < PLANT_CHANNELS; ++c) { row[c] = (float)sensed(a, t, c, plant.value(c)); }
         std::fwrite(row, sizeof(float), PLANT_CHANNELS, trace);
 
         Sentinel::F32 values[PLANT_CHANNELS];

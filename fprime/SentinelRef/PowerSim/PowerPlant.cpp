@@ -39,8 +39,10 @@ constexpr double CAPACITY_AS = 190000.0;  // amp-seconds, 52.8 Ah
 
 //! The bus load: a duty-cycled instrument plus a steady housekeeping draw.
 //! Deterministic in the tick, so it repeats exactly.
-double loadCurrent(uint32_t seed, uint32_t tick, double housekeeping) {
-    const double phase = std::fmod(static_cast<double>(tick), 900.0);
+//! `phaseTick` places the instrument's schedule; it is `tick` unless D86b's opt-in
+//! phase fault is configured, and the noise always follows the true tick.
+double loadCurrent(uint32_t seed, uint32_t tick, uint32_t phaseTick, double housekeeping) {
+    const double phase = std::fmod(static_cast<double>(phaseTick), 900.0);
     const double instrument = (phase < 420.0) ? 4.10 : 0.55;
     return housekeeping + instrument + 0.06 * plantNoise(seed, tick, 3u);
 }
@@ -72,6 +74,12 @@ void PowerPlant::reset(uint32_t seed) {
     for (uint32_t c = 0u; c < PLANT_CHANNELS; ++c) {
         m_v[c] = 0.0;
     }
+}
+
+void PowerPlant::configureLoadShift(uint32_t start, uint32_t shift) {
+    m_loadShifted = true;
+    m_loadShiftStart = start;
+    m_loadShift = shift;
 }
 
 void PowerPlant::configureAgeing(uint32_t start, double tau, double solarLoss,
@@ -112,7 +120,10 @@ void PowerPlant::step(bool faultActive, double faultRate) {
 
     const double solar = solarInput(m_seed, m_tick, peakFactor);
     // 2.35 A is the pre-D85 housekeeping draw, and it is what an unbalanced plant uses.
-    const double load = loadCurrent(m_seed, m_tick, m_balanced ? m_housekeeping : 2.35);
+    const uint32_t phaseTick = (m_loadShifted && (m_tick >= m_loadShiftStart))
+                                   ? (m_tick + m_loadShift) : m_tick;
+    const double load = loadCurrent(m_seed, m_tick, phaseTick,
+                                    m_balanced ? m_housekeeping : 2.35);
 
     // Open-circuit voltage falls with state of charge; the bus sags under load
     // by the cell's own internal resistance, which is the quantity degrading.
