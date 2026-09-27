@@ -86,13 +86,15 @@ ARMS = {
     "frozen": ("frozen",),
     "A0": ("zr", "zd"),
     "A1": ("zd",),
-    "A2": ("zr", "zm"),
+    "A2": ("zr", "zm{rm}"),
     "A3": ("zrg", "zq{r}"),
     "A4": ("zrg", "zq{r}", "zd"),
     "A5": ("zr", "z5"),
     "K1": ("zr", "zk{r}"),
 }
-PRIMARY = "A4"
+#: 79's rider (2026-09-26, before any TUNE number): two primary comparisons. A4 is the
+#: rate INSIDE the forecaster; A2 is the rate as post-processing on its OUTPUTS.
+PRIMARIES = ("A4", "A2")
 TERM_NAMES = {"zr": "z_res (univariate)", "zd": "z_der", "zm": "z_mot", "z5": "z_slope",
               "zrg": "z_res (joint g)", "zq": "z_rate (joint g)", "zk": "z_res unsmoothed",
               "frozen": "telemanom ratio"}
@@ -184,7 +186,7 @@ def terms_for(uni, joint, x, sd, span, smoothing):
     e = x - agg[:, 0].astype(np.float64)
     e_s = ewma(np.abs(e), smoothing)
     out = {"e_s": e_s, "zr": zstat(e_s, span), "zd": zstat(derivative(x), span),
-           "zm": zstat(motion(x, agg[:, 0]), span),
+           **{f"zm{r}": zstat(ewma(motion(x, agg[:, 0]), r), span) for r in R_GRID},
            "z5": zstat(slope_mismatch(x, one[:, 0], two[:, 0]), span)}
     for r in R_GRID:
         out[f"zk{r}"] = zstat(ewma(np.abs(e), r), span)
@@ -508,7 +510,8 @@ def esa_targets(which):
 # ======================================================================================
 # scoring rules shared by both datasets
 def arm_terms(arm, r):
-    return [t.format(r=r) for t in ARMS[arm]]
+    """`r` is {"A4": r, "A2": rm}: A3, A4 and K1 take A4's span, A2 its own (79's rider)."""
+    return [t.format(r=r["A4"], rm=r["A2"]) for t in ARMS[arm]]
 
 
 def arm_score(d, arm, r):
@@ -623,7 +626,7 @@ def target_rate():
 def phase_tune(ds):
     target, frozen_mult = target_rate()
     frozen = dict(dataset=ds, section="docs/MODELS.md 79", target_rate=target,
-                  r_grid=list(R_GRID), primary=PRIMARY, cuts={}, rates={}, tune={})
+                  r_grid=list(R_GRID), primaries=list(PRIMARIES), cuts={}, rates={}, tune={})
     if ds == "smap":
         per = smap_per()
         targets = [t for t in smap_targets() if t[0] in TUNE]      # EVAL never loaded
@@ -647,12 +650,15 @@ def phase_tune(ds):
         masks = {c: scores[c] >= cut for c in per}
         return cut, rt, caught(masks)
 
-    # r on D86.A4's TUNE catches; ties to the smaller r (79.4)
-    by_r = {r: run("A4", r) for r in R_GRID}
-    r_best = max(R_GRID, key=lambda r: (len(by_r[r][2]), -r))
+    # each primary's span on its OWN TUNE catches; ties to the smaller (79.4 and its rider).
+    # The span that is not being chosen is held at 1 -- it does not enter the other's arm.
+    r_best, frozen["r_selection"] = {}, {}
+    for arm in PRIMARIES:
+        by_r = {r: run(arm, {"A4": r, "A2": r}) for r in R_GRID}
+        r_best[arm] = max(R_GRID, key=lambda r: (len(by_r[r][2]), -r))
+        frozen["r_selection"][arm] = {str(r): dict(cut=v[0], rate=v[1], tune=len(v[2]))
+                                      for r, v in by_r.items()}
     frozen["r"] = r_best
-    frozen["r_selection"] = {str(r): dict(cut=v[0], rate=v[1], tune=len(v[2]))
-                             for r, v in by_r.items()}
     for arm in ARMS:
         fixed = frozen_mult if (arm == "frozen" and ds == "smap") else None
         cut, rt, got = run(arm, r_best, fixed)
@@ -691,7 +697,7 @@ def phase_tune(ds):
             frozen["tune"][arm]["attribution"][ev] = attribution(per, arm, r_best, cut, win)
     path = OUT / ds / "frozen.json"
     path.write_text(json.dumps(frozen, indent=1) + "\n")
-    print(f"  {frozen['status']}; r = {r_best}; wrote {path}")
+    print(f"  {frozen['status']}; spans {r_best}; wrote {path}")
     for arm in ARMS:
         t = frozen["tune"][arm]
         print(f"    {arm:<7} cut {frozen['cuts'][arm]:10.6f}  rate {100 * frozen['rates'][arm]:.4f}%"
@@ -751,11 +757,15 @@ def phase_eval(ds):
                                    tune_caught=frozen["tune"][arm]["caught"],
                                    tune_of=frozen["tune"][arm]["of"],
                                    tune_rate=frozen["rates"][arm])
-    a0, a4 = set(result["arms"]["A0"]["events"]), set(result["arms"][PRIMARY]["events"])
-    result["primary"] = dict(arm=PRIMARY, holds_every_A0_catch=a0 <= a4,
-                             lost=sorted(a0 - a4), gained=sorted(a4 - a0),
-                             gained_attribution={e: result["arms"][PRIMARY]["attribution"][e]
-                                                 for e in sorted(a4 - a0)})
+    a0, a1 = set(result["arms"]["A0"]["events"]), set(result["arms"]["A1"]["events"])
+    result["primaries"] = {}
+    for arm in PRIMARIES:
+        got = set(result["arms"][arm]["events"])
+        result["primaries"][arm] = dict(
+            holds_every_A0_catch=a0 <= got, lost=sorted(a0 - got), gained=sorted(got - a0),
+            gained_attribution={e: result["arms"][arm]["attribution"][e]
+                                for e in sorted(got - a0)},
+            vs_A1=dict(lost=sorted(a1 - got), gained=sorted(got - a1)))
     if ds == "smap":
         result["reproduction_eval"] = {a: dict(eval=result["arms"][a]["eval_caught"], want=n,
                                                held=result["arms"][a]["eval_caught"] == n)

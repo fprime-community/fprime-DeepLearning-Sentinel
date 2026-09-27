@@ -759,6 +759,7 @@ prediction that failed and why. This document follows the same discipline.
   - [79.7 Predictions (two-sided; from D65.3: z_res reached the cut on 0 of 30 caught events)](#797-predictions-two-sided-from-d653-z-res-reached-the-cut-on-0-of-30-caught-events)
   - [79.8 Falsification, and what each failure would mean](#798-falsification-and-what-each-failure-would-mean)
   - [79.9 Cost](#799-cost)
+  - [79.10 Rider, 2026-09-26, before any TUNE or EVAL number: D86.A2 is a second primary comparison](#7910-rider-2026-09-26-before-any-tune-or-eval-number-d86a2-is-a-second-primary-comparison)
 
 <!-- /toc -->
 
@@ -22983,3 +22984,36 @@ set.
   67. An arm's rate not matched within 2%.
   68. Any setting -- r, a cut, an arm, a prediction -- changed after any EVAL number is seen.
 ```
+
+### 79.10 Rider, 2026-09-26, before any TUNE or EVAL number: D86.A2 is a second primary comparison
+
+**79 is not edited above this line.** Recorded after the SMAP/MSL fits and term scoring (which
+compute no recall, rate or cut) and before the TUNE phase has run on either dataset: no
+`frozen.json` exists.
+
+- **The owner's clarification.** "Rate on top" means the rate of change as post-processing on
+  the forecaster's OUTPUTS -- D86.A2's motion mismatch, `m = dx - df = e(t) - e(t-1)` -- and
+  not D86.A4. **D86.A2 becomes a second PRIMARY comparison beside D86.A4**, under 79.6's
+  adoption test unchanged: strictly more EVAL catches, no D86.A0 EVAL catch lost, rate within
+  2%, every gained event attributed to a new term (for A2, `z_mot`), and "the forecaster
+  contributed" only if it also beats D86.A1. D86.A5 stays secondary; D86.K1 stays a control.
+- **A2's setting is chosen on TUNE the same way as A4's.** `z_mot = Z_W(EWMA_rm(|m|))`,
+  `rm` in {1 (none), 3, 10}, chosen by D86.A2's OWN TUNE catches at the matched rate, ties to
+  the smaller. `rm = 1` is 79.4's original, unsmoothed A2. A4's `r` is still chosen by A4's
+  TUNE catches, and A3 and K1 still take A4's `r`. SMAP/MSL's terms are re-scored, before TUNE, to carry
+  `z_mot` at every `rm`; ESA-ADB's were not yet scored.
+- **Predictions are unchanged.** P5 (A2 16-18 of 19 on SMAP EVAL, no beat) stands as
+  registered; `rm` is REPORTED, NOT TARGETED (P9).
+- **What two primaries change in the wording of any claim.**
+  1. Two comparisons are made against the same 19 SMAP/MSL EVAL events and the same 16
+     ESA-ADB EVAL events. A one- or two-event gain by either is more likely to appear by
+     chance than it would be with one primary, and no multiplicity correction means anything
+     at these counts. **Every claim therefore names which primary it is about and reports
+     the other's result beside it.**
+  2. If only one primary meets 79.6, the claim is "one of two pre-registered primaries, D86.X,
+     caught k more EVAL events than D86.A0 at the same rate" -- never "the rate of change
+     beats the flown rule".
+  3. If both meet 79.6, which goes to D87 is the owner's decision; it is not settled by
+     comparing their EVAL margins after the fact.
+  4. If neither meets it, the result is stated for both, and neither is recommended as
+     `param_version` 3.

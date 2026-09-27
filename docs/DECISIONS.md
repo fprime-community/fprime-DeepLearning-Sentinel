@@ -8135,3 +8135,18 @@ decisions, not corrections.
 2. **Whatever D86 measures, D87 decides.** A recommendation on `param_version` 3 is made from
    the primary comparison alone, as a recommendation.
 3. **Nothing here is a timing claim** (stop 35).
+
+### D86.1 Rider, 2026-09-26: "rate on top" is post-processing on the forecaster's outputs, so D86.A2 is a second primary
+
+**D86 is not edited.** Recorded before any TUNE or EVAL number exists on either dataset.
+
+- **The owner's clarification of decision 2:** the rate of change "on top" of the ML means
+  post-processing on its OUTPUTS -- D86.A2's motion mismatch -- not the joint forecaster.
+  **D86.A2 is elevated to a second PRIMARY comparison alongside D86.A4**, with the same
+  adoption test (MODELS 79.6). D86.A5 stays secondary. D86.A0, D86.A1 and the frozen rule stay
+  the references.
+- **A2's one setting, the smoothing span of `|m|`, is chosen on TUNE by A2's own catches**,
+  from the same grid as A4's, as MODELS 79.10 records.
+- **Wording:** two primaries against the same EVAL events make a small gain by either more
+  likely by chance; every claim names its primary and reports the other beside it; if both
+  meet the test, the choice for D87 is the owner's (MODELS 79.10 items 1-4).
