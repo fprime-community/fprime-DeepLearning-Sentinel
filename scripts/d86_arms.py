@@ -156,6 +156,11 @@ def _one_thread():
 
 
 def ewma(err, span):
+    """`telemanom.ewma`, except span 1 -- "no smoothing" (79.4) -- which is the identity:
+    alpha = 1, and `telemanom.ewma`'s closed form divides by (1 - alpha)**k = 0 there and
+    returns NaN (found by the 79.2 smoke, S-1 and E-2)."""
+    if span == 1:
+        return np.asarray(err, np.float64).copy()
     return np.asarray(telemanom.ewma(np.asarray(err, np.float32)[:, None], span,
                                      telemanom.EwmaState()), np.float64)[:, 0]
 
