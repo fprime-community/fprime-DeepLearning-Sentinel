@@ -1,0 +1,341 @@
+{
+ "section": "docs/MODELS.md 80",
+ "model_sha256": "8b22e32159455d03bccfc7c34fa2236a0bca69ddab32aa309b70326a3eb461a9",
+ "r_star": 0.0013688342720600784,
+ "flown_cut": 20.19107247481538,
+ "cuts": {
+  "A1": 20.189462894035703,
+  "R": 8.414292358437905,
+  "A0": 20.189462894035703
+ },
+ "rates": {
+  "A1": 0.0013688342720600784,
+  "R": 0.0013688342720600784,
+  "A0": 0.0013688342720600784
+ },
+ "k": null,
+ "seeds": [
+  1,
+  2,
+  3
+ ],
+ "rows": [
+  {
+   "fault": "a",
+   "seed": 1,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "a",
+   "seed": 2,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "a",
+   "seed": 3,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "b",
+   "seed": 1,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 37473,
+    "lead_from_onset": 17473,
+    "attributable_ticks": 4,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "b",
+   "seed": 2,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 32080,
+    "lead_from_onset": 12080,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "b",
+   "seed": 3,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 26675,
+    "lead_from_onset": 6675,
+    "attributable_ticks": 4,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "c",
+   "seed": 1,
+   "A1": {
+    "caught": true,
+    "first_tick": 22350,
+    "lead_from_onset": 2350,
+    "attributable_ticks": 98,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@ChargeCurrent",
+     "zd@LoadCurrent"
+    ]
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 86075,
+    "lead_from_onset": 66075,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 22350,
+    "lead_from_onset": 2350,
+    "attributable_ticks": 98,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@ChargeCurrent",
+     "zd@LoadCurrent"
+    ]
+   }
+  },
+  {
+   "fault": "c",
+   "seed": 2,
+   "A1": {
+    "caught": true,
+    "first_tick": 20000,
+    "lead_from_onset": 0,
+    "attributable_ticks": 99,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@LoadCurrent"
+    ]
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 20000,
+    "lead_from_onset": 0,
+    "attributable_ticks": 99,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@LoadCurrent"
+    ]
+   }
+  },
+  {
+   "fault": "c",
+   "seed": 3,
+   "A1": {
+    "caught": true,
+    "first_tick": 20000,
+    "lead_from_onset": 0,
+    "attributable_ticks": 93,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@LoadCurrent"
+    ]
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 20000,
+    "lead_from_onset": 0,
+    "attributable_ticks": 93,
+    "crossed": [
+     "zd@BusVoltage",
+     "zd@LoadCurrent"
+    ]
+   }
+  },
+  {
+   "fault": "d",
+   "seed": 1,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 32086,
+    "lead_from_onset": 12086,
+    "attributable_ticks": 8,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "d",
+   "seed": 2,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 32080,
+    "lead_from_onset": 12080,
+    "attributable_ticks": 3,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "d",
+   "seed": 3,
+   "A1": {
+    "caught": false
+   },
+   "R": {
+    "caught": true,
+    "first_tick": 37475,
+    "lead_from_onset": 17475,
+    "attributable_ticks": 6,
+    "crossed": [
+     "zr@SolarInput"
+    ]
+   },
+   "A0": {
+    "caught": false
+   }
+  },
+  {
+   "fault": "e",
+   "seed": 1,
+   "A1": {
+    "caught": true,
+    "first_tick": 21420,
+    "lead_from_onset": 1420,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 21420,
+    "lead_from_onset": 1420,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   }
+  },
+  {
+   "fault": "e",
+   "seed": 2,
+   "A1": {
+    "caught": true,
+    "first_tick": 21420,
+    "lead_from_onset": 1420,
+    "attributable_ticks": 2,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 21420,
+    "lead_from_onset": 1420,
+    "attributable_ticks": 2,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   }
+  },
+  {
+   "fault": "e",
+   "seed": 3,
+   "A1": {
+    "caught": true,
+    "first_tick": 21900,
+    "lead_from_onset": 1900,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   },
+   "R": {
+    "caught": false
+   },
+   "A0": {
+    "caught": true,
+    "first_tick": 21900,
+    "lead_from_onset": 1900,
+    "attributable_ticks": 1,
+    "crossed": [
+     "zd@ChargeCurrent"
+    ]
+   }
+  }
+ ]
+}

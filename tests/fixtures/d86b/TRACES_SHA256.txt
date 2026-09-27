@@ -1,0 +1,22 @@
+1671febc8955d9984771e92a36c093b5813a14885fbb0cc7c71f7140cf006874  ./a_s1/trace.f32
+44992c29bf790f81acad2068a0701ecf58580e75f6e9712a60a5c4df878577f2  ./a_s2/trace.f32
+142790e381d3bb3ef816c87248b5d3c8c1e2f87b1a01b19c9724c64344cc17c6  ./a_s3/trace.f32
+1294b1e238e5f206d413cfeef916e7b1c545e57dded856396be9de76a688778b  ./b_s1/trace.f32
+3e0827fea31866d5a27dfef18da56412a58df9b77706a5ca40bf4557416c7858  ./b_s2/trace.f32
+199bc580c4bfb5443044917cb035231044b5e8e8fe4da80afc805300f56e92b8  ./b_s3/trace.f32
+376e388972f8e9c2090c167fb3dcf7cc0c035f2a1931e841deee4d4c2cc61922  ./c_s1/trace.f32
+e224396681362ce9eb951c4db102044fb26aa14180a7998e4307587a3847f0dd  ./c_s2/trace.f32
+fb98b6d98330df0ba81197fd759a1ce605ab1c41f154de02c73e7f340aebdc97  ./c_s3/trace.f32
+83bd590e2745db545d51528d82b3dc50e1537277868424d95f907a03366489ee  ./control_s1/trace.f32
+1abaa2f76daa909ea11bb3d21f72fe2c6575674c681afc1fd00de4dc0e85da3b  ./control_s2/trace.f32
+dd8f6a7f9a33d48ede55fcaaea72d3d52fbdacd13ce9dc6e95706a9ffa2f98f8  ./control_s3/trace.f32
+d051b16186084e7c3926100df71eda4509cb9600be16f18a1704efaac0869049  ./d_s1/trace.f32
+af970ea77fcb7abbc2cfbfc90322d52c8943f89c61ecc5bf4d2a5361c7eb9006  ./d_s2/trace.f32
+a4f83736d200f4f1a596f106a4c8620efee39d9eabf70deaed74460ef944683f  ./d_s3/trace.f32
+cd36d0fe87dc291d41e6e671310a8bdd9244d092700579b000c783fddb5ede8b  ./e_s1/trace.f32
+e23976e38e6efa15ca82ef5175abd1d09f586c4e900a29a8cbf3cdaa45753bc2  ./e_s2/trace.f32
+46a04b94505f693a282b71a1322026f8d5a6040e790f68fb8095f0dd565ab4d2  ./e_s3/trace.f32
+# regenerate (deterministic): for each seed S in 1 2 3, and control (no extra) plus each fault's
+# option from scripts/d86b.py FAULTS:
+#   oxcaml/_build/shape-c8-p10/loopsim out=DIR seed=S ticks=100000 spinup=60000 \
+#       balance=0.60,0.92 retrain=0 [FAULT OPTION]

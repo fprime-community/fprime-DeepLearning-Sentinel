@@ -23244,3 +23244,48 @@ faults break.
 - **Stops:**
   - 69: any fault magnitude, onset, seed or rule changed after a detector has seen these runs;
   - 70: the default plant's hash moves.
+
+### 80.6 OBSERVED (A1, R, A0) -- Q1 and Q2 FAILED as registered, and no rule detects any of the five faults
+
+r* = 0.1369% (the flown rule at its cut 20.19107 on the three controls). Cuts: A1 20.1895,
+R 8.4143, A0 20.1895.
+
+```
+  fault                 A1 (rate)   R (value residual)   A0 (flown)
+  (a) sensor drift        . . .       . . .                . . .
+  (b) wrong level         . . .       Y Y Y  zr@SolarInput . . .
+  (c) wrong phase         Y Y Y       Y . .                Y Y Y  (= A1)
+  (d) heater harder       . . .       Y Y Y  zr@SolarInput . . .
+  (e) channels disagree   Y Y Y       . . .                Y Y Y  (= A1)
+```
+
+| # | Prediction | Measured | |
+|---|---|---|---|
+| Q1 | A1 catches at most 1 of 5 on every seed | 2 of 5 on every seed ((c), (e)) | **FAILED** |
+| Q2 | R catches at least 3 of 5 on every seed | 3, 2, 2 | **FAILED** |
+| Q5 | reported | A0 equals A1 in every cell; the flown rule's alarms here are the derivative's | -- |
+
+Q3 and Q4 (A6) are scored after 79.13's freeze.
+
+**What this does NOT establish, and why the registered measure overstates every catch.**
+80.3 counts an alarm as fault-attributable if the same-seed control has no alarm at THAT
+TICK. On this plant every rule already alarms on the instrument's switching, about every 900
+ticks. So a fault that merely shifts when those alarms fall is counted as a catch. The
+diagnostic, computed after the verdicts above and changing none of them, compares alarms after
+onset in the fault run with the control:
+
+- R's catches on (b) and (d) are the control's own SolarInput alarms moved by 1 tick: an excess
+  of +1 to +5 alarms over 80,000 ticks.
+- A1's catches on (c) come with FEWER alarms (-10 to -19): the switching moved and its alarms
+  moved with it.
+- A1's catches on (e) are +1 or +2 alarms: the 5% gain enlarges a switching step enough to
+  cross the cut once.
+- (a) produces nothing from any rule.
+
+**Read plainly: neither the rate rule nor the testbed's flown model detects these five
+rate-normal faults.** The model was fitted on 20,000 ticks with a 250-step window, and its
+residual background puts its matched cut at 8.4. The exact-tick attribution measure is itself
+a finding: a re-registration needs an excess-over-control measure.
+
+Simulated traces deleted after scoring (D86.4): sha256 and the regeneration command are in
+`tests/fixtures/d86b/TRACES_SHA256.txt`; the result is `tests/fixtures/d86b/result_A1_R_A0.json`.
