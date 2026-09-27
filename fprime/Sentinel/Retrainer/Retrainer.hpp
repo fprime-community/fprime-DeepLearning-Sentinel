@@ -71,10 +71,12 @@ class Retrainer final : public RetrainerComponentBase {
 
     //! Read the flying model file. Returns its length, or 0. No OCaml call.
     U32 readFlying();
-    //! Write the loop's last candidate out and report it. No OCaml call.
-    void emitCandidate();
-    //! One sample through the loop. Called only from schedIn_handler.
-    void feed(const F32* values, bool valid);
+    //! Write the loop's last candidate out and report it, in the tap's sequence
+    //! numbers (`lastOffset` is sequence minus loop tick now). No OCaml call.
+    void emitCandidate(U32 lastOffset);
+    //! One sample through the loop. Called only from schedIn_handler. `offset` is the
+    //! sample's sequence number minus the loop tick it is fed at.
+    void feed(const F32* values, bool valid, U32 offset);
 
     RetrainLoop m_loop;
     bool m_configured;
@@ -96,6 +98,9 @@ class Retrainer final : public RetrainerComponentBase {
 
     bool m_haveSeq;
     U32 m_nextSeq;
+    //! Sequence minus loop tick at the current candidate's first admitted step. A
+    //! span never crosses a gap (a missed tick flags the ring), so one offset holds.
+    U32 m_spanOffset;
     U32 m_received;
     U32 m_missed;
 

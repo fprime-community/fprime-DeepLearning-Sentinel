@@ -17,7 +17,7 @@ Fw::MallocAllocator hubAllocator;
 
 // 1 Hz base clock, one divisor. RateGroupDriver skips a zero divisor and guards
 // each output on isConnected, so one entry is enough for one rate group.
-const Fw::TimeInterval rateGroupInterval(1, 0);
+Fw::TimeInterval rateGroupInterval(1, 0);  // -t shortens it for host runs (D85)
 Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{1, 0}}};
 Svc::ActiveRateGroup::ContextArray rateGroup_1HzContext(0);
 
@@ -34,6 +34,11 @@ void configureTopology() {
 }
 
 void setupTopology(const TopologyState& state) {
+    // D85: -t shortens the base tick for host runs of the retraining loop (docs/MODELS.md 78,
+    // E1). Apparatus only: absent or 0, the clock is the 1 Hz it always was.
+    if (state.tickMicros != 0U) {
+        rateGroupInterval.set(state.tickMicros / 1000000U, state.tickMicros % 1000000U);
+    }
     initComponents(state);
     setBaseIds();
     connectComponents();

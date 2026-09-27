@@ -24,8 +24,14 @@
  * @param app: name of application
  */
 void print_usage(const char* app) {
-    Fw::Logger::log("Usage: ./%s [options]\n-a\thostname/IP address\n-p\tport_number\n"
-                    "-H\thub server port; 0 or absent runs the detector with no hub\n", app);
+    // One call per line: Fw::Logger truncates a long message (found in D85).
+    Fw::Logger::log("Usage: ./%s [options]\n", app);
+    Fw::Logger::log("-a\thostname/IP address\n");
+    Fw::Logger::log("-p\tport_number\n");
+    Fw::Logger::log("-H\thub server port; 0 or absent runs the detector with no hub\n");
+    Fw::Logger::log("-t\tbase tick in microseconds; absent runs at 1 Hz (host runs only)\n");
+    Fw::Logger::log("-L\tPowerSim runs the balanced, spun-up plant of docs/MODELS.md 78.3\n");
+    Fw::Logger::log("-g\twith -L, the plant also ages at this emissivity loss\n");
 }
 
 /**
@@ -55,11 +61,14 @@ int main(int argc, char* argv[]) {
     CHAR* hostname = nullptr;
     U16 port_number = 0;
     U16 hub_port = 0;
+    U32 tick_micros = 0;
+    bool loop_plant = false;
+    double age_emis = 0.0;
 
     Os::init();
 
     // Loop while reading the getopt supplied options
-    while ((option = getopt(argc, argv, "hp:a:H:")) != -1) {
+    while ((option = getopt(argc, argv, "hp:a:H:t:Lg:")) != -1) {
         switch (option) {
             // Handle the -a argument for address/hostname
             case 'a':
@@ -76,6 +85,16 @@ int main(int argc, char* argv[]) {
             case 'H':
                 hub_port = static_cast<U16>(atoi(optarg));
                 break;
+            // D85: the accelerated clock for the end-to-end loop run.
+            case 't':
+                tick_micros = static_cast<U32>(strtoul(optarg, nullptr, 10));
+                break;
+            case 'L':
+                loop_plant = true;
+                break;
+            case 'g':
+                age_emis = strtod(optarg, nullptr);
+                break;
             // Cascade intended: help output
             case 'h':
             // Cascade intended: help output
@@ -91,6 +110,9 @@ int main(int argc, char* argv[]) {
     inputs.hostname = hostname;
     inputs.port = port_number;
     inputs.hubPort = hub_port;
+    inputs.tickMicros = tick_micros;
+    inputs.loopPlant = loop_plant;
+    inputs.ageEmis = age_emis;
 
     // Setup program shutdown via Ctrl-C
     signal(SIGINT, signalHandler);

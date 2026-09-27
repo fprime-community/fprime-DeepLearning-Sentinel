@@ -16,8 +16,14 @@
 #      add_fprime_subdirectory line.
 #
 # and then it asserts what D84 promises: Ref still carries the Monitor and ZERO OCaml
-# symbols; the second deployment carries the runtime; and, run standalone, it writes
-# a candidate that flight/'s own reader loads, at the shape asked for.
+# symbols; the second deployment carries the runtime.
+#
+# D85 adds the telemetry path's library half: Ref puts Sentinel.SampleTap in front of
+# its Monitor, exactly as a mission would, and must STILL carry zero OCaml symbols. And
+# since D85 the retrainer learns only from telemetry -- the synthetic drive is gone -- so
+# run standalone it boots (RetrainerReady) and writes NO candidate. Ref has no channel
+# source and no hub, so nothing reaches the tap; the live path, tap to hub to retrainer
+# to gate to RELOAD_MODEL, is proven in fprime/SentinelRef (docs/MODELS.md 78, E1).
 #
 # The shape must already be generated: bash scripts/oxcaml_shape.sh --channels C
 # --predictions P. The hub link to the detector is NOT made here -- Ref has no hub --
@@ -104,14 +110,16 @@ s = inst.read_text()
 m = "  instance comDriver: Drv.TcpClient base id 0x10025000\n"
 assert s.count(m) == 1, "Ref's instances.fpp is not the shape this script expects"
 inst.write_text(s.replace(m, m + "\n  instance sentinelMonitor: Sentinel.Monitor base id 0x20000000 \\\n"
-                          "    queue size 10\n"))
+                          "    queue size 10\n"
+                          "\n  instance sampleTap: Sentinel.SampleTap base id 0x22000000\n"))
 topo = top / "topology.fpp"
 s = topo.read_text()
 m = "    instance comDriver\n"
 conn = "      rateGroup1Comp.RateGroupMemberOut[7] -> ComCcsds.Subtopology.aggregatorTimeout\n"
 assert s.count(m) == 1 and s.count(conn) == 1, "Ref's topology.fpp is not the shape this script expects"
-s = s.replace(m, m + "    instance sentinelMonitor\n")
-s = s.replace(conn, conn + "      rateGroup1Comp.RateGroupMemberOut[8] -> sentinelMonitor.schedIn\n")
+s = s.replace(m, m + "    instance sentinelMonitor\n    instance sampleTap\n")
+s = s.replace(conn, conn + "      rateGroup1Comp.RateGroupMemberOut[8] -> sentinelMonitor.schedIn\n"
+              "      sampleTap.sampleOut -> sentinelMonitor.channelsIn\n")
 topo.write_text(s)
 packets = top / "RefPackets.fppi"
 s = packets.read_text()
@@ -124,9 +132,10 @@ packets.write_text(s.replace(m, """
     sentinelMonitor.ActiveMode
     sentinelMonitor.TicksSinceWarmup
     sentinelMonitor.LoadStatus
+    sampleTap.Forwarded
   }
 """ + m))
-print("-- the Monitor instanced in Ref, on rate group 1, with its telemetry packet")
+print("-- the Monitor instanced in Ref, on rate group 1, with the SampleTap in front of it")
 
 # 3. The second deployment, beside Ref in the same project.
 cmake = ref / "CMakeLists.txt"
@@ -163,33 +172,42 @@ case "${REF_SYMBOLS}" in
     *"Sentinel::Retrainer"*) echo "FAIL: Ref carries the Retrainer" >&2; exit 1 ;;
     *) ;;
 esac
+case "${REF_SYMBOLS}" in
+    *"Sentinel::SampleTap::sampleIn_handler"*) echo "-- Ref carries the SampleTap, in front of its Monitor" ;;
+    *) echo "FAIL: Ref carries no SampleTap" >&2; exit 1 ;;
+esac
 echo "-- OCaml symbols: Ref ${REF_OCAML}, SentinelRetrain ${RT_OCAML}"
 if [ "${REF_OCAML}" != "0" ]; then echo "FAIL: the detector's process has an OCaml runtime" >&2; exit 1; fi
 if [ "${RT_OCAML}" -le 100 ]; then echo "FAIL: the retrainer's deployment has no OCaml runtime" >&2; exit 1; fi
 
-# The retrainer, run standalone, writes a candidate at the shape asked for.
+# The retrainer, run standalone: it boots at the shape asked for, and with no telemetry
+# it writes no candidate (D85: the synthetic drive is gone). -t 100000 is ten ticks a
+# second, so the check does not wait on a 1 Hz clock.
 RUN="$(mktemp -d "${REFPROJ}/build-artifacts/retrain-run.XXXXXX")"
 PYTHONPATH="${ROOT}/src" "${ROOT}/.venv/bin/python" "${ROOT}/scripts/s72_flying_file.py" \
     "${RUN}/RetrainModel.bin" --channels "${C}" --predictions "${P}"
-( cd "${RUN}" && exec "${RT_BIN}" -a 127.0.0.1 -p 0 > retrain.log 2>&1 ) &
+( cd "${RUN}" && exec "${RT_BIN}" -a 127.0.0.1 -p 0 -t 100000 > retrain.log 2>&1 ) &
 RETRAIN_PID=$!
-for _ in $(seq 1 20); do [ -s "${RUN}/RetrainCandidate.bin" ] && break; sleep 1; done
-sleep 1
+READY=""
+for _ in $(seq 1 20); do
+    LOG="$(cat "${RUN}/retrain.log" 2>/dev/null || true)"
+    case "${LOG}" in *RetrainerReady*) READY=1; break ;; esac
+    sleep 1
+done
+sleep 3
 kill "${RETRAIN_PID}" 2>/dev/null || true
 wait "${RETRAIN_PID}" 2>/dev/null || true
 RETRAIN_PID=""
-if [ ! -s "${RUN}/RetrainCandidate.bin" ]; then
-    echo "FAIL: the retrainer wrote no candidate" >&2; cat "${RUN}/retrain.log" >&2; exit 1
+if [ -z "${READY}" ]; then
+    echo "FAIL: the retrainer did not report RetrainerReady" >&2; cat "${RUN}/retrain.log" >&2; exit 1
 fi
-echo "-- candidate: $(wc -c < "${RUN}/RetrainCandidate.bin" | tr -d ' ') B"
-
-# flight/'s own reader, on the candidate against the flying file it came from.
-clang++ -std=c++14 -fno-exceptions -fno-rtti -ffp-contract=off -Wall -Wextra -Werror -O2 \
-    -I"${ROOT}/flight/include" "${ROOT}/oxcaml/retrainer/shadow59_load.cpp" \
-    "${ROOT}"/flight/src/*.cpp -o "${RUN}/load"
-"${RUN}/load" "${RUN}/RetrainModel.bin" "${RUN}/RetrainCandidate.bin"
+echo "-- the retrainer booted at ${C} channels (RetrainerReady)"
+if [ -e "${RUN}/RetrainCandidate.bin" ]; then
+    echo "FAIL: the retrainer wrote a candidate with no telemetry" >&2; exit 1
+fi
+echo "-- and, with no telemetry, wrote no candidate"
 
 echo
 echo "PASS: with SENTINEL_WITH_RETRAINER=ON, F's own Ref project builds the retrainer as a"
-echo "      second deployment at ${C} channels; Ref carries the Monitor and no OCaml runtime,"
-echo "      and the retrainer's candidate loads in flight/'s own reader."
+echo "      second deployment at ${C} channels; Ref carries the Monitor behind the SampleTap"
+echo "      and no OCaml runtime; the retrainer boots and, with no telemetry, trains nothing."

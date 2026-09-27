@@ -71,6 +71,9 @@ struct TopologyState {
     const char* hostname;   //!< Hostname for TCP communication
     U16 port;              //!< Port for TCP communication
     U16 hubPort;           //!< Port the hub SERVER listens on; 0 means no hub
+    U32 tickMicros;        //!< Base tick in microseconds; 0 means the 1 Hz default (D85)
+    bool loopPlant;        //!< PowerSim runs LoopSim's balanced, spun-up plant (D85)
+    double ageEmis;        //!< > 0: that plant also ages, at this emissivity loss (D85)
     CdhCore::SubtopologyState cdhCore;           //!< Subtopology state for CdhCore
     ComCcsds::SubtopologyState comCcsds;         //!< Subtopology state for ComCcsds 
     DataProducts::SubtopologyState dataProducts; //!< Subtopology state for DataProducts

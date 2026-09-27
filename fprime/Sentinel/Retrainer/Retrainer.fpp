@@ -138,6 +138,12 @@ module Sentinel {
         @ it: its own static_crc32, the steps it was trained for, and the first and last
         @ ticks of the data it was trained on (docs/DECISIONS.md D85).
         @
+        @ The ticks are the TAP'S SEQUENCE NUMBERS -- the detector's ticks since the tap
+        @ began -- not this component's own count, which a long gap shortens (a gap feeds
+        @ at most QUEUE missed ticks). So the ground finds the exact rows in its own
+        @ archive whatever was lost on the way. Counted from 1: tick k is the sample
+        @ with sequence number k - 1, the convention LoopSim's candidates.csv shares.
+        @
         @ (!) THIS IS NOT A CERTIFICATION. Nothing onboard scores a candidate; the ground
         @ gate does, and a human approves every swap (Objective.md 11 rule 1).
         event CandidateWritten(

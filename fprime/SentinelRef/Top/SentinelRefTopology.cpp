@@ -25,7 +25,7 @@ Fw::MallocAllocator mallocator;
 Fw::MallocAllocator hubAllocator;
 
 // Rate group timing: base clock interval and divisors are coupled to rate group names
-const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
+Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock; -t shortens it for host runs (D85)
 Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{1, 0}, {2, 0}, {4, 0}}};
 // Divisors: 1Hz, 0.5Hz, 0.25Hz
 
@@ -82,6 +82,14 @@ void configureTopology() {
 }
 
 void setupTopology(const TopologyState& state) {
+    // D85: -t shortens the base tick for host runs of the retraining loop (docs/MODELS.md 78,
+    // E1). Apparatus only: absent or 0, the clock is the 1 Hz it always was.
+    if (state.tickMicros != 0U) {
+        rateGroupInterval.set(state.tickMicros / 1000000U, state.tickMicros % 1000000U);
+    }
+    if (state.loopPlant) {
+        powerSim.configureLoopPlant(0.60, 0.92, 60000U, state.ageEmis > 0.0, state.ageEmis);
+    }
     // Autocoded initialization. Function provided by autocoder.
     initComponents(state);
     // Autocoded id setup. Function provided by autocoder.

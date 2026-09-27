@@ -246,14 +246,13 @@ def controls() -> None:
     import hashlib
     key = hashlib.sha256(FLYING.read_bytes()).hexdigest()[:16]
     CACHE.mkdir(parents=True, exist_ok=True)
-    procs = []
+    # One at a time: the owner chose one core for D85's runs on the Mac (2026-09-26); the
+    # remote box runs the arms in parallel, but the controls are cached before it starts.
     for o in offsets:
         out = CACHE / f"control_{key}_w{SCHEDULE}_b{BUDGET}_o{o}.bin"
         if not out.exists():
-            procs.append(subprocess.Popen([str(TOOLS), "train", str(FLYING), str(seg_f32), str(rows),
-                                           str(o), str(SCHEDULE), str(BUDGET), str(out)]))
-    for p in procs:
-        p.wait()
+            subprocess.run([str(TOOLS), "train", str(FLYING), str(seg_f32), str(rows),
+                            str(o), str(SCHEDULE), str(BUDGET), str(out)], check=True)
     print(f"controls cached: offsets {offsets}")
 
 

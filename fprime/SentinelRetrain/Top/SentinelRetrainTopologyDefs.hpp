@@ -25,6 +25,7 @@ extern Fw::MallocAllocator hubAllocator;
 struct TopologyState {
     const char* hubHostname;  //!< where SentinelRef's hub is listening
     U16 hubPort;              //!< 0 means "no hub": run the cycle locally only
+    U32 tickMicros;           //!< Base tick in microseconds; 0 means the 1 Hz default (D85)
 };
 
 namespace PingEntries = ::PingEntries;

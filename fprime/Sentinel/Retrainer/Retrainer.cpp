@@ -23,7 +23,7 @@ Retrainer::Retrainer(const char* const compName)
     : RetrainerComponentBase(compName), m_loop(), m_configured(false), m_armed(false),
       m_bootAttempted(false), m_lock(), m_queue(), m_queueValid(), m_queueSeq(),
       m_queued(0U), m_overrun(0U), m_batch(), m_batchValid(), m_batchSeq(),
-      m_haveSeq(false), m_nextSeq(0U), m_received(0U), m_missed(0U), m_file(),
+      m_haveSeq(false), m_nextSeq(0U), m_spanOffset(0U), m_received(0U), m_missed(0U), m_file(),
       m_flyingPath(""), m_candidatePath("")
 {
 }
@@ -106,7 +106,7 @@ void Retrainer::sampleIn_handler(FwIndexType portNum, Sentinel::ChannelVector& v
     m_lock.unLock();
 }
 
-void Retrainer::emitCandidate()
+void Retrainer::emitCandidate(U32 lastOffset)
 {
     Os::File file;
     if (file.open(m_candidatePath.toChar(), Os::File::OPEN_CREATE,
@@ -123,20 +123,24 @@ void Retrainer::emitCandidate()
     }
     this->log_ACTIVITY_HI_CandidateWritten(m_loop.candidateBytes(), m_loop.candidateCrc32(),
                                            m_loop.candidateSteps(),
-                                           static_cast<U32>(m_loop.candidateFirstTick()),
-                                           static_cast<U32>(m_loop.candidateLastTick()));
+                                           static_cast<U32>(m_loop.candidateFirstTick()) + m_spanOffset,
+                                           static_cast<U32>(m_loop.candidateLastTick()) + lastOffset);
 }
 
-void Retrainer::feed(const F32* values, bool valid)
+void Retrainer::feed(const F32* values, bool valid, U32 offset)
 {
+    const U32 before = m_loop.stepsSinceCandidate();
     const LoopTick out = m_loop.tick(values, valid);
     if (out.status != 0) {
         this->log_WARNING_LO_CallRefused(toFpp(out.status));
         this->tlmWrite_LastStatus(toFpp(out.status));
         return;
     }
+    if (out.admitted && (before == 0U)) {
+        m_spanOffset = offset;       // this candidate's first admitted step
+    }
     if (out.candidateReady) {
-        this->emitCandidate();
+        this->emitCandidate(offset);
     }
 }
 
@@ -173,11 +177,12 @@ void Retrainer::schedIn_handler(FwIndexType portNum, U32 context)
             const U32 gap = m_batchSeq[i] - m_nextSeq;
             const U32 fill = (gap < QUEUE) ? gap : QUEUE;
             for (U32 k = 0U; k < fill; ++k) {
-                this->feed(ZEROS, false);
+                this->feed(ZEROS, false, 0U);   // never admitted: a missed tick
             }
             lost += gap;
         }
-        this->feed(m_batch[i], m_batchValid[i]);
+        this->feed(m_batch[i], m_batchValid[i],
+                   m_batchSeq[i] - static_cast<U32>(m_loop.ticks()));
         m_haveSeq = true;
         m_nextSeq = m_batchSeq[i] + 1U;
         ++m_received;

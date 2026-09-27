@@ -18,6 +18,16 @@ PowerSim::PowerSim(const char* compName) : PowerSimComponentBase(compName) {
     m_plant.reset(1U);
 }
 
+void PowerSim::configureLoopPlant(double housekeeping, double shuntSoc, U32 spinup,
+                                  bool ageing, double emisLoss) {
+    m_loopPlant = true;
+    m_housekeeping = housekeeping;
+    m_shuntSoc = shuntSoc;
+    m_spinup = spinup;
+    m_ageing = ageing;
+    m_emisLoss = emisLoss;
+}
+
 void PowerSim::schedIn_handler(FwIndexType portNum, U32 context) {
     static_cast<void>(portNum);
     static_cast<void>(context);
@@ -35,6 +45,17 @@ void PowerSim::schedIn_handler(FwIndexType portNum, U32 context) {
         const F32 rate = this->paramGet_FAULT_RATE(valid);
         if (valid == Fw::ParamValid::VALID) { m_faultRate = rate; }
         m_plant.reset(m_seed);
+        // D85: LoopSim's order exactly -- balance, ageing from spinup + 5,000 with
+        // tau 8,000 and 5% solar loss (docs/MODELS.md 78.3), then the spin-up.
+        if (m_loopPlant) {
+            m_plant.configureBalance(m_housekeeping, m_shuntSoc);
+            if (m_ageing) {
+                m_plant.configureAgeing(m_spinup + 5000U, 8000.0, 0.05, m_emisLoss);
+            }
+            for (U32 t = 0U; t < m_spinup; ++t) {
+                m_plant.step(false, 0.0);
+            }
+        }
         m_started = true;
     }
 
