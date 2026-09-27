@@ -761,6 +761,7 @@ prediction that failed and why. This document follows the same discipline.
   - [79.9 Cost](#799-cost)
   - [79.10 Rider, 2026-09-26, before any TUNE or EVAL number: D86.A2 is a second primary comparison](#7910-rider-2026-09-26-before-any-tune-or-eval-number-d86a2-is-a-second-primary-comparison)
   - [79.11 Rider, 2026-09-26: stop 62 fired on Linux; SMAP/MSL is scored on arm64, and the new terms get a floor -- decided after TUNE was seen, before any EVAL](#7911-rider-2026-09-26-stop-62-fired-on-linux-smapmsl-is-scored-on-arm64-and-the-new-terms-get-a-floor----decided-after-tune-was-seen-before-any-eval)
+  - [79.12 Rider, 2026-09-26: ESA-ADB's fits are capped at fold 0's sequence count, before any ESA-ADB score](#7912-rider-2026-09-26-esa-adbs-fits-are-capped-at-fold-0s-sequence-count-before-any-esa-adb-score)
 
 <!-- /toc -->
 
@@ -23085,3 +23086,25 @@ as `tests/fixtures/d86/smap_frozen_linux_stop62.json`.
   - The same run held RG1-RG3 exactly: 5.288128 13/19, 4.431455 15/19, 0.550599 6/19.
   - "Never moved" is now tested as max = min on the train split, which is what item 2 says.
     SMAP/MSL was re-scored and TUNE re-run; the numbers that run showed are in its freeze file.
+
+### 79.12 Rider, 2026-09-26: ESA-ADB's fits are capped at fold 0's sequence count, before any ESA-ADB score
+
+**79 is not edited.** No ESA-ADB term, rate, cut or recall exists: only fits have run, and the
+only ones finished are fold-0 univariate models.
+
+- **Why.** Measured on the remote machine: a fold-0 fit ran 35 epochs of 20,270 sequences in
+  about 44 minutes on one core. Today's Hyper sets one sequence per 180 usable steps, so folds
+  1 and 2 cost about 2x and 3x that. With 36 units of univariate plus joint models, that left
+  6.5-8.5 hours of fitting. **The owner chose to cap the cost.**
+- **What changed.**
+  - Every ESA-ADB fit trains on its channel's fold-0 sequence count per epoch, drawn from its
+    own fold's full usable training window.
+  - Only `Hyper.sequence_budget_divisor` moves: it is 180 at fold 0, and 180 x
+    (usable steps at fold k / usable steps at fold 0) at folds 1 and 2.
+  - Every other field is today's. Fold 0's fits are unchanged, and SMAP/MSL is untouched.
+- **Disclosed against this work.**
+  - This departs from today's Hyper for cost, not for any outcome, and the cap was not varied.
+  - Folds 1 and 2 see fewer gradient updates per epoch than the flown toolkit would give them.
+  - It applies identically to every arm's models: the univariate models that D86.A0, A1, A2,
+    A5, K1 and the frozen rule use on ESA-ADB, and the joint models A3 and A4 use. So it does
+    not favour one arm over another.

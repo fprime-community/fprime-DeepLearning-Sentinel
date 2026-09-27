@@ -29,7 +29,7 @@ import os
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
 
-import argparse, hashlib, importlib.util, io, json, subprocess, sys, warnings  # noqa: E401
+import argparse, dataclasses, hashlib, importlib.util, io, json, subprocess, sys, warnings  # noqa: E401
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -426,6 +426,21 @@ def esa_ctx(cid, fold, lo, hi, info, rate=False):
                    commands=None, command_ids=())
 
 
+def capped(det, z, folds, fold):
+    """MODELS 79.12: every fold trains on its channel's FOLD-0 sequence count per epoch,
+    drawn from its own full usable window. Only `sequence_budget_divisor` moves (180 at
+    fold 0), so fold 0's fits are unchanged and every other Hyper field is today's."""
+    def usable_n(k):
+        f = next(ff for ff in folds if ff["index"] == k)
+        lo, hi = f["train"]
+        return int((z[f"usable{k}"][lo:hi] & np.isfinite(z["values"][lo:hi])).sum())
+    if fold != 0:
+        base = det.hyper.sequence_budget_divisor
+        div = int(round(base * usable_n(fold) / usable_n(0)))
+        det.hyper = dataclasses.replace(det.hyper, sequence_budget_divisor=div)
+    return det
+
+
 def esa_models(cid, fold):
     m = esa_meta()
     f = next(ff for ff in m["folds"] if ff["index"] == fold)
@@ -434,7 +449,7 @@ def esa_models(cid, fold):
     lo, hi = f["train"]
     x = z["values"][lo:hi].astype(np.float32)
     usable = z[f"usable{fold}"][lo:hi]
-    uni = registry.build("gru-telemanom")
+    uni = capped(registry.build("gru-telemanom"), z, m["folds"], fold)
     fit_into(uni, D86_STORE, x[:, None], usable, esa_ctx(cid, fold, lo, hi, info))
     xf = np.nan_to_num(x.astype(np.float64), nan=float(np.nanmean(x[usable])))
     dx = np.diff(xf, prepend=xf[0])
@@ -442,7 +457,7 @@ def esa_models(cid, fold):
     sd = unit_scale(float(np.std(dx[ok])))
     v2 = np.stack([x, (dx / sd).astype(np.float32)], axis=1)
     v2[~np.isfinite(v2[:, 0]), 1] = np.nan
-    joint = registry.build("gru-telemanom")
+    joint = capped(registry.build("gru-telemanom"), z, m["folds"], fold)
     fit_into(joint, D86_STORE, v2, usable, esa_ctx(cid, fold, lo, hi, info, rate=True))
     xt = x[usable & np.isfinite(x)].astype(np.float64)
     unit = float(np.max(np.abs(xt))) if xt.size and np.max(np.abs(xt)) > 0 else 1.0

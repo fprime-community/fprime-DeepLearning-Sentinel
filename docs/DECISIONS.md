@@ -8170,3 +8170,10 @@ The owner decided, after those TUNE numbers were seen and before any EVAL:
 
 MODELS 79.11 records what was seen, the diagnosis, and why the first floor offered could not
 work.
+
+### D86.3 Rider, 2026-09-26: ESA-ADB's fits are capped for cost, before any ESA-ADB score
+
+**D86 is not edited.** Today's Hyper would have left 6.5-8.5 hours of ESA-ADB fitting. The owner
+capped every ESA-ADB fit at its channel's fold-0 sequence count per epoch, drawn from its own
+fold's window. Only the sequence budget moves, and it moves identically for every arm's models.
+MODELS 79.12 records the measurement and the disclosure.
