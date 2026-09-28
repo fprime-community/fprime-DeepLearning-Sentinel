@@ -222,12 +222,21 @@ def gate(*, flying: Path, candidate: Path, telemetry: np.ndarray, names: list[st
         # (docs/MODELS.md 73.6), and fprime-cli's default is an absolute '/<name>'.
         if len(uplink_dest) > 40:
             raise ToolkitError(f"uplink destination {uplink_dest!r} is over 40 characters")
-        res.commands = [
-            f"fprime-cli file-uplink {candidate} {uplink_dest} --dictionary {dictionary}",
-            f"fprime-cli command-send {reload_command} --arguments {uplink_dest} "
-            f"--dictionary {dictionary}"]
+        res.commands = uplink_commands(candidate, uplink_dest, dictionary, reload_command)
         res.numbers["uplink_destination"] = uplink_dest
     return res
+
+
+def uplink_commands(candidate, uplink_dest: str, dictionary, reload_command: str) -> list[str]:
+    """The two lines a CERTIFY report names: the file uplink, then the reload.
+
+    One function, so the report and anything that only PRINTS them (docs/MODELS.md 78.11:
+    E1 under D85.1 shows the human's step and sends nothing) cannot drift apart.
+    """
+    return [
+        f"fprime-cli file-uplink {candidate} {uplink_dest} --dictionary {dictionary}",
+        f"fprime-cli command-send {reload_command} --arguments {uplink_dest} "
+        f"--dictionary {dictionary}"]
 
 
 def render(res: GateResult) -> str:

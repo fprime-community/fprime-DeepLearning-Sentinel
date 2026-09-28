@@ -20,6 +20,7 @@ void print_usage(const char* app) {
     Fw::Logger::log("-a\thub server hostname/IP address (default 127.0.0.1)\n");
     Fw::Logger::log("-p\thub server port; 0 or absent runs the cycle with no hub\n");
     Fw::Logger::log("-t\tbase tick in microseconds; absent runs at 1 Hz (host runs only)\n");
+    Fw::Logger::log("-E\tlog every sample the replica emitted on (LC2, host runs only)\n");
 }
 
 static void signalHandler(int signum) {
@@ -32,10 +33,11 @@ int main(int argc, char* argv[]) {
     const char* hostname = "127.0.0.1";
     U16 port_number = 0;
     U32 tick_micros = 0;
+    bool emit_log = false;
 
     Os::init();
 
-    while ((option = getopt(argc, argv, "hp:a:t:")) != -1) {
+    while ((option = getopt(argc, argv, "hp:a:t:E")) != -1) {
         switch (option) {
             case 'a':
                 hostname = optarg;
@@ -46,6 +48,10 @@ int main(int argc, char* argv[]) {
             // D85: the accelerated clock for the end-to-end loop run.
             case 't':
                 tick_micros = static_cast<U32>(strtoul(optarg, nullptr, 10));
+                break;
+            // docs/MODELS.md 78.11, LC2: apparatus.
+            case 'E':
+                emit_log = true;
                 break;
             case 'h':
             case '?':
@@ -59,6 +65,7 @@ int main(int argc, char* argv[]) {
     inputs.hubHostname = hostname;
     inputs.hubPort = port_number;
     inputs.tickMicros = tick_micros;
+    inputs.emitLog = emit_log;
 
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);

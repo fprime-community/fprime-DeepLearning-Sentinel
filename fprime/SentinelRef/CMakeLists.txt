@@ -38,6 +38,13 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ExampleAdapter/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ExampleSource/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/HubCounter/")
 
+# LC2's detector-side log (docs/MODELS.md 78.11): apparatus for the same reason, and only
+# with the retrainer ON, because it reads the SampleTap and is instanced only in the loop
+# topology. OFF, SentinelRef is exactly what it was.
+if (SENTINEL_WITH_RETRAINER)
+    add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/EmitProbe/")
+endif()
+
 register_fprime_deployment(
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/Main.cpp"

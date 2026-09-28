@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 #
 # D85 / docs/MODELS.md 78, E1: the whole retraining loop through the REAL deployments.
+# Run as docs/MODELS.md 78.11 re-registers it while D85.1 stands: E1-dry.
 #
 #   PowerSim (-L: 78.3's balanced, spun-up plant) -> SampleTap -> Monitor, unchanged
 #                                                  \-> hub (UDP) -> SentinelRetrain
 #   SentinelRetrain: replica, 56's rule, guard band, warm start -> RetrainCandidate.bin
 #   ground: the telemetry archive -> sentinel_toolkit gate -> report (CERTIFY/REFUSE)
-#   human:  sentinel_toolkit approve -> file-uplink + RELOAD_MODEL -> the detector's log
+#   human:  the approve / uplink / RELOAD_MODEL lines PRINTED, NEVER SENT (D85.1)
+#   LC2:    the Monitor's emit ticks (EmitProbe) against the replica's, tick for tick
 #
-#     bash scripts/d85_e1.sh RUN_DIR [--age EMIS] [--tick-us US] [--hub PORT]
+#     bash scripts/d85_e1.sh RUN_DIR [--dry-run-approve] [--calibrate SEQ]
+#                                    [--age EMIS] [--tick-us US] [--hub PORT]
+#
+# (!) THIS SCRIPT SENDS NOTHING TO THE DETECTOR. D85.1: no shadow model may be swapped
+# in, on the testbed or in any deployment, until a route holds C1 at zero. The step that
+# used to run `sentinel_toolkit approve` for real is gone, not disabled: with
+# --dry-run-approve the human's three lines are printed and `approve --dry-run` checks the
+# report; without it, step 7 does not run. tests/test_e1_sends_nothing.py holds this.
 #
 # (!) TWO STAND-INS, STATED. The candidate reaches the ground by a file copy -- the
 # retrainer's process has no downlink here -- and the ground's telemetry archive is the
@@ -17,30 +26,37 @@
 # actually received through fprime-gds: every downlinked value must equal its replayed
 # row, bit for bit, or the run stops.
 #
-# (!) -t is apparatus: an accelerated base tick for a host run. Ticks, never hours: no
-# timing figure is produced (stop 35). Every process started here is stopped by the trap,
-# and the run refuses to start if any deployment or GDS process is already running.
+# (!) --tick-us is apparatus: an accelerated base tick for a host run, chosen by 78.11's
+# ladder (--calibrate). Ticks, never hours: every wait is on the tap's own sequence
+# number, never a wall clock, and no timing figure is produced (stop 35). Every process
+# started here is stopped by the trap, and the run refuses to start if any deployment or
+# GDS process is already running.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 F="${ROOT}/fprime"
 SHAPE="${ROOT}/oxcaml/_build/shape-c8-p10"
-FLYING="${ROOT}/runs/d85/flying/flying.bin"
+# 78.11: the flying model is the committed test model, byte-identical to
+# runs/d85/flying/flying.bin, so the controls cache key is unchanged.
+FLYING="${ROOT}/flight/test/vectors/retrainer_ut_flying_c8_p10.bin"
+FLYING_SHA256="8b22e32159455d03bccfc7c34fa2236a0bca69ddab32aa309b70326a3eb461a9"
 CACHE="${ROOT}/runs/d85/controls"
 PY="${ROOT}/.venv/bin/python"
-RUN="${1:?usage: bash scripts/d85_e1.sh RUN_DIR [--age EMIS] [--tick-us US] [--hub PORT]}"
+LC2="${ROOT}/scripts/d85_lc2.py"
+RUN="${1:?usage: bash scripts/d85_e1.sh RUN_DIR [--dry-run-approve] [--calibrate SEQ] [--age EMIS] [--tick-us US] [--hub PORT]}"
 shift
-AGE=""; TICK_US=100000; HUB=50100
+AGE=""; TICK_US=100000; HUB=50100; DRY_RUN_APPROVE=0; CALIBRATE=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --age) AGE="$2"; shift 2 ;;
         --tick-us) TICK_US="$2"; shift 2 ;;
         --hub) HUB="$2"; shift 2 ;;
+        --dry-run-approve) DRY_RUN_APPROVE=1; shift ;;
+        --calibrate) CALIBRATE="$2"; shift 2 ;;
         *) echo "unknown argument $1" >&2; exit 2 ;;
     esac
 done
 # 78.4's constants, the same ones the arms use.
 SPINUP=60000; GUARD=260; SPAN=260; HELD=9000; SCHEDULE=6550
-RATE_HZ=$(( 1000000 / TICK_US ))
 
 rm -rf "${RUN}"; mkdir -p "${RUN}/ground"
 PIDS=()
@@ -52,12 +68,31 @@ cleanup() {
     pkill -9 -f "${RUN}/gds" 2>/dev/null
 }
 trap cleanup EXIT
+orphans() {
+    pgrep -fl 'SentinelRef|SentinelRetrain|fprime-gds|fprime_gds|fprime-cli|loopsim|ground_tools'
+}
+alive() {
+    kill -0 "${PIDS[1]}" 2>/dev/null && kill -0 "${PIDS[2]}" 2>/dev/null
+}
+# Wait until both sides' heartbeats have reached tap sequence $1. The plant's own count,
+# not a wall clock: a dropped cycle or a slow timer only makes this wait longer.
+wait_for_seq() {
+    while [ "$("${PY}" "${LC2}" lastseq "${RUN}")" -lt "$1" ]; do
+        sleep 5
+        alive || { echo "   (!) a deployment exited"; tail -5 "${RUN}/retrain.log" "${RUN}/ref.log"; exit 1; }
+    done
+}
 
 echo "== orphan check before =="
-if pgrep -fl 'SentinelRef|SentinelRetrain|fprime-gds|fprime_gds|fprime-cli|loopsim|ground_tools'; then
+if orphans; then
     echo "   (!) processes already running -- refusing to start"; trap - EXIT; exit 3
 fi
 echo "   none"
+
+echo "== the flying model =="
+GOT="$(shasum -a 256 "${FLYING}" | cut -d' ' -f1)"
+[ "${GOT}" = "${FLYING_SHA256}" ] || { echo "   (!) ${FLYING} is ${GOT}, not ${FLYING_SHA256}"; exit 1; }
+echo "   ${FLYING_SHA256}"
 
 cp "${F}/build-artifacts/Darwin/SentinelRetrain/bin/SentinelRetrain" \
    "${F}/build-artifacts/Darwin/SentinelRef/bin/SentinelRef" "${RUN}/"
@@ -66,21 +101,33 @@ cp "${FLYING}" "${RUN}/RetrainModel.bin"       # the same file: the retrainer's 
 DICT="${F}/build-artifacts/Darwin/SentinelRef/dict/SentinelRefTopologyDictionary.json"
 source "${F}/fprime-venv/bin/activate"
 
-echo "== 1. fprime-gds, SentinelRetrain (hub client), SentinelRef (-L${AGE:+ -g ${AGE}}), ${RATE_HZ} ticks a second =="
+echo "== 1. fprime-gds, SentinelRetrain (hub client, -E), SentinelRef (-L -E${AGE:+ -g ${AGE}}), tick ${TICK_US} us (apparatus) =="
 ( cd "${RUN}" && exec fprime-gds -n -g none --dictionary "${DICT}" -l "${RUN}/gds" --log-directly \
       --file-storage-directory "${RUN}/gds/files" > gds.out 2>&1 ) &
 PIDS+=($!)
 sleep 6
-( cd "${RUN}" && exec ./SentinelRetrain -a 127.0.0.1 -p "${HUB}" -t "${TICK_US}" > retrain.log 2>&1 ) &
+( cd "${RUN}" && exec ./SentinelRetrain -a 127.0.0.1 -p "${HUB}" -t "${TICK_US}" -E > retrain.log 2>&1 ) &
 PIDS+=($!)
 sleep 2
 AGE_ARGS=()
 [ -n "${AGE}" ] && AGE_ARGS=(-g "${AGE}")
-( cd "${RUN}" && exec ./SentinelRef -a 127.0.0.1 -p 50000 -H "${HUB}" -t "${TICK_US}" -L ${AGE_ARGS[@]+"${AGE_ARGS[@]}"} > ref.log 2>&1 ) &
+( cd "${RUN}" && exec ./SentinelRef -a 127.0.0.1 -p 50000 -H "${HUB}" -t "${TICK_US}" -L -E ${AGE_ARGS[@]+"${AGE_ARGS[@]}"} > ref.log 2>&1 ) &
 PIDS+=($!)
-START=$(date +%s)
 sleep 5
 grep -m1 "RetrainerReady" "${RUN}/retrain.log" | sed 's/^/   /' || { echo "   (!) the retrainer did not boot"; exit 1; }
+
+if [ "${CALIBRATE}" -gt 0 ]; then
+    echo "== calibration (78.11's ladder): the real pipeline to tap sequence ${CALIBRATE} =="
+    wait_for_seq "${CALIBRATE}"
+    cleanup; trap - EXIT
+    sleep 1
+    "${PY}" "${LC2}" calibrate "${RUN}"
+    RUNG=$?
+    echo "== orphan check after =="
+    orphans || echo "   none"
+    echo "CALIBRATE: tick ${TICK_US} us, rung rc=${RUNG} (0 PASS)"
+    exit "${RUNG}"
+fi
 
 echo "== 2. the downlink, sampled: 60 s of PowerSim's channels through fprime-gds =="
 fprime-cli channels -c powerSim -j --dictionary "${DICT}" -t 60 > "${RUN}/downlink.jsonl" 2> "${RUN}/downlink.err"
@@ -89,21 +136,20 @@ echo "   $(wc -l < "${RUN}/downlink.jsonl" | tr -d ' ') channel updates received
 echo "== 3. waiting for the first candidate (the retrainer's own event) =="
 while ! grep -q "Candidate written" "${RUN}/retrain.log"; do
     sleep 30
-    if ! kill -0 "${PIDS[2]}" 2>/dev/null || ! kill -0 "${PIDS[1]}" 2>/dev/null; then
-        echo "   (!) a deployment exited"; tail -5 "${RUN}/retrain.log" "${RUN}/ref.log"; exit 1
-    fi
+    alive || { echo "   (!) a deployment exited"; tail -5 "${RUN}/retrain.log" "${RUN}/ref.log"; exit 1; }
 done
 EVENT="$(grep -m1 "Candidate written" "${RUN}/retrain.log")"
-echo "   ${EVENT}"
+echo "   $(echo "${EVENT}" | sed -E 's/.*(Candidate written)/\1/')"
 cp "${RUN}/RetrainCandidate.bin" "${RUN}/ground/candidate.bin"   # stand-in for its downlink
 read -r T_FIRST T_LAST <<< "$(echo "${EVENT}" | sed -E 's/.*on ticks ([0-9]+)\.\.([0-9]+).*/\1 \2/')"
 FIRST=$(( T_FIRST - SPAN - GUARD )); LAST=$(( T_LAST - GUARD - 1 ))
 echo "   trained on data ticks ${FIRST}..${LAST} (tap sequence numbers)"
-grep -h "SamplesLost\|CallRefused" "${RUN}/retrain.log" | tail -3 | sed 's/^/   /'
+grep -h "SamplesLost\|CallRefused" "${RUN}/retrain.log" | tail -3 | sed -E 's/^.*(SamplesLost|CallRefused)/   \1/'
 
 echo "== 4. held out: the plant runs on until ${HELD} ticks after the last training tick =="
 NEED=$(( LAST + 1 + HELD + 200 ))
-while [ $(( ($(date +%s) - START) * RATE_HZ )) -lt $(( NEED + NEED / 20 )) ]; do sleep 20; done
+wait_for_seq "${NEED}"
+echo "   both sides past tap sequence ${NEED}"
 
 echo "== 5. the ground: the archive, cross-checked against the downlink =="
 AGE_REPLAY=()
@@ -151,30 +197,52 @@ cat > "${RUN}/ground/limits.json" <<'EOF'
 EOF
 
 echo "== 6. the ground gate =="
+DEST="RetrainApproved.bin"
+RELOAD="SentinelRef.sentinelMonitor.RELOAD_MODEL"
 ( cd "${RUN}" && PYTHONPATH="${ROOT}/src" "${PY}" -m sentinel_toolkit gate \
     --flying "${FLYING}" --candidate "${RUN}/ground/candidate.bin" \
     --telemetry "${RUN}/ground/trace.f32" --channels 8 --first "${FIRST}" --last "${LAST}" \
     --windows "${SCHEDULE}" --budget 1 --tools "${SHAPE}/ground_tools" \
     --limits "${RUN}/ground/limits.json" --block 5400 --blocks 4 --horizon 100000 \
-    --workdir "${RUN}/ground/gate" --cache "${CACHE}" --dest RetrainApproved.bin \
-    --dictionary "${DICT}" --reload-command SentinelRef.sentinelMonitor.RELOAD_MODEL \
+    --workdir "${RUN}/ground/gate" --cache "${CACHE}" --dest "${DEST}" \
+    --dictionary "${DICT}" --reload-command "${RELOAD}" \
     --report "${RUN}/ground/report.json" ) | tee "${RUN}/ground/gate.out"
 GATE_RC=${PIPESTATUS[0]}
 echo "   gate rc=${GATE_RC} (0 CERTIFY, 1 REFUSE)"
 
-echo "== 7. the human's one command =="
-( cd "${RUN}" && PYTHONPATH="${ROOT}/src" "${PY}" -m sentinel_toolkit approve \
-    --report "${RUN}/ground/report.json" --candidate "${RUN}/ground/candidate.bin" \
-    --event-log "${RUN}/ref.log" --timeout 120 ) > "${RUN}/approve.out" 2>&1
-APPROVE_RC=$?
-sed 's/^/   /' "${RUN}/approve.out"
-echo "   approve rc=${APPROVE_RC}"
+echo "== 7. the human's step, shown and NOT SENT (D85.1) =="
+APPROVE_RC="not run"
+if [ "${DRY_RUN_APPROVE}" -eq 1 ]; then
+    echo "   NOT SENT: python -m sentinel_toolkit approve --report ${RUN}/ground/report.json --candidate ${RUN}/ground/candidate.bin --event-log ${RUN}/ref.log"
+    PYTHONPATH="${ROOT}/src" "${PY}" -c '
+import sys
+from sentinel_toolkit.gate import uplink_commands
+for line in uplink_commands(*sys.argv[1:]):
+    print("   NOT SENT: " + line)
+' "${RUN}/ground/candidate.bin" "${DEST}" "${DICT}" "${RELOAD}"
+    ( cd "${RUN}" && PYTHONPATH="${ROOT}/src" "${PY}" -m sentinel_toolkit approve --dry-run \
+        --report "${RUN}/ground/report.json" --candidate "${RUN}/ground/candidate.bin" ) \
+        > "${RUN}/approve.out" 2>&1
+    APPROVE_RC=$?
+    sed 's/^/   /' "${RUN}/approve.out"
+    echo "   approve --dry-run rc=${APPROVE_RC} (0 on a CERTIFY report, 2 REFUSED on a REFUSE)"
+else
+    echo "   D85.1: no swap; step 7 not run (pass --dry-run-approve to print the lines)"
+fi
+if grep -q "ModelReloadAccepted" "${RUN}/ref.log"; then
+    echo "   (!) ModelReloadAccepted is in the detector's log -- something was sent"; exit 1
+fi
+echo "   ModelReloadAccepted absent from the detector's log: nothing was sent"
 
-echo "== the detector's own event log: reloads =="
-grep -h -E "ModelReload|ModelLoaded|ModelRefused|DegradedToBaseline" "${RUN}/ref.log" | tail -5 | sed 's/^/   /' | cut -c1-200
-
+echo "== 8. the rung conditions over the whole run, and LC2 =="
 cleanup; trap - EXIT
 sleep 1
+"${PY}" "${LC2}" calibrate "${RUN}"
+RUNG=$?
+"${PY}" "${LC2}" lc2 "${RUN}"
+LC2_RC=$?
+echo "   LC2 rc=${LC2_RC} (0 HOLD, 1 FAIL, 3 NO VERDICT)"
+
 echo "== orphan check after =="
-pgrep -fl 'SentinelRef|SentinelRetrain|fprime-gds|fprime_gds|fprime-cli|loopsim|ground_tools' || echo "   none"
-echo "E1: gate rc=${GATE_RC}, approve rc=${APPROVE_RC}"
+orphans || echo "   none"
+echo "E1-dry: gate rc=${GATE_RC}, approve --dry-run rc=${APPROVE_RC}, rung rc=${RUNG}, LC2 rc=${LC2_RC}"

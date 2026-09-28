@@ -68,6 +68,7 @@ register_fprime_module(
         "${CMAKE_CURRENT_LIST_DIR}/RetrainLoop.cpp"
     DEPENDS
         Svc_Sched
+        Fw_Logger
         Sentinel_SampleTap
         sentinel_core
 )
@@ -89,6 +90,7 @@ register_fprime_ut(
         "${CMAKE_CURRENT_LIST_DIR}/test/ut/RetrainerTester.cpp"
     DEPENDS
         Svc_Sched
+        Fw_Logger
         Sentinel_SampleTap
         sentinel_core
     UT_AUTO_HELPERS

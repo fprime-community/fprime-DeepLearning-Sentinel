@@ -4,9 +4,11 @@
 // ======================================================================
 #include "RetrainerTester.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 
 #include "sentinel_retrainer.h"
+#include "sentinel_window.h"
 
 namespace Sentinel {
 
@@ -110,6 +112,101 @@ void RetrainerTester::testTheWholeLifecycle()
     this->invoke_to_schedIn(0, 0);
     ASSERT_EQ(3U + Retrainer::QUEUE, this->component.samplesReceived());
     ASSERT_EVENTS_CallRefused_SIZE(0);
+}
+
+// ----------------------------------------------------------------------------------------
+// docs/MODELS.md 78.11: the live-window test. Every constant below is fixed there.
+// ----------------------------------------------------------------------------------------
+
+namespace {
+
+//! 78.11: SentinelRetrain's own yellow bands (Top/instances.fpp).
+const F32 LIVE_LOW[8] = {-2.0F, -10.0F, 0.5F, 27.0F, -5.0F, -35.0F, 0.0F, 0.30F};
+const F32 LIVE_HIGH[8] = {300.0F, 10.0F, 9.5F, 32.0F, 40.0F, 30.0F, 1.0F, 1.0F};
+const U32 LIVE_SAMPLES = 8250U;      //!< sequences 0 .. 8,249
+const U32 LIVE_SPIKE_SEQ = 7000U;    //!< f
+const F32 LIVE_SPIKE_WIDTHS = 40.0F; //!< the spike, in units of 1% of channel 0's band
+
+//! Knuth's MMIX LCG, seed 1; u uniform on [-1, 1) from the top 24 bits.
+struct Lcg {
+    U64 state;
+    F32 next() {
+        state = (state * 6364136223846793005ULL) + 1442695040888963407ULL;
+        const U32 top = static_cast<U32>(state >> 40U);
+        return (static_cast<F32>(top) / 16777216.0F) * 2.0F - 1.0F;
+    }
+};
+
+}  // namespace
+
+void RetrainerTester::testLiveWindow(const char* flying, const char* candidate,
+                                     const char* tracePath, bool spike)
+{
+    LoopConfig cfg = {};
+    for (U32 c = 0U; c < 8U; ++c) {
+        cfg.yellowLow[c] = LIVE_LOW[c];
+        cfg.yellowHigh[c] = LIVE_HIGH[c];
+    }
+    cfg.guard = 260U;
+    cfg.budget = 1;
+    cfg.schedule = 1000000U;         // no candidate is written
+    cfg.nominalPpm = 1046;
+    ASSERT_TRUE(this->component.configureLoop(cfg));
+    this->component.configureShadow(flying, candidate);
+
+    std::FILE* trace = std::fopen(tracePath, "w");
+    ASSERT_NE(nullptr, trace);
+    std::fprintf(trace, "seq,admitted,crossing,emitted,window_admits\n");
+
+    Lcg lcg = {1ULL};
+    const Detector& replica = this->component.loop().replica();
+    for (U32 seq = 0U; seq < LIVE_SAMPLES; ++seq) {
+        ChannelVector v;
+        for (U32 c = 0U; c < Config::MAX_CHANNELS; ++c) {
+            v[static_cast<FwSizeType>(c)] = 0.0F;
+        }
+        for (U32 c = 0U; c < 8U; ++c) {
+            const F32 mid = 0.5F * (LIVE_LOW[c] + LIVE_HIGH[c]);
+            const F32 onePct = 0.01F * (LIVE_HIGH[c] - LIVE_LOW[c]);
+            F32 value = mid + (lcg.next() * onePct);
+            if (spike && (seq == LIVE_SPIKE_SEQ) && (c == 0U)) {
+                value += LIVE_SPIKE_WIDTHS * onePct;
+            }
+            v[static_cast<FwSizeType>(c)] = value;
+        }
+        // Through the real ports: the hub thread's sampleIn, then the rate group's tick.
+        this->invoke_to_sampleIn(0, v, true, seq);
+        this->invoke_to_schedIn(0, 0);
+        if (seq == 0U) {
+            ASSERT_TRUE(this->component.armed());
+            ASSERT_EVENTS_RetrainerReady_SIZE(1);
+        }
+        ASSERT_EVENTS_CallRefused_SIZE(0);
+        ASSERT_EVENTS_SamplesLost_SIZE(0);
+        ASSERT_EVENTS_CandidateWritten_SIZE(0);
+
+        // The Admitted CHANNEL, as the ground would read it, checked against the loop.
+        ASSERT_GT(this->tlmHistory_Admitted->size(), 0U);
+        const U32 admitted =
+            this->tlmHistory_Admitted->at(this->tlmHistory_Admitted->size() - 1U).arg;
+        ASSERT_EQ(static_cast<U32>(this->component.loop().admittedTotal()), admitted);
+
+        // The crossing exactly as RetrainLoop::tick gates it (warmed after the step).
+        const bool warmed = (replica.steps() >= static_cast<U64>(replica.model().warmupSteps));
+        const bool crossing = warmed && replica.crossing();
+        const I32 admits = sentinel_window_admits();
+        ASSERT_GE(admits, 0);
+        std::fprintf(trace, "%u,%u,%d,%d,%d\n", seq, admitted, crossing ? 1 : 0,
+                     replica.emitted() ? 1 : 0, admits);
+
+        // MAX_HISTORY_SIZE is 512 and every tick adds one entry per channel.
+        if ((seq % 500U) == 499U) {
+            this->clearHistory();
+        }
+    }
+    std::fclose(trace);
+    ASSERT_EQ(LIVE_SAMPLES, this->component.samplesReceived());
+    ASSERT_EQ(0U, this->component.samplesMissed());
 }
 
 }  // namespace Sentinel

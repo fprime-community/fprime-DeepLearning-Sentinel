@@ -74,6 +74,7 @@ struct TopologyState {
     U32 tickMicros;        //!< Base tick in microseconds; 0 means the 1 Hz default (D85)
     bool loopPlant;        //!< PowerSim runs LoopSim's balanced, spun-up plant (D85)
     double ageEmis;        //!< > 0: that plant also ages, at this emissivity loss (D85)
+    bool emitLog;          //!< -E: the loop variant's EmitProbe logs LC2's emit ticks (78.11)
     CdhCore::SubtopologyState cdhCore;           //!< Subtopology state for CdhCore
     ComCcsds::SubtopologyState comCcsds;         //!< Subtopology state for ComCcsds 
     DataProducts::SubtopologyState dataProducts; //!< Subtopology state for DataProducts

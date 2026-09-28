@@ -59,6 +59,15 @@ class Retrainer final : public RetrainerComponentBase {
     //! the cycle. Called on the first tick, on the rate-group thread.
     bool boot();
 
+    //! docs/MODELS.md 78.11, LC2: apparatus, off unless the deployment asks. On, every
+    //! sample the replica emitted on is logged by its tap sequence number, with the first
+    //! sequence fed, every gap filled, and a heartbeat, so the replica's emits can be
+    //! compared tick for tick with the detector's. Off, nothing here changes.
+    void setEmitLog(bool enabled) { m_emitLog = enabled; }
+
+    //! LC2's heartbeat period, in tap sequence numbers.
+    static const U32 HEARTBEAT = 1000U;
+
     bool armed() const { return m_armed; }
     const RetrainLoop& loop() const { return m_loop; }
     U32 samplesReceived() const { return m_received; }
@@ -103,6 +112,8 @@ class Retrainer final : public RetrainerComponentBase {
     U32 m_spanOffset;
     U32 m_received;
     U32 m_missed;
+    bool m_emitLog;          //!< LC2's log (78.11); off by default
+    bool m_lastEmitted;      //!< the replica emitted on the last sample fed
 
     U8 m_file[RetrainLoop::FILE_MAX_BYTES];
     Fw::String m_flyingPath;

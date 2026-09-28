@@ -32,6 +32,7 @@ void print_usage(const char* app) {
     Fw::Logger::log("-t\tbase tick in microseconds; absent runs at 1 Hz (host runs only)\n");
     Fw::Logger::log("-L\tPowerSim runs the balanced, spun-up plant of docs/MODELS.md 78.3\n");
     Fw::Logger::log("-g\twith -L, the plant also ages at this emissivity loss\n");
+    Fw::Logger::log("-E\tloop variant: log every tick the detector emitted on (LC2)\n");
 }
 
 /**
@@ -64,11 +65,12 @@ int main(int argc, char* argv[]) {
     U32 tick_micros = 0;
     bool loop_plant = false;
     double age_emis = 0.0;
+    bool emit_log = false;
 
     Os::init();
 
     // Loop while reading the getopt supplied options
-    while ((option = getopt(argc, argv, "hp:a:H:t:Lg:")) != -1) {
+    while ((option = getopt(argc, argv, "hp:a:H:t:Lg:E")) != -1) {
         switch (option) {
             // Handle the -a argument for address/hostname
             case 'a':
@@ -95,6 +97,11 @@ int main(int argc, char* argv[]) {
             case 'g':
                 age_emis = strtod(optarg, nullptr);
                 break;
+            // docs/MODELS.md 78.11, LC2: apparatus. Only the loop variant has the probe;
+            // elsewhere the flag is carried and nothing reads it.
+            case 'E':
+                emit_log = true;
+                break;
             // Cascade intended: help output
             case 'h':
             // Cascade intended: help output
@@ -113,6 +120,7 @@ int main(int argc, char* argv[]) {
     inputs.tickMicros = tick_micros;
     inputs.loopPlant = loop_plant;
     inputs.ageEmis = age_emis;
+    inputs.emitLog = emit_log;
 
     // Setup program shutdown via Ctrl-C
     signal(SIGINT, signalHandler);

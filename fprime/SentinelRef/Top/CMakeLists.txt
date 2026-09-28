@@ -32,7 +32,9 @@ if (SENTINEL_WITH_RETRAINER)
     endif()
     string(REPLACE "${_a1}" "${_a1}    instance sampleTap\n" _topo "${_topo}")
     string(REPLACE "${_a2}"
-        "      # D85: through the tap -- the Monitor first and unchanged, then a copy to the hub\n      powerSim.channelOut -> sampleTap.sampleIn\n      sampleTap.sampleOut -> sentinelMonitor.channelsIn\n      sampleTap.sampleCopy -> hub.serialIn[0]\n"
+        "      # D85: through the tap -- the Monitor first and unchanged, then a copy to the hub\n      powerSim.channelOut -> sampleTap.sampleIn\n      sampleTap.sampleOut -> sentinelMonitor.channelsIn\n      sampleTap.sampleCopy -> hub.serialIn[0]\n      # LC2 (docs/MODELS.md 78.11): the Monitor's own emit, read after it steps\n      rateGroup_1Hz.RateGroupMemberOut[8] -> emitProbe.schedIn\n"
+        _topo "${_topo}")
+    string(REPLACE "${_a1}    instance sampleTap\n" "${_a1}    instance sampleTap\n    instance emitProbe\n"
         _topo "${_topo}")
     # In this module's binary directory, not a subdirectory of it: FPP names every
     # generated header by the .fpp file's path, so a loop/ subdirectory here would make
@@ -40,7 +42,7 @@ if (SENTINEL_WITH_RETRAINER)
     set(_sentinelref_topology "${CMAKE_CURRENT_BINARY_DIR}/topology.fpp")
     file(WRITE "${_sentinelref_topology}" "${_topo}")
     set(_sentinelref_loop_inputs "${CMAKE_CURRENT_LIST_DIR}/loop/instances_loop.fpp")
-    set(_sentinelref_loop_depends Sentinel_SampleTap)
+    set(_sentinelref_loop_depends Sentinel_SampleTap SentinelRef_EmitProbe)
     message(STATUS "SentinelRef: the loop topology (SampleTap before the Monitor), D85")
 endif()
 

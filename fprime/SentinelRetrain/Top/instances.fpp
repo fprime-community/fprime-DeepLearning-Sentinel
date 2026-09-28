@@ -184,6 +184,9 @@ module SentinelRetrain {
     // rather than die.
     SentinelRetrain::retrainer.configureShadow("RetrainModel.bin",
                                                "RetrainCandidate.bin");
+
+    // docs/MODELS.md 78.11, LC2: apparatus, off unless SentinelRetrain is started with -E.
+    SentinelRetrain::retrainer.setEmitLog(state.emitLog);
     """
   }
 
