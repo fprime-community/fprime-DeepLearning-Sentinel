@@ -773,6 +773,7 @@ prediction that failed and why. This document follows the same discipline.
   - [79.14 OBSERVED -- neither primary beats D86.A0 on either dataset; A6 failed at TUNE](#7914-observed----neither-primary-beats-d86a0-on-either-dataset-a6-failed-at-tune)
   - [80.7 Q3 and Q4 not scored; the rate-normal question is owed](#807-q3-and-q4-not-scored-the-rate-normal-question-is-owed)
   - [78.10 OBSERVED -- C1 FAILED on every seed: the gate certifies retrained models on a plant that did not change](#7810-observed----c1-failed-on-every-seed-the-gate-certifies-retrained-models-on-a-plant-that-did-not-change)
+  - [78.11 Pre-registration, 2026-09-28, before any E1, LC2 or live-window run: 78's E1 under D85.1, LC2 through the real deployments, and the live-window host test](#7811-pre-registration-2026-09-28-before-any-e1-lc2-or-live-window-run-78s-e1-under-d851-lc2-through-the-real-deployments-and-the-live-window-host-test)
 
 <!-- /toc -->
 
@@ -23507,3 +23508,117 @@ Each route is a new pre-registration; 78's constants stay fixed (stop 57).
 - R1, R2 and E1 are owed. LC2 has no measurement.
 - Results: `tests/fixtures/d85/`. Raw files are hashed in `tests/fixtures/d85/RAW_SHA256.txt`
   and kept in `runs/d85` and `runs/d85_linux`.
+
+### 78.11 Pre-registration, 2026-09-28, before any E1, LC2 or live-window run: 78's E1 under D85.1, LC2 through the real deployments, and the live-window host test
+
+**78 is not edited.** 78.6's E1 row still reads as it was registered. This section says what
+E1 can be while D85.1 stands, and it fixes every threshold before anything runs. "E1" here is
+**78's** E1, the end-to-end F' run. It is not 47's E1, the pipe, which survives as a fixture in
+`fprime/Sentinel/Retrainer/test/ut/RetrainerTester.cpp`.
+
+**Why 78.6's E1 cannot be run as written.** The E1 row asks for `approve`, the uplink,
+`RELOAD_MODEL` and `ModelReloadAccepted`. D85.1 forbids any shadow model being swapped in,
+on the testbed or in any deployment, until a route holds C1 at zero. The last four steps are
+therefore not run here. They are **OWED** to whatever lifts D85.1 (D85b), and they are not
+reported as held.
+
+**E1-dry: what is run, and what counts.** The command is
+`bash scripts/d85_e1.sh RUN --dry-run-approve --tick-us T`, where T is set by the ladder
+below. The flying model is `flight/test/vectors/retrainer_ut_flying_c8_p10.bin`: 268,224 B, sha256
+`8b22e32159455d03bccfc7c34fa2236a0bca69ddab32aa309b70326a3eb461a9`. It is a byte-copy of
+`runs/d85/flying/flying.bin`, so the controls cache key is unchanged.
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **E1d.1** | the loop runs through the real deployments | in the deployments' own logs: `RetrainerReady`; samples received from the tap over the hub; `CandidateWritten` naming its tick range | any of these absent |
+| **E1d.2** | the ground's archive is what was downlinked | every value `fprime-cli` received for PowerSim's eight channels equals its replayed row, bit for bit; at least one value checked | any value differs, or none checked |
+| **E1d.3** | the gate judges the candidate | `sentinel_toolkit gate` writes a report with a verdict; rc 0 on CERTIFY, 1 on REFUSE; the verdict is reported either way | no report |
+| **E1d.4** | the human's step is shown and nothing is sent | three lines printed `NOT SENT:` (the approve command, `fprime-cli file-uplink`, `fprime-cli command-send ...RELOAD_MODEL`); `approve --dry-run` returns 0 on CERTIFY or 2 (`REFUSED`) on REFUSE; `ModelReloadAccepted` absent from `ref.log` | a command sent, or `ModelReloadAccepted` present |
+
+- **The verdict is not predicted.** Arm (c) seed 1 REFUSED its first candidate
+  (`runs/d85/c/s1/gate_1.json`), and E1 runs the same plant, seed, model and constants. A
+  CERTIFY would be a second instance of C1 FAIL; it would not be a success.
+- **Expected in ticks, not a prediction:** candidate 1 at about tap sequence 46,277
+  (LoopSim's arm (c) s1: data ticks 6,030..46,016), then held out to about 55,217.
+
+**LC2: the replica is the detector, through the real deployments.** The Monitor is untouched.
+Two apparatus-only logs are added, both gated by a new `-E` flag that is off by default:
+- **In SentinelRef's loop variant only:** a passive `EmitProbe` on
+  `rateGroup_1Hz.RateGroupMemberOut[8]`. It runs on the same thread, after the Monitor's sync
+  `schedIn` at [7]. It logs `EMIT seq N` whenever `activeMode() == MODEL &&
+  detector().emitted()`, with N = `sampleTap.forwarded() - 1`, and a heartbeat every 1,000.
+- **In the Retrainer:** `REPLICA_EMIT seq N` whenever the replica emitted on the sample with
+  tap sequence N. It also logs the first sequence fed, every gap fill, and a heartbeat.
+
+Both read `Detector::emitted()`. That is `m_crossing && warmed && !baselineOnly`, with warmed
+= `m_steps >= warmupSteps` inside the core (`flight/src/Detector.cpp:204-210`). The Monitor's
+own strict `>` at `Monitor.cpp:347` only drives its tick counter and never an emit, so the two
+streams share one predicate.
+
+| # | Prediction | HOLD | FAIL | NO VERDICT |
+|---|---|---|---|---|
+| **LC2** | the replica and the Monitor emit on exactly the same ticks | the two sets of sequence numbers are equal over `[0, min(last sequence each side reached)]`, with at least one emit on each side | one sequence differs: reported with every differing sequence | the replica's first sequence is not 0; any `SamplesLost`; the Monitor not in MODEL mode throughout; any reload; any rate-group cycle slip |
+
+- **LoopSim is a third instance, not the verdict.** LoopSim's `ticks.csv` emitted column
+  (same seed and plant, `-O2 -ffp-contract=off`) is compared with both, and reported as
+  supporting evidence only.
+
+**The tick is apparatus, chosen by a ladder fixed now.** The rungs are `--tick-us` 10,000, then
+50,000, then 100,000. Each runs the real pipeline to tap sequence 12,000 in calibration mode.
+That is past window-full (6,550), and covers several admitted stretches, where the retrainer
+does one training step per admitted sample.
+
+A rung passes only if all three hold:
+1. no `RateGroupCycleSlip` event in either deployment's log;
+2. `RgCycleSlips` never above 0 in the GDS channel log;
+3. no `SamplesLost`, with the replica's first sequence 0.
+
+The first rung that passes is used. The same three conditions are re-checked over the whole
+E1 run. If 100,000 fails, E1 stops and is reported. Predicted, and not a result: 10,000 is
+likely to fail, because the 8-deep sample queue (`Retrainer.hpp:44`) cannot absorb an admitted
+stretch if a training step outlasts the tick. No duration of any kind is recorded (stop 35).
+
+**The live-window host test**, a new pytest file committed with the code, drives the Retrainer
+component through its real ports: `sampleIn`, one sample per `schedIn`. The test runs
+`Retrainer.LiveWindow`, which skips unless `SENTINEL_RETRAINER_UT_LIVE` is set, and it runs
+twice, as a control and as a spike run, each in its own process.
+
+**Fixed now:**
+- **Model:** the fixture above, via `SENTINEL_RETRAINER_UT_FLYING`. The cut is 20.191072 and
+  warm-up is 2,350.
+- **Constants:** SentinelRetrain's own `configureLoop`:
+  - yellow bands from `Top/instances.fpp`;
+  - guard 260, so extent SPAN + 2 x guard = 780;
+  - budget 1;
+  - nominal 1,046 ppm, so 56's ceiling is 14 emissions per 6,550.
+  - Schedule is 1,000,000, so no candidate is written.
+- **Input**, sequences 0 .. 8,249:
+  - channel c is the midpoint of its yellow band plus u x 1% of the band's width;
+  - u is uniform on [-1, 1), from a 64-bit LCG (Knuth's MMIX constants, seed 1, top 24 bits);
+  - the spike run adds one single-tick spike on channel 0 at sequence **f = 7,000**, of
+    +40 x (1% of the band's width) = +120.8. The sample stays inside its yellow band: at
+    most 272.8, against a high of 300.
+- **Recorded per sequence:**
+  - the cumulative `Admitted` telemetry value;
+  - the replica's crossing, gated as the loop gates it;
+  - the replica's emitted;
+  - 56's `admits` after the push.
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **HT1** | the window fills from live samples | both runs: `Admitted` is 0 on every sequence < 6,549 (56's window is not yet full), then rises by exactly one on every sequence of [6,549, 7,000), and no sequence before 7,000 is flagged (a crossing as the loop gates it, or an emit) | any admission before 6,549, a quiet sequence not admitted, or a flag on the quiet stretch |
+| **HT2** | no tick within SPAN + 2 x guard of a crossing is admitted | spike run: the replica crosses at 7,000, and no admitted sequence s has s - (last flagged sequence at or before s) < 780 | one does |
+| **HT3** | the refusal is the crossing's (the other direction) | control run: every sequence of [7,000, 7,780) is admitted | any is not |
+| **HT4** | the guard band ends | spike run: the first admission after the burst is at L + 780 (L the burst's last flagged sequence), provided 56's rule admits there | an admission earlier, or none at a sequence where 56 admits and the band has cleared |
+
+- **HT4 is conditional, and this is said now.** If the spike's burst emits more than 14 times,
+  56's rate gate refuses for up to 6,550 ticks, and the test cannot separate the guard band's
+  end from it. That is then reported as "HT4: not observable, 56 refused (N emissions)". It is
+  not reported as HOLD.
+- **The checker is proven in the other direction:**
+  - a trace with one admission inside the band FAILS HT2;
+  - a trace with the quiet stretch unadmitted FAILS HT1;
+  - a control trace with one band sequence unadmitted FAILS HT3.
+
+**Stops.** 57 and 58 stand. A failure is reported, not tuned: no input, amplitude, constant
+or rung is moved after a number above is seen.
