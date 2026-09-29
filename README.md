@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`14be919`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`7970b1e`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -342,6 +342,8 @@ constraint unit-test evidence cannot show.
 - **It trains on the detector's own telemetry since D85, one step per admitted tick.** Run
   end to end through both deployments on the host (D85.2), its candidate was byte-identical to
   the host harness's and the ground gate refused it; the swap steps were printed, not sent.
+  Since D85b the gate refuses every candidate on a simulated plant that did not change, and
+  no healthy change has yet been shown that needs a new model (D85.4).
   Until D84 it
   trained only at the compile-time maxima, **75,360 parameters**, and no candidate fitted
   `SentinelRef`'s narrower model. It is now generated at the mission's shape, so its candidate

@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`14be919`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`7970b1e`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -123,6 +123,12 @@ What the pre-registration commits to, so it can be held to it:
   ground gate, which refused it. The swap steps were printed and not sent. Whether the
   retrainer's copy of the detector warns on exactly the detector's ticks has no verdict yet:
   they matched, but the run's registered conditions were not met.
+- **D85b made the ground gate safe on a plant that did not change, and found nothing to
+  swap.** Scored over whole orbits and replicated on two held-out windows, with a need check
+  first, it passed none of 38 candidates on an unchanged plant, where the earlier gate passed
+  2 to 4 per seed. But no healthy, gradual change to the simulated plant made the forecaster
+  measurably worse, so no candidate has yet had a reason to be judged, and **no candidate may
+  be swapped in** (D85.4). A mission's own data is the owed test.
 - **The candidate has the reference deployment's shape, and nothing more is known of it.**
   Since D84 the training cycle is generated at the mission's channel count, and at
   `SentinelRef`'s 8 channels `RELOAD_MODEL` accepts its candidate on the host. It is trained

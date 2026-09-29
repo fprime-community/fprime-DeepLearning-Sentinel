@@ -41,19 +41,20 @@ constexpr double CAPACITY_AS = 190000.0;  // amp-seconds, 52.8 Ah
 //! Deterministic in the tick, so it repeats exactly.
 //! `phaseTick` places the instrument's schedule; it is `tick` unless D86b's opt-in
 //! phase fault is configured, and the noise always follows the true tick.
-double loadCurrent(uint32_t seed, uint32_t tick, uint32_t phaseTick, double housekeeping) {
+double loadCurrent(uint32_t seed, uint32_t tick, uint32_t phaseTick, double housekeeping,
+                   double onTicks = 420.0) {
     const double phase = std::fmod(static_cast<double>(phaseTick), 900.0);
-    const double instrument = (phase < 420.0) ? 4.10 : 0.55;
+    const double instrument = (phase < onTicks) ? 4.10 : 0.55;
     return housekeeping + instrument + 0.06 * plantNoise(seed, tick, 3u);
 }
 
 //! Solar input over the orbit, zero through eclipse.
-double solarInput(uint32_t seed, uint32_t tick, double peakFactor) {
+double solarInput(uint32_t seed, uint32_t tick, double peakFactor, double eclipse = ECLIPSE) {
     const double phase = std::fmod(static_cast<double>(tick), ORBIT) / ORBIT;
-    if (phase > (1.0 - ECLIPSE)) {
+    if (phase > (1.0 - eclipse)) {
         return 0.0;
     }
-    const double lit = phase / (1.0 - ECLIPSE);          // 0 .. 1 across daylight
+    const double lit = phase / (1.0 - eclipse);          // 0 .. 1 across daylight
     const double s = std::sin(lit * 3.14159265358979);
     // D85: `peakFactor` is 1.0 exactly unless healthy ageing is configured, and
     // SOLAR_PEAK * 1.0 is SOLAR_PEAK bit for bit, so the unaged run is unchanged.
@@ -98,6 +99,22 @@ void PowerPlant::configureOcvAgeing(uint32_t start, double tau, double loss) {
     m_ocvLoss = loss;
 }
 
+void PowerPlant::configureDrift(Drift which, uint32_t start, double tau, double delta) {
+    Seasonal& d = m_drift[static_cast<uint32_t>(which)];
+    d.on = true;
+    d.start = start;
+    d.tau = (tau > 0.0) ? tau : 1.0;
+    d.delta = delta;
+}
+
+double PowerPlant::drift(Drift which) const {
+    const Seasonal& d = m_drift[static_cast<uint32_t>(which)];
+    if (!d.on || (m_tick < d.start)) {
+        return 0.0;
+    }
+    return d.delta * (1.0 - std::exp(-static_cast<double>(m_tick - d.start) / d.tau));
+}
+
 void PowerPlant::configureBalance(double housekeeping, double shuntSoc) {
     m_balanced = true;
     m_housekeeping = housekeeping;
@@ -125,12 +142,20 @@ void PowerPlant::step(bool faultActive, double faultRate) {
     const double peakFactor = m_ageing ? (1.0 - (m_solarLoss * g)) : 1.0;
     const double emis = m_ageing ? (RAD_EMIS * (1.0 - (m_emisLoss * g))) : RAD_EMIS;
 
-    const double solar = solarInput(m_seed, m_tick, peakFactor);
+    // D85b 81.9: the survey's healthy drifts. Each is off unless configured, and then the
+    // call below passes the pre-D85b constant itself, so the default plant is unchanged.
+    const Seasonal& dE = m_drift[static_cast<uint32_t>(Drift::ECLIPSE_FRACTION)];
+    const Seasonal& dD = m_drift[static_cast<uint32_t>(Drift::DUTY_ON_TIME)];
+    const Seasonal& dH = m_drift[static_cast<uint32_t>(Drift::HOUSEKEEPING)];
+    const double eclipse = dE.on ? (ECLIPSE * (1.0 + drift(Drift::ECLIPSE_FRACTION))) : ECLIPSE;
+    const double onTicks = dD.on ? (420.0 * (1.0 + drift(Drift::DUTY_ON_TIME))) : 420.0;
+    const double solar = solarInput(m_seed, m_tick, peakFactor, eclipse);
     // 2.35 A is the pre-D85 housekeeping draw, and it is what an unbalanced plant uses.
     const uint32_t phaseTick = (m_loadShifted && (m_tick >= m_loadShiftStart))
                                    ? (m_tick + m_loadShift) : m_tick;
-    const double load = loadCurrent(m_seed, m_tick, phaseTick,
-                                    m_balanced ? m_housekeeping : 2.35);
+    const double baseHk = m_balanced ? m_housekeeping : 2.35;
+    const double hk = dH.on ? (baseHk + drift(Drift::HOUSEKEEPING)) : baseHk;
+    const double load = loadCurrent(m_seed, m_tick, phaseTick, hk, onTicks);
 
     // Open-circuit voltage falls with state of charge; the bus sags under load
     // by the cell's own internal resistance, which is the quantity degrading.
