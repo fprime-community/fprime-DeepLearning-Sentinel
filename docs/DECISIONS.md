@@ -8364,3 +8364,31 @@ this on 2026-09-28 and 2026-09-29.
   - arm (b)'s first yellow is 56,352 in 78.3 against 60,344 in the runs, and the two are not
     reconciled.
 - **Status unchanged:** host-verified, not flight-qualified (D83).
+
+### D85.4 Rider, 2026-09-29: D85b made the gate safe on the testbed but found no healthy change to certify, so D85.1 stands and the limit is recorded
+
+**D85 and D85.3 are not edited.** MODELS 81.8-81.10 are the observations.
+
+- **The gate is now safe on a plant that did not change.** C1 HELD: 0 of 38 no-change
+  candidates certified at fresh seeds 4 to 6, where D85's gate certified 2 to 4 per seed.
+  - The need check never triggered: the flying model's whole-orbit residual is flat to
+    0.01% (81.8).
+  - With the need check ignored, whole-orbit replication still refused every one of the 38.
+- **No healthy change could be shown to need retraining** (route 3, the owner's
+  instruction for this outcome).
+  - Battery ageing, the housekeeping draw and the instrument duty cycle move the forecaster
+    by under 0.3%.
+  - A shorter eclipse moves it by 3-10%, but only by also creating an abnormal
+    ChargeCurrent step (81.10).
+  - So C2 is NOT RUN, and **D85.1 stands**. It is lifted only by a registered arm on a
+    mission's own data: route 2, left for later.
+- **C3 is VACUOUS:** a slow failure's warnings stop retraining before any candidate forms.
+- **LC2 HELD** under 81.5's slip rule: 77 emits on the same ticks, 0 samples lost.
+- **E1's fixed script ran start to finish.** Its downlink capture was thin, because
+  `fprime-cli -t` exits at the first update; that is now fixed. A hand capture showed the
+  downlink carries the replay's values exactly, with a framing rule for split packets owed.
+- **Status unchanged:** host-verified, not flight-qualified (D83).
+- **Owed:**
+  - route 2, C2 on real telemetry;
+  - a downlink framing that tolerates a packet split across ticks;
+  - a C3 design in which a failure candidate can reach the gate.

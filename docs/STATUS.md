@@ -19,9 +19,10 @@ sanity gate, D82's bounds-checking -- arrived after it and never reached this fi
 **`master:docs/STATUS.md` is the current status document for that work**: roadmap row E,
 and the four paragraphs after it naming what is unenforceable, what nothing onboard
 scores, and what has never run on flight hardware. The record is `docs/DECISIONS.md`
-D70, D73, D74, D76, D77, D78, D82 and `docs/MODELS.md` 47 to 76 (since then D83 to D85.3 and
+D70, D73, D74, D76, D77, D78, D82 and `docs/MODELS.md` 47 to 76 (since then D83 to D85.4 and
 MODELS 77, 78, 81 -- 78.12 is the end-to-end run through both deployments, 2026-09-28; 81 is
-D85b, the gate made safe, whose arm (a) premise failed its ladder on 2026-09-29, 81.8). Noted here in 2026-09-22
+D85b: the gate made safe on no change, no healthy change found that needs retraining, the ban
+kept, 81.10). Noted here in 2026-09-22
 rather than back-filled, because a status page rewritten to cover a track it did not
 watch would be a record pretending to be a status.
 

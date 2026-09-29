@@ -144,8 +144,14 @@ echo "== 2. the downlink, sampled: 60 s of PowerSim's channels through fprime-gd
 # channel the ground client received, not its printed output, which is lossy (E1 found
 # 388 ticks in the session log behind an empty printout). Run inside ${RUN}, so the
 # session log lands in ${RUN}/logs and not in the repository.
-( cd "${RUN}" && fprime-cli channels -c SentinelRef.powerSim -j --dictionary "${DICT}" -t 60 \
-    > "${RUN}/downlink.jsonl" 2> "${RUN}/downlink.err" )
+# (!) NOT `-t`: fprime-cli's `-t SECONDS` waits for a SINGLE new channel and exits on the
+# first one (its own help), which left D85b's E1 with 4 values. It listens instead, and is
+# stopped after the sampling interval; the session log holds what arrived.
+( cd "${RUN}" && exec fprime-cli channels -c SentinelRef.powerSim -j --dictionary "${DICT}" \
+    > "${RUN}/downlink.jsonl" 2> "${RUN}/downlink.err" ) &
+CLI=$!
+sleep 60
+kill "${CLI}" 2>/dev/null; sleep 1; kill -9 "${CLI}" 2>/dev/null
 echo "   $(cat "${RUN}"/logs/fprime-cli-*/channel.log 2>/dev/null | grep -c 'SentinelRef.powerSim.SimTick') PowerSim ticks in the ground client's session log"
 
 echo "== 3. waiting for the first candidate (the retrainer's own event) =="

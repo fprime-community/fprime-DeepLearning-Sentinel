@@ -1,0 +1,121 @@
+# docs/MODELS.md 81.10: D85b as observed, 2026-09-29 (Mac, arm64). Ticks, counts and ratios only (stop 35).
+
+## calibration (81.2, 81.8): R 1.000100, T 1.0200, 353 windows per seed
+  seed 1: baseline 16.913574, rho 0.999945..1.000059
+  seed 2: baseline 16.913457, rho 0.999943..1.000058
+  seed 3: baseline 16.913211, rho 0.999923..1.000100
+
+## survey (81.9): member delta seed | rho | yellow | rate-normal | worst channel p99.9 / max
+  E -0.10 s1 | 1.0319 | ok | FAIL | ChargeCurrent 1.001 / 1.358
+  E -0.10 s2 | 1.0319 | ok | FAIL | ChargeCurrent 1.000 / 1.363
+  E -0.10 s3 | 1.0319 | ok | FAIL | ChargeCurrent 1.000 / 1.361
+  E -0.20 s1 | 1.0638 | ok | FAIL | ChargeCurrent 1.000 / 1.565
+  E -0.20 s2 | 1.0638 | ok | FAIL | ChargeCurrent 1.000 / 1.559
+  E -0.20 s3 | 1.0637 | ok | FAIL | ChargeCurrent 1.000 / 1.557
+  E -0.30 s1 | 1.0974 | ok | FAIL | ChargeCurrent 1.000 / 1.645
+  E -0.30 s2 | 1.0974 | ok | FAIL | ChargeCurrent 1.000 / 1.627
+  E -0.30 s3 | 1.0974 | ok | FAIL | ChargeCurrent 1.000 / 1.624
+  H +0.05 s1 | 1.0009 | ok | ok | ChargeCurrent 1.000 / 0.974
+  H +0.05 s2 | 1.0009 | ok | ok | CellTemp 0.986 / 0.988
+  H +0.05 s3 | 1.0009 | ok | ok | ChargeCurrent 1.000 / 0.974
+  H +0.10 s1 | 1.0017 | ok | ok | ChargeCurrent 0.998 / 0.968
+  H +0.10 s2 | 1.0017 | ok | ok | ChargeCurrent 0.999 / 0.965
+  H +0.10 s3 | 1.0017 | ok | ok | ChargeCurrent 0.998 / 0.969
+  H +0.20 s1 | 1.0022 | ok | FAIL | ChargeCurrent 0.998 / 0.935
+  H +0.20 s2 | 1.0022 | ok | FAIL | ChargeCurrent 0.999 / 0.928
+  H +0.20 s3 | 1.0022 | ok | FAIL | ChargeCurrent 0.999 / 0.946
+  D -0.10 s1 | 0.9966 | ok | FAIL | ChargeCurrent 1.000 / 1.273
+  D -0.10 s2 | 0.9966 | ok | FAIL | ChargeCurrent 0.999 / 1.268
+  D -0.10 s3 | 0.9965 | ok | FAIL | ChargeCurrent 1.001 / 1.281
+  D -0.20 s1 | 0.9925 | ok | FAIL | ChargeCurrent 0.997 / 1.477
+  D -0.20 s2 | 0.9925 | ok | FAIL | ChargeCurrent 0.999 / 1.474
+  D -0.20 s3 | 0.9926 | ok | FAIL | ChargeCurrent 1.001 / 1.464
+  D -0.30 s1 | 0.9890 | ok | FAIL | ChargeCurrent 0.999 / 1.525
+  D -0.30 s2 | 0.9890 | ok | FAIL | ChargeCurrent 1.000 / 1.538
+  D -0.30 s3 | 0.9890 | ok | FAIL | ChargeCurrent 1.000 / 1.544
+  O +0.02 s1 | 0.9994 | ok | ok | ChargeCurrent 1.000 / 1.017
+  O +0.02 s2 | 0.9995 | ok | ok | ChargeCurrent 1.000 / 1.015
+  O +0.02 s3 | 0.9994 | ok | ok | ChargeCurrent 1.000 / 1.015
+  O +0.04 s1 | 0.9989 | ok | ok | ChargeCurrent 1.000 / 1.032
+  O +0.04 s2 | 0.9989 | ok | ok | ChargeCurrent 1.000 / 1.032
+  O +0.04 s3 | 0.9989 | ok | ok | ChargeCurrent 1.000 / 1.029
+  O +0.06 s1 | 0.9983 | ok | FAIL | ChargeCurrent 1.000 / 1.051
+  O +0.06 s2 | 0.9983 | ok | FAIL | ChargeCurrent 1.000 / 1.051
+  O +0.06 s3 | 0.9983 | ok | ok | ChargeCurrent 1.000 / 1.049
+  chosen: None
+
+## arms (81.4): candidates, gated, certified, need triggers, rho range, shadow would-certify; per gate: index verdict rho shadow [HELD-1, HELD-2 pass]
+  c/s4: candidates 15, gated 13, certified 0, need triggers 0, rho 0.99998..1.00009, shadow would-certify 0
+    2 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 33318..60645)
+    3 NOT NEEDED rho 0.99998 shadow WOULD REFUSE [False, False] (data 60387..89176)
+    4 NOT NEEDED rho 1.00009 shadow WOULD REFUSE [False, False] (data 88918..111464)
+    5 NOT NEEDED rho 0.99999 shadow WOULD REFUSE [False, False] (data 111206..135894)
+    6 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 135636..156604)
+    7 NOT NEEDED rho 1.00003 shadow WOULD REFUSE [False, False] (data 156346..179735)
+    8 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 179477..213503)
+    9 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 213245..241731)
+    10 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 241473..263439)
+    11 NOT NEEDED rho 1.00005 shadow WOULD REFUSE [False, False] (data 263181..284308)
+    12 NOT NEEDED rho 1.00005 shadow WOULD REFUSE [False, False] (data 284050..311857)
+    13 NOT NEEDED rho 1.00000 shadow WOULD REFUSE [False, False] (data 311599..341169)
+    14 NOT NEEDED rho 0.99998 shadow WOULD REFUSE [False, False] (data 340911..362697)
+  c/s5: candidates 14, gated 12, certified 0, need triggers 0, rho 0.99996..1.00002, shadow would-certify 0
+    2 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 33302..60705)
+    3 NOT NEEDED rho 0.99998 shadow WOULD REFUSE [False, False] (data 60447..79974)
+    4 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 79716..105118)
+    5 NOT NEEDED rho 1.00000 shadow WOULD REFUSE [False, False] (data 104860..128248)
+    6 NOT NEEDED rho 0.99999 shadow WOULD REFUSE [False, False] (data 127990..151157)
+    7 NOT NEEDED rho 0.99998 shadow WOULD REFUSE [False, False] (data 150899..177567)
+    8 NOT NEEDED rho 0.99997 shadow WOULD REFUSE [False, False] (data 177309..204174)
+    9 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 203916..240225)
+    10 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 239967..267715)
+    11 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 267457..297425)
+    12 NOT NEEDED rho 1.00000 shadow WOULD REFUSE [False, False] (data 297167..323037)
+    13 NOT NEEDED rho 0.99996 shadow WOULD REFUSE [False, False] (data 322779..343327)
+  c/s6: candidates 15, gated 13, certified 0, need triggers 0, rho 0.99998..1.00009, shadow would-certify 0
+    2 NOT NEEDED rho 1.00003 shadow WOULD REFUSE [False, False] (data 34832..56678)
+    3 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 56420..81827)
+    4 NOT NEEDED rho 1.00007 shadow WOULD REFUSE [False, False] (data 81569..103973)
+    5 NOT NEEDED rho 1.00005 shadow WOULD REFUSE [False, False] (data 103715..133544)
+    6 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 133286..159436)
+    7 NOT NEEDED rho 1.00003 shadow WOULD REFUSE [False, False] (data 159178..182148)
+    8 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 181890..206180)
+    9 NOT NEEDED rho 0.99998 shadow WOULD REFUSE [False, False] (data 205922..227551)
+    10 NOT NEEDED rho 1.00009 shadow WOULD REFUSE [False, False] (data 227293..253860)
+    11 NOT NEEDED rho 1.00004 shadow WOULD REFUSE [False, False] (data 253602..280467)
+    12 NOT NEEDED rho 1.00009 shadow WOULD REFUSE [False, False] (data 280209..308212)
+    13 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 307954..327444)
+    14 NOT NEEDED rho 1.00005 shadow WOULD REFUSE [False, False] (data 327186..351716)
+  b/s1: candidates 4, gated 3, certified 0, need triggers 0, rho 0.99999..1.00002, shadow would-certify 0, failure candidates [], first yellow 201512
+    2 NOT NEEDED rho 0.99999 shadow WOULD REFUSE [False, False] (data 45758..80446)
+    3 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 80188..111356)
+    4 NOT NEEDED rho 0.99999 shadow WOULD REFUSE [False, False] (data 111098..140663)
+  b/s2: candidates 4, gated 3, certified 0, need triggers 0, rho 0.99995..1.00002, shadow would-certify 0, failure candidates [], first yellow 201510
+    2 NOT NEEDED rho 1.00001 shadow WOULD REFUSE [False, False] (data 27211..63240)
+    3 NOT NEEDED rho 0.99995 shadow WOULD REFUSE [False, False] (data 62982..89049)
+    4 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 88791..116997)
+  b/s3: candidates 5, gated 4, certified 0, need triggers 0, rho 0.99999..1.00002, shadow would-certify 0, failure candidates [], first yellow 201509
+    2 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 27890..57858)
+    3 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 57600..85466)
+    4 NOT NEEDED rho 1.00002 shadow WOULD REFUSE [False, False] (data 85208..110638)
+    5 NOT NEEDED rho 0.99999 shadow WOULD REFUSE [False, False] (data 110380..132291)
+  arm (c), all 76 whole-orbit HELD windows: F 0.6035..0.6141 (bound 0.319283), part (i) 0.2642..0.8206; every window fails FLOOR and PART (i)
+
+## E1 rerun, tick-us 100000 (81.5), the fixed script start to finish
+Candidate written: 268224 B, static_crc32 735551047, 6550 steps on ticks 6550..46277
+trained on data ticks 6030..46016 (tap sequence numbers)
+downlinked values checked against the replayed archive: 4, differing: 0
+  (!) scripted step 2 used fprime-cli -t, which exits at the FIRST matching update (its own help: "wait at most SECONDS seconds for a single new channel"); hence 4 values
+  hand capture during the run (listening without -t, then stopped): 345 SimTicks, rows 635..1213, 2535 values: 1614 equal their SimTick-framed replay row, 921 equal the PREVIOUS row bit for bit (a packet split across ticks), 0 equal no row
+gate rc=1 (0 CERTIFY, 1 REFUSE)
+NOT SENT: python -m
+NOT SENT: fprime-cli file-uplink
+NOT SENT: fprime-cli command-send
+approve --dry-run rc=2 (0 on a CERTIFY report, 2 REFUSED on a REFUSE)
+gate rc=1, approve --dry-run rc=2, rung rc=1, LC2 rc=0
+  ModelReloadAccepted lines in ref.log: 0
+  RateGroupCycleSlip events: retrain.log 121, ref.log 0; SamplesLost / REPLICA_GAP: 0
+  range [0, 56000]: Monitor 77 emits, replica 77
+  LC2: HOLD (identical)
+  LoopSim (third instance, not the verdict) against the Monitor over [0, 55216]: HOLD (identical; Monitor only [], LoopSim only [])
+  LoopSim (third instance, not the verdict) against the replica over [0, 55216]: HOLD (identical; replica only [], LoopSim only [])

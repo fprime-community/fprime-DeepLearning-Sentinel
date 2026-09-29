@@ -785,6 +785,7 @@ prediction that failed and why. This document follows the same discipline.
   - [81.7 Cost](#817-cost)
   - [81.8 OBSERVED before any arm, 2026-09-29: T = 1.02, and arm (a)'s ladder qualifies no rung](#818-observed-before-any-arm-2026-09-29-t-102-and-arm-as-ladder-qualifies-no-rung)
   - [81.9 Pre-registration, 2026-09-29, before any survey run: the premise survey (route 1), and arm (a) chosen by it or the limit recorded](#819-pre-registration-2026-09-29-before-any-survey-run-the-premise-survey-route-1-and-arm-a-chosen-by-it-or-the-limit-recorded)
+  - [81.10 OBSERVED, 2026-09-29 -- C1 HELD, C3 VACUOUS, LC2 HELD, the survey found no rate-normal healthy change the forecaster notices, and D85.1 stands](#8110-observed-2026-09-29----c1-held-c3-vacuous-lc2-held-the-survey-found-no-rate-normal-healthy-change-the-forecaster-notices-and-d851-stands)
 
 <!-- /toc -->
 
@@ -24024,3 +24025,72 @@ the unit stayed inside yellow. This is the evidence either way.
   voids LC2.
 
 No timing figure is recorded (stop 35).
+
+### 81.10 OBSERVED, 2026-09-29 -- C1 HELD, C3 VACUOUS, LC2 HELD, the survey found no rate-normal healthy change the forecaster notices, and D85.1 stands
+
+**81.1-81.9 are not edited.** Everything below is in `tests/fixtures/d85b/observed.txt`, in
+ticks, counts and ratios; the raw files are in `runs/d85b/` (gitignored). Mac, arm64. The
+six arms ran at lowered priority under `caffeinate`, beside the E1 rerun (81.9).
+
+| # | Prediction (81.5) | Measured | |
+|---|---|---|---|
+| **C1** | no change: nothing certified | arm (c), seeds 4 / 5 / 6: 13 / 12 / 13 candidates presented, **0 CERTIFY**. The need never triggered (rho 0.99996 to 1.00009) | **HELD** |
+| C1n | reported: the need never triggers on no change | 0 triggers in 38 | as predicted |
+| **C2** | a healthy change learned and certified | the survey (81.9) chose no member, so arm (a) was not run | **NOT RUN** |
+| **C3** | a slow failure is never certified | arm (b), seeds 1-3: 0 CERTIFY, but **no candidate trained on post-onset data** reached the gate (first yellow at 201,509-201,512) | **VACUOUS** (78.9's rule) |
+| **LC2** | the replica is the detector | over [0, 56,000], the Monitor and the replica emitted on the same 77 ticks. 121 retrainer rate-group slips, 0 samples lost (81.5's rule). LoopSim agrees with both | **HELD** |
+
+**The whole-orbit gate refuses without the need check, too.**
+- The shadow verdict, R1 + F1 with the need check ignored, refused all 38 no-change
+  candidates.
+- Every one of their 76 whole-orbit HELD windows fails both the floor (F 0.604 to 0.614,
+  against a bound of 0.319) and part (i).
+- Under D85's 1.23-orbit window, the same plant certified 2 to 4 per seed (78.10). Scored
+  over whole orbits, the controls never agree closely enough to certify, and the phase
+  artefact of 81.1 does not reappear.
+- This measures the gate's safety on a plant that did not change. It says nothing about
+  whether the gate would ever certify a genuine change.
+
+**The survey (81.9): no member qualifies. Route 3 is recorded.**
+
+| Member | rho at delta = small / mid / large | Rate-normal | |
+|---|---|---|---|
+| E, eclipse (-0.10 / -0.20 / -0.30) | 1.032 / 1.064 / 1.097, every seed | **fails at every magnitude**: ChargeCurrent's largest step grows 36-65%, while its 99.9th percentile is unchanged | crosses T only with an abnormal step |
+| H, housekeeping (+0.05 / +0.10 / +0.20 A) | 1.0009 / 1.0017 / 1.0022 | passes, except at +0.20 (ChargeCurrent max 0.93) | below T |
+| D, duty (-0.10 / -0.20 / -0.30) | 0.9966 / 0.9925 / 0.9890 | fails (ChargeCurrent max +27% to +54%) | below 1 |
+| O, OCV (0.02 / 0.04 / 0.06) | 0.9994 / 0.9989 / 0.9983 | 81.8's result reproduced | below 1 |
+
+- **The one change the forecaster notices** (a shorter eclipse) raises its residual by 3-10%.
+  But it does so only while making a once-per-orbit ChargeCurrent step larger than any
+  healthy one: the shunt engages at higher array output. That is what 81.3's rate-normal
+  check excludes.
+- **Every rate-normal change moves the residual by less than 0.3%**, against a no-change
+  noise of 0.01%.
+- **The limit, as 81.9 fixed it: this testbed cannot show a healthy, rate-normal change
+  that this forecaster notices at T = 1.02.** C2 is NOT RUN, and D85.1 stays until route 2
+  (a mission's own data) is taken up.
+
+**E1 rerun (81.5): the fixed script ran start to finish.**
+- E1d.1 held: the candidate's range matches 78.12's exactly (ticks 6,550..46,277). E1d.3
+  held (REFUSE). E1d.4 held: three lines NOT SENT, `approve --dry-run` rc 2, 0
+  `ModelReloadAccepted`.
+- **E1d.2 held on 4 values, thinly.** The fixed script still passed `fprime-cli -t`, which
+  (by its own help) exits at the first update. This also explains 78.12's "fewer ticks per
+  session", which was left unexplained there.
+- **A hand capture during the run** listened without `-t`: 345 ticks and 2,535 values.
+  - 1,614 equal the replay at their SimTick-framed row.
+  - **921 equal the previous row, bit for bit**: a packet split across a tick boundary.
+  - 0 equal no row.
+
+  So the downlink carries the replay's values exactly. Step 5's SimTick framing misattributes
+  split packets, and a framing that tolerates them is owed to a new registration. The
+  scripted step 2 now listens and is stopped, and that is disclosed here.
+
+**Disclosures, against this work.**
+- **The arms' first launch failed on a shell quirk**, before any process ran; they were
+  relaunched unchanged.
+- **The Mac was shared** with another project's CPU-bound processes during the runs, which
+  may account for the retrainer's 121 slips. No sample was lost.
+- **C3 is vacuous again:** after onset, the detector's own warnings block admission, so a
+  slow failure never reaches retraining. That is a safety property of the guard band, but it
+  is not a test of the gate.
