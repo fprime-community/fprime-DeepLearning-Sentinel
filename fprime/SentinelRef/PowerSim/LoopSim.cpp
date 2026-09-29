@@ -13,6 +13,8 @@
 //   ageing=START,TAU,SOLAR_LOSS,EMIS_LOSS        healthy ageing (optional)
 //   fault=START,RATE                             RESISTANCE_RISE (optional)
 //   loadshift=START,SHIFT                        D86b (c): instrument phase moved (optional)
+//   ocv=START,TAU,LOSS                           D85b arm (a): the OCV slope falls by LOSS at
+//                                                saturation (MODELS 81.3) (optional)
 //   sensor=KIND,CH,START,PARAM,RAMP              D86b (a)(b)(e): what a faulty SENSOR reports;
 //                                                KIND drift (PARAM per tick), offset (PARAM,
 //                                                raised-cosine onset over RAMP), gain (factor
@@ -69,6 +71,7 @@ struct Args {
     unsigned guard = 260u, schedule = 6550u; int budget = 1, nominalPpm = 1830;
     bool retrain = true; bool swap = false; unsigned swapTick = 0u;
     bool loadShift = false; unsigned shiftStart = 0u, shift = 0u;
+    bool ocv = false; unsigned ocvStart = 0u; double ocvTau = 1.0, ocvLoss = 0.0;
     std::string sensorKind; unsigned sensorCh = 0u, sensorStart = 0u, sensorRamp = 1u;
     double sensorParam = 0.0;
 };
@@ -128,6 +131,9 @@ bool parse(int argc, char** argv, Args& a)
         else if (k == "schedule") { a.schedule = (unsigned)std::atoi(v.c_str()); }
         else if (k == "nominal_ppm") { a.nominalPpm = std::atoi(v.c_str()); }
         else if (k == "retrain") { a.retrain = (v == "1"); }
+        else if (k == "ocv" && p.size() == 3) {
+            a.ocv = true; a.ocvStart = (unsigned)std::atoi(p[0].c_str());
+            a.ocvTau = std::atof(p[1].c_str()); a.ocvLoss = std::atof(p[2].c_str()); }
         else if (k == "loadshift" && p.size() == 2) {
             a.loadShift = true; a.shiftStart = (unsigned)std::atoi(p[0].c_str());
             a.shift = (unsigned)std::atoi(p[1].c_str()); }
@@ -215,6 +221,7 @@ int main(int argc, char** argv)
     if (a.balance) { plant.configureBalance(a.housekeeping, a.shunt); }
     if (a.ageing) { plant.configureAgeing(a.spinup + a.ageStart, a.ageTau, a.solarLoss, a.emisLoss); }
     if (a.loadShift) { plant.configureLoadShift(a.spinup + a.shiftStart, a.shift); }
+    if (a.ocv) { plant.configureOcvAgeing(a.spinup + a.ocvStart, a.ocvTau, a.ocvLoss); }
     for (unsigned t = 0u; t < a.spinup; ++t) { plant.step(false, 0.0); }
 
     std::FILE* trace = std::fopen((a.out + "/trace.f32").c_str(), "wb");
@@ -276,6 +283,11 @@ int main(int argc, char** argv)
     std::fprintf(s, "seed %u ticks %u spinup %u balance %d ageing %d fault %d,%u,%g swap %d,%u\n",
                  a.seed, a.ticks, a.spinup, a.balance ? 1 : 0, a.ageing ? 1 : 0, a.fault ? 1 : 0,
                  a.faultStart, a.faultRate, a.swap ? 1 : 0, a.swapTick);
+    // D85b: the scenario options that change the telemetry, all of them, for provenance.
+    std::fprintf(s, "ocv %d,%u,%g,%g loadshift %d,%u,%u sensor %s,%u,%u,%g,%u\n",
+                 a.ocv ? 1 : 0, a.ocvStart, a.ocvTau, a.ocvLoss, a.loadShift ? 1 : 0,
+                 a.shiftStart, a.shift, a.sensorKind.empty() ? "none" : a.sensorKind.c_str(),
+                 a.sensorCh, a.sensorStart, a.sensorParam, a.sensorRamp);
     std::fprintf(s, "first_yellow %ld\ncandidates %u\nadmitted %llu\n", firstYellow,
                  a.retrain ? g_loop.candidates() : 0u,
                  (unsigned long long)(a.retrain ? g_loop.admittedTotal() : 0u));

@@ -91,6 +91,13 @@ void PowerPlant::configureAgeing(uint32_t start, double tau, double solarLoss,
     m_emisLoss = emisLoss;
 }
 
+void PowerPlant::configureOcvAgeing(uint32_t start, double tau, double loss) {
+    m_ocvAgeing = true;
+    m_ocvStart = start;
+    m_ocvTau = (tau > 0.0) ? tau : 1.0;
+    m_ocvLoss = loss;
+}
+
 void PowerPlant::configureBalance(double housekeeping, double shuntSoc) {
     m_balanced = true;
     m_housekeeping = housekeeping;
@@ -127,7 +134,14 @@ void PowerPlant::step(bool faultActive, double faultRate) {
 
     // Open-circuit voltage falls with state of charge; the bus sags under load
     // by the cell's own internal resistance, which is the quantity degrading.
-    const double vOc = (V_OC_FULL - V_OC_SPAN) + V_OC_SPAN * m_soc;
+    // D85b arm (a): the span falls with OCV ageing. Unconfigured, the expression is
+    // exactly the pre-D85b one, so the default plant's bits do not move.
+    double span = V_OC_SPAN;
+    if (m_ocvAgeing && (m_tick >= m_ocvStart)) {
+        const double gOcv = 1.0 - std::exp(-static_cast<double>(m_tick - m_ocvStart) / m_ocvTau);
+        span = V_OC_SPAN * (1.0 - (m_ocvLoss * gOcv));
+    }
+    const double vOc = (V_OC_FULL - V_OC_SPAN) + span * m_soc;
     const double bus = vOc - (load * m_r);
 
     // Charge current is whatever the array can supply beyond the load.

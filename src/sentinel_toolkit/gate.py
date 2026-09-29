@@ -51,6 +51,12 @@ FLOOR_BOUND = 0.319283
 HELD_LEN = 9000
 WARM = 2350
 N_CONTROLS = 6
+#: D85b / docs/MODELS.md 81.2. The need window and each HELD are WHOLE ORBITS after the
+#: warm-up: 81.1 found every 78.10 certification set by where a 1.23-orbit HELD fell in the
+#: orbit. The orbit is the mission's (`--orbit`); the counts are 81's.
+NEED_ORBITS = 4
+HELD_ORBITS = 2
+REPLICATE = 2
 
 
 @dataclass
@@ -120,14 +126,51 @@ def trend_table(values: np.ndarray, names: list[str], low: np.ndarray, high: np.
     return rows
 
 
+def need_span(orbit: int) -> int:
+    """Ticks in a need or baseline window: the warm-up, then NEED_ORBITS whole orbits."""
+    return WARM + NEED_ORBITS * orbit
+
+
+def baseline(*, flying: Path, telemetry: np.ndarray, start: int, orbit: int, tools: Path,
+             workdir: Path) -> dict:
+    """D85b N1: the flying model's own residual over its first NEED_ORBITS whole orbits in
+    flight, from `start` (the tick it began flying). Written once, when a model starts
+    flying, and bound to that model by its sha256."""
+    hi = start + need_span(orbit)
+    if hi > telemetry.shape[0]:
+        raise ToolkitError(f"the baseline needs ticks {start:,}..{hi:,}; the telemetry holds "
+                           f"{telemetry.shape[0]:,}")
+    workdir.mkdir(parents=True, exist_ok=True)
+    tele = workdir / "baseline_telemetry.f32"
+    np.ascontiguousarray(telemetry, dtype=np.float32).tofile(tele)
+    r = residual(tools, flying, tele, telemetry.shape[0], start, hi)
+    return {"flying_sha256": hashlib.sha256(flying.read_bytes()).hexdigest(),
+            "window": [start, hi], "warm": WARM, "orbit": orbit,
+            "need_orbits": NEED_ORBITS, "residual": r}
+
+
 def gate(*, flying: Path, candidate: Path, telemetry: np.ndarray, names: list[str],
          first_data: int, last_data: int, windows: int, budget: int, tools: Path,
          yellow_low: np.ndarray, yellow_high: np.ndarray, block: int, blocks: int,
          horizon: int, workdir: Path, cache: Path | None = None,
          uplink_dest: str = "RetrainApproved.bin", dictionary: str = "<dictionary.json>",
-         reload_command: str = "SentinelRef.sentinelMonitor.RELOAD_MODEL") -> GateResult:
+         reload_command: str = "SentinelRef.sentinelMonitor.RELOAD_MODEL",
+         orbit: int | None = None, baseline_record: dict | None = None,
+         need_threshold: float | None = None, shadow: bool = False) -> GateResult:
     """Run the whole gate. `telemetry` holds every tick up to and past the candidate's
-    held-out window; HELD is the HELD_LEN ticks after its last training tick."""
+    held-out window(s).
+
+    Without `orbit` this is D85's gate, unchanged: HELD is the HELD_LEN ticks after the
+    candidate's last training tick.
+
+    With `orbit` it is D85b's (docs/MODELS.md 81.2):
+    - N1, the need: the flying model's residual over the NEED_ORBITS whole orbits ending at
+      the last training tick, against `baseline_record`'s. Below `need_threshold` the verdict
+      is NOT NEEDED and nothing is judged.
+    - F1 and R1: REPLICATE back-to-back HELD windows of WARM + HELD_ORBITS orbits, and every
+      one of D85's tests must pass on each.
+    - `shadow` also judges a NOT NEEDED candidate, for the record only; it never certifies.
+    """
     res = GateResult(verdict="REFUSE")
     fb, cbytes = flying.read_bytes(), candidate.read_bytes()
     seg = segment_mod.read(flying, fb)
@@ -136,10 +179,14 @@ def gate(*, flying: Path, candidate: Path, telemetry: np.ndarray, names: list[st
     if not candidate_is_flying_with_new_weights(fb, cbytes):
         res.reasons.append("INTEGRITY: the candidate is not the flying file with new weights")
         return res
-    held_lo = last_data + 1
-    held_hi = held_lo + HELD_LEN
-    if held_hi > telemetry.shape[0]:
-        raise ToolkitError(f"HELD needs ticks {held_lo:,}..{held_hi:,}; the telemetry "
+    d85b = orbit is not None
+    held_len = (WARM + HELD_ORBITS * orbit) if d85b else HELD_LEN
+    n_windows = REPLICATE if d85b else 1
+    helds = [(last_data + 1 + k * held_len, last_data + 1 + (k + 1) * held_len)
+             for k in range(n_windows)]
+    held_lo, held_hi = helds[0]
+    if helds[-1][1] > telemetry.shape[0]:
+        raise ToolkitError(f"HELD needs ticks {held_lo:,}..{helds[-1][1]:,}; the telemetry "
                            f"holds {telemetry.shape[0]:,}. Wait for the downlink.")
     workdir.mkdir(parents=True, exist_ok=True)
     tele_f32 = workdir / "telemetry.f32"
@@ -147,6 +194,36 @@ def gate(*, flying: Path, candidate: Path, telemetry: np.ndarray, names: list[st
     seg_f32 = workdir / "segment.f32"
     np.ascontiguousarray(seg.train, dtype=np.float32).tofile(seg_f32)
     rows_t, rows_s = telemetry.shape[0], seg.train.shape[0]
+
+    # 1b. D85b N1: need first. Nothing is judged for a model that has not degraded.
+    need = None
+    if d85b:
+        if baseline_record is None or need_threshold is None:
+            raise ToolkitError("D85b needs the flying model's baseline and the need threshold")
+        if baseline_record.get("flying_sha256") != hashlib.sha256(fb).hexdigest():
+            raise ToolkitError("the baseline was measured for another flying model; a model's "
+                               "baseline is written when it starts flying")
+        if baseline_record.get("orbit") != orbit:
+            raise ToolkitError("the baseline was measured at another orbit length")
+        need_hi = last_data + 1
+        need_lo = need_hi - need_span(orbit)
+        if need_lo < baseline_record["window"][1]:
+            raise ToolkitError(f"the need window {need_lo:,}..{need_hi:,} overlaps the "
+                               f"baseline {baseline_record['window']}; too early to judge")
+        r_need = residual(tools, flying, tele_f32, rows_t, need_lo, need_hi)
+        rho = r_need / baseline_record["residual"]
+        need = {"window": [need_lo, need_hi], "baseline_window": baseline_record["window"],
+                "residual_need": r_need, "residual_baseline": baseline_record["residual"],
+                "rho": rho, "threshold": need_threshold, "triggered": bool(rho >= need_threshold)}
+        if not need["triggered"] and not shadow:
+            res.verdict = "NOT NEEDED"
+            res.reasons.append(f"NEED: rho = {rho:.4f} < T = {need_threshold:.4f}; the flying "
+                               f"model has not degraded, so no candidate is judged")
+            res.numbers = {"flying_sha256": hashlib.sha256(fb).hexdigest(),
+                           "candidate_sha256": hashlib.sha256(cbytes).hexdigest(),
+                           "first_data_tick": first_data, "last_data_tick": last_data,
+                           "need": need, "orbit": orbit}
+            return res
 
     # 2. the floor: N controls, differing only in start offset
     span = int(seg.meta["window"]) + int(seg.meta["n_predictions"])
@@ -172,50 +249,72 @@ def gate(*, flying: Path, candidate: Path, telemetry: np.ndarray, names: list[st
         if p.returncode != 0:
             raise ToolkitError(f"a control failed to train: {err.strip()}")
 
-    r_c = [residual(tools, c, tele_f32, rows_t, held_lo, held_hi) for c in controls]
-    r_s = residual(tools, candidate, tele_f32, rows_t, held_lo, held_hi)
-    r_f = residual(tools, flying, tele_f32, rows_t, held_lo, held_hi)
-    mean_c = float(np.mean(r_c))
-    F = (max(r_c) - min(r_c)) / mean_c
-    m = K * F
-    part_i = (r_c[0] - r_s) / r_c[0]
-
-    # 4. part (ii): generalisation gaps, candidate against flying
+    # 3. part (ii)'s fit residuals, once per candidate
     fit_lo = max(first_data - WARM, 0)
     s_fit = residual(tools, candidate, tele_f32, rows_t, fit_lo, last_data + 1,
                      warm=first_data - fit_lo)
     f_fit = residual(tools, flying, seg_f32, rows_s, 0, rows_s)
-    s_gap = abs(r_s - s_fit) / s_fit
-    f_gap = abs(r_f - f_fit) / f_fit
+
+    # 4. every HELD window: the floor, part (i), part (ii)
+    per_window = []
+    for lo, hi in helds:
+        r_c = [residual(tools, c, tele_f32, rows_t, lo, hi) for c in controls]
+        r_s = residual(tools, candidate, tele_f32, rows_t, lo, hi)
+        r_f = residual(tools, flying, tele_f32, rows_t, lo, hi)
+        F = (max(r_c) - min(r_c)) / float(np.mean(r_c))
+        m = K * F
+        part_i = (r_c[0] - r_s) / r_c[0]
+        s_gap = abs(r_s - s_fit) / s_fit
+        f_gap = abs(r_f - f_fit) / f_fit
+        reasons = []
+        tag = f"HELD {lo:,}..{hi:,}: " if d85b else ""
+        if F > FLOOR_BOUND:
+            reasons.append(f"{tag}FLOOR: F = {F:.4%} exceeds {FLOOR_BOUND:.4%}; the floor is not a floor")
+        if part_i < m:
+            reasons.append(f"{tag}PART (i): improvement {part_i:.4%} < m = {m:.4%}")
+        if s_gap > f_gap:
+            reasons.append(f"{tag}PART (ii): candidate gap {s_gap:.4%} > flying gap {f_gap:.4%}")
+        per_window.append({"held": [lo, hi], "res_held_controls": r_c, "res_held_candidate": r_s,
+                           "res_held_flying": r_f, "floor_F": F, "margin_m": m,
+                           "part_i_improvement": part_i, "gap_candidate": s_gap,
+                           "gap_flying": f_gap, "reasons": reasons})
 
     # 5. trend to limit, every channel
     trend = trend_table(telemetry, names, yellow_low, yellow_high, last_data + 1, block,
                         blocks, horizon)
 
+    first = per_window[0]
     res.trend = trend
     res.numbers = {
         "flying_sha256": hashlib.sha256(fb).hexdigest(),
         "candidate_sha256": hashlib.sha256(cbytes).hexdigest(),
         "candidate_static_crc32": segment_mod.static_crc32(cbytes),
         "first_data_tick": first_data, "last_data_tick": last_data,
-        "held": [held_lo, held_hi], "held_warm": WARM,
+        "held": first["held"], "held_warm": WARM,
         "windows": windows, "budget": budget, "control_offsets": offsets,
-        "res_held_controls": r_c, "res_held_candidate": r_s, "res_held_flying": r_f,
-        "floor_F": F, "floor_bound": FLOOR_BOUND, "K": K, "margin_m": m,
-        "part_i_improvement": part_i,
+        "res_held_controls": first["res_held_controls"],
+        "res_held_candidate": first["res_held_candidate"],
+        "res_held_flying": first["res_held_flying"],
+        "floor_F": first["floor_F"], "floor_bound": FLOOR_BOUND, "K": K,
+        "margin_m": first["margin_m"], "part_i_improvement": first["part_i_improvement"],
         "res_fit_candidate": s_fit, "res_fit_flying": f_fit,
-        "gap_candidate": s_gap, "gap_flying": f_gap,
+        "gap_candidate": first["gap_candidate"], "gap_flying": first["gap_flying"],
         "trend_block": block, "trend_blocks": blocks, "horizon": horizon}
-    if F > FLOOR_BOUND:
-        res.reasons.append(f"FLOOR: F = {F:.4%} exceeds {FLOOR_BOUND:.4%}; the floor is not a floor")
-    if part_i < m:
-        res.reasons.append(f"PART (i): improvement {part_i:.4%} < m = {m:.4%}")
-    if s_gap > f_gap:
-        res.reasons.append(f"PART (ii): candidate gap {s_gap:.4%} > flying gap {f_gap:.4%}")
+    if d85b:
+        res.numbers.update({"orbit": orbit, "need": need, "replication": per_window})
+    for w in per_window:
+        res.reasons += w["reasons"]
     inside = [t["channel"] for t in trend if t["inside_horizon"]]
     if inside:
         res.reasons.append(f"TREND TO LIMIT: {', '.join(inside)} would reach a yellow limit "
                            f"within {horizon:,} ticks")
+    if need is not None and not need["triggered"]:
+        # shadow: judged for the record, never certified
+        res.numbers["shadow_verdict"] = "WOULD CERTIFY" if not res.reasons else "WOULD REFUSE"
+        res.reasons.insert(0, f"NEED: rho = {need['rho']:.4f} < T = {need['threshold']:.4f}; "
+                              f"judged in shadow only")
+        res.verdict = "NOT NEEDED"
+        return res
     if not res.reasons:
         res.verdict = "CERTIFY"
         # (!) A RELATIVE DESTINATION OF AT MOST 40 CHARACTERS: a command carries no more
@@ -243,9 +342,27 @@ def render(res: GateResult) -> str:
     n = res.numbers
     lines = ["=" * 76, f"  GROUND GATE: {res.verdict}", "=" * 76]
     if res.reasons:
-        lines.append("  REFUSED BECAUSE")
+        lines.append("  NOT JUDGED BECAUSE" if res.verdict == "NOT NEEDED" else "  REFUSED BECAUSE")
         lines += [f"    - {r}" for r in res.reasons]
-    if n:
+    need = n.get("need") if n else None
+    if need:
+        lines += [
+            "  THE NEED, FIRST (D85b N1: the flying model's own residual, whole orbits)",
+            f"    need window {need['window'][0]:,}..{need['window'][1]:,}: "
+            f"{need['residual_need']:.6e}; baseline {need['baseline_window'][0]:,}.."
+            f"{need['baseline_window'][1]:,}: {need['residual_baseline']:.6e}",
+            f"    rho {need['rho']:.4f} against T {need['threshold']:.4f}: "
+            f"{'TRIGGERED' if need['triggered'] else 'not triggered'}"]
+        if "shadow_verdict" in n:
+            lines.append(f"    shadow (for the record, never decisive): {n['shadow_verdict']}")
+    if n and "res_held_controls" in n and n.get("replication"):
+        lines.append("  REPLICATION (D85b R1: every test on each whole-orbit HELD window)")
+        for w in n["replication"]:
+            lines.append(f"    HELD {w['held'][0]:,}..{w['held'][1]:,}: F {w['floor_F']:.4%}, "
+                         f"m {w['margin_m']:.4%}, part (i) {w['part_i_improvement']:.4%}, "
+                         f"gaps {w['gap_candidate']:.4%} / {w['gap_flying']:.4%}: "
+                         f"{'pass' if not w['reasons'] else 'FAIL'}")
+    if n and "res_held_controls" in n:
         lines += [
             "  THE CONTROL, REPRODUCED ON THE GROUND (D78, D85)",
             f"    controls (start offsets {n['control_offsets']}):",

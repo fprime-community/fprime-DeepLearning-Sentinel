@@ -126,13 +126,30 @@ def cmd_gate(args) -> int:
         yellow_high=np.asarray(limits["high"], dtype=np.float64),
         block=args.block, blocks=args.blocks, horizon=args.horizon,
         workdir=Path(args.workdir), cache=Path(args.cache) if args.cache else None,
-        uplink_dest=args.dest, dictionary=args.dictionary, reload_command=args.reload_command)
+        uplink_dest=args.dest, dictionary=args.dictionary, reload_command=args.reload_command,
+        orbit=args.orbit,
+        baseline_record=_json.loads(Path(args.baseline).read_text()) if args.baseline else None,
+        need_threshold=args.need_threshold, shadow=args.shadow)
     out = Path(args.report)
     out.write_text(gate_mod.to_json(res))
     Path(str(out) + ".txt").write_text(gate_mod.render(res) + "\n")
     print(gate_mod.render(res))
     print(f"  report     {out} (and {out.name}.txt)")
     return 0 if res.verdict == "CERTIFY" else 1
+
+
+def cmd_baseline(args) -> int:
+    """D85b N1: the flying model's residual over its first whole orbits in flight."""
+    import json as _json
+    from . import gate as gate_mod
+    telemetry = np.load(args.telemetry) if args.telemetry.endswith(".npy") else \
+        np.fromfile(args.telemetry, dtype=np.float32).reshape(-1, args.channels)
+    rec = gate_mod.baseline(flying=Path(args.flying), telemetry=telemetry, start=args.start,
+                            orbit=args.orbit, tools=Path(args.tools), workdir=Path(args.workdir))
+    Path(args.out).write_text(_json.dumps(rec, indent=2, sort_keys=True))
+    print(f"  baseline   ticks {rec['window'][0]:,}..{rec['window'][1]:,}: residual "
+          f"{rec['residual']:.6e} -> {args.out}")
+    return 0
 
 
 def cmd_approve(args) -> int:
@@ -200,6 +217,25 @@ def main(argv=None) -> int:
     gate.add_argument("--reload-command", dest="reload_command",
                       default="SentinelRef.sentinelMonitor.RELOAD_MODEL")
     gate.add_argument("--report", required=True, help="where the JSON report is written")
+    gate.add_argument("--orbit", type=int, default=None,
+                      help="D85b: the telemetry's orbit in ticks; switches on need first, "
+                           "replication and whole-orbit windows (docs/MODELS.md 81.2)")
+    gate.add_argument("--baseline", default=None, help="D85b: the flying model's baseline JSON")
+    gate.add_argument("--need-threshold", dest="need_threshold", type=float, default=None,
+                      help="D85b: T, calibrated by 81.2's rule")
+    gate.add_argument("--shadow", action="store_true",
+                      help="D85b: judge a NOT NEEDED candidate for the record; never certifies")
+
+    base = sub.add_parser("baseline", help="D85b: a flying model's residual over its first "
+                                           "whole orbits in flight")
+    base.add_argument("--flying", required=True)
+    base.add_argument("--telemetry", required=True)
+    base.add_argument("--channels", type=int, default=0)
+    base.add_argument("--start", type=int, required=True, help="the tick it began flying")
+    base.add_argument("--orbit", type=int, required=True)
+    base.add_argument("--tools", required=True)
+    base.add_argument("--workdir", required=True)
+    base.add_argument("--out", required=True)
 
     appr = sub.add_parser("approve", help="D85: the human's one command -- uplink a "
                                           "CERTIFIED candidate and reload it")
@@ -216,7 +252,7 @@ def main(argv=None) -> int:
         args.quantile = DEFAULT_QUANTILE
 
     handlers = {"fit": cmd_fit, "verify": cmd_verify, "selftest": cmd_selftest,
-                "gate": cmd_gate, "approve": cmd_approve}
+                "gate": cmd_gate, "baseline": cmd_baseline, "approve": cmd_approve}
     try:
         return handlers[args.command](args)
     except ToolkitError as exc:

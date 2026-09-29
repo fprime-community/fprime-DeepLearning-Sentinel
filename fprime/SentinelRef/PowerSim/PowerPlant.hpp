@@ -121,6 +121,13 @@ class PowerPlant {
     //! configured, and then `step()` is unchanged.
     void configureLoadShift(uint32_t start, uint32_t shift);
 
+    //! D85b / `docs/MODELS.md` 81.3, arm (a): healthy battery ageing the thermostat cannot
+    //! hide. From `start` the open-circuit voltage's slope against state of charge falls,
+    //! vOc = 27.0 + 4.5 (1 - loss g) SoC with g = 1 - exp(-(t - start)/tau), so the
+    //! Bus-SoC relation a forecaster learned moves while no sensor changes. Off unless
+    //! configured, and then `step()` is bit-identical.
+    void configureOcvAgeing(uint32_t start, double tau, double loss);
+
     double value(uint32_t channel) const { return m_v[channel]; }
     uint32_t tick() const { return m_tick; }
     double resistance() const { return m_r; }
@@ -143,6 +150,10 @@ class PowerPlant {
     double m_solarLoss = 0.0;  //!< fraction of SOLAR_PEAK lost at saturation
     double m_emisLoss = 0.0;   //!< fraction of RAD_EMIS lost at saturation
     bool m_loadShifted = false;   //!< D86b fault (c): instrument phase shifted
+    bool m_ocvAgeing = false;     //!< D85b arm (a): the OCV slope falls
+    uint32_t m_ocvStart = 0u;
+    double m_ocvTau = 1.0;
+    double m_ocvLoss = 0.0;       //!< fraction of V_OC_SPAN lost at saturation
     uint32_t m_loadShiftStart = 0u;
     uint32_t m_loadShift = 0u;
     bool m_balanced = false;   //!< D85: orbit-balanced operating point
