@@ -18,8 +18,8 @@ only recent healthy windows -- 56's rule plus a guard band of SPAN + 2 x guard t
 every crossing of its replica detector. `tests/test_retrainer_live_window.py` runs this
 component through those ports (`docs/MODELS.md` 78.11-78.12: the window fills from live
 samples, and nothing within 780 ticks of a crossing is admitted). Its step budget and schedule
-are EXPERIMENTAL. **No candidate may be swapped in** (D85.1: the ground gate certified
-candidates on a plant that did not change); nothing onboard scores one, and a human's
+are EXPERIMENTAL. **No candidate may be swapped in** (D85.1: on a plant that did not change,
+the ground gate returned CERTIFY for candidates); nothing onboard scores one, and a human's
 `RELOAD_MODEL` is the only way a model changes.
 
 **LC2's log (78.11), apparatus.** `setEmitLog(true)`, set by SentinelRetrain's `-E`, logs every

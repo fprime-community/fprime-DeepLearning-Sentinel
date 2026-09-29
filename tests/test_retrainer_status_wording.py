@@ -117,8 +117,10 @@ def _section_faults(section: str | None) -> list[str]:
     if STATUS_LINE not in flat:
         faults.append(f"D83's status line, verbatim: '{STATUS_LINE}'")
     faults += [f"the case against's row '{row}'" for row in CASE_AGAINST if row not in flat]
-    if "not telemetry" not in flat:
-        faults.append("that it trains on a drive that is not telemetry (D84 c.3)")
+    # D84 c.3 said it trained on a drive that is not telemetry. D85 changed the fact: it
+    # trains on the detector's own telemetry, and the section must say so (2026-09-28).
+    if "own telemetry" not in flat:
+        faults.append("what it trains on since D85: the detector's own telemetry")
     if "swapped in" not in flat:
         faults.append("that no candidate may be swapped in operationally (D84 c.2)")
     return faults
@@ -142,9 +144,10 @@ def test_both_checks_can_fail() -> None:
                            "qualified for Rust.")
     good = ("### OPTIONAL: the retrainer\n" + STATUS_LINE + ". No flight heritage, no "
             "qualified compiler, no precedent for a garbage-collected runtime, arm64 macOS "
-            "only, no stability promise, Ferrocene, no Rust comparison. It trains on a drive "
-            "that is not telemetry; no candidate may be swapped in operationally.\n")
+            "only, no stability promise, Ferrocene, no Rust comparison. It trains on the "
+            "detector's own telemetry; no candidate may be swapped in (D85.1).\n")
     assert not _section_faults(_optional_section(good))
     assert _section_faults(_optional_section(good.replace("Ferrocene", "Rust")))
+    assert _section_faults(_optional_section(good.replace("own telemetry", "drive")))
     assert _section_faults(_optional_section(good.replace("not flight-qualified", "qualified")))
     assert _section_faults(_optional_section(good.replace("OPTIONAL", "Optional")))
