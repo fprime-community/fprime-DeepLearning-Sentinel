@@ -9,6 +9,7 @@ flight core, via `gate.residual`.
 
     PYTHONPATH=src .venv/bin/python scripts/d85b_arms.py calibrate       81.2: T
     PYTHONPATH=src .venv/bin/python scripts/d85b_arms.py ladder          81.3: arm (a)'s L
+    PYTHONPATH=src .venv/bin/python scripts/d85b_arms.py survey          81.9: the premise survey
     PYTHONPATH=src .venv/bin/python scripts/d85b_arms.py arm {a,b,c} --seed S
 
 Outputs go under runs/d85b/ (gitignored). Rates and ticks only; no timing figure is
@@ -58,6 +59,11 @@ LADDER_TICKS = 130_000
 RATE_NORMAL_WINDOW = (30_000, 130_000)
 RATE_NORMAL_TOL = 0.05
 B_ONSET, B_RATE = 150_000, 4.0e-5
+#: 81.9: the survey's family, in its registered order, each (loopsim key, magnitudes).
+SURVEY = (("E", "eclipse", (-0.10, -0.20, -0.30)),
+          ("H", "hk", (0.05, 0.10, 0.20)),
+          ("D", "duty", (-0.10, -0.20, -0.30)),
+          ("O", "ocv", (0.02, 0.04, 0.06)))
 
 NAMES = ["SolarInput", "ChargeCurrent", "LoadCurrent", "BusVoltage", "CellTemp",
          "RadiatorTemp", "HeaterDuty", "StateOfCharge"]
@@ -103,15 +109,23 @@ def gateable(cand: dict, n: int) -> bool:
 
 # -- apparatus ------------------------------------------------------------------------------
 
+def scenario(key: str, delta: float) -> str:
+    """81.3 / 81.9: one healthy change, on 81.3's schedule (start 30,000, tau 20,000)."""
+    return f"{key}={OCV_START},{OCV_TAU},{delta}"
+
+
 def loopsim(out: Path, seed: int, ticks: int, *, retrain: bool, ocv: float | None = None,
-            fault: tuple[int, float] | None = None, swap: tuple[int, Path] | None = None) -> Path:
+            fault: tuple[int, float] | None = None, swap: tuple[int, Path] | None = None,
+            extra: str | None = None) -> Path:
     out.mkdir(parents=True, exist_ok=True)
     args = [str(LOOPSIM), f"out={out}", f"flying={FLYING}", f"seed={seed}", f"ticks={ticks}",
             f"spinup={SPINUP}", f"balance={BALANCE}", f"guard={GUARD}", f"budget={BUDGET}",
             f"schedule={SCHEDULE}", f"nominal_ppm={NOMINAL_PPM}",
             f"retrain={1 if retrain else 0}"]
     if ocv is not None:
-        args.append(f"ocv={OCV_START},{OCV_TAU},{ocv}")
+        args.append(scenario("ocv", ocv))
+    if extra is not None:
+        args.append(extra)
     if fault is not None:
         args.append(f"fault={fault[0]},{fault[1]}")
     if swap is not None:
@@ -223,6 +237,51 @@ def ladder() -> None:
     print(f"  chosen: {chosen}")
 
 
+# -- survey (81.9) --------------------------------------------------------------------------
+
+def _survey_unit(job: tuple[str, str, float, int]) -> dict:
+    member, key, delta, seed = job
+    run = loopsim(RUNS / "survey" / f"{member}{delta}_s{seed}", seed, LADDER_TICKS,
+                  retrain=False, extra=scenario(key, delta))
+    aged = telemetry(run)
+    healthy = telemetry(RUNS / "calibrate" / f"s{seed}")[:LADDER_TICKS]
+    base = baseline_of(FLYING, run)
+    rho = res(FLYING, run, LADDER_TICKS - NEED_SPAN, LADDER_TICKS) / base["residual"]
+    rn = rate_normal(aged, healthy, *RATE_NORMAL_WINDOW)
+    worst = max(rn, key=lambda r: max(abs(r["p999"] - 1), abs(r["max"] - 1)))
+    return {"member": member, "key": key, "delta": delta, "seed": seed, "rho": float(rho),
+            "inside_yellow": inside_yellow(aged), "rate_normal_ok": all(r["ok"] for r in rn),
+            "worst_channel": worst["channel"], "worst_p999": worst["p999"],
+            "worst_max": worst["max"]}
+
+
+def choose(units: list[dict], T: float) -> dict | None:
+    """81.9: the first member, in order, with a magnitude whose unit qualifies on every
+    seed, at its smallest qualifying |delta|."""
+    for member, key, deltas in SURVEY:
+        for delta in sorted(deltas, key=abs):
+            us = [u for u in units if u["member"] == member and u["delta"] == delta]
+            if us and all(u["rho"] >= T and u["inside_yellow"] and u["rate_normal_ok"] for u in us):
+                return {"member": member, "key": key, "delta": delta}
+    return None
+
+
+def survey() -> None:
+    T = json.loads((RUNS / "calibrate.json").read_text())["T"]
+    jobs = [(m, k, d, seed) for m, k, ds in SURVEY for d in ds for seed in AB_SEEDS]
+    with ProcessPoolExecutor(max_workers=4) as pool:
+        units = list(pool.map(_survey_unit, jobs))
+    chosen = choose(units, T)
+    (RUNS / "survey.json").write_text(json.dumps({"T": T, "units": units, "chosen": chosen},
+                                                 indent=2))
+    for u in units:
+        print(f"  {u['member']} {u['delta']:+.2f} s{u['seed']}: rho {u['rho']:.4f}, yellow "
+              f"{'ok' if u['inside_yellow'] else 'LEFT'}, rate-normal "
+              f"{'ok' if u['rate_normal_ok'] else 'FAIL'} ({u['worst_channel']} p99.9 "
+              f"{u['worst_p999']:.3f}, max {u['worst_max']:.3f})")
+    print(f"  chosen: {chosen}")
+
+
 # -- the arms (81.4), run in session 2 -------------------------------------------------------
 
 def _gate(run: Path, cand: dict, base: dict, T: float) -> dict:
@@ -251,9 +310,12 @@ def arm(which: str, seed: int, loss: float | None) -> None:
     out_dir = RUNS / which / f"s{seed}"
     kw = {}
     if which == "a":
-        if loss is None:
-            raise SystemExit("arm (a) takes the ladder's chosen L (--loss)")
-        kw["ocv"] = loss
+        # 81.9: arm (a) is the survey's choice, read from its record, never chosen here.
+        chosen = json.loads((RUNS / "survey.json").read_text())["chosen"]
+        if chosen is None:
+            raise SystemExit("81.9: the survey chose nothing; arm (a) is not run")
+        kw["extra"] = scenario(chosen["key"], chosen["delta"])
+        loss = chosen["delta"]
     if which == "b":
         kw["fault"] = (B_ONSET, B_RATE)
     run = loopsim(out_dir, seed, ARM_TICKS, retrain=True, **kw)
@@ -291,7 +353,7 @@ def arm(which: str, seed: int, loss: float | None) -> None:
                 c2["res_flying"] = res(FLYING, run, *post)
                 c2["lower"] = bool(c2["res_candidate"] < c2["res_flying"])
                 swapped = loopsim(out_dir.parent / f"s{seed}_swap", seed, post[1], retrain=False,
-                                  ocv=loss, swap=(t_swap, cand_file))
+                                  swap=(t_swap, cand_file), extra=kw["extra"])
                 em_u, em_s = emitted(run), emitted(swapped)
                 lo, hi = post[0] + WARM, post[1]
                 c2["fa_before"] = int(em_u[t_swap - 4 * ORBIT:t_swap].sum())
@@ -311,6 +373,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("calibrate")
     sub.add_parser("ladder")
+    sub.add_parser("survey")
     a = sub.add_parser("arm")
     a.add_argument("which", choices=["a", "b", "c"])
     a.add_argument("--seed", type=int, required=True)
@@ -321,6 +384,8 @@ def main() -> int:
         calibrate()
     elif args.cmd == "ladder":
         ladder()
+    elif args.cmd == "survey":
+        survey()
     else:
         seeds = C_SEEDS if args.which == "c" else AB_SEEDS
         if args.seed not in seeds:

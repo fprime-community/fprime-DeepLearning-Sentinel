@@ -128,6 +128,14 @@ class PowerPlant {
     //! configured, and then `step()` is bit-identical.
     void configureOcvAgeing(uint32_t start, double tau, double loss);
 
+    //! D85b / `docs/MODELS.md` 81.9: the premise survey's healthy drifts, each
+    //! `x -> x (1 + delta g)` or `x + delta g` with g = 1 - exp(-(t - start)/tau):
+    //! the eclipse fraction (x 0.35), the housekeeping draw (+ A), the instrument's
+    //! on-time (x 420 of 900 ticks). Each is off unless configured, and then `step()` is
+    //! bit-identical.
+    enum class Drift : uint32_t { ECLIPSE_FRACTION = 0u, HOUSEKEEPING = 1u, DUTY_ON_TIME = 2u };
+    void configureDrift(Drift which, uint32_t start, double tau, double delta);
+
     double value(uint32_t channel) const { return m_v[channel]; }
     uint32_t tick() const { return m_tick; }
     double resistance() const { return m_r; }
@@ -154,6 +162,9 @@ class PowerPlant {
     uint32_t m_ocvStart = 0u;
     double m_ocvTau = 1.0;
     double m_ocvLoss = 0.0;       //!< fraction of V_OC_SPAN lost at saturation
+    struct Seasonal { bool on = false; uint32_t start = 0u; double tau = 1.0; double delta = 0.0; };
+    Seasonal m_drift[3];          //!< D85b 81.9, indexed by Drift
+    double drift(Drift which) const;   //!< delta x g(t) for one drift; 0 unless configured
     uint32_t m_loadShiftStart = 0u;
     uint32_t m_loadShift = 0u;
     bool m_balanced = false;   //!< D85: orbit-balanced operating point

@@ -66,3 +66,26 @@ def test_the_constants_are_81s() -> None:
     assert arms.LADDER == (0.02, 0.04, 0.06) and arms.C_SEEDS == (4, 5, 6)
     assert (arms.OCV_START, arms.OCV_TAU, arms.B_ONSET) == (30_000, 20_000.0, 150_000)
     assert not set(arms.C_SEEDS) & set(arms.CAL_SEEDS), "a calibration seed evaluates C1"
+
+
+def test_the_survey_choice_rule() -> None:
+    """81.9: first member in order, smallest qualifying |delta|, every seed; else None."""
+    def u(member, delta, rho, seed, ok=True):
+        return {"member": member, "delta": delta, "rho": rho, "seed": seed,
+                "inside_yellow": True, "rate_normal_ok": ok}
+    T = 1.02
+    units = [u("E", -0.10, 1.0, s) for s in (1, 2, 3)]
+    units += [u("H", 0.10, 1.03, s) for s in (1, 2, 3)] + [u("H", 0.20, 1.05, s) for s in (1, 2, 3)]
+    units += [u("D", -0.10, 1.10, s) for s in (1, 2, 3)]
+    assert arms.choose(units, T) == {"member": "H", "key": "hk", "delta": 0.10}
+    units[3]["rho"] = 1.01                            # H +0.10 now fails on one seed
+    assert arms.choose(units, T)["delta"] == 0.20
+    for x in units:
+        x["rate_normal_ok"] = False
+    assert arms.choose(units, T) is None
+
+
+def test_the_survey_family_is_81_9s() -> None:
+    assert [(m, k) for m, k, _ in arms.SURVEY] == [("E", "eclipse"), ("H", "hk"), ("D", "duty"),
+                                                    ("O", "ocv")]
+    assert arms.SURVEY[3][2] == arms.LADDER
