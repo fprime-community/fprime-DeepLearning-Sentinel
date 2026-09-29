@@ -15,8 +15,8 @@
  * `strict` is satisfied with the checks in place. The accesses were a choice, and D82
  * takes the other one.
  *
- * So: every element access in the retrainer is now bounds-checked, and all 56
- * `[@zero_alloc strict]` sites still hold with 0 `assume`.
+ * So: every element access in the retrainer is now bounds-checked, and every
+ * `[@zero_alloc strict]` site still holds with 0 `assume`.
  *
  * (!) THE POLYMORPHISM LIMIT, WHICH IS REAL AND IS WHY `acc_int.ml` EXISTS. Wrapping
  * `Array` at `'a array` defeats the representation specialisation OCaml does for

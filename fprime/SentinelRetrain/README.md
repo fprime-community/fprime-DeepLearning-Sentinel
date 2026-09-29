@@ -92,8 +92,9 @@ names the command.
 D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
 `scripts/oxcaml_shape.sh` to build the object at a mission's shape. **OxCaml is the chosen
 retraining implementation, host-verified, not flight-qualified** (D83). Chosen is not
-qualified: it has never run on flight hardware, its sanity gate is not a usable gate yet, and
-it trains on a deterministic drive rather than telemetry. Since D84 it is generated at the
+qualified: it has never run on flight hardware, and its ground gate is not a usable gate yet --
+it certified candidates on a plant that did not change, so no candidate may be swapped in
+(D85.1). Since D85 it trains on the detector's own telemetry. Since D84 it is generated at the
 mission's shape, so a candidate for `SentinelRef`'s 8 channels is what it builds; that makes
 the shapes meet, not the candidate good. **The case against, beside it:** no flight heritage,
 no qualified compiler, no certification precedent for a garbage-collected runtime in flight,
@@ -104,7 +105,9 @@ smaller with Ferrocene qualified -- and **no Rust comparison has been built here
 ./SentinelRetrain -a 127.0.0.1 -p 0        # run the cycle with no hub
 ```
 
-`-p 0` or no `-p` runs the cycle standalone; a non-zero port connects to a hub server.
+`-p 0` or no `-p` runs the cycle standalone; a non-zero port connects to a hub server. `-t US`
+shortens the base tick for a host run and `-E` logs LC2's replica emit ticks (both apparatus;
+`scripts/d85_e1.sh` uses them, `docs/MODELS.md` 78.11).
 
 ## What it proves, and what it does not
 
@@ -112,15 +115,17 @@ smaller with Ferrocene qualified -- and **no Rust comparison has been built here
 the OCaml runtime inside a real F' deployment, runs one training cycle per tick, carries that
 cycle across a hub into `SentinelRef`'s process, and **writes a candidate model file that
 `flight/`'s own reader loads** (72.8, HO1). **0** OCaml symbols in `SentinelRef`'s binary and
-**3,082** in this one, checked by symbol on every test run
+**3,149** in this one (3,082 until D85 added the window gate), checked by symbol on every test run
 (`tests/test_detector_binary_has_no_ocaml_runtime.py`).
 
 **(!) The shapes meet since D84, and that is all that follows.** Until D84 the training cycle
 was fixed at `Config.hpp`'s maxima -- 16 inputs, 75,360 parameters -- against `SentinelModel.bin`'s
 8 channels and 66,960 weights, so no candidate could be loaded in its place (`docs/MODELS.md`
 72.4). Generated at 8 channels and 10 predictions, the cycle's candidate has that file's shape,
-and `RELOAD_MODEL` accepts it on the host (`docs/MODELS.md` 77). **It is trained for one step on
-a deterministic drive, nothing scores it, and no candidate may be swapped in operationally.**
+and `RELOAD_MODEL` accepts it on the host (`docs/MODELS.md` 77). **Since D85 it trains on the
+detector's own telemetry, the ground gate judges it, and no candidate may be swapped in
+(D85.1).** Run end to end through both deployments (`docs/MODELS.md` 78.12, D85.2), its
+candidate is byte-identical to the host harness's, and the gate refused it.
 
 **Not proved.** C2 -- that the separate process actually isolates the detector's timing -- is
 UNVERIFIED and deferred to hardware: this host downclocks an idle core and the confound

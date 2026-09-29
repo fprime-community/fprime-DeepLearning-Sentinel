@@ -60,6 +60,12 @@ int32_t sentinel_shadow_export(uint8_t *out, uint32_t cap);
    edit -- has no metrics entry. shadow_c.ml carries the reasoning. */
 int32_t sentinel_shadow_loss(float *out, uint32_t n);
 
+/* D85 / D76: copies the loaded flying file's WEIGHTS into the training cycle's
+   parameters -- the onboard warm start. Call after sentinel_shadow_load. Refuses
+   (SENTINEL_SHD_ERR_SHAPE) a weights block that is not this shape's parameter
+   count, or a header that disagrees with the bytes loaded. */
+int32_t sentinel_shadow_warm(void);
+
 #ifdef __cplusplus
 }
 #endif

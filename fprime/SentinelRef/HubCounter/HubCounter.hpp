@@ -25,8 +25,9 @@ class HubCounter final : public HubCounterComponentBase {
     static const U32 RETRAIN_BASE = 0x30000000U;
 
     //! What one source tick feeds, so SampleCount converts to a tick count.
-    //! Mirrors `Sentinel::Retrainer::SAMPLES_PER_TICK`.
-    static const U32 SAMPLES_PER_TICK = 10U;
+    //! Since D85 the retrainer's first channel is SamplesReceived -- one per detector
+    //! tick, from the SampleTap. It was E1's accumulator, ten per tick, until then.
+    static const U32 SAMPLES_PER_TICK = 1U;
 
     explicit HubCounter(const char* const compName);
     ~HubCounter() override;

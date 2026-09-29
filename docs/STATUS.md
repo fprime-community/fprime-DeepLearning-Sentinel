@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`29c96f7`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`8840964`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -76,7 +76,7 @@ What the pre-registration commits to, so it can be held to it:
 | **B** | **The F' Ref physics testbed** | Coupled current, heat, temperature and voltage; 8-12 channels; real dictionary limits; a real clock; faults seeded **in the physics** and in-limits throughout. A model gate runs on it at a matched rate reporting in-limits catch rate, **time-to-limit-trip**, and manoeuvre false alarms |
 | **C** | **In-orbit threshold recalibration** | File uplink and human-approved reload, exercised end to end on the Ref. The format already permits it: the parameter block is separately CRC'd and separately replaceable, so no format change is needed |
 | **D** | **The hardware envelope** | `docs/PI_ENVELOPE.md` carries a measurement instead of a reservation |
-| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **The chosen retraining implementation, host-verified and not flight-qualified** (D83) -- `docs/DESIGN.md` 9. Exported from the library **opt-in and OFF by default** (D84), at a mission's own channel count. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item |
+| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **The chosen retraining implementation, host-verified and not flight-qualified** (D83) -- `docs/DESIGN.md` 9. Exported from the library **opt-in and OFF by default** (D84), at a mission's own channel count. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item. Since D85 it trains on the detector's own telemetry, and the whole loop has run end to end through both deployments on the host, to the ground gate (D85.2); the gate certified candidates on an unchanged plant, so **no candidate may be swapped in** (D85.1) |
 
 ## 5. Open, and named
 
@@ -94,10 +94,13 @@ What the pre-registration commits to, so it can be held to it:
   been replaced with a comparison against a control shadow trained on the flying model's own
   data, and the criterion now discriminates**: near zero when nothing has drifted, large when
   something has. **It discriminates on one synthetic fixture**, which is not a mission.
-  `docs/DESIGN.md` 9.
+  `docs/DESIGN.md` 9. **D85 made it a ground gate and ran it on a simulated plant: with no
+  change to the plant it certified 2 to 4 of 13 to 14 candidates per seed**, because a
+  candidate trained on recent data always looks better. No candidate may be swapped in until
+  a registered fix holds that at zero (D85.1).
 - **Certification now needs two trained models, not one**, and which of the two routes the flown
-  design takes -- the retrainer trains the control, or the ground reproduces it -- is not
-  chosen. Neither is free.
+  design takes -- the retrainer trains the control, or the ground reproduces it -- **was chosen
+  by D85: the ground reproduces it**, with the same training cycle the retrainer runs.
 - **The two terms of the criterion now compare against different baselines**, the first against
   the control and the second against the flying model. They disagree on the stationary case,
   which is refused either way; one decision is owed rather than an accident.
@@ -114,10 +117,16 @@ What the pre-registration commits to, so it can be held to it:
 - **Whether refusing any width change on a commanded reload is the right rule.** It is what
   stops a model for a different subsystem being accepted, and it also means a mission that
   genuinely re-wires its channel set between reloads has no way to say so.
+- **The whole loop has run end to end through both deployments on the host, to the gate and no
+  further** (D85.2): the tap, the hub, the retrainer on live samples, a candidate
+  byte-identical to the host harness's, 3,104 downlinked values matching a replay bit for bit, and the
+  ground gate, which refused it. The swap steps were printed and not sent. Whether the
+  retrainer's copy of the detector warns on exactly the detector's ticks has no verdict yet:
+  they matched, but the run's registered conditions were not met.
 - **The candidate has the reference deployment's shape, and nothing more is known of it.**
   Since D84 the training cycle is generated at the mission's channel count, and at
   `SentinelRef`'s 8 channels `RELOAD_MODEL` accepts its candidate on the host. It is trained
-  for one step on a deterministic drive, not telemetry; whether any candidate is better is
+  on the detector's own telemetry since D85; whether any candidate is better is
   exactly what the unusable gate above would have to say. `docs/DESIGN.md` 9.
 - **The retraining engine is host-verified and has never run on flight hardware.** Whether
   its toolchain even builds for the target is unverified, and so is whether its separate

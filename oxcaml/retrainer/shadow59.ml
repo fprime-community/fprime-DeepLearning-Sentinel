@@ -25,8 +25,8 @@
 
 (* D82: every element access below is bounds-checked. `acc_int.ml`
    supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
-   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
-   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+   call sites keep their spelling and every `[@zero_alloc strict]` site still
+   holds. `scripts/oxcaml_checked.sh` is the measurement. *)
 open Acc_int
 
 let max_file = 1 lsl 20                 (* 1 MiB; the flown file is 268,224 B *)

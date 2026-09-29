@@ -26,8 +26,8 @@
 
 (* D82: every element access below is bounds-checked. `acc.ml`
    supplies `Array.unsafe_get` / `unsafe_set` as the CHECKED operations, so the
-   call sites keep their spelling and all 56 `[@zero_alloc strict]` sites still
-   hold. `scripts/oxcaml_checked.sh` is the measurement. *)
+   call sites keep their spelling and every `[@zero_alloc strict]` site still
+   holds. `scripts/oxcaml_checked.sh` is the measurement. *)
 open Acc
 
 type u8 = Shadow59.u8
@@ -120,6 +120,40 @@ let loss (out : f32) =
     if Bigarray.Array1.dim out < 1 then err_shape
     else begin copy_loss out; ok end)
 
+(* D85 / D76: THE WARM START, ONBOARD. Until D85 the flown cycle began from 61's LCG
+   seed (cycle_c.ml's seed_from) and the flying file was loaded only as the candidate's
+   byte template -- so the shadow D76 requires, "initialised from the flying model's
+   weights and fine-tuned", existed only in the ground scripts. This copies the flying
+   file's weights, which `load` already holds, into the cycle's parameters and its
+   best-weights copy. Same flat layout `Shadow59.write_shadow` writes, so the
+   round trip is exact.
+
+   The weights block must be exactly this shape's parameter count, or it is refused:
+   a flying file at another shape cannot be fine-tuned by this cycle, and the shape
+   is unique in its count (tests/test_retrainer_shape_is_generated.py). *)
+let[@zero_alloc strict] copy_weights_in n_w w_off =
+  for i = 0 to n_w - 1 do
+    let bits = Shadow59.get_u32 (w_off + (4 * i)) in
+    let v = Int32.float_of_bits (Int32.of_int bits) in
+    F32.set Deep_f32.p i v;
+    F32.set Deep_f32.best i v
+  done
+
+let warm () =
+  guard (fun () ->
+    if !loaded <= 0 then err_shape
+    else begin
+      let cb = Shadow59.get_u32 Shadow59.off_channels_bytes in
+      let wb = Shadow59.get_u32 Shadow59.off_weights_bytes in
+      if wb <> 4 * Deep_f32.n_params then err_shape
+      else if weights_end () > !loaded then err_shape
+      else begin
+        copy_weights_in Deep_f32.n_params (Shadow59.header_bytes + cb);
+        Deep_f32.adam_reset ();          (* a training run begins here (D85) *)
+        ok
+      end
+    end)
+
 (* (!) THE SAME NARROW OPT-OUT E1 AND 61 TOOK, AND FOR THE SAME REASON --
    retrainer.ml:102-114 is the precedent and cycle_c.ml:68-78 restated it; neither
    is re-argued here. OxCaml's stdlib flags Callback.register as multidomain-unsafe
@@ -135,4 +169,5 @@ let[@alert "-unsafe_multidomain"] () =
   Callback.register "sentinel_shd_load" load;
   Callback.register "sentinel_shd_write" write;
   Callback.register "sentinel_shd_export" export;
-  Callback.register "sentinel_shd_loss" loss
+  Callback.register "sentinel_shd_loss" loss;
+  Callback.register "sentinel_shd_warm" (fun () -> warm ())

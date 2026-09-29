@@ -169,5 +169,5 @@ resolves only once you have your own v4.3.0 checkout.
 
 **Any claim that this has flown.** It has not. It has never run on flight hardware. The
 retrainer is exported opt-in and is on no path the detector takes: it runs in its own
-deployment, trains on a deterministic drive rather than telemetry, and no candidate it builds
-may be swapped in operationally -- a human's `RELOAD_MODEL` is the only way a model changes.
+deployment, trains on the detector's own telemetry through a tap (D85), and no candidate it
+builds may be swapped in (D85.1) -- a human's `RELOAD_MODEL` is the only way a model changes.

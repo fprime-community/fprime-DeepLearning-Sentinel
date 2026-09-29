@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import io
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -66,6 +67,37 @@ class R2Source:
         from sentinel_data import r2
 
         return r2.get_bytes(self.client, self.bucket, key)
+
+
+@dataclass
+class DirSource:
+    """The bucket's objects as files, one per key, under ``root``.
+
+    A machine that holds no credentials reads its data this way (D86): no client,
+    no bucket, and a key that was never mirrored is an error rather than a fetch.
+    With ``fallback`` set -- on the one machine that holds credentials -- a missing
+    key is filled from it and kept, so running the real loading path once mirrors
+    exactly the keys that path reads. The checksum is checked above this seam, by
+    :func:`fetch_object`, the same way for both.
+    """
+
+    root: Path
+    fallback: ObjectSource | None = None
+
+    def get(self, key: str) -> bytes:
+        path = (self.root / key).resolve()
+        if not path.is_relative_to(self.root.resolve()):
+            raise IntegrityError(f"{key}: resolves outside the mirror {self.root}")
+        if path.is_file():
+            return path.read_bytes()
+        if self.fallback is None:
+            raise FileNotFoundError(f"{key}: not mirrored under {self.root}")
+        blob = self.fallback.get(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".part")
+        partial.write_bytes(blob)
+        partial.replace(path)
+        return blob
 
 
 @dataclass(frozen=True)

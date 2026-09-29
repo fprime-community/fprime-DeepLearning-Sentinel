@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`29c96f7`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`8840964`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -246,11 +246,13 @@ no OxCaml toolchain, no OCaml runtime, and the same Monitor code (`docs/DECISION
 
 **What you get, and what you do not.** A background process, in **its own deployment**, that
 retrains a candidate model at **your** channel count and writes it as a model file your
-detector can load. **It trains on a deterministic drive and not telemetry** -- its only input
-is the rate-group tick -- so what you adopt is the pipeline: the shape, the training cycle,
-the candidate file and the separate process. **No candidate may be swapped in
-operationally**: nothing onboard scores one, the pre-launch sanity gate is not usable yet,
-and a human's `RELOAD_MODEL` is the only way a model changes.
+detector can load. **Since D85 it trains on the detector's own telemetry**: a tap beside the
+Monitor copies every vector over the hub to it, and it trains only on recent healthy windows,
+never within a guard band of a detector crossing. What you adopt is the pipeline: the tap, the
+shape, the training cycle, the candidate file, the separate process and the ground gate. **No
+candidate may be swapped in** (D85.1): on a simulated plant that did not change, the ground
+gate certified retrained candidates anyway, so the gate is not usable yet, and a human's
+`RELOAD_MODEL` is the only way a model changes.
 
 **1. The setting**, in your project's `settings.ini`:
 
@@ -337,7 +339,10 @@ constraint unit-test evidence cannot show.
   engine **HOST-VERIFIED PENDING TARGET** (E5), and two claims unverified: whether the
   retrainer's process disturbs the detector's timing (C2), and whether the toolchain builds
   for a flight target at all (C4).
-- **It trains on a deterministic drive, not telemetry, for one step per tick.** Until D84 it
+- **It trains on the detector's own telemetry since D85, one step per admitted tick.** Run
+  end to end through both deployments on the host (D85.2), its candidate was byte-identical to
+  the host harness's and the ground gate refused it; the swap steps were printed, not sent.
+  Until D84 it
   trained only at the compile-time maxima, **75,360 parameters**, and no candidate fitted
   `SentinelRef`'s narrower model. It is now generated at the mission's shape, so its candidate
   for `SentinelRef` has that model's shape and `RELOAD_MODEL` accepts it on the host -- which

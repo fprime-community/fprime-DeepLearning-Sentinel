@@ -141,10 +141,28 @@ module SentinelRetrain {
   instance retrainer: Sentinel.Retrainer base id 0x30000000 \
   {
     phase Fpp.ToCpp.Phases.configComponents """
-    // A crossing measurement needs more than the six ticks RETRAINER_CAPACITY
-    // allows, and `init` refuses a second call so the accumulator cannot be
-    // reset per tick. This raises the bound before boot; it allocates nothing.
-    SentinelRetrain::retrainer.configure(4096);
+    // D85: the loop's constants, once, before boot (docs/MODELS.md 78.4).
+    //   yellow bands   PowerSim's engineering dictionary (PowerSim.fpp), which
+    //                  56's G-limit reads -- a mission gives its own
+    //   guard          260 ticks either side of the training span
+    //   budget         1 step per admitted tick      EXPERIMENTAL (D73's N is owed)
+    //   schedule       6,550 admitted steps          EXPERIMENTAL
+    //   nominal        the flying model's own held-out rate, from its pre-launch
+    //                  report: 0.1046% for D85's balanced-plant model
+    {
+        Sentinel::LoopConfig cfg = {};
+        const F32 low[8] = {-2.0F, -10.0F, 0.5F, 27.0F, -5.0F, -35.0F, 0.0F, 0.30F};
+        const F32 high[8] = {300.0F, 10.0F, 9.5F, 32.0F, 40.0F, 30.0F, 1.0F, 1.0F};
+        for (U32 c = 0U; c < 8U; ++c) {
+            cfg.yellowLow[c] = low[c];
+            cfg.yellowHigh[c] = high[c];
+        }
+        cfg.guard = 260U;
+        cfg.budget = 1;
+        cfg.schedule = 6550U;
+        cfg.nominalPpm = 1046;
+        (void) SentinelRetrain::retrainer.configureLoop(cfg);
+    }
 
     // 72 / E5-e, HO1: where the flying model is read from and where the
     // candidate is written. Both sit beside the binary, which is the shared
@@ -162,10 +180,13 @@ module SentinelRetrain {
     // seeded and NOT trained, and is a run artifact, cited by path. A mission
     // points this at its own flown model instead.
     //
-    // Absent, the component still ticks and still cycles; it produces no
-    // candidate and says so once. Degrade rather than die.
+    // Absent or refused, the component reports it once and stays inert. Degrade
+    // rather than die.
     SentinelRetrain::retrainer.configureShadow("RetrainModel.bin",
                                                "RetrainCandidate.bin");
+
+    // docs/MODELS.md 78.11, LC2: apparatus, off unless SentinelRetrain is started with -E.
+    SentinelRetrain::retrainer.setEmitLog(state.emitLog);
     """
   }
 

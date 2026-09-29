@@ -3,7 +3,7 @@
  *
  * This file is retained for one purpose: `scripts/oxcaml_checked.sh` compiles the
  * annotated modules against both accessors and reports the difference. That is what
- * keeps "every access is checked and all 56 `[@zero_alloc strict]` sites still hold"
+ * keeps "every access is checked and every `[@zero_alloc strict]` site still hold"
  * a measurement rather than a claim, and it is the arm that would show a regression
  * if a future change made the checks unaffordable.
  *

@@ -77,6 +77,12 @@ directory, 238 tracked files, every Quick start block run VERBATIM and in order:
   SentinelRef_Retrainer_ut_exe      1 of 1 test passes
 ```
 
+*(Figures above are the D84 run's, as it printed them. Since D85: `SentinelRetrain` carries
+**3,149** OCaml symbols (the window gate), and the Retrainer's unit test is
+`Sentinel_Retrainer_ut_exe` with two cases -- `TheWholeLifecycle`, and `LiveWindow`, which skips
+unless `tests/test_retrainer_live_window.py` runs it, one process per run (`docs/MODELS.md` 78.11).
+Noted 2026-09-28 rather than rewritten, because this section records a run.)*
+
 The symbol counts were taken against **the clone's own binaries**, not the development
 tree's -- and doing so is what found the recorded 3,019 to be a pre-D82 figure
 (`docs/MODELS.md` 72.11).

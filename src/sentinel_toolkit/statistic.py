@@ -40,10 +40,51 @@ def zstat(x: np.ndarray, span: int) -> np.ndarray:
     return (np.asarray(x, dtype=np.float64) - mu) / np.maximum(sd, 1e-12)
 
 
+def zstat_floored(x: np.ndarray, span: int, floor: float) -> np.ndarray:
+    """`zstat` with the trailing sd floored at `floor` instead of 1e-12. D86 (MODELS 79.11).
+
+    Research only, and only for D86's NEW terms: on a channel that never moves, a
+    stream's trailing sd is float noise, and `zstat`'s 1e-12 turns noise into z of
+    10,000 that differ between arm64 and x86. The flown rule keeps `zstat`.
+    """
+    if not floor > 0:
+        raise ValueError(f"the floor must be positive, got {floor}")
+    mu, sd = trailing_stats(x, span)
+    return (np.asarray(x, dtype=np.float64) - mu) / np.maximum(sd, floor)
+
+
 def derivative(x: np.ndarray) -> np.ndarray:
     """`|x[t] - x[t-1]|`, with `x[-1] := x[0]` so step 0 is 0 and not undefined."""
     x = np.asarray(x, dtype=np.float64)
     return np.abs(np.diff(x, prepend=x[0]))
+
+
+def motion(x: np.ndarray, forecast: np.ndarray) -> np.ndarray:
+    """D86.A2: `|(x[t] - x[t-1]) - (f[t] - f[t-1])|`, the motion mismatch.
+
+    Algebraically `|e[t] - e[t-1]|` with `e = x - f`, the first difference of the
+    SIGNED residual, and `e[-1] := e[0]` as `derivative` does. Causal: `f[t]` is
+    built from inputs before `t` (`windows.aggregate_predictions`). Research only
+    (D86); nothing flown reads it.
+    """
+    e = np.asarray(x, dtype=np.float64) - np.asarray(forecast, dtype=np.float64)
+    return np.abs(np.diff(e, prepend=e[0]))
+
+
+def slope_mismatch(x: np.ndarray, one_step: np.ndarray, two_step: np.ndarray) -> np.ndarray:
+    """D86.A5: `|dx[t] - (two_step[t] - one_step[t])|`, the one-forecast slope mismatch.
+
+    `one_step[t]` and `two_step[t]` are the forecasts OF `t-1` and OF `t` made at
+    the single origin `t-2` (inputs through `t-2`), so their difference is the
+    slope the forecaster predicted into `t`. Algebraically
+    `|[x[t] - two_step[t]] - [x[t-1] - one_step[t]]|`. Steps 0 and 1 have no
+    origin and are 0, as `derivative`'s step 0 is. Research only (D86).
+    """
+    x = np.asarray(x, dtype=np.float64)
+    slope = np.asarray(two_step, dtype=np.float64) - np.asarray(one_step, dtype=np.float64)
+    out = np.abs(np.diff(x, prepend=x[0]) - slope)
+    out[:2] = 0.0
+    return out
 
 
 def fused_per_channel(smoothed_error: np.ndarray, values: np.ndarray,
