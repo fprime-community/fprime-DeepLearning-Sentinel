@@ -10,6 +10,7 @@ spacecraft anomalies that never cross a limit line.**
 [The result](#the-result) |
 [How it works](#how-it-works) |
 [What is in this branch](#what-is-in-this-branch) |
+[Where everything is](#where-everything-is) |
 [Quick start](#quick-start) |
 [Use it in your F' project](#use-it-in-your-f-project) |
 [The retrainer](#the-retrainer) |
@@ -126,6 +127,24 @@ coupled power and thermal plant with declared limits, on a real 1 Hz clock
   scripts/                    The build scripts this branch's commands call
   docs/                       Design, evidence, status, the normative file format
   requirements-toolkit.txt    numpy, pyarrow, torch. Nothing else
+```
+
+## Where everything is
+
+```text
+README.md                    every command, in order: demos, adoption, the optional retrainer
+flight/                      the C++ core (the detector's brain)
+fprime/library.cmake         what a mission gets; point settings.ini's library_locations at fprime/
+fprime/Sentinel/Monitor/     the detector component
+fprime/Sentinel/Retrainer/   the retrainer component (opt-in)
+fprime/Sentinel/SampleTap/   the tap that copies telemetry to the retrainer (opt-in)
+fprime/SentinelRef/          demo spacecraft: try it, or copy the wiring
+fprime/SentinelRetrain/      demo retrainer program
+oxcaml/                      the OxCaml training code
+src/                         the ground toolkit (Python, runs on Earth)
+scripts/                     setup and proof scripts
+docs/                        DESIGN, EVIDENCE, STATUS, MODEL_FILE, FPRIME, OMISSIONS, PI_ENVELOPE, datasets/
+requirements-toolkit.txt     the ground toolkit's Python dependencies
 ```
 
 ## Quick start
