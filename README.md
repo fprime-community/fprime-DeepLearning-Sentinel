@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`8840964`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`6fa33bf`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
