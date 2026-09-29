@@ -1,6 +1,6 @@
 # Status
 
-> **Paths outside this branch resolve on `dev`** at commit **`6fa33bf`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`7771c9d`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 **Current state and what is next. No history** -- the chronology, the retractions and the
@@ -76,7 +76,7 @@ What the pre-registration commits to, so it can be held to it:
 | **B** | **The F' Ref physics testbed** | Coupled current, heat, temperature and voltage; 8-12 channels; real dictionary limits; a real clock; faults seeded **in the physics** and in-limits throughout. A model gate runs on it at a matched rate reporting in-limits catch rate, **time-to-limit-trip**, and manoeuvre false alarms |
 | **C** | **In-orbit threshold recalibration** | File uplink and human-approved reload, exercised end to end on the Ref. The format already permits it: the parameter block is separately CRC'd and separately replaceable, so no format change is needed |
 | **D** | **The hardware envelope** | `docs/PI_ENVELOPE.md` carries a measurement instead of a reservation |
-| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **The chosen retraining implementation, host-verified and not flight-qualified** (D83) -- `docs/DESIGN.md` 9. Exported from the library **opt-in and OFF by default** (D84), at a mission's own channel count. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item. Since D85 it trains on the detector's own telemetry, and the whole loop has run end to end through both deployments on the host, to the ground gate (D85.2); the gate certified candidates on an unchanged plant, so **no candidate may be swapped in** (D85.1) |
+| **E** | **In-flight retraining of a shadow model** under human approval | The toolkit exists, C has measured something, and the shadow is measurably better before any swap is offered. **The chosen retraining implementation, host-verified and not flight-qualified** (D83) -- `docs/DESIGN.md` 9. Exported from the library **opt-in and OFF by default** (D84), at a mission's own channel count. The engine runs in its own process and a cycle crosses to the detector; the sanity report that would let a swap be *offered* is **not yet a usable gate**, and that is the blocking item. Since D85 it trains on the detector's own telemetry, and the whole loop has run end to end through both deployments on the host, to the ground gate (D85.2); the gate returned CERTIFY for candidates on an unchanged plant, so **no candidate may be swapped in** (D85.1) |
 
 ## 5. Open, and named
 
@@ -95,7 +95,7 @@ What the pre-registration commits to, so it can be held to it:
   data, and the criterion now discriminates**: near zero when nothing has drifted, large when
   something has. **It discriminates on one synthetic fixture**, which is not a mission.
   `docs/DESIGN.md` 9. **D85 made it a ground gate and ran it on a simulated plant: with no
-  change to the plant it certified 2 to 4 of 13 to 14 candidates per seed**, because a
+  change to the plant it returned CERTIFY for 2 to 4 of 13 to 14 candidates per seed**, because a
   candidate trained on recent data always looks better. No candidate may be swapped in until
   a registered fix holds that at zero (D85.1).
 - **Certification now needs two trained models, not one**, and which of the two routes the flown

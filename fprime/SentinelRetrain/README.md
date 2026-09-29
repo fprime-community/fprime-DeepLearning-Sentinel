@@ -93,7 +93,7 @@ D80: `oxcaml/retrainer/` with `scripts/oxcaml_setup.sh` to build the switch and
 `scripts/oxcaml_shape.sh` to build the object at a mission's shape. **OxCaml is the chosen
 retraining implementation, host-verified, not flight-qualified** (D83). Chosen is not
 qualified: it has never run on flight hardware, and its ground gate is not a usable gate yet --
-it certified candidates on a plant that did not change, so no candidate may be swapped in
+it returned CERTIFY for candidates on a plant that did not change, so no candidate may be swapped in
 (D85.1). Since D85 it trains on the detector's own telemetry. Since D84 it is generated at the
 mission's shape, so a candidate for `SentinelRef`'s 8 channels is what it builds; that makes
 the shapes meet, not the candidate good. **The case against, beside it:** no flight heritage,

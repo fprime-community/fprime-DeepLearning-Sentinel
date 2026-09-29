@@ -3,7 +3,7 @@
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`6fa33bf`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`7771c9d`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
@@ -251,7 +251,7 @@ Monitor copies every vector over the hub to it, and it trains only on recent hea
 never within a guard band of a detector crossing. What you adopt is the pipeline: the tap, the
 shape, the training cycle, the candidate file, the separate process and the ground gate. **No
 candidate may be swapped in** (D85.1): on a simulated plant that did not change, the ground
-gate certified retrained candidates anyway, so the gate is not usable yet, and a human's
+gate returned CERTIFY for retrained candidates anyway, so the gate is not usable yet, and a human's
 `RELOAD_MODEL` is the only way a model changes.
 
 **1. The setting**, in your project's `settings.ini`:

@@ -1,6 +1,6 @@
 # Design
 
-> **Paths outside this branch resolve on `dev`** at commit **`6fa33bf`** (`docs/DECISIONS.md`
+> **Paths outside this branch resolve on `dev`** at commit **`7771c9d`** (`docs/DECISIONS.md`
 > D69, on `dev`). The guards that keep these figures true run on `dev`, not here.
 
 What the component does, the rule it flies today, and the five constraints that are
@@ -444,7 +444,7 @@ At `SentinelRef`'s 8 channels its candidate has the flown model's shape, and on 
 detector's `RELOAD_MODEL` accepts it and runs on it. **That proves the shapes, the format and the
 command meet. It says nothing about whether the candidate is better** -- since D85 it trains on
 the detector's own telemetry, and on a simulated plant that did not change the ground gate
-certified candidates anyway -- **and no candidate may be swapped in** (D85.1).
+returned CERTIFY for candidates anyway -- **and no candidate may be swapped in** (D85.1).
 
 **Also not proven:** that any of this runs on flight hardware
 (**E5 is HOST-VERIFIED PENDING TARGET**); that the separate process actually isolates the
