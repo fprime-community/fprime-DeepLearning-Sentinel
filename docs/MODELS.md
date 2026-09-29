@@ -783,6 +783,7 @@ prediction that failed and why. This document follows the same discipline.
   - [81.5 Predictions](#815-predictions)
   - [81.6 Falsification, and what each failure would mean](#816-falsification-and-what-each-failure-would-mean)
   - [81.7 Cost](#817-cost)
+  - [81.8 OBSERVED before any arm, 2026-09-29: T = 1.02, and arm (a)'s ladder qualifies no rung](#818-observed-before-any-arm-2026-09-29-t-102-and-arm-as-ladder-qualifies-no-rung)
 
 <!-- /toc -->
 
@@ -23907,3 +23908,59 @@ No timing figure is recorded (stop 35).
   6 at a time, under `caffeinate`, the owner's choice.
 - The controls stay cached, because the flying model is unchanged until a swap.
 - R2: zero operations.
+
+### 81.8 OBSERVED before any arm, 2026-09-29: T = 1.02, and arm (a)'s ladder qualifies no rung
+
+**81.1-81.7 are not edited.** These are the calibration and ladder runs 81.2 and 81.3 fixed,
+on the Mac, with `retrain=0` throughout. Raw data: `runs/d85b/calibrate.json` and
+`runs/d85b/ladder.json` (gitignored). Every number is a residual ratio or a count.
+
+**The need threshold (81.2).**
+- The data: 353 need windows per seed, on no-change seeds 1, 2 and 3.
+- **Whole orbits make the flying model's residual flat:**
+
+  | Seed | rho range | Baseline residual |
+  |---|---|---|
+  | 1 | 0.99995 to 1.00006 | 16.91357 |
+  | 2 | 0.99994 to 1.00006 | 16.91346 |
+  | 3 | 0.99992 to 1.00010 | 16.91321 |
+
+  Over 1.23-orbit HELD windows the same model's residual ranged 14.9 to 20.7 (81.1). F1
+  removes that phase effect entirely.
+- **R = 1.00010, so T = 1 + max(1.5 x 0.00010, 0.02) = 1.02.** It is written here, before any
+  arm runs (stop 61). The rule's floor governs.
+
+**Arm (a)'s ladder (81.3): no rung qualifies.** The runs: OCV ageing from tick 30,000, tau
+20,000; rho over the need window ending at 130,000; rate-normal over [30,000, 130,000).
+
+| L | rho, seeds 1 / 2 / 3 | Inside yellow | Rate-normal (worst channel: \|dx\| max ratio) | |
+|---|---|---|---|---|
+| 0.02 | 0.9994 / 0.9995 / 0.9994 | yes | pass (ChargeCurrent 1.017 / 1.015 / 1.015) | does not qualify |
+| 0.04 | 0.9989 / 0.9989 / 0.9989 | yes | pass (ChargeCurrent 1.032 / 1.032 / 1.029) | does not qualify |
+| 0.06 | 0.9983 / 0.9983 / 0.9983 | yes | **fail** on seeds 1 and 2 (ChargeCurrent 1.051 / 1.051 / 1.049) | does not qualify |
+
+- **The aged plant's residual is LOWER than the healthy baseline, not higher.** The forecaster
+  does not mislearn the new bus-state-of-charge relation. Its residual falls slightly as the
+  ageing grows.
+- The larger rungs push ChargeCurrent's largest step up, and at 6% past the 5% rate-normal
+  bound.
+- **As registered:** arm (a) is **INCONCLUSIVE**, and **C2 cannot hold**. **D85.1 stands**,
+  whatever C1 and C3 show. The ladder does not extend after it is seen (stop 57).
+
+**What it means.** On this plant, with this flying model, the one healthy change registered
+for arm (a) does not make the forecaster worse. This is the second healthy-ageing premise to
+fail on the testbed, after 78.10's emissivity ladder. Both fail for the same kind of reason:
+the detector and its forecaster absorb a slow, physically plausible change.
+
+**Three routes for arm (a), for the owner's decision; none is applied:**
+1. **A premise survey before a new ladder.** Measure rho, plant only (as here), for a small
+   fixed family of healthy changes: seasonal eclipse fraction, housekeeping draw, the
+   instrument's duty cycle, and OCV again. Then register arm (a) on whichever survey member
+   crosses T and stays rate-normal. This is minutes of compute.
+2. **The premise on real telemetry.** Test C2 where genuine drift exists: 76's drifted m1
+   arm, R2. That is an R2 spend, and a different flying model.
+3. **Record that this testbed cannot show a healthy change this forecaster notices.** Keep
+   D85.1 permanently for the testbed, and lift it only on a mission's own data.
+
+**C1 and C3 are unaffected**, and they still test the owner's first question: is the gate
+safe? Their arms run in session 2 only if the owner says so.

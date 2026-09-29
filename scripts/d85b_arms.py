@@ -84,9 +84,9 @@ def rate_normal(aged: np.ndarray, healthy: np.ndarray, lo: int, hi: int,
         row = {"channel": name, "ok": True}
         for stat, fa, fh in (("p999", np.percentile(da, 99.9), np.percentile(dh, 99.9)),
                              ("max", da.max(), dh.max())):
-            ratio = (fa / fh) if fh > 0 else (1.0 if fa == 0 else float("inf"))
+            ratio = float(fa / fh) if fh > 0 else (1.0 if fa == 0 else float("inf"))
             row[stat] = ratio
-            row["ok"] = row["ok"] and (1.0 - tol) <= ratio <= (1.0 + tol)
+            row["ok"] = bool(row["ok"] and (1.0 - tol) <= ratio <= (1.0 + tol))
         out.append(row)
     return out
 
@@ -192,7 +192,7 @@ def _ladder_unit(job: tuple[float, int]) -> dict:
     base = baseline_of(FLYING, run)
     rho = res(FLYING, run, LADDER_TICKS - NEED_SPAN, LADDER_TICKS) / base["residual"]
     rn = rate_normal(aged, healthy, *RATE_NORMAL_WINDOW)
-    return {"loss": loss, "seed": seed, "rho": rho, "inside_yellow": inside_yellow(aged),
+    return {"loss": loss, "seed": seed, "rho": float(rho), "inside_yellow": inside_yellow(aged),
             "rate_normal": rn, "rate_normal_ok": all(r["ok"] for r in rn)}
 
 
