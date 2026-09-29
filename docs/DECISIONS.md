@@ -8317,3 +8317,50 @@ with the pins and the Makefile change -- before the cap is next approached.
     without;
   - a measured `RgCycleSlips`;
   - a start-to-finish run of the fixed script.
+
+### D85.3 Rider, 2026-09-29: D85b is authorised -- need first, replication, whole orbits, and OCV ageing -- and nothing is swapped before it holds
+
+**D85 is not edited, and D85.1 stands.** MODELS 81 is the pre-registration. The owner decided
+this on 2026-09-28 and 2026-09-29.
+
+- **The routes taken.** Two of 78.10's routes are combined:
+  - **need first:** a candidate is judged only after the flying model's own error has degraded
+    against its baseline;
+  - **replication:** a candidate must pass on two disjoint held-out windows.
+  - **The floor is calibrated too** (the owner allowed it "if the plan shows it is needed"):
+    every scored window is whole orbits (81.2, F1). This is needed because C1's
+    certifications are set by orbital phase (81.1).
+  - The control is still reproduced on the ground from the stored segment. A human approves
+    every swap, with one command after the report.
+- **The owner's four rulings, 2026-09-29:**
+  1. **C2 is decided by the forecast residual.** The flying model's false-alarm rate is
+     reported and pre-registered as unchanged, because every healthy alarm on this testbed
+     comes from the derivative term, which no retrained weight can move (81.1).
+  2. **Arm (a) is battery open-circuit-voltage ageing**, because a sensor gain or offset is
+     absorbed by the detector's own standardisation (81.1, 81.3).
+  3. **The gate is N1 + R1 + F1:**
+     - N1: the need is measured on the forecast residual over 4 whole orbits, against the same
+       measure over the model's first 4 orbits in flight, with T calibrated from no-change
+       seeds by a fixed rule;
+     - R1: two disjoint whole-orbit HELD windows;
+     - F1: whole orbits throughout.
+  4. **Compute:** the Mac, up to 6 runs at a time, under `caffeinate`.
+- **Why the false-alarm rate cannot be the need signal.** On a plant with no change, a warmed
+  HELD window holds 7 to 12 emits against about 7 expected: up to 1.72x from Poisson noise
+  alone. And the rate tracks the plant's step events, not the model.
+- **Arm (b) is made non-vacuous:** onset at tick 150,000. 78.10's arm (b) trained on nothing,
+  so "0 certifications" there said nothing.
+- **What lifts D85.1, fixed now:**
+  - C1, C2 and C3 all HOLD (MODELS 81.5);
+  - then a further rider;
+  - then one E1 run with the swap, in the real deployments.
+
+  Anything less keeps D85.1, and the failure is reported with three routes.
+- **Recorded against 78.10, not by editing it:**
+  - its "the residual was flat" holds for the trend, but the level swings 14.9 to 20.7 with
+    orbital phase;
+  - 78.9's "roughly 900-tick orbital rhythm" is the instrument's duty cycle; the orbit is
+    5,400 ticks;
+  - arm (b)'s first yellow is 56,352 in 78.3 against 60,344 in the runs, and the two are not
+    reconciled.
+- **Status unchanged:** host-verified, not flight-qualified (D83).

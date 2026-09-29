@@ -775,6 +775,14 @@ prediction that failed and why. This document follows the same discipline.
   - [78.10 OBSERVED -- C1 FAILED on every seed: the gate certifies retrained models on a plant that did not change](#7810-observed----c1-failed-on-every-seed-the-gate-certifies-retrained-models-on-a-plant-that-did-not-change)
   - [78.11 Pre-registration, 2026-09-28, before any E1, LC2 or live-window run: 78's E1 under D85.1, LC2 through the real deployments, and the live-window host test](#7811-pre-registration-2026-09-28-before-any-e1-lc2-or-live-window-run-78s-e1-under-d851-lc2-through-the-real-deployments-and-the-live-window-host-test)
   - [78.12 OBSERVED, 2026-09-28 -- E1-dry: the loop runs through the real deployments to the gate, the downlink matches the replay bit for bit, and the candidate is bit-identical to LoopSim's; LC2 NO VERDICT; the live-window test HELD](#7812-observed-2026-09-28----e1-dry-the-loop-runs-through-the-real-deployments-to-the-gate-the-downlink-matches-the-replay-bit-for-bit-and-the-candidate-is-bit-identical-to-loopsims-lc2-no-verdict-the-live-window-test-held)
+- [81 Pre-registration: D85b -- the ground gate made safe (need first, replication, whole orbits), healthy ageing the controller cannot hide, and LC2's slip rule (Phase 5)](#81-pre-registration-d85b----the-ground-gate-made-safe-need-first-replication-whole-orbits-healthy-ageing-the-controller-cannot-hide-and-lc2s-slip-rule-phase-5)
+  - [81.1 What the repository showed first, and why it shapes everything below](#811-what-the-repository-showed-first-and-why-it-shapes-everything-below)
+  - [81.2 The gate under D85b (N1 + R1 + F1)](#812-the-gate-under-d85b-n1-r1-f1)
+  - [81.3 Arm (a): battery open-circuit-voltage ageing, and its ladder](#813-arm-a-battery-open-circuit-voltage-ageing-and-its-ladder)
+  - [81.4 The arms (LoopSim, then the real deployments where E1 allows)](#814-the-arms-loopsim-then-the-real-deployments-where-e1-allows)
+  - [81.5 Predictions](#815-predictions)
+  - [81.6 Falsification, and what each failure would mean](#816-falsification-and-what-each-failure-would-mean)
+  - [81.7 Cost](#817-cost)
 
 <!-- /toc -->
 
@@ -23715,3 +23723,187 @@ finish.**
   a real stretch admits; 78.9 measured about one tick in ten.
 - **E1's swap steps are OWED while D85.1 stands:** uplink, `RELOAD_MODEL` and
   `ModelReloadAccepted`. Nothing here moves D85.1, and no candidate was offered.
+
+## 81. Pre-registration: D85b -- the ground gate made safe (need first, replication, whole orbits), healthy ageing the controller cannot hide, and LC2's slip rule (Phase 5)
+
+Registered 2026-09-29, before any run this section names. The owner's decisions are
+recorded in D85.3. 78 and 78.10-78.12 are not edited.
+
+**REQUIREMENTS DERIVED FROM:**
+
+```
+  docs/DECISIONS.md D85.3        the owner's routes: need first + replication, the floor made
+                                 whole-orbit, C2 on the residual, OCV ageing, the Mac
+  docs/DECISIONS.md D85.1        the standing ban, and what lifts it
+  docs/DECISIONS.md D85, D78     the control reproduced on the ground; K, N, the floor bound
+  docs/MODELS.md 78.4            every constant not named below is 78.4's, imported (stop 57)
+  docs/MODELS.md 78.9            the vacuity rule
+  docs/MODELS.md 80              the rate-normal check, made exact here
+  fprime/SentinelRef/PowerSim/PowerPlant.cpp:17, 22-23, 130
+                                 ORBIT 5,400; V_OC_FULL 31.5, V_OC_SPAN 4.5; the bus equation
+  src/sentinel_toolkit/gate.py   the gate this extends; oxcaml/retrainer/ground_tools.cpp
+                                 `residual`, the one residual every number here uses
+```
+
+### 81.1 What the repository showed first, and why it shapes everything below
+
+- **78.10's certifications are set by orbital phase, not by chance.**
+  - Across all 54 gated candidates (Mac s1; Linux s1, s2, s3), every CERTIFY had its HELD
+    window at orbital phase 550 to 1,409 of the 5,400-tick orbit, counted from the scored
+    start (`runs/d85*/c/s*/gate_*.json`, re-read 2026-09-28).
+  - In that band the flying model's HELD residual is 19.3-20.7, and the floor F is
+    0.135-0.283.
+  - Everywhere else F is 0.38-0.92, and the residual is 14.9-18.5.
+  - The gate scores 6,650 ticks, which is 1.23 orbits. The controls are cached, so F depends
+    only on where HELD falls in the orbit.
+  - 78.10's "the residual was flat" is true of its trend, not of its level.
+- **Every healthy emit of the flown model comes from the derivative term.**
+  - On the three healthy ladder runs (`runs/d85/ladder/healthy_s{1,2,3}`), the
+    derivative-only rule `max_c z(|dx_c|) >= 20.191072` reproduces all 82, 76 and 74 emits,
+    tick for tick.
+  - The residual term's healthy maximum is 8.55.
+  - The derivative term reads the raw input, never the weights. A candidate differs from the
+    flying file only in its weights (the gate's integrity check). **So a swap cannot move the
+    false-alarm rate on this testbed, and the false-alarm rate cannot say whether the model
+    needs retraining.**
+- **A sensor gain or offset cannot raise the false-alarm rate here.**
+  - Each channel's derivative term is standardised against its own trailing 2,100 samples, so
+    it is scale-invariant.
+  - A gain of 1.05 (80's rate-normal cap) on Load, Bus or Charge moved alarms in [40k, 60k)
+    by 0 to +4, against 26/28/26.
+
+### 81.2 The gate under D85b (N1 + R1 + F1)
+
+Constants: ORBIT = 5,400 ticks (the plant's orbit, `PowerPlant.cpp:17`; a mission passes its
+own), WARM = 2,350. Everything else is 78.4's: K 2.0330, N = 6 start-offset controls, floor
+bound 31.9283%, part (ii), the trend rule (4 blocks of 5,400, H 100,000), guard, budget and
+schedule.
+
+- **F1: every scored window is whole orbits.**
+  - HELD = WARM + 2 x ORBIT = 13,150 ticks, so each HELD scores 10,800 ticks.
+  - A mean over whole periods does not depend on where the window starts.
+- **N1: need first.** For a candidate whose last training tick is L:
+  - The need window is [L+1 - 23,950, L+1): WARM + 4 x ORBIT, scoring 21,600 ticks.
+  - The baseline window is [B, B + 23,950), where B is the tick the flying model began
+    flying: tick 0 of a run, or the swap tick after a swap.
+  - rho = (the flying model's mean |residual| over the need window) / (the same over the
+    baseline window). Both come from `ground_tools residual`: the same flight core, the same
+    warm-up, the same code path.
+  - **The need triggers iff rho >= T.**
+  - If it does not trigger, the verdict is **NOT NEEDED**. The candidate is not judged, and
+    `approve` refuses anything but CERTIFY.
+- **T is calibrated before any arm runs, by a rule fixed now.**
+  - The calibration data are the no-change runs at seeds 1, 2, 3: `retrain=0`, 400,000 ticks,
+    the balanced plant.
+  - rho is computed for every need window ending at tick e = 47,900 + 1,000j, up to 400,000,
+    on each seed. The earliest window starts where the baseline ends.
+  - R = the largest rho over all of them. **T = 1 + max(1.5 x (R - 1), 0.02).**
+  - The calibration seeds are never evaluation seeds for the no-change arm.
+- **R1: replication on two disjoint windows.**
+  - HELD-1 is [L+1, L+1 + 13,150); HELD-2 is [L+1 + 13,150, L+1 + 26,300).
+  - Every one of 78.4's tests is applied to each window separately: floor, part (i), part
+    (ii), and trend at L+1.
+  - **CERTIFY requires the need to have triggered and both windows to pass.**
+- **Which candidates are presented to the gate:** every candidate with L+1 >= 47,900 (its
+  need window lies after the baseline) and L+1 + 26,300 <= the run's length.
+- **Reported, never decisive: a SHADOW verdict,** R1 + F1 without the need check. It shows what
+  the need check changed.
+
+### 81.3 Arm (a): battery open-circuit-voltage ageing, and its ladder
+
+- **The physics.**
+  - The open-circuit voltage becomes `vOc = 27.0 + 4.5 x (1 - L x g(t)) x SoC`, with
+    `g = 1 - exp(-(t - 30,000)/20,000)` for t >= 30,000 (post-spin-up ticks) and 0 before.
+  - It is new plant state, set by `configureOcvAgeing(start, tau, loss)`. With it off, the
+    plant is bit-identical (`DEFAULT_PLANT_HASH` 9d72497a2ff277b3).
+  - It moves the Bus-SoC relation the flying model learned. No thermostat acts on the bus, and
+    no sensor is touched.
+- **The ladder, fixed now and not extended after it is seen.**
+  - Rungs: L = 0.02, then 0.04, then 0.06. Seeds 1, 2, 3; `retrain=0`; 130,000 ticks. The
+    healthy runs are the calibration traces.
+  - **A rung qualifies iff, on every seed, all three hold:**
+    1. rho over the need window ending at 130,000 is at least T;
+    2. every channel of the aged trace stays inside yellow throughout;
+    3. the rate-normal check passes.
+  - **The rate-normal check, made exact.** For every channel, both the 99.9th percentile and
+    the maximum of |dx| over [30,000, 130,000) must lie within +/-5% (two-sided) of the
+    same-seed healthy run over the same window, on every seed.
+  - The first qualifying rung is arm (a)'s L. **If none qualifies, arm (a) is INCONCLUSIVE, C2
+    cannot hold, and D85.1 stays.**
+
+### 81.4 The arms (LoopSim, then the real deployments where E1 allows)
+
+All arms run 400,000 ticks on the balanced plant, with 78.4's retrainer constants and
+`retrain=1`. The flying model is 78.4's (`8b22e321...`).
+
+- **(c) No change:** fresh seeds **4, 5, 6**.
+- **(a) OCV ageing at the ladder's L:** seeds 1, 2, 3.
+  - Candidates are presented in order until the first CERTIFY.
+  - The swap tick is t_swap = L+1 + 26,300, the end of HELD-2.
+  - The post-swap window is W_post = [t_swap, t_swap + 23,950).
+  - A LoopSim run with `swap=t_swap,candidate` supplies the post-swap emits.
+- **(b) Slow failure:** RESISTANCE_RISE 4.0e-5 from tick **150,000**, seeds 1, 2, 3.
+  - The onset is moved from 5,000 because 78.10's arm (b) admitted no training tick at all.
+  - The failure's candidates are those whose data [first, last] overlap [150,000, end), where
+    end is the first yellow crossing or the end of the run.
+
+### 81.5 Predictions
+
+| # | Prediction | HOLD | FAIL |
+|---|---|---|---|
+| **C1** | no change: the gate certifies nothing | arm (c), seeds 4-6: 0 CERTIFY on every seed | any CERTIFY |
+| **C1n** | reported: on no change, the need never triggers | 0 triggers | -- (reported; a trigger is a finding about T) |
+| **C2** | a genuine healthy change is learned and certified | arm (a), every seed: the need triggers for at least one candidate; at least one candidate CERTIFIES; and for the first certified one, its mean \|residual\| over W_post is lower than the flying model's over the same ticks | on any seed: no CERTIFY, or not lower |
+| **C2-FA** | reported, not decisive (owner ruling): the false-alarm rate, before and after the swap | predicted UNCHANGED: over W_post's scored ticks, the swapped run's emits equal the unswapped run's, tick for tick (81.1). The rates over [t_swap - 21,600, t_swap) and over W_post's scored ticks are reported | -- (any difference is reported with its ticks) |
+| **C3** | a slow failure is never certified | arm (b), every seed: no failure candidate CERTIFIES, and at least one is presented to the gate | any CERTIFY; with no failure candidate at all the result is **VACUOUS**, not HOLD |
+| **LC2** | the replica is the detector, through the real deployments | E1 rerun at 100,000 us: the Monitor's and the replica's emit ticks are equal over [0, min(last)], with at least one each | one tick differs |
+
+- **LC2's slip rule, which replaces 78.11's for this run.**
+  - A rate-group slip with **no sample lost** does not void LC2: the replica's inputs are
+    unchanged.
+  - The following void it, and it is then NO VERDICT:
+    - any lost sample (`SamplesLost`, `REPLICA_GAP`);
+    - a first replica sequence other than 0;
+    - a stale or gapped probe tick;
+    - the Monitor leaving MODEL mode;
+    - any reload.
+- **E1 rerun:** the fixed `scripts/d85_e1.sh`, start to finish, with `--dry-run-approve` at
+  `--tick-us 100000`. E1d.1-E1d.4 as 78.11 registered them; E1d.2 through the scripted path.
+
+**Only if C1, C2 and C3 all HOLD** does a D85.x rider lift D85.1. E1 then runs once more with
+the swap, in the real deployments, with arm (a)'s physics behind an opt-in PowerSim flag. That
+swap run holds (**E1s**) only if every step appears in the deployments' own logs:
+- a CERTIFY report from the D85b gate;
+- `approve` (not a dry run);
+- the file uplink;
+- `RELOAD_MODEL`;
+- `ModelReloadAccepted` naming the destination.
+
+It fails on any missing step. **If any of C1, C2 or C3 fails, D85.1 stands**, and the failure
+is reported with three routes.
+
+### 81.6 Falsification, and what each failure would mean
+
+- **C1 fails:** whole orbits and replication still let a no-change candidate through the need
+  check, or the need check fires on no change. Either way, T or the metric is wrong. It is
+  reported, not tuned.
+- **C2 fails with the ladder qualified:** the gate cannot certify a change the flying model
+  measurably mislearned, so it is too strict to be useful.
+- **C2 cannot run** if the ladder qualifies no rung: this plant and this model cannot show a
+  healthy change the detector's forecaster notices.
+- **C3 fails:** the layered defence admits a slow failure (56.8's failure mode, one layer
+  on).
+
+**Stops.**
+- **57:** no constant, rung, seed, window or T is moved after a number above is seen.
+- **58:** the flown rule, `param_version`, the model format and `reference.py` stay unchanged.
+- **59 and 60** stand.
+- **61 (new):** T is written into the record before any arm runs.
+
+### 81.7 Cost
+
+No timing figure is recorded (stop 35).
+- The arms: nine runs of 400,000 ticks each, plus swap follow-ups. They run on the Mac, up to
+  6 at a time, under `caffeinate`, the owner's choice.
+- The controls stay cached, because the flying model is unchanged until a swap.
+- R2: zero operations.
