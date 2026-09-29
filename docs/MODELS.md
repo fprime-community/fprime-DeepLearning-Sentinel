@@ -784,6 +784,7 @@ prediction that failed and why. This document follows the same discipline.
   - [81.6 Falsification, and what each failure would mean](#816-falsification-and-what-each-failure-would-mean)
   - [81.7 Cost](#817-cost)
   - [81.8 OBSERVED before any arm, 2026-09-29: T = 1.02, and arm (a)'s ladder qualifies no rung](#818-observed-before-any-arm-2026-09-29-t-102-and-arm-as-ladder-qualifies-no-rung)
+  - [81.9 Pre-registration, 2026-09-29, before any survey run: the premise survey (route 1), and arm (a) chosen by it or the limit recorded](#819-pre-registration-2026-09-29-before-any-survey-run-the-premise-survey-route-1-and-arm-a-chosen-by-it-or-the-limit-recorded)
 
 <!-- /toc -->
 
@@ -23964,3 +23965,62 @@ the detector and its forecaster absorb a slow, physically plausible change.
 
 **C1 and C3 are unaffected**, and they still test the owner's first question: is the gate
 safe? Their arms run in session 2 only if the owner says so.
+
+### 81.9 Pre-registration, 2026-09-29, before any survey run: the premise survey (route 1), and arm (a) chosen by it or the limit recorded
+
+**81.1-81.8 are not edited. T = 1.02 (81.8) is used, and not recomputed.** The owner chose
+route 1 of 81.8.
+
+**The family, fixed now.** Each member is a healthy, physically plausible change. The
+schedule is 81.3's shape: nothing before tick 30,000 (post-spin-up), then
+`g = 1 - exp(-(t - 30,000)/20,000)`. Everything else is the balanced plant. Each member is a
+new opt-in plant mode, and with every mode off the plant is bit-identical
+(`DEFAULT_PLANT_HASH` 9d72497a2ff277b3).
+
+| Order | Member | Physics | Magnitudes (delta) |
+|---|---|---|---|
+| 1 | **E, seasonal eclipse** | the orbit's shadowed fraction `0.35 x (1 + delta x g)` (the beta-angle season) | -0.10, -0.20, -0.30 |
+| 2 | **H, housekeeping draw** | the balanced housekeeping current `0.60 + delta x g` A (avionics or heater ageing) | +0.05, +0.10, +0.20 |
+| 3 | **D, instrument duty cycle** | the instrument's on-time `420 x (1 + delta x g)` ticks of each 900 (an operations change) | -0.10, -0.20, -0.30 |
+| 4 | **O, battery OCV** | 81.3 exactly | 0.02, 0.04, 0.06 |
+
+- **Each unit** (member x magnitude x seed): seeds 1, 2 and 3; `retrain=0`; 130,000 ticks.
+- The healthy comparison is the calibration trace of the same seed.
+
+**A unit qualifies iff all three hold, exactly as in 81.3:**
+1. rho over the need window ending at 130,000 is at least T = 1.02;
+2. every channel stays inside yellow throughout;
+3. the rate-normal check passes: every channel's |dx| 99.9th percentile and maximum over
+   [30,000, 130,000) are within +/-5% of the healthy run's.
+
+**A magnitude qualifies iff its unit qualifies on all three seeds.**
+
+**The choice, fixed now.** Arm (a) is the **first member in the order above** that has any
+qualifying magnitude, at its **smallest** qualifying |delta|. It runs exactly as 81.4
+registers arm (a):
+- seeds 1, 2 and 3; 400,000 ticks; `retrain=1`;
+- candidates gated in order until the first CERTIFY;
+- the swap tick, W_post and the swap run as registered.
+
+C2 and C2-FA are 81.5's, unchanged. The choice is written into the record before arm (a)
+runs.
+
+**If no member qualifies,** route 3 is recorded, with the survey table as its evidence:
+**this testbed cannot show a healthy, rate-normal change that this forecaster notices at
+T.** C2 is then NOT RUN, and D85.1 stays until route 2 (a mission's own data) is taken up.
+
+**Reported with every unit:** rho, the worst rate-normal ratio and its channel, and whether
+the unit stayed inside yellow. This is the evidence either way.
+
+**In parallel, under 81.5 unchanged:**
+- C1: arm (c), seeds 4-6;
+- C3: arm (b), seeds 1-3;
+- the E1 rerun, with LC2 read under 81.5's slip rule and the fixed script run start to
+  finish.
+
+**Apparatus, stated:**
+- the six arm runs run at lowered CPU priority (`nice`), under `caffeinate`;
+- E1's deployments keep normal priority, so its rate group is not starved; a lost sample
+  voids LC2.
+
+No timing figure is recorded (stop 35).
