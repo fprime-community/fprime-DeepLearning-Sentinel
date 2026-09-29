@@ -8269,3 +8269,51 @@ asked and three routes were costed:
 
 **The owner's decision:** R1 now, and **R3 later as planned work** -- its own pre-registration,
 with the pins and the Makefile change -- before the cap is next approached.
+
+### D85.2 Rider, 2026-09-28: the retraining loop runs through the real deployments to the ground gate, sends nothing, and its candidate is bit-identical to the host harness's; LC2 is still owed
+
+**D85 is not edited.** MODELS 78.11 registered this before it ran; 78.12 records it.
+
+- **What ran.** Owner-approved MODELS 78 E1, as 78.11 re-scoped it under D85.1 ("E1-dry").
+  The path ran end to end through the real F' deployments on the Mac:
+  - SentinelRef flew the balanced plant, with the SampleTap feeding the hub;
+  - SentinelRetrain ran its Retrainer on the live samples;
+  - the candidate went to the ground gate;
+  - the human's three commands were printed and **not sent**.
+- **What held.**
+  - The loop runs (E1d.1).
+  - The gate judges the candidate (E1d.3: REFUSE).
+  - Nothing is sent (E1d.4).
+  - The live-window host test, HT1-HT4. The window fills from live samples. Nothing within
+    SPAN + 2 x guard = 780 of a crossing is admitted. Without the crossing, the same ticks
+    are admitted.
+  - E1d.3 and E1d.4 were run by hand after the script stopped at step 5.
+- **The candidate is byte-identical to LoopSim's arm (c) seed 1 candidate #1**, trained on
+  the same data ticks. So the arms' results, C1 FAIL included, are results about this
+  deployment's retrainer, not only about the host harness.
+- **The downlink matches the replay bit for bit** (E1d.2): 3,104 values over 388 ticks, 0
+  differing. They were read by hand from the ground client's own session log, because a
+  filter-name error in the script emptied the file its check read, and the scripted check
+  FAILED on 0 values.
+- **What did not hold.**
+  - **LC2 is NO VERDICT.** The retrainer's rate group slipped 3 times, with no sample
+    lost. Descriptively, the Monitor and the replica emitted on the same 77 ticks, and so
+    did LoopSim. That is an observation, not LC2 held.
+- **Standing constraint unchanged.** No shadow model may be swapped in (D85.1). This run
+  offered none, and its gate refused the one candidate. Status stays exactly D83's:
+  host-verified, not flight-qualified.
+- **Found in passing, and not caused by E1.** STATUS's scoring gate
+  (`sentinel_eval run synthetic --detector gru-smoke`) trained and saved three weight
+  files. That moved the standing weight store from 1,313 to 1,316. The owner moved the
+  three aside to `runs/_weights_quarantine_2026-09-28`. The gate block now passes
+  `--no-cache`, which never writes to the store.
+- **Cost, against D64.1's direction.** The committed test model is 262 KiB in
+  `flight/test/vectors/`, which D64.1 R3 would move out of the tree. It is the smallest file
+  an 8/10 build can load.
+- **Owed:**
+  - E1's swap steps: uplink, `RELOAD_MODEL`, `ModelReloadAccepted` (D85.1, D85b);
+  - why later ground sessions received fewer ticks (E1d.2);
+  - LC2's verdict, under a registration that separates a slip with sample loss from one
+    without;
+  - a measured `RgCycleSlips`;
+  - a start-to-finish run of the fixed script.

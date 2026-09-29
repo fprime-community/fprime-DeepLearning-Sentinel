@@ -1,0 +1,89 @@
+# docs/MODELS.md 78.12: E1-dry, LC2 and the live-window test, as observed 2026-09-28 (Mac, arm64).
+# Sequence and tick numbers only: every wall-clock stamp is stripped (stop 35). RUN = runs/d85/e1.
+
+## tick ladder (78.11), each rung run to tap sequence 12,000 with --calibrate
+(!) "RgCycleSlips never above 0" read RUN/gds/channel.log, which this GDS configuration never wrote (and RUN was relative, so
+    the GDS logs went to RUN/runs/d85/<run>/gds). It passed VACUOUSLY on every rung and in E1 as first scripted; the lines
+    below are the corrected instrument's output, which says NOT MEASURED. SentinelRef's own slips are
+    what its RateGroupCycleSlip event reports, and that was 0 in every ref.log.
+tick-us 10000: RateGroupCycleSlip events in retrain.log 25 (throttled), first on retrainer cycle 6751; in ref.log 0; REPLICA_GAP lines 14, first: REPLICA_GAP seq 6568 after 6563 filled 5; SamplesLost events 5 (throttled at 5)
+  FAIL  no RateGroupCycleSlip in either log  (ref 0, retrain 25)
+  ----  RgCycleSlips never above 0  (NOT MEASURED: no GDS channel log)
+  FAIL  no sample lost, replica first sequence 0  (SamplesLost 5, first gap at 6568, first sequence 0)
+  reached: probe 12000, replica 12000
+  RUNG FAIL
+tick-us 50000: RateGroupCycleSlip events in retrain.log 40 (throttled), first on retrainer cycle 8404; in ref.log 0; REPLICA_GAP lines 0, first: ; SamplesLost events 0 (throttled at 5)
+  FAIL  no RateGroupCycleSlip in either log  (ref 0, retrain 40)
+  ----  RgCycleSlips never above 0  (NOT MEASURED: no GDS channel log)
+  PASS  no sample lost, replica first sequence 0  (SamplesLost 0, first gap at None, first sequence 0)
+  reached: probe 12000, replica 12000
+  RUNG FAIL
+tick-us 100000: RateGroupCycleSlip events in retrain.log 0 (throttled), first on retrainer cycle ; in ref.log 0; REPLICA_GAP lines 0, first: ; SamplesLost events 0 (throttled at 5)
+  PASS  no RateGroupCycleSlip in either log  (ref 0, retrain 0)
+  ----  RgCycleSlips never above 0  (NOT MEASURED: no GDS channel log)
+  PASS  no sample lost, replica first sequence 0  (SamplesLost 0, first gap at None, first sequence 0)
+  reached: probe 12000, replica 12000
+  RUNG PASS on 2 of 3 (the rest not measured)
+
+## E1-dry, tick-us 100000
+RetrainerReady : Retrainer ready: 8 channels, a candidate every 6550 admitted steps
+Candidate written: 268224 B, static_crc32 735551047, 6550 steps on ticks 6550..46277
+step 2 as scripted (-c powerSim): the file step 5 reads held 0 channel updates -> "checked 0, differing 0" -> the script stopped.
+  (!) the filter name was wrong (F' v4: SentinelRef.powerSim), and it only emptied the file step 5 reads. fprime-cli's OWN
+  session log for that same scripted step (its first logs/fprime-cli-*/channel.log) recorded what the ground received.
+  Read by hand with step 5's own SimTick framing (row = SimTick - 60,000 - 1) against the replay:
+    scripted step-2 session   388 SimTicks, rows 47..630        3,104 values checked, 0 differing
+    later hand sessions       29 + 2 + 2 + 1 SimTicks, rows 16,279..16,799   272 values checked, 0 differing
+  The later sessions received progressively fewer ticks per session (29, 2, 2, 1); that is unexplained here.
+  (Earlier reading, withdrawn before any record: "the link delivered 2 updates" counted the -j output, not what arrived.)
+candidate sha256 85d8b59074d8660077615602bc3a821001d0de18b5764c41b2f57645c066be8d
+LoopSim arm (c) s1 cand_1.bin sha256 85d8b59074d8660077615602bc3a821001d0de18b5764c41b2f57645c066be8d
+
+## steps 6-8, run by hand with the script's commands after it stopped (gate --flying runs/d85/flying/flying.bin, same sha256, for its segment sidecar)
+============================================================================
+  GROUND GATE: REFUSE
+============================================================================
+  REFUSED BECAUSE
+    - FLOOR: F = 37.9706% exceeds 31.9283%; the floor is not a floor
+    - PART (i): improvement 58.4371% < m = 77.1941%
+  THE CONTROL, REPRODUCED ON THE GROUND (D78, D85)
+    controls (start offsets [0, 638, 1276, 1914, 2552, 3191]):
+      2.009768e+01, 1.677432e+01, 1.587722e+01, 1.489013e+01, 1.418510e+01, 1.403151e+01
+    floor F 37.9706% (bound 31.9283%); m = K x F = 2.033 x F = 77.1941%
+    part (i)  candidate 8.353188e+00 vs control 2.009768e+01: improvement 58.4371%
+    part (ii) gap candidate 6.4542%, flying 33.2932%
+    (flying model on HELD: 1.850681e+01)
+    trained on ticks 6,030..46,016; HELD 46,017..55,017; 6,550 windows x 1 step(s)
+  TREND TO LIMIT, EVERY CHANNEL (the owner's ruling: the numbers, not a pass/fail)
+    channel       slope max/tick  slope min/tick   ticks to yellow   horizon          margin
+    SolarInput        -5.626e-06       0.000e+00             never   100,000              --
+    ChargeCurrent       1.557e-07       2.146e-09        13,123,565   100,000      13,023,565
+    LoadCurrent       -1.907e-09       1.987e-11             never   100,000              --
+    BusVoltage        -3.426e-09       1.257e-08             never   100,000              --
+    CellTemp           2.515e-07       3.535e-07       114,107,761   100,000     114,007,761
+    RadiatorTemp      -5.386e-09       1.021e-07             never   100,000              --
+    HeaterDuty        -8.973e-21       0.000e+00             never   100,000              --
+    StateOfCharge      -9.272e-10       6.424e-10             never   100,000              --
+  Status: the chosen retraining implementation, host-verified, not flight-qualified.
+============================================================================
+approve --dry-run rc=2: REFUSED: the report's verdict is 'REFUSE': only a CERTIFY report can be approved...
+ModelReloadAccepted lines in ref.log: 0
+
+## the rung conditions over the whole E1 run, and LC2
+RateGroupCycleSlip in retrain.log on retrainer cycles: 14660  14661  14666  
+  FAIL  no RateGroupCycleSlip in either log  (ref 0, retrain 3)
+  ----  RgCycleSlips never above 0  (NOT MEASURED: no GDS channel log)
+  PASS  no sample lost, replica first sequence 0  (SamplesLost 0, first gap at None, first sequence 0)
+  reached: probe 56000, replica 56000
+  RUNG FAIL
+  range [0, 56000]: Monitor 77 emits, replica 77
+  LC2: NO VERDICT
+    - no RateGroupCycleSlip in either log: ref 0, retrain 3
+  LoopSim (third instance, not the verdict) against the Monitor over [0, 55216]: HOLD (identical; Monitor only [], LoopSim only [])
+  LoopSim (third instance, not the verdict) against the replica over [0, 55216]: HOLD (identical; replica only [], LoopSim only [])
+Monitor emit sequences: 3000  3900  4800  5220  5700  6600  7020  7298  7500  8400  8820  9720  10620  11100  12420  12700  13320  13800  14700  15120  16020  16500  16920  17400  18098  19620  20520  21900  22800  23498  24120  24600  25020  25500  25920  26820  27300  27720  28900  29100  29520  30000  30420  30900  32220  33120  33600  34020  34298  34500  36300  37200  38100  38520  39000  39699  40320  40800  41220  43020  43920  44400  45098  45300  47520  49320  49800  50220  50500  51600  52020  53400  54300  54720  55200  55620  55898  
+replica emit sequences: 3000  3900  4800  5220  5700  6600  7020  7298  7500  8400  8820  9720  10620  11100  12420  12700  13320  13800  14700  15120  16020  16500  16920  17400  18098  19620  20520  21900  22800  23498  24120  24600  25020  25500  25920  26820  27300  27720  28900  29100  29520  30000  30420  30900  32220  33120  33600  34020  34298  34500  36300  37200  38100  38520  39000  39699  40320  40800  41220  43020  43920  44400  45098  45300  47520  49320  49800  50220  50500  51600  52020  53400  54300  54720  55200  55620  55898  
+
+## live-window host test (tests/test_retrainer_live_window.py), sequences
+control: 8250 samples; first admitted 6549; admitted total 1701; flagged []; admitted in [7000, 7780): 780; first admitted after 7001: 7002
+spike: 8250 samples; first admitted 6549; admitted total 920; flagged [7000, 7001]; admitted in [7000, 7780): 0; first admitted after 7001: 7781

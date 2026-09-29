@@ -19,7 +19,8 @@ sanity gate, D82's bounds-checking -- arrived after it and never reached this fi
 **`master:docs/STATUS.md` is the current status document for that work**: roadmap row E,
 and the four paragraphs after it naming what is unenforceable, what nothing onboard
 scores, and what has never run on flight hardware. The record is `docs/DECISIONS.md`
-D70, D73, D74, D76, D77, D78, D82 and `docs/MODELS.md` 47 to 76. Noted here in 2026-09-22
+D70, D73, D74, D76, D77, D78, D82 and `docs/MODELS.md` 47 to 76 (since then D83 to D85.2 and
+MODELS 77, 78 -- 78.12 is the end-to-end run through both deployments, 2026-09-28). Noted here in 2026-09-22
 rather than back-filled, because a status page rewritten to cover a track it did not
 watch would be a record pretending to be a status.
 
@@ -627,8 +628,9 @@ cd Sentinel/Monitor && fprime-util check                         # the component
 cd ../../SentinelRef && fprime-util build                        # the deployment
 bash scripts/fprime_ref_patch.sh                                 # and F's own Ref
 
-# one scoring run on the offline fixture, zero R2 operations
-PYTHONPATH=src .venv/bin/python -m sentinel_eval run synthetic \
+# one scoring run on the offline fixture, zero R2 operations; --no-cache, because a cached
+# run SAVES its weights and moved the standing weight store 1,313 -> 1,316 (D85.2)
+PYTHONPATH=src .venv/bin/python -m sentinel_eval --no-cache run synthetic \
     --detector gru-smoke --detector rstd --no-sweep
 ```
 

@@ -12,11 +12,19 @@ arm64 macOS only -- no 32-bit ARM, no musl, no documented cross-compile recipe; 
 promise in its own documentation; Rust's footprint is smaller, with Ferrocene qualified and
 OPS-SAT heritage -- and **no Rust comparison has been built here**.
 
-**What it trains on.** Its only input is `schedIn`. The window its cycle trains on is a
-deterministic drive the component fills itself -- **not telemetry** -- and its step budget
-is a unit test's value. What a mission adopts is the pipeline: the shape, the cycle, the
-candidate file and the separate process. **No candidate may be swapped in operationally**;
-nothing onboard scores one, and a human's `RELOAD_MODEL` is the only way a model changes.
+**What it trains on.** Since D85, the detector's own telemetry: `sampleIn` takes the
+SampleTap's copy of every vector the Monitor sees, over the hub, and `RetrainLoop` admits
+only recent healthy windows -- 56's rule plus a guard band of SPAN + 2 x guard ticks around
+every crossing of its replica detector. `tests/test_retrainer_live_window.py` runs this
+component through those ports (`docs/MODELS.md` 78.11-78.12: the window fills from live
+samples, and nothing within 780 ticks of a crossing is admitted). Its step budget and schedule
+are EXPERIMENTAL. **No candidate may be swapped in** (D85.1: the ground gate certified
+candidates on a plant that did not change); nothing onboard scores one, and a human's
+`RELOAD_MODEL` is the only way a model changes.
+
+**LC2's log (78.11), apparatus.** `setEmitLog(true)`, set by SentinelRetrain's `-E`, logs every
+tap sequence the replica emitted on, the first sequence fed, every gap and a heartbeat. Off by
+default, and off changes nothing.
 
 **Where it lived.** `fprime/SentinelRef/Retrainer/` until D84, with the FPP module `Retrain`
 and the UT executable `SentinelRef_Retrainer_ut_exe`, which is what `docs/MODELS.md` 47 to 73

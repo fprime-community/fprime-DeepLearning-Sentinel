@@ -137,6 +137,13 @@ The binary can also be run on its own from `build-artifacts/<platform>/bin/`:
 ./SentinelRef -a 127.0.0.1 -p 50000
 ```
 
+With the retrainer ON, the loop variant also takes apparatus flags for a host run of the whole
+retraining loop (`scripts/d85_e1.sh`, `docs/MODELS.md` 78.11): `-H PORT` the hub, `-t US` a
+shorter base tick, `-L` 78.3's balanced plant, `-g EMIS` ageing, and `-E`, which makes the
+`EmitProbe` log every tick the Monitor's detector emitted on. The probe reads the Monitor through
+its read-only `detector()` accessor after the Monitor steps; the Monitor is not touched, and OFF
+the probe is not built.
+
 ## Where the reasoning is
 
 The decisions are on `dev` in `docs/DECISIONS.md` -- D32 for the component's passive shape

@@ -39,6 +39,10 @@ SHAPE="${ROOT}/oxcaml/_build/shape-c8-p10"
 # runs/d85/flying/flying.bin, so the controls cache key is unchanged.
 FLYING="${ROOT}/flight/test/vectors/retrainer_ut_flying_c8_p10.bin"
 FLYING_SHA256="8b22e32159455d03bccfc7c34fa2236a0bca69ddab32aa309b70326a3eb461a9"
+# The gate reads the flying model's training segment from a sidecar BESIDE it
+# (`sentinel_toolkit fit` writes it; D85 C10). A `.npz` may not be committed, so the gate
+# reads the same bytes at their run path, sha-checked against the same pin. Found by E1.
+GATE_FLYING="${ROOT}/runs/d85/flying/flying.bin"
 CACHE="${ROOT}/runs/d85/controls"
 PY="${ROOT}/.venv/bin/python"
 LC2="${ROOT}/scripts/d85_lc2.py"
@@ -59,6 +63,9 @@ done
 SPINUP=60000; GUARD=260; SPAN=260; HELD=9000; SCHEDULE=6550
 
 rm -rf "${RUN}"; mkdir -p "${RUN}/ground"
+# Absolute from here on: every process below starts inside ${RUN}, and a relative path
+# handed to it lands in ${RUN}/${RUN} (found by E1: the GDS logs did exactly that).
+RUN="$(cd "${RUN}" && pwd)"
 PIDS=()
 cleanup() {
     for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done
@@ -90,8 +97,10 @@ fi
 echo "   none"
 
 echo "== the flying model =="
-GOT="$(shasum -a 256 "${FLYING}" | cut -d' ' -f1)"
-[ "${GOT}" = "${FLYING_SHA256}" ] || { echo "   (!) ${FLYING} is ${GOT}, not ${FLYING_SHA256}"; exit 1; }
+for f in "${FLYING}" "${GATE_FLYING}"; do
+    GOT="$(shasum -a 256 "${f}" | cut -d' ' -f1)"
+    [ "${GOT}" = "${FLYING_SHA256}" ] || { echo "   (!) ${f} is ${GOT}, not ${FLYING_SHA256}"; exit 1; }
+done
 echo "   ${FLYING_SHA256}"
 
 cp "${F}/build-artifacts/Darwin/SentinelRetrain/bin/SentinelRetrain" \
@@ -130,8 +139,14 @@ if [ "${CALIBRATE}" -gt 0 ]; then
 fi
 
 echo "== 2. the downlink, sampled: 60 s of PowerSim's channels through fprime-gds =="
-fprime-cli channels -c powerSim -j --dictionary "${DICT}" -t 60 > "${RUN}/downlink.jsonl" 2> "${RUN}/downlink.err"
-echo "   $(wc -l < "${RUN}/downlink.jsonl" | tr -d ' ') channel updates received"
+# F' v4 names a channel by its fully qualified instance: `-c powerSim` matches nothing
+# (found by E1). And the evidence is fprime-cli's OWN session log, which records every
+# channel the ground client received, not its printed output, which is lossy (E1 found
+# 388 ticks in the session log behind an empty printout). Run inside ${RUN}, so the
+# session log lands in ${RUN}/logs and not in the repository.
+( cd "${RUN}" && fprime-cli channels -c SentinelRef.powerSim -j --dictionary "${DICT}" -t 60 \
+    > "${RUN}/downlink.jsonl" 2> "${RUN}/downlink.err" )
+echo "   $(cat "${RUN}"/logs/fprime-cli-*/channel.log 2>/dev/null | grep -c 'SentinelRef.powerSim.SimTick') PowerSim ticks in the ground client's session log"
 
 echo "== 3. waiting for the first candidate (the retrainer's own event) =="
 while ! grep -q "Candidate written" "${RUN}/retrain.log"; do
@@ -157,7 +172,7 @@ AGE_REPLAY=()
 "${SHAPE}/loopsim" out="${RUN}/ground" flying="${FLYING}" seed=1 ticks="${NEED}" spinup="${SPINUP}" \
     balance=0.60,0.92 retrain=0 ${AGE_REPLAY[@]+"${AGE_REPLAY[@]}"} > "${RUN}/ground/loopsim.out" 2>&1 \
     || { echo "   (!) the replay failed"; exit 1; }
-"${PY}" - "${RUN}" "${SPINUP}" <<'PYEOF' || exit 1
+"${PY}" - "${RUN}" "${SPINUP}" <<'PYEOF'
 import json, sys
 from pathlib import Path
 import numpy as np
@@ -165,21 +180,22 @@ run, spin = Path(sys.argv[1]), int(sys.argv[2])
 names = ["SolarInput", "ChargeCurrent", "LoadCurrent", "BusVoltage", "CellTemp",
          "RadiatorTemp", "HeaterDuty", "StateOfCharge"]
 trace = np.fromfile(run / "ground" / "trace.f32", dtype=np.float32).reshape(-1, 8)
+import csv
 pending, checked, bad = {}, 0, []
-for line in (run / "downlink.jsonl").read_text().splitlines():
-    try:
-        d = json.loads(line)
-    except ValueError:
+records = []
+for log in sorted((run / "logs").glob("fprime-cli-*/channel.log")):
+    records += [r for r in csv.reader(log.read_text().splitlines()) if len(r) >= 5]
+for rec in records:
+    if not rec[2].startswith("SentinelRef.powerSim."):
         continue
-    name = str(d.get("template", {}).get("name", d.get("name", ""))).split(".")[-1]
-    val = d.get("val", d.get("value"))
+    name, val = rec[2].split(".")[-1], rec[4]
     if name in names:
         pending[name] = val
     elif name == "SimTick":
         row = int(val) - spin - 1
         if 0 <= row < len(trace):
             for n, v in pending.items():
-                ok = np.float32(v) == trace[row, names.index(n)]
+                ok = np.float32(float(v)) == trace[row, names.index(n)]
                 checked += 1
                 if not ok:
                     bad.append((int(val), n, v, float(trace[row, names.index(n)])))
@@ -189,6 +205,10 @@ for b in bad[:5]:
     print("   (!) SimTick %d %s downlinked %r replayed %r" % b)
 sys.exit(0 if checked > 0 and not bad else 1)
 PYEOF
+DOWNLINK_RC=$?
+# E1d.2 is reported, and the run goes on: a downlink that delivers nothing must not stop
+# the gate, the human's step or LC2 from being measured (found by E1).
+echo "   downlink check rc=${DOWNLINK_RC} (0 every value checked equals the replay, 1 otherwise)"
 cat > "${RUN}/ground/limits.json" <<'EOF'
 {"names": ["SolarInput", "ChargeCurrent", "LoadCurrent", "BusVoltage", "CellTemp",
            "RadiatorTemp", "HeaterDuty", "StateOfCharge"],
@@ -200,7 +220,7 @@ echo "== 6. the ground gate =="
 DEST="RetrainApproved.bin"
 RELOAD="SentinelRef.sentinelMonitor.RELOAD_MODEL"
 ( cd "${RUN}" && PYTHONPATH="${ROOT}/src" "${PY}" -m sentinel_toolkit gate \
-    --flying "${FLYING}" --candidate "${RUN}/ground/candidate.bin" \
+    --flying "${GATE_FLYING}" --candidate "${RUN}/ground/candidate.bin" \
     --telemetry "${RUN}/ground/trace.f32" --channels 8 --first "${FIRST}" --last "${LAST}" \
     --windows "${SCHEDULE}" --budget 1 --tools "${SHAPE}/ground_tools" \
     --limits "${RUN}/ground/limits.json" --block 5400 --blocks 4 --horizon 100000 \
@@ -245,4 +265,4 @@ echo "   LC2 rc=${LC2_RC} (0 HOLD, 1 FAIL, 3 NO VERDICT)"
 
 echo "== orphan check after =="
 orphans || echo "   none"
-echo "E1-dry: gate rc=${GATE_RC}, approve --dry-run rc=${APPROVE_RC}, rung rc=${RUNG}, LC2 rc=${LC2_RC}"
+echo "E1-dry: downlink rc=${DOWNLINK_RC}, gate rc=${GATE_RC}, approve --dry-run rc=${APPROVE_RC}, rung rc=${RUNG}, LC2 rc=${LC2_RC}"

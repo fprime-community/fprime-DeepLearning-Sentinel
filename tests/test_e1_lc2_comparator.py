@@ -86,6 +86,9 @@ def test_the_rung_conditions_both_ways() -> None:
     lost = lc2.read_side(_rep([]) + "SamplesLost 4\n", True)
     assert not all(ok for _, ok, _ in lc2.calibrate(ref, lost, 0))
     assert not all(ok for _, ok, _ in lc2.calibrate(ref, rep, 1))
+    # No channel log: said, not silently passed.
+    unmeasured = [d for name, _, d in lc2.calibrate(ref, rep, None) if name.startswith("RgCycleSlips")]
+    assert unmeasured == ["NOT MEASURED: no GDS channel log"]
 
 
 def test_rg_slips_reads_the_largest_value() -> None:

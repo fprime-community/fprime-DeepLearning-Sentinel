@@ -101,12 +101,22 @@ def rg_slips(channel_log: str) -> int:
     return worst
 
 
-def calibrate(ref: Side, rep: Side, rg: int) -> list[tuple[str, bool, str]]:
-    """78.11's three rung conditions."""
+def calibrate(ref: Side, rep: Side, rg: int | None) -> list[tuple[str, bool, str]]:
+    """78.11's three rung conditions.
+
+    (!) `rg` is None when the GDS wrote no channel log. E1 found that this GDS
+    configuration writes none, so the second condition read an absent file and passed
+    vacuously on every rung. It is now reported as NOT MEASURED -- visibly, not as a
+    pass -- and does not decide the rung: SentinelRef's own slips are what its
+    `RateGroupCycleSlip` event in the first condition reports.
+    """
     out = []
     out.append(("no RateGroupCycleSlip in either log", ref.slips == 0 and rep.slips == 0,
                 f"ref {ref.slips}, retrain {rep.slips}"))
-    out.append(("RgCycleSlips never above 0", rg == 0, f"largest {rg}"))
+    if rg is None:
+        out.append(("RgCycleSlips never above 0", True, "NOT MEASURED: no GDS channel log"))
+    else:
+        out.append(("RgCycleSlips never above 0", rg == 0, f"largest {rg}"))
     first_gap = rep.gaps[0] if rep.gaps else None
     out.append(("no sample lost, replica first sequence 0",
                 rep.lost == 0 and not rep.gaps and rep.first == 0,
@@ -114,7 +124,7 @@ def calibrate(ref: Side, rep: Side, rg: int) -> list[tuple[str, bool, str]]:
     return out
 
 
-def validity(ref: Side, rep: Side, rg: int) -> list[str]:
+def validity(ref: Side, rep: Side, rg: int | None) -> list[str]:
     """Every reason LC2 is NO VERDICT; empty when it may be read."""
     why = [f"{name}: {detail}" for name, ok, detail in calibrate(ref, rep, rg) if not ok]
     if ref.first != 0:
@@ -158,11 +168,11 @@ def loopsim_emits(ticks_csv: Path) -> tuple[list[int], int]:
     return emits, last
 
 
-def _sides(run: Path) -> tuple[Side, Side, int]:
+def _sides(run: Path) -> tuple[Side, Side, int | None]:
     ref = read_side((run / "ref.log").read_text(errors="replace"), replica=False)
     rep = read_side((run / "retrain.log").read_text(errors="replace"), replica=True)
     chan = run / "gds" / "channel.log"
-    rg = rg_slips(chan.read_text(errors="replace")) if chan.exists() else 0
+    rg = rg_slips(chan.read_text(errors="replace")) if chan.exists() else None
     return ref, rep, rg
 
 
@@ -176,12 +186,18 @@ def main(argv: list[str]) -> int:
         print(min(ref.last, rep.last))
         return 0
     if argv[0] == "calibrate":
-        ok = True
-        for name, passed, detail in calibrate(ref, rep, rg):
+        ok, measured = True, 0
+        conds = calibrate(ref, rep, rg)
+        for name, passed, detail in conds:
             ok = ok and passed
-            print(f"   {'PASS' if passed else 'FAIL'}  {name}  ({detail})")
+            unmeasured = detail.startswith("NOT MEASURED")
+            measured += 0 if unmeasured else 1
+            print(f"   {'----' if unmeasured else ('PASS' if passed else 'FAIL')}  {name}  ({detail})")
         print(f"   reached: probe {ref.last}, replica {rep.last}")
-        print(f"   RUNG {'PASS' if ok else 'FAIL'}")
+        if ok and measured < len(conds):
+            print(f"   RUNG PASS on {measured} of {len(conds)} (the rest not measured)")
+        else:
+            print(f"   RUNG {'PASS' if ok else 'FAIL'}")
         return 0 if ok else 1
     why = validity(ref, rep, rg)
     hi = min(ref.last, rep.last)

@@ -774,6 +774,7 @@ prediction that failed and why. This document follows the same discipline.
   - [80.7 Q3 and Q4 not scored; the rate-normal question is owed](#807-q3-and-q4-not-scored-the-rate-normal-question-is-owed)
   - [78.10 OBSERVED -- C1 FAILED on every seed: the gate certifies retrained models on a plant that did not change](#7810-observed----c1-failed-on-every-seed-the-gate-certifies-retrained-models-on-a-plant-that-did-not-change)
   - [78.11 Pre-registration, 2026-09-28, before any E1, LC2 or live-window run: 78's E1 under D85.1, LC2 through the real deployments, and the live-window host test](#7811-pre-registration-2026-09-28-before-any-e1-lc2-or-live-window-run-78s-e1-under-d851-lc2-through-the-real-deployments-and-the-live-window-host-test)
+  - [78.12 OBSERVED, 2026-09-28 -- E1-dry: the loop runs through the real deployments to the gate, the downlink matches the replay bit for bit, and the candidate is bit-identical to LoopSim's; LC2 NO VERDICT; the live-window test HELD](#7812-observed-2026-09-28----e1-dry-the-loop-runs-through-the-real-deployments-to-the-gate-the-downlink-matches-the-replay-bit-for-bit-and-the-candidate-is-bit-identical-to-loopsims-lc2-no-verdict-the-live-window-test-held)
 
 <!-- /toc -->
 
@@ -23622,3 +23623,95 @@ twice, as a control and as a spike run, each in its own process.
 
 **Stops.** 57 and 58 stand. A failure is reported, not tuned: no input, amplitude, constant
 or rung is moved after a number above is seen.
+
+### 78.12 OBSERVED, 2026-09-28 -- E1-dry: the loop runs through the real deployments to the gate, the downlink matches the replay bit for bit, and the candidate is bit-identical to LoopSim's; LC2 NO VERDICT; the live-window test HELD
+
+**78 and 78.11 are not edited.** Every number below is a tap sequence number or a count, from
+the deployments' own logs, reduced in `tests/fixtures/d85/e1_observed.txt` with every
+wall-clock stamp stripped (stop 35). Mac, arm64. Raw logs: `runs/d85/e1*` (gitignored).
+
+**First, because it is what makes the arms carry over.** The candidate SentinelRetrain wrote
+from the live telemetry path -- PowerSim, SampleTap, the hub, the Retrainer -- is
+**byte-identical** to LoopSim's arm (c) seed 1 `cand_1.bin` (sha256 `85d8b590...`). It
+trained on the same data ticks, 6,030..46,016, and its event names the same range, ticks
+6,550..46,277. The F' scheduler, the hub and the tap changed nothing the retrainer learned.
+
+| # | Prediction (78.11) | Measured | |
+|---|---|---|---|
+| **E1d.1** | the loop runs through the real deployments | `RetrainerReady`; more than 56,000 samples fed from the tap over the hub, none lost; `CandidateWritten` 268,224 B, 6,550 steps, ticks 6,550..46,277 | **HELD** |
+| **E1d.2** | the downlinked values equal the replay | as scripted, 0 checked (a filter-name error emptied the file step 5 reads) and the script stopped. Read by hand from the ground client's own session log of that same step, with step 5's SimTick framing: 388 ticks (rows 47..630), **3,104 values, 0 differing** | **FAILED as scripted; HELD on the session log, read by hand** |
+| **E1d.3** | the gate judges the candidate | REFUSE: F 37.9706% over the 31.9283% bound, and part (i) 58.4371% below m = 77.1941%. The numbers are arm (c) s1's `gate_1.json` | **HELD** (by hand; see below) |
+| **E1d.4** | the human's step is shown, and nothing is sent | three `NOT SENT:` lines; `approve --dry-run` rc 2 `REFUSED`; `ModelReloadAccepted` absent from `ref.log` | **HELD** (by hand) |
+| **LC2** | the replica and the Monitor emit on the same ticks | the retrainer's rate group slipped 3 times (its cycles 14,660, 14,661 and 14,666), with 0 samples lost | **NO VERDICT** |
+| **HT1** | the window fills from live samples | both runs: `Admitted` 0 before sequence 6,549, then +1 on every sequence of [6,549, 7,000); nothing flagged | **HELD** |
+| **HT2** | nothing within 780 of a crossing is admitted | spike run: crossed at 7,000 and 7,001 (2 emits); 0 of [7,000, 7,780) admitted | **HELD** |
+| **HT3** | the refusal is the crossing's | control: 780 of 780 admitted in [7,000, 7,780) | **HELD** |
+| **HT4** | the band ends | first admission after the burst at 7,781 = 7,001 + 780; 56 admitted throughout (2 emits, under its ceiling of 14) | **HELD** |
+
+**LC2, described and not adjudicated.** Over [0, 56,000]:
+- the Monitor emitted 77 times and the replica 77 times, on identical sequences;
+- both are identical to LoopSim's detector over [0, 55,216] (a third instance).
+
+This is an observation. It is not LC2 HOLD: 78.11 made any slip a NO VERDICT, and it stays
+one. A slip with no sample lost does not change the replica's inputs, so 78.11's condition is
+stricter than LC2's mechanism needs. That is owed to a future registration, which should
+separate a slip with loss from a slip without. It is not relaxed here.
+
+**The tick is apparatus, and the ladder chose 100,000 on two of its three conditions.**
+- **10,000 FAILED.** The retrainer slipped (first on its cycle 6,751), and samples were lost
+  from sequence 6,568, where admitted training begins.
+- **50,000 FAILED.** The retrainer slipped (first on its cycle 8,404), with none lost.
+- **100,000 PASSED** conditions 1 and 3, to sequence 12,000.
+- **Condition 2 (`RgCycleSlips`) was not measured on any rung, or in E1.** This GDS
+  configuration writes no channel log, so the check read an absent file and passed
+  vacuously.
+- SentinelRef's own slips are what its `RateGroupCycleSlip` event reports. That was 0 in
+  every `ref.log`, so the intent of condition 2 was met in substance. That is a judgement,
+  stated for the owner.
+- **Over the whole E1 run, 100,000 still slipped 3 times in the retrainer**, past the
+  12,000 the ladder covered.
+- **SentinelRef never slipped at any rung.**
+
+**What failed, and why, kept apart.**
+- **E1d.2, as scripted, is an apparatus failure; the link is not.** The script filtered
+  `-c powerSim`, and F' v4 names a channel by its fully qualified instance,
+  `SentinelRef.powerSim`. The filter emptied only the printed output that step 5 reads.
+  `fprime-cli`'s own session log of that same scripted step recorded what the ground client
+  received: 388 ticks, rows 47..630, **3,104 values, all equal to the replay bit for bit**.
+- **Later sessions.** Four sessions opened by hand later in the run (rows 16,279..16,799)
+  added 272 values, 0 differing. They received progressively fewer ticks per session (29, 2,
+  2, 1), and that is **unexplained**.
+- **The check is shown both ways.** The corrected step 5, run on that session log, reports
+  3,104 checked and 0 differing. The same log with one BusVoltage value moved by one ULP
+  reports 1 differing and fails.
+- A first reading made during the run -- "the link delivered 2 updates" -- counted the
+  printed output, not what arrived. It is withdrawn here and was never recorded
+  elsewhere.
+- **The script stopped at step 5, so steps 6-8 were run by hand.** They used the script's own
+  commands, on the same run's candidate, replay and logs. The gate's `--flying` was
+  `runs/d85/flying/flying.bin`, the same sha256 as the committed test model. The gate reads
+  the training segment from a sidecar beside the flying file (D85 C10), and a `.npz` may not
+  be committed. So pointing E1 at the committed copy was an error of this work, and the gate
+  refused to run on it.
+
+**Five apparatus fixes, made after the run and disclosed here.** None moves a threshold or a
+constant.
+- `RUN` is made absolute. The GDS logs had landed in `RUN/runs/d85/e1/gds`.
+- The channel filter is `SentinelRef.powerSim`.
+- The gate reads the sidecar-bearing copy, sha-checked against the same pin.
+- Step 2 runs inside `RUN`. Step 5 reads the ground client's session log, not its lossy
+  printout, with the same SimTick framing, and it records E1d.2 and goes on.
+- The rung instrument (`scripts/d85_lc2.py`) now prints NOT MEASURED, not PASS, when there
+  is no channel log.
+
+Each fix was exercised by hand as described. **The fixed script has not run start to
+finish.**
+
+**Disclosures, against this work.**
+- **This is one run, on one machine, on one seed.** The byte-identity above is to LoopSim on
+  the same Mac. 78.10 records that the retrainer's numerics differ across platforms.
+- **The host test's quiet input is synthetic:** band midpoints plus 1% LCG noise, not the
+  plant. It shows the admission rule working through the component. It does not show what
+  a real stretch admits; 78.9 measured about one tick in ten.
+- **E1's swap steps are OWED while D85.1 stands:** uplink, `RELOAD_MODEL` and
+  `ModelReloadAccepted`. Nothing here moves D85.1, and no candidate was offered.
