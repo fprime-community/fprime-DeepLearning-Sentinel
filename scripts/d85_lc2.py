@@ -124,9 +124,20 @@ def calibrate(ref: Side, rep: Side, rg: int | None) -> list[tuple[str, bool, str
     return out
 
 
-def validity(ref: Side, rep: Side, rg: int | None) -> list[str]:
-    """Every reason LC2 is NO VERDICT; empty when it may be read."""
-    why = [f"{name}: {detail}" for name, ok, detail in calibrate(ref, rep, rg) if not ok]
+def validity(ref: Side, rep: Side, rg: int | None, slips_void: bool = False) -> list[str]:
+    """Every reason LC2 is NO VERDICT; empty when it may be read.
+
+    (!) docs/MODELS.md 81.5 replaced 78.11's slip rule, before the run it governs. A
+    rate-group slip with NO SAMPLE LOST leaves the replica's inputs unchanged, so it does
+    not void LC2. Any lost sample still does, as do a first sequence other than 0, a stale
+    or gapped probe tick, the Monitor leaving MODEL mode and any reload.
+    `slips_void=True` reproduces 78.11's rule, which E1 of 78.12 was read under.
+    """
+    why = []
+    for name, ok, detail in calibrate(ref, rep, rg):
+        if ok or (name.startswith("no RateGroupCycleSlip") and not slips_void):
+            continue
+        why.append(f"{name}: {detail}")
     if ref.first != 0:
         why.append(f"the probe's first sequence is {ref.first}, not 0")
     if ref.gaps or ref.stale:

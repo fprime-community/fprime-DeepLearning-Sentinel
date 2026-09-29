@@ -70,7 +70,6 @@ def test_each_validity_condition_withholds_the_verdict() -> None:
         "first sequence": (good_ref, _rep([2400]).replace("REPLICA_FIRST seq 0", "REPLICA_FIRST seq 3")),
         "lost": (good_ref, good_rep + "EVENT: SamplesLost 3\n"),
         "gap": (good_ref, good_rep + "REPLICA_GAP seq 1500 after 1497 filled 3\n"),
-        "slip": (good_ref + "WARNING_HI: rateGroup_1Hz.RateGroupCycleSlip 77\n", good_rep),
         "mode": (good_ref + "PROBE_MODE seq 1800 model 0\n", good_rep),
         "reload": (good_ref + "sentinelMonitor.ModelReloadAccepted RetrainApproved.bin\n", good_rep),
         "stale": (good_ref + "PROBE_STALE seq 1200\n", good_rep),
@@ -78,6 +77,17 @@ def test_each_validity_condition_withholds_the_verdict() -> None:
     for name, (r, p) in cases.items():
         assert _verdict(r, p)[0] != [], name
     assert _verdict(good_ref, good_rep, rg=2)[0] != [], "RgCycleSlips"
+
+
+def test_a_slip_without_loss_no_longer_voids_lc2_and_a_slip_with_loss_does() -> None:
+    """MODELS 81.5, both directions, and 78.11's older rule still reproducible."""
+    slip = "WARNING_HI: (SentinelRetrain.rateGroup_1Hz) RateGroupCycleSlip : cycle 14660\n"
+    ref = lc2.read_side(_ref([2400]), False)
+    rep = lc2.read_side(_rep([2400]) + slip, True)
+    assert lc2.validity(ref, rep, None) == []
+    assert lc2.validity(ref, rep, None, slips_void=True) != []
+    lossy = lc2.read_side(_rep([2400]) + slip + "SamplesLost 2\n", True)
+    assert lc2.validity(ref, lossy, None) != []
 
 
 def test_the_rung_conditions_both_ways() -> None:
