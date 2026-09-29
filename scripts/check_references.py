@@ -57,6 +57,9 @@ MASTER_PREFIXES = (
     # D84: the retrainer component, exported opt-in from the library and moved
     # into its namespace from fprime/SentinelRef/Retrainer/.
     "fprime/Sentinel/Retrainer/",
+    # D85: the SampleTap, exported opt-in with the retrainer; it reached master with
+    # D85's trees on 2026-09-28.
+    "fprime/Sentinel/SampleTap/",
     # docs/MODELS.md 65: the retrainer's own deployment, which is where the OCaml
     # runtime lives. D70 consequence 2 makes the separate process a requirement.
     "fprime/SentinelRetrain/",
