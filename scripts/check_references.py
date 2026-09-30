@@ -81,6 +81,8 @@ MASTER_PREFIXES = (
     # which is the opposite of what this mode exists to tell a reader.
     "oxcaml/", "src/sentinel_toolkit/", "src/sentinel_export/",
     "requirements-toolkit.txt",
+    # GitHub's "Cite this repository": the same file on both branches (2026-09-30).
+    "CITATION.cff",
     "src/sentinel_models/__init__.py", "src/sentinel_models/detectors.py",
     "src/sentinel_models/lstm.py", "src/sentinel_models/oscfar.py",
     "src/sentinel_models/reference.py", "src/sentinel_models/telemanom.py",

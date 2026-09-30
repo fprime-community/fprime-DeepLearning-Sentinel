@@ -1,5 +1,7 @@
 # fprime-DeepLearning-Sentinel
 
+Cai Bakrania -- JPL Section 344, summer 2026. Mentor: Kevin Ortega.
+
 > **Paths outside this branch resolve on `dev`.** `master` carries the component and the
 > evidence it works, and nothing else (`docs/DECISIONS.md` D67). A citation here into
 > `src/`, `scripts/`, `tests/`, `docs/MODELS.md` or `third_party/` points into the
