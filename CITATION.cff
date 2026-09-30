@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Sentinel: a deep-learning anomaly detector for F Prime, with on-board retraining in OxCaml"
+authors:
+  - family-names: Bakrania
+    given-names: Cai
+repository-code: "https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel"
+url: "https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel"
+preferred-citation:
+  type: software
+  title: "Sentinel: a deep-learning anomaly detector for F Prime, with on-board retraining in OxCaml"
+  authors:
+    - family-names: Bakrania
+      given-names: Cai
+  year: 2026
+  url: "https://github.com/GalacticDroid448/fprime-DeepLearning-Sentinel"

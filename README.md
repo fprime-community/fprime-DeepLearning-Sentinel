@@ -1,9 +1,11 @@
 # fprime-DeepLearning-Sentinel
 
+Cai Bakrania -- JPL Section 344, summer 2026. Mentor: Kevin Ortega.
+
 **A reusable flight-software component for NASA's F' (F Prime) framework, which warns of
 spacecraft anomalies that never cross a limit line.**
 
-> **This branch is the product.** Paths outside it resolve on `dev` at commit **`7970b1e`**
+> **This branch is the product.** Paths outside it resolve on `dev` at commit **`54b9dd8`**
 > (D69). The guards that keep every figure here true run on `dev`, not here.
 
 [The problem](#the-problem) |
