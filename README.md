@@ -136,7 +136,9 @@ coupled power and thermal plant with declared limits, on a real 1 Hz clock
 ```text
 README.md                    every command, in order: demos, adoption, the optional retrainer
 flight/                      the C++ core (the detector's brain)
-fprime/library.cmake         what a mission gets; point settings.ini's library_locations at fprime/
+fprime/                      our F Prime project: components, demo programs, library.cmake
+                             (F Prime itself is downloaded into fprime/lib/ by scripts/fprime_setup.sh;
+                             not stored here)
 fprime/Sentinel/Monitor/     the detector component
 fprime/Sentinel/Retrainer/   the retrainer component (opt-in)
 fprime/Sentinel/SampleTap/   the tap that copies telemetry to the retrainer (opt-in)
