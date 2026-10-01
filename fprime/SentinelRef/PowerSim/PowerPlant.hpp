@@ -136,6 +136,11 @@ class PowerPlant {
     enum class Drift : uint32_t { ECLIPSE_FRACTION = 0u, HOUSEKEEPING = 1u, DUTY_ON_TIME = 2u };
     void configureDrift(Drift which, uint32_t start, double tau, double delta);
 
+    //! `docs/MODELS.md` 82.3: a LEGITIMATE pause -- the instrument is commanded off for
+    //! [start, start + length) and draws its idle 0.55 A, so every channel stays
+    //! physically consistent. Off unless configured, and then `step()` is bit-identical.
+    void configurePause(uint32_t start, uint32_t length);
+
     double value(uint32_t channel) const { return m_v[channel]; }
     uint32_t tick() const { return m_tick; }
     double resistance() const { return m_r; }
@@ -164,6 +169,9 @@ class PowerPlant {
     double m_ocvLoss = 0.0;       //!< fraction of V_OC_SPAN lost at saturation
     struct Seasonal { bool on = false; uint32_t start = 0u; double tau = 1.0; double delta = 0.0; };
     Seasonal m_drift[3];          //!< D85b 81.9, indexed by Drift
+    bool m_paused = false;        //!< MODELS 82.3: the instrument commanded off
+    uint32_t m_pauseStart = 0u;
+    uint32_t m_pauseLen = 0u;
     double drift(Drift which) const;   //!< delta x g(t) for one drift; 0 unless configured
     uint32_t m_loadShiftStart = 0u;
     uint32_t m_loadShift = 0u;

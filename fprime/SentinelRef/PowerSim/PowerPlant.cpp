@@ -115,6 +115,12 @@ double PowerPlant::drift(Drift which) const {
     return d.delta * (1.0 - std::exp(-static_cast<double>(m_tick - d.start) / d.tau));
 }
 
+void PowerPlant::configurePause(uint32_t start, uint32_t length) {
+    m_paused = true;
+    m_pauseStart = start;
+    m_pauseLen = length;
+}
+
 void PowerPlant::configureBalance(double housekeeping, double shuntSoc) {
     m_balanced = true;
     m_housekeeping = housekeeping;
@@ -148,7 +154,11 @@ void PowerPlant::step(bool faultActive, double faultRate) {
     const Seasonal& dD = m_drift[static_cast<uint32_t>(Drift::DUTY_ON_TIME)];
     const Seasonal& dH = m_drift[static_cast<uint32_t>(Drift::HOUSEKEEPING)];
     const double eclipse = dE.on ? (ECLIPSE * (1.0 + drift(Drift::ECLIPSE_FRACTION))) : ECLIPSE;
-    const double onTicks = dD.on ? (420.0 * (1.0 + drift(Drift::DUTY_ON_TIME))) : 420.0;
+    double onTicks = dD.on ? (420.0 * (1.0 + drift(Drift::DUTY_ON_TIME))) : 420.0;
+    // MODELS 82.3: commanded off, the instrument's on-time is zero for the pause.
+    if (m_paused && (m_tick >= m_pauseStart) && (m_tick - m_pauseStart < m_pauseLen)) {
+        onTicks = 0.0;
+    }
     const double solar = solarInput(m_seed, m_tick, peakFactor, eclipse);
     // 2.35 A is the pre-D85 housekeeping draw, and it is what an unbalanced plant uses.
     const uint32_t phaseTick = (m_loadShifted && (m_tick >= m_loadShiftStart))
