@@ -790,6 +790,7 @@ prediction that failed and why. This document follows the same discipline.
   - [82.1 The arm](#821-the-arm)
   - [82.2 SMAP/MSL, TUNE only -- no EVAL channel's events are loaded](#822-smapmsl-tune-only----no-eval-channels-events-are-loaded)
   - [82.3 PowerSim: a true freeze against a legitimate pause](#823-powersim-a-true-freeze-against-a-legitimate-pause)
+  - [82.4 OBSERVED, 2026-10-01 -- A7 equals A0 on SMAP/MSL TUNE, and neither tells a freeze from a pause on the testbed](#824-observed-2026-10-01----a7-equals-a0-on-smapmsl-tune-and-neither-tells-a-freeze-from-a-pause-on-the-testbed)
 
 <!-- /toc -->
 
@@ -24166,5 +24167,47 @@ a flown rule is D87's.
     a false alarm);
   - alarm counts over [30,000, 35,400 + 2,100);
   - false alarms on the healthy twin over [2,350, 60,000).
+
+No timing figure is recorded (stop 35).
+
+### 82.4 OBSERVED, 2026-10-01 -- A7 equals A0 on SMAP/MSL TUNE, and neither tells a freeze from a pause on the testbed
+
+**82.1-82.3 are not edited.** Results: `tests/fixtures/d86/a7_tune.json` and
+`tests/fixtures/d86/a7_powersim.json`. R2: 165 Class B reads, and **1 Class A, the
+project's ops ledger write**. 82.2 projected 0 Class A and did not count the ledger; the
+deviation is disclosed here. Nothing was written to disk but the results.
+
+**SMAP/MSL, TUNE only (82.2).**
+- **A0 reproduced 79.4 exactly:** cut 5.288128, 13/19 TUNE events, realised rate 0.6820%.
+  77 channels were scored; E-3, G-1, D-11 and D-12 have no cached fit, the same set as D86's.
+- **A7:** cut 5.203387, realised rate **0.6820%**, **13/19**. It catches the same 13 events
+  as A0, loses none and gains none.
+- **Which term fired, A7:** the two-sided rate (`zta`) is the first term at all 13 catches.
+  The residual also reached the cut inside G-7[3650] and G-7[7560]. A0 attributes the same
+  13 to its one-sided rate (`zd`), with the same two residual co-firings.
+- **What it means:** on TUNE, taking the rate two-sided changes nothing that is caught.
+  EVAL was not read, and nothing is adopted.
+
+**PowerSim (82.3).**
+
+Cuts by the toolkit's rule: **A0 20.191072**, which reproduces the flown cut, and **A7
+19.709692**. Both give a held-out rate of 0.1046%. Alarms counted from tick 2,350:
+
+| Run | A0: first event-attributable alarm | A7: first event-attributable alarm | A0 / A7 alarms not in the twin |
+|---|---|---|---|
+| healthy twin | -- (82 alarms in 60,000) | -- (81 alarms) | -- |
+| **true freeze** (Load sensor stuck, [30,000, 35,400)) | **35,400 (+5,400): the release**, not during | **35,400 (+5,400)** | 35,400, 35,820, 36,720 (both) |
+| **legitimate pause** (instrument off, [30,000, 35,400)) | **33,233 (+3,233): a false alarm** | **33,233 (+3,233)** | 33,233, 35,400, 35,820, 36,720, 39,514, 41,700, 55,899 (both) |
+
+- **"First alarm at or after 30,000" is 30,000 in all three runs**, the twin included: a
+  healthy instrument-switch alarm falls on that tick. So the table gives the first alarm the
+  twin does not have.
+- **Neither rule detects the freeze while it lasts.** The stuck channel's rate is simply
+  zero, and both rate terms are standardised. Only the release, a step back to the true
+  value, alarms.
+- **Both rules false-alarm on the legitimate pause:** 7 alarms the twin does not have, and
+  10 of the twin's suppressed.
+- **On this testbed the two-sided rate changes no first-alarm tick.** It differs from A0 by
+  one alarm in 60,000 on the healthy twin.
 
 No timing figure is recorded (stop 35).

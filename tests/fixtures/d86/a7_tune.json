@@ -1,0 +1,281 @@
+{
+ "section": "docs/MODELS.md 82.2",
+ "target_rate": 0.006819635242388942,
+ "channels": 77,
+ "skipped": {
+  "E-3": "RuntimeError: no cached fit under the pre-D76 key",
+  "G-1": "RuntimeError: no cached fit under the pre-D76 key",
+  "D-11": "RuntimeError: no cached fit under the pre-D76 key",
+  "D-12": "RuntimeError: no cached fit under the pre-D76 key"
+ },
+ "tune_events": 19,
+ "arms": {
+  "A0": {
+   "terms": [
+    "zr",
+    "zd"
+   ],
+   "cut": 5.288128000517597,
+   "rate": 0.006819635242388942,
+   "tune": 13,
+   "events": [
+    "P-1[2149]",
+    "P-1[4536]",
+    "E-11[5000]",
+    "E-11[5614]",
+    "A-3[4575]",
+    "G-7[3650]",
+    "G-7[7560]",
+    "P-7[4950]",
+    "A-8[4569]",
+    "M-3[1250]",
+    "M-4[1250]",
+    "C-1[2100]",
+    "T-8[1330]"
+   ],
+   "attribution": {
+    "P-1[2149]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "P-1[4536]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "E-11[5000]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "E-11[5614]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "A-3[4575]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "G-7[3650]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zr",
+      "zd"
+     ]
+    },
+    "G-7[7560]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zr",
+      "zd"
+     ]
+    },
+    "P-7[4950]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "A-8[4569]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "M-3[1250]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "M-4[1250]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "C-1[2100]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    },
+    "T-8[1330]": {
+     "first": [
+      "zd"
+     ],
+     "any": [
+      "zd"
+     ]
+    }
+   }
+  },
+  "A7": {
+   "terms": [
+    "zr",
+    "zta"
+   ],
+   "cut": 5.2033867528145175,
+   "rate": 0.006819635242388942,
+   "tune": 13,
+   "events": [
+    "P-1[2149]",
+    "P-1[4536]",
+    "E-11[5000]",
+    "E-11[5614]",
+    "A-3[4575]",
+    "G-7[3650]",
+    "G-7[7560]",
+    "P-7[4950]",
+    "A-8[4569]",
+    "M-3[1250]",
+    "M-4[1250]",
+    "C-1[2100]",
+    "T-8[1330]"
+   ],
+   "attribution": {
+    "P-1[2149]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "P-1[4536]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "E-11[5000]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "E-11[5614]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "A-3[4575]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "G-7[3650]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zr",
+      "zta"
+     ]
+    },
+    "G-7[7560]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zr",
+      "zta"
+     ]
+    },
+    "P-7[4950]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "A-8[4569]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "M-3[1250]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "M-4[1250]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "C-1[2100]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    },
+    "T-8[1330]": {
+     "first": [
+      "zta"
+     ],
+     "any": [
+      "zta"
+     ]
+    }
+   }
+  }
+ },
+ "reproduction_A0": true,
+ "lost": [],
+ "gained": []
+}

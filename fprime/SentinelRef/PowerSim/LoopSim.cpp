@@ -16,6 +16,7 @@
 //   ocv=START,TAU,LOSS                           D85b arm (a): the OCV slope falls by LOSS at
 //                                                saturation (MODELS 81.3) (optional)
 //   eclipse=START,TAU,DELTA  hk=START,TAU,DELTA  duty=START,TAU,DELTA
+//   pause=START,LEN                              MODELS 82.3: the instrument commanded off
 //                                                D85b 81.9's survey drifts (optional, one each)
 //   sensor=KIND,CH,START,PARAM,RAMP              D86b (a)(b)(e): what a faulty SENSOR reports;
 //                                                KIND drift (PARAM per tick), offset (PARAM,
@@ -75,6 +76,7 @@ struct Args {
     bool loadShift = false; unsigned shiftStart = 0u, shift = 0u;
     bool ocv = false; unsigned ocvStart = 0u; double ocvTau = 1.0, ocvLoss = 0.0;
     bool drift[3] = {false, false, false}; unsigned driftStart[3] = {0u, 0u, 0u};
+    bool pause = false; unsigned pauseStart = 0u, pauseLen = 0u;
     double driftTau[3] = {1.0, 1.0, 1.0}, driftDelta[3] = {0.0, 0.0, 0.0};
     std::string sensorKind; unsigned sensorCh = 0u, sensorStart = 0u, sensorRamp = 1u;
     double sensorParam = 0.0;
@@ -142,6 +144,9 @@ bool parse(int argc, char** argv, Args& a)
             const int d = (k == "eclipse") ? 0 : ((k == "hk") ? 1 : 2);
             a.drift[d] = true; a.driftStart[d] = (unsigned)std::atoi(p[0].c_str());
             a.driftTau[d] = std::atof(p[1].c_str()); a.driftDelta[d] = std::atof(p[2].c_str()); }
+        else if (k == "pause" && p.size() == 2) {
+            a.pause = true; a.pauseStart = (unsigned)std::atoi(p[0].c_str());
+            a.pauseLen = (unsigned)std::atoi(p[1].c_str()); }
         else if (k == "loadshift" && p.size() == 2) {
             a.loadShift = true; a.shiftStart = (unsigned)std::atoi(p[0].c_str());
             a.shift = (unsigned)std::atoi(p[1].c_str()); }
@@ -230,6 +235,7 @@ int main(int argc, char** argv)
     if (a.ageing) { plant.configureAgeing(a.spinup + a.ageStart, a.ageTau, a.solarLoss, a.emisLoss); }
     if (a.loadShift) { plant.configureLoadShift(a.spinup + a.shiftStart, a.shift); }
     if (a.ocv) { plant.configureOcvAgeing(a.spinup + a.ocvStart, a.ocvTau, a.ocvLoss); }
+    if (a.pause) { plant.configurePause(a.spinup + a.pauseStart, a.pauseLen); }
     for (int d = 0; d < 3; ++d) {
         if (a.drift[d]) {
             plant.configureDrift(static_cast<PowerPlant::Drift>(d), a.spinup + a.driftStart[d],
@@ -298,6 +304,7 @@ int main(int argc, char** argv)
                  a.seed, a.ticks, a.spinup, a.balance ? 1 : 0, a.ageing ? 1 : 0, a.fault ? 1 : 0,
                  a.faultStart, a.faultRate, a.swap ? 1 : 0, a.swapTick);
     // D85b: the scenario options that change the telemetry, all of them, for provenance.
+    std::fprintf(s, "pause %d,%u,%u\n", a.pause ? 1 : 0, a.pauseStart, a.pauseLen);
     std::fprintf(s, "eclipse %d,%u,%g,%g hk %d,%u,%g,%g duty %d,%u,%g,%g\n",
                  a.drift[0] ? 1 : 0, a.driftStart[0], a.driftTau[0], a.driftDelta[0],
                  a.drift[1] ? 1 : 0, a.driftStart[1], a.driftTau[1], a.driftDelta[1],

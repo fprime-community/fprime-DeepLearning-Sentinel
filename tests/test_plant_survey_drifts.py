@@ -110,3 +110,42 @@ def test_the_duty_drift_shortens_the_instrument_on_time(exe) -> None:
 @pytest.mark.parametrize("which", [0, 1, 2])
 def test_at_delta_zero_a_drift_changes_nothing(exe, which) -> None:
     assert _run(exe, which, 0.0)[0] == -1
+
+
+PAUSE_SRC = r'''
+#include <cstdio>
+#include <cstring>
+#include "PowerPlant.hpp"
+using namespace Testbed;
+int main() {
+    PowerPlant h, a; h.reset(1u); a.reset(1u);
+    h.configureBalance(0.60, 0.92); a.configureBalance(0.60, 0.92);
+    a.configurePause(60000u + 30000u, 5400u);
+    long firstDiff = -1; double maxLoad = 0.0;
+    for (uint32_t t = 0; t < 60000u + 36000u; ++t) {
+        h.step(false, 0.0); a.step(false, 0.0);
+        for (uint32_t c = 0; c < PLANT_CHANNELS; ++c) {
+            const double vh = h.value(c), va = a.value(c);
+            if (firstDiff < 0 && std::memcmp(&vh, &va, 8) != 0) firstDiff = (long)t - 60000L;
+        }
+        if (t >= 60000u + 30000u && t < 60000u + 35400u && a.value(CH_LOAD_CURRENT) > maxLoad)
+            maxLoad = a.value(CH_LOAD_CURRENT);
+    }
+    std::printf("%ld %.6f\n", firstDiff, maxLoad);
+}
+'''
+
+
+@needs_cxx
+def test_a_pause_changes_nothing_before_it_and_idles_the_instrument_during_it(tmp_path) -> None:
+    """MODELS 82.3: commanded off, the instrument draws its idle 0.55 A; before, nothing moves."""
+    cxx = shutil.which("clang++") or shutil.which("c++")
+    (tmp_path / "p.cpp").write_text(PAUSE_SRC)
+    r = subprocess.run([cxx, "-std=c++14", "-O2", f"-I{POWERSIM}", str(tmp_path / "p.cpp"),
+                        str(POWERSIM / "PowerPlant.cpp"), "-o", str(tmp_path / "p")],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    first, max_load = subprocess.run([str(tmp_path / "p")], capture_output=True,
+                                     text=True).stdout.split()
+    assert int(first) >= 30000
+    assert float(max_load) < 0.60 + 0.55 + 0.07, "the instrument drew its on-current in a pause"

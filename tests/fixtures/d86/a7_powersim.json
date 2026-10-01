@@ -1,0 +1,79 @@
+{
+ "section": "docs/MODELS.md 82.3",
+ "flown_cut": 20.19107247481538,
+ "cuts": {
+  "A0": {
+   "cut": 20.19107247481538,
+   "fit_rate": 0.0010457516339869282,
+   "holdout_rate": 0.0010457516339869282
+  },
+  "A7": {
+   "cut": 19.70969213319247,
+   "fit_rate": 0.0010457516339869282,
+   "holdout_rate": 0.0010457516339869282
+  }
+ },
+ "reproduction_A0": true,
+ "runs": {
+  "twin": {
+   "A0": {
+    "first_alarm_at_or_after_event": 30000,
+    "first_minus_event": 0,
+    "first_terms": [
+     "zd"
+    ],
+    "alarms_in_event_window": 11,
+    "alarms_whole_run": 82
+   },
+   "A7": {
+    "first_alarm_at_or_after_event": 30000,
+    "first_minus_event": 0,
+    "first_terms": [
+     "zta"
+    ],
+    "alarms_in_event_window": 10,
+    "alarms_whole_run": 81
+   }
+  },
+  "freeze": {
+   "A0": {
+    "first_alarm_at_or_after_event": 30000,
+    "first_minus_event": 0,
+    "first_terms": [
+     "zd"
+    ],
+    "alarms_in_event_window": 13,
+    "alarms_whole_run": 84
+   },
+   "A7": {
+    "first_alarm_at_or_after_event": 30000,
+    "first_minus_event": 0,
+    "first_terms": [
+     "zta"
+    ],
+    "alarms_in_event_window": 12,
+    "alarms_whole_run": 83
+   }
+  },
+  "pause": {
+   "A0": {
+    "first_alarm_at_or_after_event": 33233,
+    "first_minus_event": 3233,
+    "first_terms": [
+     "zd"
+    ],
+    "alarms_in_event_window": 6,
+    "alarms_whole_run": 78
+   },
+   "A7": {
+    "first_alarm_at_or_after_event": 33233,
+    "first_minus_event": 3233,
+    "first_terms": [
+     "zta"
+    ],
+    "alarms_in_event_window": 6,
+    "alarms_whole_run": 78
+   }
+  }
+ }
+}
