@@ -786,6 +786,10 @@ prediction that failed and why. This document follows the same discipline.
   - [81.8 OBSERVED before any arm, 2026-09-29: T = 1.02, and arm (a)'s ladder qualifies no rung](#818-observed-before-any-arm-2026-09-29-t-102-and-arm-as-ladder-qualifies-no-rung)
   - [81.9 Pre-registration, 2026-09-29, before any survey run: the premise survey (route 1), and arm (a) chosen by it or the limit recorded](#819-pre-registration-2026-09-29-before-any-survey-run-the-premise-survey-route-1-and-arm-a-chosen-by-it-or-the-limit-recorded)
   - [81.10 OBSERVED, 2026-09-29 -- C1 HELD, C3 VACUOUS, LC2 HELD, the survey found no rate-normal healthy change the forecaster notices, and D85.1 stands](#8110-observed-2026-09-29----c1-held-c3-vacuous-lc2-held-the-survey-found-no-rate-normal-healthy-change-the-forecaster-notices-and-d851-stands)
+- [82 Pre-registration: arm A7, the two-sided rate -- SMAP/MSL TUNE only, and a freeze against a pause on the testbed (research, Phase 5)](#82-pre-registration-arm-a7-the-two-sided-rate----smapmsl-tune-only-and-a-freeze-against-a-pause-on-the-testbed-research-phase-5)
+  - [82.1 The arm](#821-the-arm)
+  - [82.2 SMAP/MSL, TUNE only -- no EVAL channel's events are loaded](#822-smapmsl-tune-only----no-eval-channels-events-are-loaded)
+  - [82.3 PowerSim: a true freeze against a legitimate pause](#823-powersim-a-true-freeze-against-a-legitimate-pause)
 
 <!-- /toc -->
 
@@ -24094,3 +24098,73 @@ six arms ran at lowered priority under `caffeinate`, beside the E1 rerun (81.9).
 - **C3 is vacuous again:** after onset, the detector's own warnings block admission, so a
   slow failure never reaches retraining. That is a safety property of the guard band, but it
   is not a test of the gate.
+
+## 82. Pre-registration: arm A7, the two-sided rate -- SMAP/MSL TUNE only, and a freeze against a pause on the testbed (research, Phase 5)
+
+Registered 2026-10-01, at the owner's request, before any number below is computed. **This
+is research, as D86 was.** Nothing in `flight/`, the Monitor, `reference.py`,
+`param_version` or the model format changes (stop 65). No adoption follows from it; adopting
+a flown rule is D87's.
+
+**REQUIREMENTS DERIVED FROM:**
+
+```
+  the owner's brief, 2026-10-01   A7 = max(z_err, |z_rate|), one cut at the matched 0.6820%,
+                                  SMAP/MSL TUNE only; a freeze and a pause on PowerSim
+  docs/MODELS.md 79.4, 79.11      D86's channels, TUNE set, matched-rate rule, floor on new terms
+  scripts/d86_arms.py             solve(), smap_caught(), attribution(), terms as flown
+  src/sentinel_toolkit/fit.py     the flying model's cut: q0.999 pooled nominal, settled half
+  scripts/d86b.py                 the testbed's z_res and z_der in NumPy, verified against flight
+```
+
+### 82.1 The arm
+
+**A7 = max(z_err, |z_rate|)**, reduced across channels as every arm is.
+- **z_err:** `zr`, the flown smoothed-residual z, exactly as in A0.
+- **|z_rate|:** `|zstat_floored(dx, W, 1e-3 x scale)|`, the two-sided z of the **signed**
+  first difference. Its sd floor is 79.11's rule for new terms. A0's rate term is the
+  one-sided `zstat(|dx|)`.
+
+### 82.2 SMAP/MSL, TUNE only -- no EVAL channel's events are loaded
+
+- **The data.** The 82 channels are read from R2 into memory, and nothing is written to disk
+  (owner rule). Projected cost: about 166 Class B reads and 0 Class A. The forecasters are the
+  1,313 cached univariate weights, read only (stop 61).
+- **The cut.** One cut at the matched rate, target **0.6819635%** (stage 4's GRU nominal
+  rate), by D86's `solve()` over every scored channel's nominal steps.
+- **Catches** are counted on the **19** contextual TUNE events (`smap_caught`). Each catch is
+  attributed by `attribution()`: the term(s) at the first alarm step, and every term that
+  reached the cut in the window.
+- **Reproduction gate first.** A0 on the same pipeline must give cut 5.288128 and 13 TUNE
+  catches (79.4's REPRO). If it does not, no A7 number is reported.
+- **Reported:**
+  - A7's catches of 19, its cut, and its realised rate;
+  - A0's, beside it;
+  - per event, which term fired.
+- **No prediction is registered.** This is a measurement for the owner, read once on TUNE,
+  and it decides nothing.
+
+### 82.3 PowerSim: a true freeze against a legitimate pause
+
+- **The plant.** The balanced plant, seed 1, `retrain=0`, 60,000 ticks, the flying model of
+  78.4. The event runs from tick 30,000 for one orbit (5,400 ticks).
+  - **The healthy twin:** the same run with no event.
+  - **A true freeze:** the LoadCurrent sensor sticks at its tick-29,999 value for
+    [30,000, 35,400). It is applied to the healthy twin's trace. The plant is untouched, so
+    Bus and Charge keep stepping.
+  - **A legitimate pause:** the instrument is commanded off for [30,000, 35,400): it draws
+    0.55 A. It is a new opt-in plant mode, `pause=START,LEN`, and every channel stays
+    physically consistent.
+- **The cuts.**
+  - A0's is the flying model's, 20.191072.
+  - A7's comes from the same rule the toolkit used for that cut (`fit.py`): q0.999 of the
+    pooled settled nominal, on the same held-out rows of the flying model's own healthy
+    seed-7 run.
+  - **Gate:** A0 recalibrated by that path must reproduce 20.191072.
+- **Reported, for A0 and A7:**
+  - the first alarm tick at or after 30,000, in each event run (for the pause, any alarm is
+    a false alarm);
+  - alarm counts over [30,000, 35,400 + 2,100);
+  - false alarms on the healthy twin over [2,350, 60,000).
+
+No timing figure is recorded (stop 35).
